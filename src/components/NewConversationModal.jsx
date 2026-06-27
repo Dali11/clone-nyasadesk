@@ -1,10 +1,14 @@
 import { useState } from 'react';
-import { base44 } from '@/api/base44Client';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
-import { X, Send } from 'lucide-react';
+import { Send } from 'lucide-react';
+import { MOCK_CONTACTS, genId } from '@/lib/mockData';
 
 const CHANNELS = ['email', 'whatsapp', 'chat', 'phone'];
 const PRIORITIES = ['low', 'normal', 'high', 'urgent'];
+
+// In-memory contact store reference (same as ContactPanel)
+const contactStore = {};
+MOCK_CONTACTS.forEach(c => { contactStore[c.id] = { ...c }; });
 
 export default function NewConversationModal({ open, onClose, onCreated, user }) {
   const [form, setForm] = useState({
@@ -16,36 +20,19 @@ export default function NewConversationModal({ open, onClose, onCreated, user })
     firstMessage: '',
     tags: '',
   });
-  const [saving, setSaving] = useState(false);
 
   const set = (k, v) => setForm(f => ({ ...f, [k]: v }));
 
-  const handleSubmit = async () => {
+  const handleSubmit = () => {
     if (!form.contactName || !form.subject) return;
-    setSaving(true);
-
-    // Create or find contact
-    let contactId = null;
-    try {
-      const contacts = await base44.entities.Contact.filter({ email: form.contactEmail });
-      if (contacts.length > 0) {
-        contactId = contacts[0].id;
-      } else {
-        const c = await base44.entities.Contact.create({
-          full_name: form.contactName,
-          email: form.contactEmail,
-          lead_source: form.channel,
-          deal_stage: 'New Lead',
-        });
-        contactId = c.id;
-      }
-    } catch {}
 
     const tags = form.tags ? form.tags.split(',').map(t => t.trim()).filter(Boolean) : [];
+    const now = new Date().toISOString();
 
-    const conv = await base44.entities.Conversation.create({
+    const conv = {
+      id: genId('conv'),
       subject: form.subject,
-      contact_id: contactId,
+      contact_id: null,
       contact_name: form.contactName,
       contact_email: form.contactEmail,
       channel: form.channel,
@@ -54,24 +41,15 @@ export default function NewConversationModal({ open, onClose, onCreated, user })
       deal_stage: 'New Lead',
       tags,
       last_message_preview: form.firstMessage.slice(0, 120),
-      last_message_at: new Date().toISOString(),
+      last_message_at: now,
       unread: false,
       assigned_to: user?.id,
       assigned_to_name: user?.full_name,
-    });
+      is_reminder_active: false,
+      created_date: now,
+      updated_date: now,
+    };
 
-    if (form.firstMessage) {
-      await base44.entities.Message.create({
-        conversation_id: conv.id,
-        type: 'outbound',
-        body: form.firstMessage,
-        sender_name: user?.full_name || 'You',
-        sender_id: user?.id,
-        channel: form.channel,
-      });
-    }
-
-    setSaving(false);
     onCreated(conv);
     onClose();
     setForm({ contactName: '', contactEmail: '', subject: '', channel: 'email', priority: 'normal', firstMessage: '', tags: '' });
@@ -163,17 +141,11 @@ export default function NewConversationModal({ open, onClose, onCreated, user })
 
           <button
             onClick={handleSubmit}
-            disabled={saving || !form.contactName || !form.subject}
+            disabled={!form.contactName || !form.subject}
             className="w-full py-2.5 bg-[#5C6CF7] text-white text-sm font-semibold rounded-xl hover:bg-[#4A5CE6] transition-colors disabled:opacity-50 flex items-center justify-center gap-2"
           >
-            {saving ? (
-              <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
-            ) : (
-              <>
-                <Send className="w-4 h-4" />
-                Create Conversation
-              </>
-            )}
+            <Send className="w-4 h-4" />
+            Create Conversation
           </button>
         </div>
       </DialogContent>

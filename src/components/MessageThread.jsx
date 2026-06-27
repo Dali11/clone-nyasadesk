@@ -1,8 +1,8 @@
 import { useState, useEffect, useRef } from 'react';
-import { base44 } from '@/api/base44Client';
 import { Send, StickyNote, User, ArrowRight } from 'lucide-react';
-import { formatDistanceToNow, format } from 'date-fns';
+import { formatDistanceToNow } from 'date-fns';
 import { motion, AnimatePresence } from 'framer-motion';
+import { MOCK_MESSAGES, genId } from '@/lib/mockData';
 
 function MessageBubble({ msg }) {
   const isNote = msg.type === 'note';
@@ -59,47 +59,54 @@ function MessageBubble({ msg }) {
   );
 }
 
-export default function MessageThread({ conversation, user }) {
+// In-memory message store shared across renders
+const messageStore = { ...MOCK_MESSAGES };
+
+export default function MessageThread({ conversation, user, onConversationUpdate }) {
   const [messages, setMessages] = useState([]);
-  const [loading, setLoading] = useState(true);
   const [replyBody, setReplyBody] = useState('');
   const [noteBody, setNoteBody] = useState('');
   const [tab, setTab] = useState('reply');
-  const [sending, setSending] = useState(false);
   const bottomRef = useRef(null);
 
   useEffect(() => {
     if (!conversation) return;
-    setLoading(true);
-    base44.entities.Message.filter({ conversation_id: conversation.id }, 'created_date', 100)
-      .then(msgs => { setMessages(msgs); setLoading(false); })
-      .catch(() => setLoading(false));
+    setMessages(messageStore[conversation.id] ? [...messageStore[conversation.id]] : []);
   }, [conversation?.id]);
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages]);
 
-  const send = async () => {
+  const send = () => {
     const body = tab === 'reply' ? replyBody : noteBody;
     if (!body.trim() || !conversation) return;
-    setSending(true);
-    const msg = await base44.entities.Message.create({
+
+    const msg = {
+      id: genId('msg'),
       conversation_id: conversation.id,
       type: tab === 'reply' ? 'outbound' : 'note',
       body: body.trim(),
       sender_name: user?.full_name || 'You',
       sender_id: user?.id,
       channel: conversation.channel,
-    });
-    await base44.entities.Conversation.update(conversation.id, {
-      last_message_preview: body.trim().slice(0, 120),
-      last_message_at: new Date().toISOString(),
-      unread: false,
-    });
+      created_date: new Date().toISOString(),
+    };
+
+    if (!messageStore[conversation.id]) messageStore[conversation.id] = [];
+    messageStore[conversation.id] = [...messageStore[conversation.id], msg];
     setMessages(prev => [...prev, msg]);
+
+    if (onConversationUpdate) {
+      onConversationUpdate({
+        ...conversation,
+        last_message_preview: body.trim().slice(0, 120),
+        last_message_at: new Date().toISOString(),
+        unread: false,
+      });
+    }
+
     tab === 'reply' ? setReplyBody('') : setNoteBody('');
-    setSending(false);
   };
 
   const handleKeyDown = (e) => {
@@ -124,11 +131,7 @@ export default function MessageThread({ conversation, user }) {
     <div className="flex-1 flex flex-col bg-[#F5F5F7] min-h-0">
       {/* Messages */}
       <div className="flex-1 overflow-y-auto scrollbar-thin px-6 py-4 flex flex-col gap-3">
-        {loading ? (
-          <div className="flex items-center justify-center h-full">
-            <div className="w-6 h-6 border-2 border-[#5C6CF7] border-t-transparent rounded-full animate-spin" />
-          </div>
-        ) : messages.length === 0 ? (
+        {messages.length === 0 ? (
           <div className="flex items-center justify-center h-full text-sm text-gray-400">
             No messages yet — start the conversation below.
           </div>
@@ -151,7 +154,6 @@ export default function MessageThread({ conversation, user }) {
 
       {/* Composer */}
       <div className="bg-white border-t border-gray-200 px-4 py-3 shrink-0">
-        {/* Tabs */}
         <div className="flex gap-1 mb-3">
           <button
             onClick={() => setTab('reply')}
@@ -176,22 +178,18 @@ export default function MessageThread({ conversation, user }) {
             value={tab === 'reply' ? replyBody : noteBody}
             onChange={e => tab === 'reply' ? setReplyBody(e.target.value) : setNoteBody(e.target.value)}
             onKeyDown={handleKeyDown}
-            placeholder={tab === 'reply' ? 'Write a reply… (⌘↵ to send)' : 'Add an internal note… (⌘↵ to save)'}
+            placeholder={tab === 'reply' ? 'Write a reply… (\u2318\u21a9 to send)' : 'Add an internal note… (\u2318\u21a9 to save)'}
             className={`w-full px-4 py-3 text-sm resize-none focus:outline-none bg-transparent
               ${tab === 'note' ? 'text-amber-900 placeholder:text-amber-400' : 'text-gray-800 placeholder:text-gray-400'}`}
           />
           <div className="flex items-center justify-end px-3 pb-2">
             <button
               onClick={send}
-              disabled={sending || !(tab === 'reply' ? replyBody : noteBody).trim()}
+              disabled={!(tab === 'reply' ? replyBody : noteBody).trim()}
               className={`flex items-center gap-1.5 px-4 py-1.5 rounded-full text-xs font-semibold transition-all disabled:opacity-40
                 ${tab === 'note' ? 'bg-amber-500 text-white hover:bg-amber-600' : 'bg-[#5C6CF7] text-white hover:bg-[#4A5CE6]'}`}
             >
-              {sending ? (
-                <div className="w-3 h-3 border-2 border-white border-t-transparent rounded-full animate-spin" />
-              ) : (
-                <Send className="w-3 h-3" />
-              )}
+              <Send className="w-3 h-3" />
               {tab === 'reply' ? 'Send' : 'Save Note'}
             </button>
           </div>

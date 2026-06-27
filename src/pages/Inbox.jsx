@@ -1,13 +1,12 @@
 import { useState, useEffect, useCallback } from 'react';
-import { base44 } from '@/api/base44Client';
 import { Search, Plus, Filter, ChevronDown, Inbox as InboxIcon, Clock, CheckCircle, AlertCircle, RotateCcw } from 'lucide-react';
-import { motion } from 'framer-motion';
 import NavRail from '@/components/NavRail';
 import ConversationList from '@/components/ConversationList';
 import MessageThread from '@/components/MessageThread';
 import ConversationHeader from '@/components/ConversationHeader';
 import ContactPanel from '@/components/ContactPanel';
 import NewConversationModal from '@/components/NewConversationModal';
+import { MOCK_USER, MOCK_USERS, MOCK_CONVERSATIONS } from '@/lib/mockData';
 
 const FILTERS = [
   { key: 'all', label: 'All', icon: InboxIcon },
@@ -20,32 +19,14 @@ const FILTERS = [
 const CHANNELS = ['all', 'email', 'whatsapp', 'chat', 'phone'];
 
 export default function Inbox() {
-  const [user, setUser] = useState(null);
-  const [conversations, setConversations] = useState([]);
-  const [users, setUsers] = useState([]);
+  const user = MOCK_USER;
+  const users = MOCK_USERS;
+  const [conversations, setConversations] = useState([...MOCK_CONVERSATIONS]);
   const [activeConv, setActiveConv] = useState(null);
-  const [loading, setLoading] = useState(true);
   const [filter, setFilter] = useState('all');
   const [channelFilter, setChannelFilter] = useState('all');
   const [search, setSearch] = useState('');
   const [showNewModal, setShowNewModal] = useState(false);
-
-  useEffect(() => {
-    base44.auth.me().then(setUser).catch(() => {});
-    base44.entities.User.list().then(setUsers).catch(() => {});
-    loadConversations();
-  }, []);
-
-  const loadConversations = async () => {
-    setLoading(true);
-    try {
-      const convs = await base44.entities.Conversation.list('-last_message_at', 100);
-      setConversations(convs);
-    } catch {
-      setConversations([]);
-    }
-    setLoading(false);
-  };
 
   const filtered = conversations.filter(c => {
     if (filter === 'unassigned' && c.assigned_to) return false;
@@ -75,7 +56,6 @@ export default function Inbox() {
   const handleSelect = (conv) => {
     setActiveConv(conv);
     if (conv.unread) {
-      base44.entities.Conversation.update(conv.id, { unread: false });
       setConversations(prev => prev.map(c => c.id === conv.id ? { ...c, unread: false } : c));
     }
   };
@@ -181,7 +161,7 @@ export default function Inbox() {
             conversations={filtered}
             activeId={activeConv?.id}
             onSelect={handleSelect}
-            loading={loading}
+            loading={false}
             filterLabel={search}
           />
         </div>
@@ -197,7 +177,7 @@ export default function Inbox() {
               onUpdate={handleConvUpdate}
             />
             <div className="flex flex-1 min-h-0">
-              <MessageThread conversation={activeConv} user={user} />
+              <MessageThread conversation={activeConv} user={user} onConversationUpdate={handleConvUpdate} />
               <ContactPanel
                 conversation={activeConv}
                 user={user}

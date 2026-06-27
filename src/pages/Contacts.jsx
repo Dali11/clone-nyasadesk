@@ -1,31 +1,25 @@
-import { useState, useEffect } from 'react';
-import { base44 } from '@/api/base44Client';
-import { Search, Plus, User, Mail, Phone, Building2, ChevronRight, Edit3, Trash2, Check, X } from 'lucide-react';
+import { useState } from 'react';
+import { Search, Plus, User, Mail, Phone, ChevronRight, Edit3, Trash2, Check, X } from 'lucide-react';
 import NavRail from '@/components/NavRail';
 import DealStageStepper from '@/components/DealStageStepper';
 import TagChip from '@/components/TagChip';
 import ChannelBadge from '@/components/ChannelBadge';
 import { motion, AnimatePresence } from 'framer-motion';
+import { MOCK_USER, MOCK_CONTACTS, MOCK_CONVERSATIONS, genId } from '@/lib/mockData';
 
 const STAGES = ['New Lead', 'Contacted', 'Qualified', 'Proposal Sent', 'Negotiation', 'Closed Won', 'Closed Lost'];
+
+// In-memory conversation lookup for contact history
+function getContactHistory(contactId) {
+  return MOCK_CONVERSATIONS.filter(c => c.contact_id === contactId);
+}
 
 function ContactDrawer({ contact, onClose, onUpdate, onDelete }) {
   const [editing, setEditing] = useState(false);
   const [editData, setEditData] = useState({ ...contact });
-  const [history, setHistory] = useState([]);
+  const history = getContactHistory(contact.id);
 
-  useEffect(() => {
-    if (contact) {
-      setEditData({ ...contact });
-      base44.entities.Conversation.filter({ contact_id: contact.id }, '-updated_date', 20)
-        .then(setHistory).catch(() => {});
-    }
-  }, [contact?.id]);
-
-  if (!contact) return null;
-
-  const save = async () => {
-    await base44.entities.Contact.update(contact.id, editData);
+  const save = () => {
     onUpdate({ ...contact, ...editData });
     setEditing(false);
   };
@@ -54,7 +48,6 @@ function ContactDrawer({ contact, onClose, onUpdate, onDelete }) {
       </div>
 
       <div className="flex-1 overflow-y-auto scrollbar-thin">
-        {/* Avatar + info */}
         <div className="px-5 pt-5 pb-4 border-b border-gray-100">
           <div className="w-14 h-14 rounded-2xl bg-gradient-to-br from-[#5C6CF7] to-[#00A8BD] flex items-center justify-center text-white font-bold text-xl mb-4">
             {contact.full_name?.[0]?.toUpperCase() || '?'}
@@ -109,34 +102,26 @@ function ContactDrawer({ contact, onClose, onUpdate, onDelete }) {
           )}
         </div>
 
-        {/* Deal Stage */}
         <div className="px-5 py-4 border-b border-gray-100">
           <p className="text-[10px] font-semibold text-gray-400 uppercase mb-2">Deal Stage</p>
           <DealStageStepper
             currentStage={contact.deal_stage || 'New Lead'}
-            onChange={async stage => {
-              await base44.entities.Contact.update(contact.id, { deal_stage: stage });
-              onUpdate({ ...contact, deal_stage: stage });
-            }}
+            onChange={stage => onUpdate({ ...contact, deal_stage: stage })}
             compact
           />
         </div>
 
-        {/* Notes */}
         <div className="px-5 py-4 border-b border-gray-100">
           <p className="text-[10px] font-semibold text-gray-400 uppercase mb-2">Notes</p>
           <textarea
             rows={4}
             defaultValue={contact.notes || ''}
-            onBlur={async e => {
-              await base44.entities.Contact.update(contact.id, { notes: e.target.value });
-            }}
+            onBlur={e => onUpdate({ ...contact, notes: e.target.value })}
             placeholder="Add notes about this contact…"
             className="w-full text-sm border border-gray-200 rounded-lg px-3 py-2 resize-none focus:outline-none focus:ring-1 focus:ring-[#5C6CF7] text-gray-700 placeholder:text-gray-400"
           />
         </div>
 
-        {/* Conversation History */}
         <div className="px-5 py-4">
           <p className="text-[10px] font-semibold text-gray-400 uppercase mb-2">Conversations ({history.length})</p>
           {history.length === 0 ? (
@@ -163,30 +148,24 @@ function ContactDrawer({ contact, onClose, onUpdate, onDelete }) {
   );
 }
 
+const stageColors = {
+  'New Lead': 'bg-gray-100 text-gray-600',
+  'Contacted': 'bg-blue-100 text-blue-600',
+  'Qualified': 'bg-indigo-100 text-indigo-600',
+  'Proposal Sent': 'bg-purple-100 text-purple-600',
+  'Negotiation': 'bg-amber-100 text-amber-600',
+  'Closed Won': 'bg-emerald-100 text-emerald-600',
+  'Closed Lost': 'bg-red-100 text-red-600',
+};
+
 export default function Contacts() {
-  const [user, setUser] = useState(null);
-  const [contacts, setContacts] = useState([]);
-  const [loading, setLoading] = useState(true);
+  const user = MOCK_USER;
+  const [contacts, setContacts] = useState([...MOCK_CONTACTS]);
   const [search, setSearch] = useState('');
   const [stageFilter, setStageFilter] = useState('all');
   const [selectedContact, setSelectedContact] = useState(null);
   const [showAddForm, setShowAddForm] = useState(false);
   const [newContact, setNewContact] = useState({ full_name: '', email: '', company: '', phone: '' });
-  const [saving, setSaving] = useState(false);
-
-  useEffect(() => {
-    base44.auth.me().then(setUser).catch(() => {});
-    loadContacts();
-  }, []);
-
-  const loadContacts = async () => {
-    setLoading(true);
-    try {
-      const c = await base44.entities.Contact.list('-updated_date', 200);
-      setContacts(c);
-    } catch {}
-    setLoading(false);
-  };
 
   const filtered = contacts.filter(c => {
     if (stageFilter !== 'all' && c.deal_stage !== stageFilter) return false;
@@ -199,14 +178,20 @@ export default function Contacts() {
     return true;
   });
 
-  const addContact = async () => {
+  const addContact = () => {
     if (!newContact.full_name) return;
-    setSaving(true);
-    const c = await base44.entities.Contact.create({ ...newContact, deal_stage: 'New Lead' });
+    const c = {
+      ...newContact,
+      id: genId('c'),
+      deal_stage: 'New Lead',
+      tags: [],
+      notes: '',
+      created_date: new Date().toISOString(),
+      updated_date: new Date().toISOString(),
+    };
     setContacts(prev => [c, ...prev]);
     setShowAddForm(false);
     setNewContact({ full_name: '', email: '', company: '', phone: '' });
-    setSaving(false);
     setSelectedContact(c);
   };
 
@@ -215,20 +200,9 @@ export default function Contacts() {
     if (selectedContact?.id === updated.id) setSelectedContact(updated);
   };
 
-  const handleDelete = async (id) => {
-    await base44.entities.Contact.delete(id);
+  const handleDelete = (id) => {
     setContacts(prev => prev.filter(c => c.id !== id));
     setSelectedContact(null);
-  };
-
-  const stageColors = {
-    'New Lead': 'bg-gray-100 text-gray-600',
-    'Contacted': 'bg-blue-100 text-blue-600',
-    'Qualified': 'bg-indigo-100 text-indigo-600',
-    'Proposal Sent': 'bg-purple-100 text-purple-600',
-    'Negotiation': 'bg-amber-100 text-amber-600',
-    'Closed Won': 'bg-emerald-100 text-emerald-600',
-    'Closed Lost': 'bg-red-100 text-red-600',
   };
 
   return (
@@ -236,7 +210,6 @@ export default function Contacts() {
       <NavRail user={user} />
 
       <div className="flex-1 flex flex-col min-w-0">
-        {/* Header */}
         <div className="bg-white border-b border-gray-200 px-6 py-4 flex items-center gap-4 shrink-0">
           <div className="flex-1">
             <h1 className="text-lg font-bold text-gray-900">Contacts</h1>
@@ -272,9 +245,7 @@ export default function Contacts() {
         </div>
 
         <div className="flex flex-1 min-h-0">
-          {/* List */}
           <div className="flex-1 overflow-y-auto scrollbar-thin p-4">
-            {/* Add contact form */}
             <AnimatePresence>
               {showAddForm && (
                 <motion.div
@@ -301,8 +272,8 @@ export default function Contacts() {
                   </div>
                   <div className="flex gap-2 justify-end">
                     <button onClick={() => setShowAddForm(false)} className="px-4 py-1.5 text-sm text-gray-500 hover:bg-gray-100 rounded-lg transition-colors">Cancel</button>
-                    <button onClick={addContact} disabled={saving || !newContact.full_name} className="px-4 py-1.5 bg-[#5C6CF7] text-white text-sm font-semibold rounded-lg hover:bg-[#4A5CE6] transition-colors disabled:opacity-50 flex items-center gap-1.5">
-                      {saving ? <div className="w-3 h-3 border-2 border-white border-t-transparent rounded-full animate-spin" /> : <Check className="w-3.5 h-3.5" />}
+                    <button onClick={addContact} disabled={!newContact.full_name} className="px-4 py-1.5 bg-[#5C6CF7] text-white text-sm font-semibold rounded-lg hover:bg-[#4A5CE6] transition-colors disabled:opacity-50 flex items-center gap-1.5">
+                      <Check className="w-3.5 h-3.5" />
                       Add
                     </button>
                   </div>
@@ -310,11 +281,7 @@ export default function Contacts() {
               )}
             </AnimatePresence>
 
-            {loading ? (
-              <div className="flex items-center justify-center h-48">
-                <div className="w-7 h-7 border-2 border-[#5C6CF7] border-t-transparent rounded-full animate-spin" />
-              </div>
-            ) : filtered.length === 0 ? (
+            {filtered.length === 0 ? (
               <div className="flex flex-col items-center justify-center h-48 text-center">
                 <User className="w-10 h-10 text-gray-200 mb-3" />
                 <p className="text-sm text-gray-500 font-medium">No contacts found</p>
@@ -356,7 +323,6 @@ export default function Contacts() {
             )}
           </div>
 
-          {/* Contact Drawer */}
           <AnimatePresence>
             {selectedContact && (
               <ContactDrawer

@@ -1,6 +1,5 @@
 import { Link, useLocation } from 'react-router-dom';
-import { Inbox, BarChart2, Users, Settings, Zap, Bell, LogOut } from 'lucide-react';
-import { base44 } from '@/api/base44Client';
+import { Inbox, BarChart2, Users, Settings, Zap, LogOut } from 'lucide-react';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 
 const navItems = [
@@ -13,8 +12,6 @@ const navItems = [
 
 export default function NavRail({ user }) {
   const location = useLocation();
-
-  const handleLogout = () => base44.auth.logout('/');
 
   const initials = user?.full_name
     ? user.full_name.split(' ').map(n => n[0]).join('').slice(0, 2).toUpperCase()
@@ -56,18 +53,6 @@ export default function NavRail({ user }) {
 
         {/* Bottom section */}
         <div className="flex flex-col items-center gap-2 mt-auto">
-          <Tooltip>
-            <TooltipTrigger asChild>
-              <button
-                onClick={handleLogout}
-                className="flex items-center justify-center w-10 h-10 rounded-xl text-[#6B7280] hover:bg-[#1C2030] hover:text-white transition-all duration-150"
-              >
-                <LogOut className="w-4 h-4" />
-              </button>
-            </TooltipTrigger>
-            <TooltipContent side="right" className="text-xs">Sign out</TooltipContent>
-          </Tooltip>
-
           {/* Avatar */}
           <Tooltip>
             <TooltipTrigger asChild>

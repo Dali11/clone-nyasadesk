@@ -1,27 +1,30 @@
-import { useState, useEffect } from 'react';
-import { base44 } from '@/api/base44Client';
-import { Users, Mail, UserPlus, Trash2, Check, Shield, User } from 'lucide-react';
+import { useState } from 'react';
+import { Users, Mail, UserPlus, Trash2, Check, User } from 'lucide-react';
 import NavRail from '@/components/NavRail';
 import { motion } from 'framer-motion';
+import { MOCK_USER, MOCK_USERS, genId } from '@/lib/mockData';
 
-const ROLES = ['admin', 'user'];
-
-function TeamSection({ users, currentUser, onInvite, onDelete }) {
+function TeamSection({ users, setUsers, currentUser }) {
   const [email, setEmail] = useState('');
   const [role, setRole] = useState('user');
-  const [inviting, setInviting] = useState(false);
   const [success, setSuccess] = useState(false);
 
-  const invite = async () => {
+  const invite = () => {
     if (!email) return;
-    setInviting(true);
-    try {
-      await onInvite(email, role);
-      setEmail('');
-      setSuccess(true);
-      setTimeout(() => setSuccess(false), 3000);
-    } catch {}
-    setInviting(false);
+    const newUser = {
+      id: genId('user'),
+      full_name: email.split('@')[0],
+      email,
+      role,
+    };
+    setUsers(prev => [...prev, newUser]);
+    setEmail('');
+    setSuccess(true);
+    setTimeout(() => setSuccess(false), 3000);
+  };
+
+  const removeUser = (id) => {
+    setUsers(prev => prev.filter(u => u.id !== id));
   };
 
   return (
@@ -32,7 +35,6 @@ function TeamSection({ users, currentUser, onInvite, onDelete }) {
         <span className="ml-auto text-xs text-gray-400">{users.length} members</span>
       </div>
 
-      {/* Invite form */}
       <div className="px-6 py-4 border-b border-gray-100 bg-gray-50">
         <p className="text-xs font-semibold text-gray-500 mb-3 uppercase tracking-wide">Invite New Member</p>
         <div className="flex gap-2">
@@ -54,22 +56,15 @@ function TeamSection({ users, currentUser, onInvite, onDelete }) {
           </select>
           <button
             onClick={invite}
-            disabled={inviting || !email}
+            disabled={!email}
             className="flex items-center gap-1.5 px-4 py-2 bg-[#5C6CF7] text-white text-sm font-semibold rounded-xl hover:bg-[#4A5CE6] transition-colors disabled:opacity-50"
           >
-            {inviting ? (
-              <div className="w-3 h-3 border-2 border-white border-t-transparent rounded-full animate-spin" />
-            ) : success ? (
-              <Check className="w-4 h-4" />
-            ) : (
-              <UserPlus className="w-4 h-4" />
-            )}
-            {success ? 'Invited!' : 'Invite'}
+            {success ? <Check className="w-4 h-4" /> : <UserPlus className="w-4 h-4" />}
+            {success ? 'Added!' : 'Add'}
           </button>
         </div>
       </div>
 
-      {/* Members list */}
       <div className="divide-y divide-gray-100">
         {users.map(u => (
           <div key={u.id} className="flex items-center gap-3 px-6 py-3.5 hover:bg-gray-50 transition-colors">
@@ -92,7 +87,7 @@ function TeamSection({ users, currentUser, onInvite, onDelete }) {
               </span>
               {u.id !== currentUser?.id && (
                 <button
-                  onClick={() => { if (window.confirm(`Remove ${u.full_name}?`)) onDelete(u.id); }}
+                  onClick={() => { if (window.confirm('Remove ' + u.full_name + '?')) removeUser(u.id); }}
                   className="p-1.5 hover:bg-red-50 rounded-lg text-gray-300 hover:text-red-400 transition-colors"
                 >
                   <Trash2 className="w-3.5 h-3.5" />
@@ -106,19 +101,12 @@ function TeamSection({ users, currentUser, onInvite, onDelete }) {
   );
 }
 
-function ProfileSection({ user }) {
+function ProfileSection({ user, onUpdate }) {
   const [form, setForm] = useState({ full_name: user?.full_name || '' });
-  const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
 
-  useEffect(() => {
-    if (user) setForm({ full_name: user.full_name || '' });
-  }, [user?.id]);
-
-  const save = async () => {
-    setSaving(true);
-    await base44.auth.updateMe({ full_name: form.full_name });
-    setSaving(false);
+  const save = () => {
+    onUpdate({ ...user, full_name: form.full_name });
     setSaved(true);
     setTimeout(() => setSaved(false), 2000);
   };
@@ -152,10 +140,9 @@ function ProfileSection({ user }) {
         </div>
         <button
           onClick={save}
-          disabled={saving}
-          className="flex items-center gap-2 px-4 py-2 bg-[#5C6CF7] text-white text-sm font-semibold rounded-xl hover:bg-[#4A5CE6] transition-colors disabled:opacity-50"
+          className="flex items-center gap-2 px-4 py-2 bg-[#5C6CF7] text-white text-sm font-semibold rounded-xl hover:bg-[#4A5CE6] transition-colors"
         >
-          {saving ? <div className="w-3 h-3 border-2 border-white border-t-transparent rounded-full animate-spin" /> : saved ? <Check className="w-3.5 h-3.5" /> : null}
+          {saved ? <Check className="w-3.5 h-3.5" /> : null}
           {saved ? 'Saved!' : 'Save Changes'}
         </button>
       </div>
@@ -185,12 +172,8 @@ function ChannelSection() {
               <p className="text-sm font-medium text-gray-900">{ch.name}</p>
               <p className="text-xs text-gray-400">{ch.desc}</p>
             </div>
-            <button className={`text-xs font-semibold px-3 py-1.5 rounded-lg transition-all
-              ${ch.connected
-                ? 'bg-emerald-100 text-emerald-600 hover:bg-emerald-200'
-                : 'bg-gray-100 text-gray-500 hover:bg-gray-200'
-              }`}>
-              {ch.connected ? 'Connected' : 'Connect'}
+            <button className="text-xs font-semibold px-3 py-1.5 rounded-lg bg-gray-100 text-gray-500 hover:bg-gray-200 transition-all">
+              Connect
             </button>
           </div>
         ))}
@@ -203,39 +186,12 @@ function ChannelSection() {
 }
 
 export default function Settings() {
-  const [user, setUser] = useState(null);
-  const [users, setUsers] = useState([]);
-  const [loading, setLoading] = useState(true);
-
-  useEffect(() => {
-    Promise.all([base44.auth.me(), base44.entities.User.list()])
-      .then(([u, us]) => { setUser(u); setUsers(us); setLoading(false); })
-      .catch(() => setLoading(false));
-  }, []);
-
-  const handleInvite = async (email, role) => {
-    await base44.users.inviteUser(email, role);
-  };
-
-  const handleDeleteUser = async (userId) => {
-    // User deletion requires admin flow
-    alert('To remove a team member, contact your platform administrator.');
-  };
-
-  if (loading) {
-    return (
-      <div className="flex h-screen">
-        <NavRail user={user} />
-        <div className="flex-1 flex items-center justify-center">
-          <div className="w-7 h-7 border-2 border-[#5C6CF7] border-t-transparent rounded-full animate-spin" />
-        </div>
-      </div>
-    );
-  }
+  const [currentUser, setCurrentUser] = useState({ ...MOCK_USER });
+  const [users, setUsers] = useState([...MOCK_USERS]);
 
   return (
     <div className="flex h-screen overflow-hidden bg-[#F5F5F7]">
-      <NavRail user={user} />
+      <NavRail user={currentUser} />
 
       <div className="flex-1 overflow-y-auto scrollbar-thin">
         <div className="max-w-3xl mx-auto px-6 py-8">
@@ -245,8 +201,8 @@ export default function Settings() {
           </div>
 
           <div className="space-y-6">
-            <ProfileSection user={user} />
-            <TeamSection users={users} currentUser={user} onInvite={handleInvite} onDelete={handleDeleteUser} />
+            <ProfileSection user={currentUser} onUpdate={setCurrentUser} />
+            <TeamSection users={users} setUsers={setUsers} currentUser={currentUser} />
             <ChannelSection />
           </div>
         </div>

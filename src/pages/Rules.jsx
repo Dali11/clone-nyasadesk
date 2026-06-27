@@ -1,8 +1,8 @@
-import { useState, useEffect } from 'react';
-import { base44 } from '@/api/base44Client';
-import { Plus, Zap, Trash2, ToggleLeft, ToggleRight, Edit3, Check, X, ChevronDown } from 'lucide-react';
+import { useState } from 'react';
+import { Plus, Zap, Trash2, ToggleLeft, ToggleRight, Edit3, Check, X } from 'lucide-react';
 import NavRail from '@/components/NavRail';
 import { motion, AnimatePresence } from 'framer-motion';
+import { MOCK_USER, MOCK_USERS, MOCK_RULES, genId } from '@/lib/mockData';
 
 const RULE_TYPES = [
   { value: 'round_robin', label: 'Round Robin', desc: 'Distribute evenly across team members' },
@@ -91,7 +91,6 @@ function RuleForm({ users, onSave, onCancel, initial }) {
   const [form, setForm] = useState(initial || {
     name: '', type: 'round_robin', channel: 'all', condition_value: '', assigned_to_ids: [], is_active: true,
   });
-  const [saving, setSaving] = useState(false);
 
   const toggleUser = (id) => {
     setForm(f => ({
@@ -102,12 +101,10 @@ function RuleForm({ users, onSave, onCancel, initial }) {
     }));
   };
 
-  const submit = async () => {
+  const submit = () => {
     if (!form.name) return;
-    setSaving(true);
     const names = users.filter(u => form.assigned_to_ids.includes(u.id)).map(u => u.full_name);
-    await onSave({ ...form, assigned_to_names: names });
-    setSaving(false);
+    onSave({ ...form, assigned_to_names: names });
   };
 
   return (
@@ -141,7 +138,7 @@ function RuleForm({ users, onSave, onCancel, initial }) {
             <select
               value={form.channel}
               onChange={e => setForm(f => ({ ...f, channel: e.target.value }))}
-              className="w-full text-sm border border-gray-200 rounded-xl px-3 py-2 focus:outline-none focus:ring-1 focus:ring-[#5C6CF7] bg-white capitalize"
+              className="w-full text-sm border border-gray-200 rounded-xl px-3 py-2 focus:outline-none focus:ring-1 focus:ring-[#5C6CF7] bg-white"
             >
               {CHANNELS.map(c => <option key={c} value={c} className="capitalize">{c === 'all' ? 'All Channels' : c}</option>)}
             </select>
@@ -183,8 +180,8 @@ function RuleForm({ users, onSave, onCancel, initial }) {
 
         <div className="flex gap-2 justify-end pt-1">
           <button onClick={onCancel} className="px-4 py-2 text-sm text-gray-500 hover:bg-gray-100 rounded-xl transition-colors">Cancel</button>
-          <button onClick={submit} disabled={saving || !form.name} className="px-4 py-2 bg-[#5C6CF7] text-white text-sm font-semibold rounded-xl hover:bg-[#4A5CE6] transition-colors disabled:opacity-50 flex items-center gap-2">
-            {saving ? <div className="w-3 h-3 border-2 border-white border-t-transparent rounded-full animate-spin" /> : <Check className="w-3.5 h-3.5" />}
+          <button onClick={submit} disabled={!form.name} className="px-4 py-2 bg-[#5C6CF7] text-white text-sm font-semibold rounded-xl hover:bg-[#4A5CE6] transition-colors disabled:opacity-50 flex items-center gap-2">
+            <Check className="w-3.5 h-3.5" />
             {initial ? 'Save Changes' : 'Create Rule'}
           </button>
         </div>
@@ -194,44 +191,27 @@ function RuleForm({ users, onSave, onCancel, initial }) {
 }
 
 export default function Rules() {
-  const [user, setUser] = useState(null);
-  const [rules, setRules] = useState([]);
-  const [users, setUsers] = useState([]);
-  const [loading, setLoading] = useState(true);
+  const user = MOCK_USER;
+  const [rules, setRules] = useState([...MOCK_RULES]);
   const [showForm, setShowForm] = useState(false);
   const [editingRule, setEditingRule] = useState(null);
 
-  useEffect(() => {
-    base44.auth.me().then(setUser).catch(() => {});
-    Promise.all([
-      base44.entities.AssignmentRule.list('priority_order', 50),
-      base44.entities.User.list(),
-    ]).then(([r, u]) => {
-      setRules(r);
-      setUsers(u);
-      setLoading(false);
-    }).catch(() => setLoading(false));
-  }, []);
-
-  const handleSave = async (formData) => {
+  const handleSave = (formData) => {
     if (editingRule) {
-      const updated = await base44.entities.AssignmentRule.update(editingRule.id, formData);
-      setRules(prev => prev.map(r => r.id === editingRule.id ? updated : r));
+      setRules(prev => prev.map(r => r.id === editingRule.id ? { ...r, ...formData } : r));
       setEditingRule(null);
     } else {
-      const created = await base44.entities.AssignmentRule.create({ ...formData, priority_order: rules.length });
+      const created = { ...formData, id: genId('rule'), priority_order: rules.length, round_robin_index: 0, created_date: new Date().toISOString() };
       setRules(prev => [...prev, created]);
     }
     setShowForm(false);
   };
 
-  const handleToggle = async (rule) => {
-    const updated = await base44.entities.AssignmentRule.update(rule.id, { is_active: !rule.is_active });
+  const handleToggle = (rule) => {
     setRules(prev => prev.map(r => r.id === rule.id ? { ...r, is_active: !r.is_active } : r));
   };
 
-  const handleDelete = async (id) => {
-    await base44.entities.AssignmentRule.delete(id);
+  const handleDelete = (id) => {
     setRules(prev => prev.filter(r => r.id !== id));
   };
 
@@ -260,7 +240,6 @@ export default function Rules() {
             </button>
           </div>
 
-          {/* Info card */}
           <div className="bg-[#5C6CF7]/5 border border-[#5C6CF7]/15 rounded-2xl p-4 mb-6">
             <p className="text-sm text-[#5C6CF7] font-medium mb-1">How rules work</p>
             <p className="text-xs text-gray-500">Rules are evaluated in order. When a new conversation arrives, the first matching active rule determines who gets assigned. Round Robin distributes evenly across selected reps.</p>
@@ -276,7 +255,7 @@ export default function Rules() {
                 className="mb-4"
               >
                 <RuleForm
-                  users={users}
+                  users={MOCK_USERS}
                   onSave={handleSave}
                   onCancel={() => { setShowForm(false); setEditingRule(null); }}
                   initial={editingRule}
@@ -285,11 +264,7 @@ export default function Rules() {
             )}
           </AnimatePresence>
 
-          {loading ? (
-            <div className="flex justify-center py-16">
-              <div className="w-7 h-7 border-2 border-[#5C6CF7] border-t-transparent rounded-full animate-spin" />
-            </div>
-          ) : rules.length === 0 ? (
+          {rules.length === 0 ? (
             <div className="bg-white rounded-2xl p-16 text-center border border-gray-100 shadow-sm">
               <Zap className="w-10 h-10 text-gray-200 mx-auto mb-4" />
               <p className="text-sm font-medium text-gray-500">No rules yet</p>
@@ -312,7 +287,7 @@ export default function Rules() {
                     <div className="flex-1">
                       <RuleCard
                         rule={rule}
-                        users={users}
+                        users={MOCK_USERS}
                         onToggle={handleToggle}
                         onDelete={handleDelete}
                         onEdit={handleEdit}

@@ -1,54 +1,25 @@
-import { useState, useEffect } from 'react';
-import { base44 } from '@/api/base44Client';
-import { ChevronDown, UserCheck, X, Archive, Clock, AlertCircle } from 'lucide-react';
+import { useState } from 'react';
+import { ChevronDown, UserCheck, AlertCircle } from 'lucide-react';
 import ChannelBadge from './ChannelBadge';
 import PriorityBadge from './PriorityBadge';
-import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger, DropdownMenuSeparator } from '@/components/ui/dropdown-menu';
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 
 const PRIORITIES = ['low', 'normal', 'high', 'urgent'];
 const STATUSES = ['open', 'snoozed', 'closed'];
 
 export default function ConversationHeader({ conversation, users, onUpdate }) {
-  const [updatingStatus, setUpdatingStatus] = useState(false);
-  const [updatingAssign, setUpdatingAssign] = useState(false);
-
-  const assign = async (userId, userName) => {
+  const assign = (userId, userName) => {
     if (!conversation) return;
-    setUpdatingAssign(true);
-    const updated = await base44.entities.Conversation.update(conversation.id, {
-      assigned_to: userId,
-      assigned_to_name: userName,
-      status: 'open',
-    });
-    await base44.entities.Message.create({
-      conversation_id: conversation.id,
-      type: 'activity',
-      body: `Assigned to ${userName}`,
-      sender_name: 'System',
-      channel: conversation.channel,
-    });
     if (onUpdate) onUpdate({ ...conversation, assigned_to: userId, assigned_to_name: userName, status: 'open' });
-    setUpdatingAssign(false);
   };
 
-  const updateStatus = async (status) => {
+  const updateStatus = (status) => {
     if (!conversation) return;
-    setUpdatingStatus(true);
-    await base44.entities.Conversation.update(conversation.id, { status });
-    await base44.entities.Message.create({
-      conversation_id: conversation.id,
-      type: 'activity',
-      body: `Conversation marked as ${status}`,
-      sender_name: 'System',
-      channel: conversation.channel,
-    });
     if (onUpdate) onUpdate({ ...conversation, status });
-    setUpdatingStatus(false);
   };
 
-  const updatePriority = async (priority) => {
+  const updatePriority = (priority) => {
     if (!conversation) return;
-    await base44.entities.Conversation.update(conversation.id, { priority });
     if (onUpdate) onUpdate({ ...conversation, priority });
   };
 
@@ -92,7 +63,7 @@ export default function ConversationHeader({ conversation, users, onUpdate }) {
         {/* Assign */}
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
-            <button disabled={updatingAssign} className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-xs font-medium border border-gray-200 hover:bg-gray-50 transition-colors disabled:opacity-60">
+            <button className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-xs font-medium border border-gray-200 hover:bg-gray-50 transition-colors">
               <UserCheck className="w-3.5 h-3.5 text-gray-400" />
               Assign
               <ChevronDown className="w-3 h-3 text-gray-400" />
@@ -113,7 +84,7 @@ export default function ConversationHeader({ conversation, users, onUpdate }) {
         {/* Status */}
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
-            <button disabled={updatingStatus} className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-xs font-medium bg-[#5C6CF7] text-white hover:bg-[#4A5CE6] transition-colors disabled:opacity-60">
+            <button className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-xs font-medium bg-[#5C6CF7] text-white hover:bg-[#4A5CE6] transition-colors">
               <span className="capitalize">{conversation.status || 'open'}</span>
               <ChevronDown className="w-3 h-3" />
             </button>

@@ -1,16 +1,24 @@
 import { useState, useEffect } from 'react';
-import { base44 } from '@/api/base44Client';
-import { User, Building2, Mail, Phone, Globe, Edit3, Check, X, Plus, Bell, Clock } from 'lucide-react';
+import { User, Mail, Phone, Edit3, Check, X, Plus, Bell } from 'lucide-react';
 import DealStageStepper from './DealStageStepper';
 import TagChip from './TagChip';
 import ChannelBadge from './ChannelBadge';
+import { MOCK_CONTACTS, MOCK_CONVERSATIONS, genId } from '@/lib/mockData';
+
+// In-memory contact store
+const contactStore = {};
+MOCK_CONTACTS.forEach(c => { contactStore[c.id] = { ...c }; });
+
+// In-memory conversation history cache
+function getContactHistory(contactId, currentConvId) {
+  return MOCK_CONVERSATIONS.filter(c => c.contact_id === contactId && c.id !== currentConvId);
+}
 
 export default function ContactPanel({ conversation, user, onConversationUpdate }) {
   const [contact, setContact] = useState(null);
   const [contactHistory, setContactHistory] = useState([]);
   const [editing, setEditing] = useState(false);
   const [editData, setEditData] = useState({});
-  const [savingStage, setSavingStage] = useState(false);
   const [newTag, setNewTag] = useState('');
   const [addingTag, setAddingTag] = useState(false);
   const [showReminder, setShowReminder] = useState(false);
@@ -20,79 +28,62 @@ export default function ContactPanel({ conversation, user, onConversationUpdate 
   useEffect(() => {
     if (!conversation) { setContact(null); return; }
     if (conversation.contact_id) {
-      base44.entities.Contact.get(conversation.contact_id)
-        .then(c => { setContact(c); setEditData(c); })
-        .catch(() => setContact(null));
-      base44.entities.Conversation.filter({ contact_id: conversation.contact_id }, '-updated_date', 10)
-        .then(setContactHistory)
-        .catch(() => {});
+      const c = contactStore[conversation.contact_id] || null;
+      setContact(c);
+      setEditData(c ? { ...c } : {});
+      setContactHistory(getContactHistory(conversation.contact_id, conversation.id));
     } else {
       setContact(null);
       setContactHistory([]);
     }
   }, [conversation?.id, conversation?.contact_id]);
 
-  const updateStage = async (stage) => {
+  const updateStage = (stage) => {
     if (!conversation) return;
-    setSavingStage(true);
-    await base44.entities.Conversation.update(conversation.id, { deal_stage: stage });
-    if (contact) await base44.entities.Contact.update(contact.id, { deal_stage: stage });
-
-    // Log activity
-    await base44.entities.Message.create({
-      conversation_id: conversation.id,
-      type: 'activity',
-      body: `Deal stage changed to "${stage}"`,
-      sender_name: user?.full_name || 'You',
-      sender_id: user?.id,
-      channel: conversation.channel,
-    });
-
+    if (contact) {
+      contactStore[contact.id] = { ...contactStore[contact.id], deal_stage: stage };
+      setContact(prev => ({ ...prev, deal_stage: stage }));
+    }
     if (onConversationUpdate) onConversationUpdate({ ...conversation, deal_stage: stage });
-    setSavingStage(false);
   };
 
-  const saveContact = async () => {
+  const saveContact = () => {
     if (!contact) return;
-    await base44.entities.Contact.update(contact.id, editData);
+    contactStore[contact.id] = { ...contactStore[contact.id], ...editData };
     setContact({ ...contact, ...editData });
     setEditing(false);
   };
 
-  const addTag = async () => {
+  const addTag = () => {
     if (!newTag.trim() || !conversation) return;
     const existing = conversation.tags || [];
     if (existing.includes(newTag.trim())) { setNewTag(''); setAddingTag(false); return; }
     const tags = [...existing, newTag.trim()];
-    await base44.entities.Conversation.update(conversation.id, { tags });
     if (onConversationUpdate) onConversationUpdate({ ...conversation, tags });
     setNewTag('');
     setAddingTag(false);
   };
 
-  const removeTag = async (tag) => {
+  const removeTag = (tag) => {
     if (!conversation) return;
     const tags = (conversation.tags || []).filter(t => t !== tag);
-    await base44.entities.Conversation.update(conversation.id, { tags });
     if (onConversationUpdate) onConversationUpdate({ ...conversation, tags });
   };
 
-  const setReminder = async () => {
+  const setReminder = () => {
     if (!reminderDate || !conversation) return;
-    await base44.entities.Reminder.create({
-      conversation_id: conversation.id,
-      user_id: user?.id,
-      remind_at: new Date(reminderDate).toISOString(),
-      note: reminderNote,
-    });
-    await base44.entities.Conversation.update(conversation.id, {
-      reminder_at: new Date(reminderDate).toISOString(),
-      is_reminder_active: true,
-    });
-    if (onConversationUpdate) onConversationUpdate({ ...conversation, is_reminder_active: true });
+    if (onConversationUpdate) {
+      onConversationUpdate({ ...conversation, is_reminder_active: true, reminder_at: new Date(reminderDate).toISOString() });
+    }
     setShowReminder(false);
     setReminderDate('');
     setReminderNote('');
+  };
+
+  const saveNotes = (notes) => {
+    if (!contact) return;
+    contactStore[contact.id] = { ...contactStore[contact.id], notes };
+    setContact(prev => ({ ...prev, notes }));
   };
 
   if (!conversation) return null;
@@ -168,7 +159,6 @@ export default function ContactPanel({ conversation, user, onConversationUpdate 
       <div className="px-5 py-4 border-b border-gray-100">
         <div className="flex items-center justify-between mb-2">
           <span className="text-[11px] font-semibold text-gray-500 uppercase tracking-wide">Deal Stage</span>
-          {savingStage && <div className="w-3 h-3 border-2 border-[#5C6CF7] border-t-transparent rounded-full animate-spin" />}
         </div>
         <DealStageStepper currentStage={dealStage} onChange={updateStage} compact />
       </div>
@@ -246,9 +236,7 @@ export default function ContactPanel({ conversation, user, onConversationUpdate 
           <textarea
             rows={3}
             defaultValue={contact.notes || ''}
-            onBlur={async e => {
-              await base44.entities.Contact.update(contact.id, { notes: e.target.value });
-            }}
+            onBlur={e => saveNotes(e.target.value)}
             placeholder="Add notes about this contact…"
             className="w-full text-xs border border-gray-200 rounded-lg px-3 py-2 resize-none focus:outline-none focus:ring-1 focus:ring-[#5C6CF7] text-gray-700 placeholder:text-gray-400"
           />
@@ -256,13 +244,13 @@ export default function ContactPanel({ conversation, user, onConversationUpdate 
       )}
 
       {/* Contact History */}
-      {contactHistory.length > 1 && (
+      {contactHistory.length > 0 && (
         <div className="px-5 py-4">
           <span className="text-[11px] font-semibold text-gray-500 uppercase tracking-wide block mb-2">
             Past Conversations ({contactHistory.length})
           </span>
           <div className="space-y-2">
-            {contactHistory.filter(c => c.id !== conversation.id).slice(0, 5).map(c => (
+            {contactHistory.slice(0, 5).map(c => (
               <div key={c.id} className="text-xs bg-gray-50 rounded-lg px-3 py-2">
                 <div className="flex items-center gap-1.5 mb-0.5">
                   <ChannelBadge channel={c.channel} />
