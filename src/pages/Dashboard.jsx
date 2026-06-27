@@ -118,7 +118,7 @@ export default function Dashboard() {
     return d.toDateString() === new Date().toDateString();
   }).length;
 
-  const channelData = ['email', 'whatsapp', 'chat', 'phone'].map(ch => ({
+  const channelData = ['whatsapp', 'messenger', 'email', 'website'].map(ch => ({
     name: ch.charAt(0).toUpperCase() + ch.slice(1),
     count: conversations.filter(c => c.channel === ch && c.status !== 'closed').length,
   })).filter(d => d.count > 0);

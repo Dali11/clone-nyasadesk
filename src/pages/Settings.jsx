@@ -152,10 +152,10 @@ function ProfileSection({ user, onUpdate }) {
 
 function ChannelSection() {
   const channels = [
+    { name: 'WhatsApp', icon: '💬', connected: false, desc: 'Connect WhatsApp Business API to receive and send messages' },
+    { name: 'Facebook Messenger', icon: '📘', connected: false, desc: 'Connect your Facebook Page to manage Messenger conversations' },
     { name: 'Email', icon: '📧', connected: false, desc: 'Connect a mailbox to receive and reply to emails' },
-    { name: 'WhatsApp', icon: '💬', connected: false, desc: 'Connect WhatsApp Business API' },
-    { name: 'Live Chat', icon: '🌐', connected: false, desc: 'Add a chat widget to your website' },
-    { name: 'Phone', icon: '📞', connected: false, desc: 'Connect a VoIP number' },
+    { name: 'Website', icon: '🌐', connected: false, desc: 'Add a live chat widget to your website' },
   ];
 
   return (

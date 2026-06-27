@@ -3,7 +3,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/u
 import { Send } from 'lucide-react';
 import { MOCK_CONTACTS, genId } from '@/lib/mockData';
 
-const CHANNELS = ['email', 'whatsapp', 'chat', 'phone'];
+const CHANNELS = ['whatsapp', 'messenger', 'email', 'website'];
 const PRIORITIES = ['low', 'normal', 'high', 'urgent'];
 
 // In-memory contact store reference (same as ContactPanel)

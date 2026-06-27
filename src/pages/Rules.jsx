@@ -10,7 +10,7 @@ const RULE_TYPES = [
   { value: 'territory', label: 'By Territory', desc: 'Assign based on contact territory' },
 ];
 
-const CHANNELS = ['all', 'email', 'whatsapp', 'chat', 'phone'];
+const CHANNELS = ['all', 'whatsapp', 'messenger', 'email', 'website'];
 
 function RuleCard({ rule, users, onToggle, onDelete, onEdit }) {
   const typeLabel = RULE_TYPES.find(t => t.value === rule.type)?.label || rule.type;

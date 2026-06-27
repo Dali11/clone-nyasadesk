@@ -16,7 +16,7 @@ const FILTERS = [
   { key: 'closed', label: 'Closed', icon: CheckCircle },
 ];
 
-const CHANNELS = ['all', 'email', 'whatsapp', 'chat', 'phone'];
+const CHANNELS = ['all', 'whatsapp', 'messenger', 'email', 'website'];
 
 export default function Inbox() {
   const user = MOCK_USER;
