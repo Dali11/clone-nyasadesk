@@ -1,6 +1,5 @@
-import { Mail, MessageCircle, Globe } from 'lucide-react';
+import { Mail, Globe } from 'lucide-react';
 
-// WhatsApp icon as SVG since lucide doesn't have one
 function WhatsAppIcon({ className }) {
   return (
     <svg className={className} viewBox="0 0 24 24" fill="currentColor">
@@ -9,31 +8,34 @@ function WhatsAppIcon({ className }) {
   );
 }
 
-function FacebookIcon({ className }) {
+function MessengerIcon({ className }) {
   return (
     <svg className={className} viewBox="0 0 24 24" fill="currentColor">
-      <path d="M24 12.073c0-6.627-5.373-12-12-12s-12 5.373-12 12c0 5.99 4.388 10.954 10.125 11.854v-8.385H7.078v-3.47h3.047V9.43c0-3.007 1.792-4.669 4.533-4.669 1.312 0 2.686.235 2.686.235v2.953H15.83c-1.491 0-1.956.925-1.956 1.874v2.25h3.328l-.532 3.47h-2.796v8.385C19.612 23.027 24 18.062 24 12.073z"/>
+      <path d="M12 0C5.373 0 0 4.974 0 11.111c0 3.498 1.744 6.614 4.469 8.664V24l4.088-2.242c1.092.301 2.246.464 3.443.464 6.627 0 12-4.975 12-11.111C24 4.974 18.627 0 12 0zm1.191 14.963l-3.055-3.26-5.963 3.26L10.732 8l3.131 3.26L19.752 8l-6.561 6.963z"/>
     </svg>
   );
 }
 
-const channelConfig = {
-  whatsapp:  { icon: WhatsAppIcon,  color: 'bg-green-100 text-green-600',   label: 'WhatsApp'  },
-  messenger: { icon: FacebookIcon,  color: 'bg-blue-100 text-blue-700',     label: 'Messenger' },
-  email:     { icon: Mail,          color: 'bg-indigo-100 text-indigo-600', label: 'Email'     },
-  website:   { icon: Globe,         color: 'bg-cyan-100 text-cyan-600',     label: 'Website'   },
+export const CHANNEL_CONFIG = {
+  whatsapp:  { Icon: WhatsAppIcon,  bg: 'bg-green-100',  text: 'text-green-700',  dot: 'bg-green-500',  label: 'WhatsApp'  },
+  messenger: { Icon: MessengerIcon, bg: 'bg-blue-100',   text: 'text-blue-700',   dot: 'bg-blue-500',   label: 'Messenger' },
+  email:     { Icon: Mail,          bg: 'bg-indigo-100', text: 'text-indigo-700', dot: 'bg-indigo-500', label: 'Email'     },
+  website:   { Icon: Globe,         bg: 'bg-cyan-100',   text: 'text-cyan-700',   dot: 'bg-cyan-500',   label: 'Website'   },
 };
 
 export const CHANNELS = ['whatsapp', 'messenger', 'email', 'website'];
 
-export default function ChannelBadge({ channel, showLabel = false, size = 'sm' }) {
-  const cfg = channelConfig[channel] || channelConfig.email;
-  const Icon = cfg.icon;
+export default function ChannelBadge({ channel, showLabel = false, size = 'sm', dot = false }) {
+  const cfg = CHANNEL_CONFIG[channel] || CHANNEL_CONFIG.email;
+  const { Icon } = cfg;
   const iconSize = size === 'sm' ? 'w-3 h-3' : 'w-4 h-4';
-  const padding = showLabel ? 'px-2 py-0.5 gap-1' : 'p-1';
+
+  if (dot) {
+    return <span className={`inline-block w-2 h-2 rounded-full ${cfg.dot}`} title={cfg.label} />;
+  }
 
   return (
-    <span className={`inline-flex items-center rounded-full font-medium text-xs ${cfg.color} ${padding}`}>
+    <span className={`inline-flex items-center gap-1 rounded-full text-xs font-medium px-2 py-0.5 ${cfg.bg} ${cfg.text}`}>
       <Icon className={iconSize} />
       {showLabel && <span>{cfg.label}</span>}
     </span>

@@ -1,340 +1,198 @@
 import { useState } from 'react';
-import { Search, Plus, User, Mail, Phone, ChevronRight, Edit3, Trash2, Check, X } from 'lucide-react';
-import NavRail from '@/components/NavRail';
-import DealStageStepper from '@/components/DealStageStepper';
-import TagChip from '@/components/TagChip';
+import { Search, Plus, Trash2, X, Check } from 'lucide-react';
+import Sidebar from '@/components/Sidebar';
+import Avatar from '@/components/Avatar';
 import ChannelBadge from '@/components/ChannelBadge';
-import { motion, AnimatePresence } from 'framer-motion';
-import { MOCK_USER, MOCK_CONTACTS, MOCK_CONVERSATIONS, genId } from '@/lib/mockData';
+import { store, genId } from '@/lib/store';
 
-const STAGES = ['New Lead', 'Contacted', 'Qualified', 'Proposal Sent', 'Negotiation', 'Closed Won', 'Closed Lost'];
+const STAGES = ['All', 'New Lead', 'Contacted', 'Qualified', 'Proposal Sent', 'Negotiation', 'Closed Won', 'Closed Lost'];
+const STAGE_COLORS = {
+  'New Lead': 'text-gray-400 bg-white/5', 'Contacted': 'text-blue-400 bg-blue-900/20',
+  'Qualified': 'text-purple-400 bg-purple-900/20', 'Proposal Sent': 'text-yellow-400 bg-yellow-900/20',
+  'Negotiation': 'text-orange-400 bg-orange-900/20', 'Closed Won': 'text-green-400 bg-green-900/20',
+  'Closed Lost': 'text-red-400 bg-red-900/20',
+};
 
-// In-memory conversation lookup for contact history
-function getContactHistory(contactId) {
-  return MOCK_CONVERSATIONS.filter(c => c.contact_id === contactId);
-}
-
-function ContactDrawer({ contact, onClose, onUpdate, onDelete }) {
-  const [editing, setEditing] = useState(false);
+function ContactDrawer({ contact, onClose, onSave }) {
   const [editData, setEditData] = useState({ ...contact });
-  const history = getContactHistory(contact.id);
-
-  const save = () => {
-    onUpdate({ ...contact, ...editData });
-    setEditing(false);
-  };
+  const set = (k, v) => setEditData(d => ({ ...d, [k]: v }));
+  const conversations = store.getConversations().filter(c => c.contact_id === contact.id);
+  const inputCls = 'w-full bg-[#2A3942] text-white text-sm rounded-xl px-4 py-2.5 focus:outline-none focus:ring-1 focus:ring-[#25D366] border-0 placeholder:text-gray-600';
 
   return (
-    <motion.div
-      initial={{ x: 40, opacity: 0 }}
-      animate={{ x: 0, opacity: 1 }}
-      exit={{ x: 40, opacity: 0 }}
-      transition={{ type: 'spring', stiffness: 300, damping: 28 }}
-      className="w-96 bg-white border-l border-gray-200 flex flex-col overflow-y-auto scrollbar-thin shrink-0"
-    >
-      <div className="px-5 py-4 border-b border-gray-100 flex items-center justify-between">
-        <h2 className="font-semibold text-gray-900 text-sm">Contact Profile</h2>
-        <div className="flex items-center gap-2">
-          <button onClick={() => setEditing(!editing)} className="p-1.5 hover:bg-gray-100 rounded-lg text-gray-400 transition-colors">
-            {editing ? <X className="w-4 h-4" /> : <Edit3 className="w-4 h-4" />}
-          </button>
-          <button onClick={() => { if (window.confirm('Delete this contact?')) onDelete(contact.id); }} className="p-1.5 hover:bg-red-50 rounded-lg text-gray-400 hover:text-red-500 transition-colors">
-            <Trash2 className="w-4 h-4" />
-          </button>
-          <button onClick={onClose} className="p-1.5 hover:bg-gray-100 rounded-lg text-gray-400 transition-colors">
-            <X className="w-4 h-4" />
-          </button>
+    <div className="fixed inset-0 z-50 flex">
+      <div className="flex-1 bg-black/60" onClick={onClose} />
+      <div className="w-96 bg-[#111B21] border-l border-white/10 flex flex-col overflow-y-auto scrollbar-thin">
+        <div className="px-5 py-4 border-b border-white/10 flex items-center justify-between">
+          <h2 className="font-semibold text-white">Contact Details</h2>
+          <button onClick={onClose} className="p-1.5 hover:bg-white/10 rounded-lg transition-colors text-gray-400"><X className="w-4 h-4" /></button>
         </div>
-      </div>
-
-      <div className="flex-1 overflow-y-auto scrollbar-thin">
-        <div className="px-5 pt-5 pb-4 border-b border-gray-100">
-          <div className="w-14 h-14 rounded-2xl bg-gradient-to-br from-[#5C6CF7] to-[#00A8BD] flex items-center justify-center text-white font-bold text-xl mb-4">
-            {contact.full_name?.[0]?.toUpperCase() || '?'}
+        <div className="px-5 py-4 border-b border-white/10 text-center">
+          <Avatar name={editData.full_name} size="xl" />
+          <div className="mt-3 space-y-2">
+            {[['full_name','Name'],['email','Email'],['phone','Phone'],['company','Company']].map(([k, ph]) => (
+              <input key={k} className={inputCls} placeholder={ph} value={editData[k] || ''} onChange={e => set(k, e.target.value)} />
+            ))}
           </div>
-
-          {editing ? (
-            <div className="space-y-2.5">
-              {[
-                { key: 'full_name', placeholder: 'Full Name', label: 'Name' },
-                { key: 'email', placeholder: 'Email', label: 'Email' },
-                { key: 'phone', placeholder: 'Phone', label: 'Phone' },
-                { key: 'company', placeholder: 'Company', label: 'Company' },
-                { key: 'territory', placeholder: 'Territory', label: 'Territory' },
-              ].map(({ key, placeholder, label }) => (
-                <div key={key}>
-                  <label className="text-[10px] font-semibold text-gray-400 uppercase mb-0.5 block">{label}</label>
-                  <input
-                    value={editData[key] || ''}
-                    onChange={e => setEditData(d => ({ ...d, [key]: e.target.value }))}
-                    placeholder={placeholder}
-                    className="w-full text-sm border border-gray-200 rounded-lg px-3 py-1.5 focus:outline-none focus:ring-1 focus:ring-[#5C6CF7]"
-                  />
-                </div>
-              ))}
-              <button onClick={save} className="w-full py-2 bg-[#5C6CF7] text-white text-xs font-semibold rounded-lg hover:bg-[#4A5CE6] transition-colors flex items-center justify-center gap-1.5 mt-2">
-                <Check className="w-3 h-3" /> Save Changes
-              </button>
-            </div>
-          ) : (
-            <>
-              <h3 className="font-bold text-gray-900 text-lg leading-tight">{contact.full_name}</h3>
-              {contact.company && <p className="text-sm text-gray-500">{contact.company}</p>}
-              {contact.territory && <p className="text-xs text-gray-400 mt-0.5">{contact.territory}</p>}
-              <div className="mt-3 space-y-1.5">
-                {contact.email && (
-                  <a href={`mailto:${contact.email}`} className="flex items-center gap-2 text-xs text-gray-600 hover:text-[#5C6CF7] transition-colors">
-                    <Mail className="w-3.5 h-3.5 text-gray-400" />
-                    {contact.email}
-                  </a>
-                )}
-                {contact.phone && (
-                  <div className="flex items-center gap-2 text-xs text-gray-600">
-                    <Phone className="w-3.5 h-3.5 text-gray-400" />
-                    {contact.phone}
-                  </div>
-                )}
-              </div>
-              <div className="flex items-center gap-1.5 mt-3 flex-wrap">
-                {contact.lead_source && <ChannelBadge channel={contact.lead_source} showLabel />}
-              </div>
-            </>
-          )}
         </div>
-
-        <div className="px-5 py-4 border-b border-gray-100">
-          <p className="text-[10px] font-semibold text-gray-400 uppercase mb-2">Deal Stage</p>
-          <DealStageStepper
-            currentStage={contact.deal_stage || 'New Lead'}
-            onChange={stage => onUpdate({ ...contact, deal_stage: stage })}
-            compact
-          />
+        <div className="px-5 py-4 border-b border-white/10">
+          <p className="text-[10px] font-semibold text-gray-500 uppercase tracking-wide mb-2">Deal Stage</p>
+          <select value={editData.deal_stage || 'New Lead'} onChange={e => set('deal_stage', e.target.value)}
+            className="w-full bg-[#2A3942] text-white text-sm rounded-xl px-4 py-2.5 focus:outline-none border-0">
+            {STAGES.slice(1).map(s => <option key={s} value={s}>{s}</option>)}
+          </select>
         </div>
-
-        <div className="px-5 py-4 border-b border-gray-100">
-          <p className="text-[10px] font-semibold text-gray-400 uppercase mb-2">Notes</p>
-          <textarea
-            rows={4}
-            defaultValue={contact.notes || ''}
-            onBlur={e => onUpdate({ ...contact, notes: e.target.value })}
-            placeholder="Add notes about this contact…"
-            className="w-full text-sm border border-gray-200 rounded-lg px-3 py-2 resize-none focus:outline-none focus:ring-1 focus:ring-[#5C6CF7] text-gray-700 placeholder:text-gray-400"
-          />
+        <div className="px-5 py-4 border-b border-white/10">
+          <p className="text-[10px] font-semibold text-gray-500 uppercase tracking-wide mb-2">Notes</p>
+          <textarea rows={3} value={editData.notes || ''} onChange={e => set('notes', e.target.value)}
+            placeholder="Add notes…"
+            className="w-full bg-[#2A3942] text-white text-sm rounded-xl px-4 py-2.5 focus:outline-none focus:ring-1 focus:ring-[#25D366] border-0 resize-none placeholder:text-gray-600" />
         </div>
-
-        <div className="px-5 py-4">
-          <p className="text-[10px] font-semibold text-gray-400 uppercase mb-2">Conversations ({history.length})</p>
-          {history.length === 0 ? (
-            <p className="text-xs text-gray-400">No conversations yet</p>
-          ) : (
+        {conversations.length > 0 && (
+          <div className="px-5 py-4">
+            <p className="text-[10px] font-semibold text-gray-500 uppercase tracking-wide mb-2">Conversations ({conversations.length})</p>
             <div className="space-y-2">
-              {history.map(c => (
-                <div key={c.id} className="bg-gray-50 rounded-xl px-3 py-2.5">
-                  <div className="flex items-center gap-1.5 mb-1">
+              {conversations.map(c => (
+                <div key={c.id} className="bg-[#2A3942] rounded-xl px-3 py-2">
+                  <div className="flex items-center gap-2 mb-0.5">
                     <ChannelBadge channel={c.channel} />
-                    <span className="text-xs font-medium text-gray-700 truncate">{c.subject}</span>
-                    <span className={`ml-auto text-[10px] px-1.5 py-0.5 rounded-full font-medium ${
-                      c.status === 'closed' ? 'bg-green-100 text-green-600' : 'bg-blue-100 text-blue-600'
-                    }`}>{c.status}</span>
+                    <span className="text-xs text-gray-300 truncate">{c.subject}</span>
                   </div>
-                  <p className="text-[11px] text-gray-400 truncate">{c.last_message_preview || 'No messages'}</p>
                 </div>
               ))}
             </div>
-          )}
+          </div>
+        )}
+        <div className="px-5 py-4 mt-auto border-t border-white/10">
+          <button onClick={() => { onSave(editData); onClose(); }}
+            className="w-full py-2.5 bg-[#25D366] text-white font-semibold rounded-xl hover:bg-[#20BA5A] transition-colors text-sm">
+            Save Contact
+          </button>
         </div>
       </div>
-    </motion.div>
+    </div>
   );
 }
 
-const stageColors = {
-  'New Lead': 'bg-gray-100 text-gray-600',
-  'Contacted': 'bg-blue-100 text-blue-600',
-  'Qualified': 'bg-indigo-100 text-indigo-600',
-  'Proposal Sent': 'bg-purple-100 text-purple-600',
-  'Negotiation': 'bg-amber-100 text-amber-600',
-  'Closed Won': 'bg-emerald-100 text-emerald-600',
-  'Closed Lost': 'bg-red-100 text-red-600',
-};
-
 export default function Contacts() {
-  const user = MOCK_USER;
-  const [contacts, setContacts] = useState([...MOCK_CONTACTS]);
+  const [contacts, setContacts] = useState(store.getContacts());
   const [search, setSearch] = useState('');
-  const [stageFilter, setStageFilter] = useState('all');
-  const [selectedContact, setSelectedContact] = useState(null);
-  const [showAddForm, setShowAddForm] = useState(false);
-  const [newContact, setNewContact] = useState({ full_name: '', email: '', company: '', phone: '' });
+  const [stageFilter, setStageFilter] = useState('All');
+  const [selected, setSelected] = useState(null);
+  const [showNew, setShowNew] = useState(false);
+  const [newForm, setNewForm] = useState({ full_name: '', email: '', phone: '', company: '' });
 
   const filtered = contacts.filter(c => {
-    if (stageFilter !== 'all' && c.deal_stage !== stageFilter) return false;
+    if (stageFilter !== 'All' && c.deal_stage !== stageFilter) return false;
     if (search) {
       const q = search.toLowerCase();
-      return (c.full_name || '').toLowerCase().includes(q) ||
-        (c.email || '').toLowerCase().includes(q) ||
-        (c.company || '').toLowerCase().includes(q);
+      return (c.full_name || '').toLowerCase().includes(q) || (c.company || '').toLowerCase().includes(q);
     }
     return true;
   });
 
-  const addContact = () => {
-    if (!newContact.full_name) return;
-    const c = {
-      ...newContact,
-      id: genId('c'),
-      deal_stage: 'New Lead',
-      tags: [],
-      notes: '',
-      created_date: new Date().toISOString(),
-      updated_date: new Date().toISOString(),
-    };
-    setContacts(prev => [c, ...prev]);
-    setShowAddForm(false);
-    setNewContact({ full_name: '', email: '', company: '', phone: '' });
-    setSelectedContact(c);
+  const saveContact = (data) => { store.updateContact(data.id, data); setContacts(store.getContacts()); };
+  const createContact = () => {
+    if (!newForm.full_name.trim()) return;
+    const c = { id: genId('c'), ...newForm, deal_stage: 'New Lead', tags: [], notes: '', avatar: null, created_date: new Date().toISOString() };
+    store.addContact(c);
+    setContacts(store.getContacts());
+    setShowNew(false);
+    setNewForm({ full_name: '', email: '', phone: '', company: '' });
   };
+  const deleteContact = (id) => { store.deleteContact(id); setContacts(store.getContacts()); if (selected?.id === id) setSelected(null); };
 
-  const handleUpdate = (updated) => {
-    setContacts(prev => prev.map(c => c.id === updated.id ? updated : c));
-    if (selectedContact?.id === updated.id) setSelectedContact(updated);
-  };
-
-  const handleDelete = (id) => {
-    setContacts(prev => prev.filter(c => c.id !== id));
-    setSelectedContact(null);
-  };
+  const inputCls = 'w-full bg-[#2A3942] text-white text-sm rounded-xl px-4 py-2.5 focus:outline-none focus:ring-1 focus:ring-[#25D366] border-0 placeholder:text-gray-600';
 
   return (
-    <div className="flex h-screen overflow-hidden bg-[#F5F5F7]">
-      <NavRail user={user} />
-
-      <div className="flex-1 flex flex-col min-w-0">
-        <div className="bg-white border-b border-gray-200 px-6 py-4 flex items-center gap-4 shrink-0">
-          <div className="flex-1">
-            <h1 className="text-lg font-bold text-gray-900">Contacts</h1>
-            <p className="text-xs text-gray-400">{contacts.length} contacts</p>
+    <div className="flex h-screen overflow-hidden bg-[#111B21]">
+      <Sidebar />
+      <div className="flex-1 flex flex-col overflow-hidden bg-[#0D1418]">
+        <div className="px-6 py-4 border-b border-white/10 flex items-center gap-4 bg-[#111B21]">
+          <div>
+            <h1 className="text-base font-bold text-white">Contacts</h1>
+            <p className="text-xs text-gray-500">{contacts.length} contacts</p>
           </div>
-
-          <div className="relative">
-            <Search className="w-3.5 h-3.5 text-gray-400 absolute left-3 top-1/2 -translate-y-1/2" />
-            <input
-              value={search}
-              onChange={e => setSearch(e.target.value)}
-              placeholder="Search contacts…"
-              className="pl-8 pr-3 py-2 text-sm bg-gray-100 rounded-xl border-0 focus:outline-none focus:ring-1 focus:ring-[#5C6CF7] focus:bg-white w-56 transition-all"
-            />
+          <div className="flex-1 relative max-w-sm">
+            <Search className="w-3.5 h-3.5 text-gray-600 absolute left-3 top-1/2 -translate-y-1/2" />
+            <input value={search} onChange={e => setSearch(e.target.value)} placeholder="Search contacts…"
+              className="w-full pl-8 pr-3 py-2 text-xs bg-[#2A3942] rounded-lg border-0 text-white placeholder:text-gray-600 focus:outline-none focus:ring-1 focus:ring-[#25D366]" />
           </div>
-
-          <select
-            value={stageFilter}
-            onChange={e => setStageFilter(e.target.value)}
-            className="text-xs border border-gray-200 rounded-lg px-3 py-2 bg-white focus:outline-none focus:ring-1 focus:ring-[#5C6CF7]"
-          >
-            <option value="all">All Stages</option>
-            {STAGES.map(s => <option key={s} value={s}>{s}</option>)}
-          </select>
-
-          <button
-            onClick={() => setShowAddForm(true)}
-            className="flex items-center gap-1.5 px-4 py-2 bg-[#5C6CF7] text-white text-sm font-semibold rounded-xl hover:bg-[#4A5CE6] transition-colors shadow-sm"
-          >
-            <Plus className="w-4 h-4" />
-            Add Contact
+          <button onClick={() => setShowNew(true)}
+            className="ml-auto flex items-center gap-1.5 px-4 py-2 bg-[#25D366] text-white text-sm font-semibold rounded-xl hover:bg-[#20BA5A] transition-colors">
+            <Plus className="w-4 h-4" /> New Contact
           </button>
         </div>
-
-        <div className="flex flex-1 min-h-0">
-          <div className="flex-1 overflow-y-auto scrollbar-thin p-4">
-            <AnimatePresence>
-              {showAddForm && (
-                <motion.div
-                  initial={{ height: 0, opacity: 0 }}
-                  animate={{ height: 'auto', opacity: 1 }}
-                  exit={{ height: 0, opacity: 0 }}
-                  className="bg-white rounded-2xl border border-[#5C6CF7]/30 p-4 mb-4 shadow-sm overflow-hidden"
-                >
-                  <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 mb-3">
-                    {[
-                      { key: 'full_name', placeholder: 'Full Name *' },
-                      { key: 'email', placeholder: 'Email' },
-                      { key: 'company', placeholder: 'Company' },
-                      { key: 'phone', placeholder: 'Phone' },
-                    ].map(({ key, placeholder }) => (
-                      <input
-                        key={key}
-                        value={newContact[key]}
-                        onChange={e => setNewContact(d => ({ ...d, [key]: e.target.value }))}
-                        placeholder={placeholder}
-                        className="text-sm border border-gray-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-1 focus:ring-[#5C6CF7]"
-                      />
-                    ))}
-                  </div>
-                  <div className="flex gap-2 justify-end">
-                    <button onClick={() => setShowAddForm(false)} className="px-4 py-1.5 text-sm text-gray-500 hover:bg-gray-100 rounded-lg transition-colors">Cancel</button>
-                    <button onClick={addContact} disabled={!newContact.full_name} className="px-4 py-1.5 bg-[#5C6CF7] text-white text-sm font-semibold rounded-lg hover:bg-[#4A5CE6] transition-colors disabled:opacity-50 flex items-center gap-1.5">
-                      <Check className="w-3.5 h-3.5" />
-                      Add
-                    </button>
-                  </div>
-                </motion.div>
-              )}
-            </AnimatePresence>
-
-            {filtered.length === 0 ? (
-              <div className="flex flex-col items-center justify-center h-48 text-center">
-                <User className="w-10 h-10 text-gray-200 mb-3" />
-                <p className="text-sm text-gray-500 font-medium">No contacts found</p>
-                <p className="text-xs text-gray-400 mt-1">Try adjusting your filters</p>
-              </div>
-            ) : (
-              <div className="grid gap-2">
-                {filtered.map(contact => (
-                  <motion.div
-                    key={contact.id}
-                    initial={{ opacity: 0 }}
-                    animate={{ opacity: 1 }}
-                    onClick={() => setSelectedContact(contact)}
-                    className={`bg-white rounded-xl px-4 py-3.5 border cursor-pointer transition-all flex items-center gap-4 hover:shadow-sm
-                      ${selectedContact?.id === contact.id ? 'border-[#5C6CF7] shadow-sm' : 'border-gray-100 hover:border-gray-200'}`}
-                  >
-                    <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-[#5C6CF7]/20 to-[#00A8BD]/20 flex items-center justify-center text-[#5C6CF7] font-bold shrink-0">
-                      {contact.full_name?.[0]?.toUpperCase() || '?'}
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <div className="flex items-center gap-2">
-                        <p className="font-semibold text-gray-900 text-sm">{contact.full_name}</p>
-                        {contact.lead_source && <ChannelBadge channel={contact.lead_source} />}
-                      </div>
-                      <div className="flex items-center gap-3 mt-0.5">
-                        {contact.email && <span className="text-xs text-gray-400 truncate">{contact.email}</span>}
-                        {contact.company && <span className="text-xs text-gray-500">{contact.company}</span>}
-                      </div>
-                    </div>
-                    <div className="flex items-center gap-2 shrink-0">
-                      <span className={`text-[10px] font-semibold px-2 py-1 rounded-full ${stageColors[contact.deal_stage] || 'bg-gray-100 text-gray-600'}`}>
-                        {contact.deal_stage || 'New Lead'}
-                      </span>
-                      <ChevronRight className="w-4 h-4 text-gray-300" />
-                    </div>
-                  </motion.div>
+        <div className="px-6 py-2 border-b border-white/10 flex gap-1 overflow-x-auto scrollbar-thin">
+          {STAGES.map(s => (
+            <button key={s} onClick={() => setStageFilter(s)}
+              className={`px-3 py-1 rounded-full text-xs font-medium whitespace-nowrap transition-all
+                ${stageFilter === s ? 'bg-[#25D366]/20 text-[#25D366]' : 'text-gray-500 hover:text-gray-300'}`}>{s}</button>
+          ))}
+        </div>
+        <div className="flex-1 overflow-y-auto scrollbar-thin">
+          <table className="w-full">
+            <thead>
+              <tr className="border-b border-white/10">
+                {['Name','Company','Stage',''].map(h => (
+                  <th key={h} className="text-left px-6 py-3 text-[10px] font-semibold text-gray-500 uppercase tracking-wide">{h}</th>
                 ))}
-              </div>
-            )}
-          </div>
-
-          <AnimatePresence>
-            {selectedContact && (
-              <ContactDrawer
-                contact={selectedContact}
-                onClose={() => setSelectedContact(null)}
-                onUpdate={handleUpdate}
-                onDelete={handleDelete}
-              />
-            )}
-          </AnimatePresence>
+              </tr>
+            </thead>
+            <tbody>
+              {filtered.map(c => (
+                <tr key={c.id} onClick={() => setSelected(c)}
+                  className="border-b border-white/5 hover:bg-white/5 cursor-pointer transition-colors group">
+                  <td className="px-6 py-3">
+                    <div className="flex items-center gap-3">
+                      <Avatar name={c.full_name} size="sm" />
+                      <div>
+                        <p className="text-sm font-medium text-white">{c.full_name}</p>
+                        <p className="text-xs text-gray-500">{c.email}</p>
+                      </div>
+                    </div>
+                  </td>
+                  <td className="px-6 py-3 text-sm text-gray-400">{c.company}</td>
+                  <td className="px-6 py-3">
+                    <span className={`text-[10px] font-semibold px-2 py-0.5 rounded-full ${STAGE_COLORS[c.deal_stage] || 'text-gray-400 bg-white/5'}`}>
+                      {c.deal_stage || 'New Lead'}
+                    </span>
+                  </td>
+                  <td className="px-4 py-3">
+                    <button onClick={e => { e.stopPropagation(); deleteContact(c.id); }}
+                      className="opacity-0 group-hover:opacity-100 p-1.5 hover:bg-red-900/30 hover:text-red-400 text-gray-600 rounded-lg transition-all">
+                      <Trash2 className="w-3.5 h-3.5" />
+                    </button>
+                  </td>
+                </tr>
+              ))}
+              {!filtered.length && (
+                <tr><td colSpan={4} className="py-16 text-center text-sm text-gray-500">No contacts found</td></tr>
+              )}
+            </tbody>
+          </table>
         </div>
       </div>
+
+      {showNew && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center">
+          <div className="absolute inset-0 bg-black/60" onClick={() => setShowNew(false)} />
+          <div className="relative bg-[#202C33] rounded-2xl border border-white/10 p-6 w-96 space-y-3">
+            <div className="flex items-center justify-between mb-1">
+              <h2 className="font-semibold text-white">New Contact</h2>
+              <button onClick={() => setShowNew(false)} className="text-gray-400 hover:text-gray-200"><X className="w-4 h-4" /></button>
+            </div>
+            {[['full_name','Name *'],['email','Email'],['phone','Phone'],['company','Company']].map(([k, ph]) => (
+              <input key={k} className={inputCls} placeholder={ph} value={newForm[k] || ''} onChange={e => setNewForm(f => ({ ...f, [k]: e.target.value }))} />
+            ))}
+            <button onClick={createContact} disabled={!newForm.full_name.trim()}
+              className="w-full py-2.5 bg-[#25D366] text-white font-semibold rounded-xl hover:bg-[#20BA5A] transition-colors text-sm disabled:opacity-40">
+              Add Contact
+            </button>
+          </div>
+        </div>
+      )}
+      {selected && <ContactDrawer contact={selected} onClose={() => setSelected(null)} onSave={saveContact} />}
     </div>
   );
 }

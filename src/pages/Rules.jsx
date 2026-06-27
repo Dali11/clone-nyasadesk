@@ -1,303 +1,140 @@
 import { useState } from 'react';
-import { Plus, Zap, Trash2, ToggleLeft, ToggleRight, Edit3, Check, X } from 'lucide-react';
-import NavRail from '@/components/NavRail';
-import { motion, AnimatePresence } from 'framer-motion';
-import { MOCK_USER, MOCK_USERS, MOCK_RULES, genId } from '@/lib/mockData';
+import { Plus, Trash2, Edit3, Zap, ToggleLeft, ToggleRight } from 'lucide-react';
+import Sidebar from '@/components/Sidebar';
+import ChannelBadge, { CHANNELS } from '@/components/ChannelBadge';
+import Avatar from '@/components/Avatar';
+import { store, genId } from '@/lib/store';
 
-const RULE_TYPES = [
-  { value: 'round_robin', label: 'Round Robin', desc: 'Distribute evenly across team members' },
-  { value: 'lead_source', label: 'By Lead Source', desc: 'Assign based on the incoming channel' },
-  { value: 'territory', label: 'By Territory', desc: 'Assign based on contact territory' },
-];
-
-const CHANNELS = ['all', 'whatsapp', 'messenger', 'email', 'website'];
-
-function RuleCard({ rule, users, onToggle, onDelete, onEdit }) {
-  const typeLabel = RULE_TYPES.find(t => t.value === rule.type)?.label || rule.type;
-  const assignedUsers = users.filter(u => (rule.assigned_to_ids || []).includes(u.id));
-
-  return (
-    <motion.div
-      initial={{ opacity: 0, y: 8 }}
-      animate={{ opacity: 1, y: 0 }}
-      exit={{ opacity: 0, scale: 0.97 }}
-      className={`bg-white rounded-2xl border p-5 shadow-sm transition-all ${rule.is_active ? 'border-gray-100' : 'border-gray-100 opacity-60'}`}
-    >
-      <div className="flex items-start justify-between gap-3">
-        <div className="flex-1">
-          <div className="flex items-center gap-2 mb-1">
-            <div className="w-7 h-7 rounded-lg bg-[#5C6CF7]/10 flex items-center justify-center">
-              <Zap className="w-3.5 h-3.5 text-[#5C6CF7]" />
-            </div>
-            <h3 className="font-semibold text-gray-900 text-sm">{rule.name}</h3>
-            {!rule.is_active && (
-              <span className="text-[10px] px-2 py-0.5 bg-gray-100 text-gray-400 rounded-full font-medium">Inactive</span>
-            )}
-          </div>
-          <p className="text-xs text-gray-500 mb-3 pl-9">{RULE_TYPES.find(t => t.value === rule.type)?.desc}</p>
-
-          <div className="flex items-center gap-4 pl-9 flex-wrap">
-            <div>
-              <span className="text-[10px] font-semibold text-gray-400 uppercase block mb-1">Type</span>
-              <span className="text-xs font-medium text-gray-700 bg-gray-100 px-2 py-0.5 rounded-full">{typeLabel}</span>
-            </div>
-            <div>
-              <span className="text-[10px] font-semibold text-gray-400 uppercase block mb-1">Channel</span>
-              <span className="text-xs font-medium text-gray-700 bg-gray-100 px-2 py-0.5 rounded-full capitalize">{rule.channel || 'all'}</span>
-            </div>
-            {rule.condition_value && (
-              <div>
-                <span className="text-[10px] font-semibold text-gray-400 uppercase block mb-1">Condition</span>
-                <span className="text-xs font-medium text-gray-700 bg-gray-100 px-2 py-0.5 rounded-full">{rule.condition_value}</span>
-              </div>
-            )}
-            <div>
-              <span className="text-[10px] font-semibold text-gray-400 uppercase block mb-1">Assigned To</span>
-              <div className="flex items-center gap-1">
-                {assignedUsers.length === 0 ? (
-                  <span className="text-xs text-gray-400">All reps</span>
-                ) : (
-                  assignedUsers.map(u => (
-                    <span key={u.id} className="text-xs bg-[#5C6CF7]/10 text-[#5C6CF7] px-2 py-0.5 rounded-full font-medium">
-                      {u.full_name?.split(' ')[0]}
-                    </span>
-                  ))
-                )}
-              </div>
-            </div>
-          </div>
-        </div>
-
-        <div className="flex items-center gap-1 shrink-0">
-          <button onClick={() => onToggle(rule)} className="p-1.5 hover:bg-gray-100 rounded-lg transition-colors text-gray-400">
-            {rule.is_active
-              ? <ToggleRight className="w-5 h-5 text-[#5C6CF7]" />
-              : <ToggleLeft className="w-5 h-5" />
-            }
-          </button>
-          <button onClick={() => onEdit(rule)} className="p-1.5 hover:bg-gray-100 rounded-lg transition-colors text-gray-400 hover:text-gray-600">
-            <Edit3 className="w-4 h-4" />
-          </button>
-          <button onClick={() => { if (window.confirm('Delete this rule?')) onDelete(rule.id); }} className="p-1.5 hover:bg-red-50 rounded-lg transition-colors text-gray-400 hover:text-red-500">
-            <Trash2 className="w-4 h-4" />
-          </button>
-        </div>
-      </div>
-    </motion.div>
-  );
-}
-
-function RuleForm({ users, onSave, onCancel, initial }) {
-  const [form, setForm] = useState(initial || {
-    name: '', type: 'round_robin', channel: 'all', condition_value: '', assigned_to_ids: [], is_active: true,
-  });
-
-  const toggleUser = (id) => {
-    setForm(f => ({
-      ...f,
-      assigned_to_ids: f.assigned_to_ids.includes(id)
-        ? f.assigned_to_ids.filter(u => u !== id)
-        : [...f.assigned_to_ids, id]
-    }));
-  };
-
-  const submit = () => {
-    if (!form.name) return;
-    const names = users.filter(u => form.assigned_to_ids.includes(u.id)).map(u => u.full_name);
-    onSave({ ...form, assigned_to_names: names });
-  };
-
-  return (
-    <div className="bg-white rounded-2xl border border-[#5C6CF7]/20 p-5 shadow-sm">
-      <h3 className="font-semibold text-gray-900 text-sm mb-4">{initial ? 'Edit Rule' : 'New Assignment Rule'}</h3>
-
-      <div className="space-y-3">
-        <div>
-          <label className="text-xs font-medium text-gray-600 mb-1 block">Rule Name *</label>
-          <input
-            value={form.name}
-            onChange={e => setForm(f => ({ ...f, name: e.target.value }))}
-            placeholder="e.g. Round Robin for Email"
-            className="w-full text-sm border border-gray-200 rounded-xl px-3 py-2 focus:outline-none focus:ring-1 focus:ring-[#5C6CF7]"
-          />
-        </div>
-
-        <div className="grid grid-cols-2 gap-3">
-          <div>
-            <label className="text-xs font-medium text-gray-600 mb-1 block">Assignment Type</label>
-            <select
-              value={form.type}
-              onChange={e => setForm(f => ({ ...f, type: e.target.value }))}
-              className="w-full text-sm border border-gray-200 rounded-xl px-3 py-2 focus:outline-none focus:ring-1 focus:ring-[#5C6CF7] bg-white"
-            >
-              {RULE_TYPES.map(t => <option key={t.value} value={t.value}>{t.label}</option>)}
-            </select>
-          </div>
-          <div>
-            <label className="text-xs font-medium text-gray-600 mb-1 block">Apply to Channel</label>
-            <select
-              value={form.channel}
-              onChange={e => setForm(f => ({ ...f, channel: e.target.value }))}
-              className="w-full text-sm border border-gray-200 rounded-xl px-3 py-2 focus:outline-none focus:ring-1 focus:ring-[#5C6CF7] bg-white"
-            >
-              {CHANNELS.map(c => <option key={c} value={c} className="capitalize">{c === 'all' ? 'All Channels' : c}</option>)}
-            </select>
-          </div>
-        </div>
-
-        {(form.type === 'lead_source' || form.type === 'territory') && (
-          <div>
-            <label className="text-xs font-medium text-gray-600 mb-1 block">
-              {form.type === 'lead_source' ? 'Lead Source Value' : 'Territory Value'}
-            </label>
-            <input
-              value={form.condition_value}
-              onChange={e => setForm(f => ({ ...f, condition_value: e.target.value }))}
-              placeholder={form.type === 'territory' ? 'e.g. APAC, Europe' : 'e.g. whatsapp, referral'}
-              className="w-full text-sm border border-gray-200 rounded-xl px-3 py-2 focus:outline-none focus:ring-1 focus:ring-[#5C6CF7]"
-            />
-          </div>
-        )}
-
-        <div>
-          <label className="text-xs font-medium text-gray-600 mb-2 block">Assign To (empty = all reps)</label>
-          <div className="flex flex-wrap gap-2">
-            {users.map(u => (
-              <button
-                key={u.id}
-                onClick={() => toggleUser(u.id)}
-                className={`text-xs px-3 py-1.5 rounded-full font-medium transition-all
-                  ${form.assigned_to_ids.includes(u.id)
-                    ? 'bg-[#5C6CF7] text-white'
-                    : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
-                  }`}
-              >
-                {u.full_name}
-              </button>
-            ))}
-          </div>
-        </div>
-
-        <div className="flex gap-2 justify-end pt-1">
-          <button onClick={onCancel} className="px-4 py-2 text-sm text-gray-500 hover:bg-gray-100 rounded-xl transition-colors">Cancel</button>
-          <button onClick={submit} disabled={!form.name} className="px-4 py-2 bg-[#5C6CF7] text-white text-sm font-semibold rounded-xl hover:bg-[#4A5CE6] transition-colors disabled:opacity-50 flex items-center gap-2">
-            <Check className="w-3.5 h-3.5" />
-            {initial ? 'Save Changes' : 'Create Rule'}
-          </button>
-        </div>
-      </div>
-    </div>
-  );
-}
+const RULE_TYPES = ['round_robin', 'lead_source', 'territory'];
+const CHANNELS_ALL = ['all', ...CHANNELS];
 
 export default function Rules() {
-  const user = MOCK_USER;
-  const [rules, setRules] = useState([...MOCK_RULES]);
-  const [showForm, setShowForm] = useState(false);
-  const [editingRule, setEditingRule] = useState(null);
+  const [rules, setRules] = useState(store.getRules());
+  const users = store.getUsers();
+  const [editing, setEditing] = useState(null);
+  const [form, setForm] = useState({ name: '', type: 'round_robin', channel: 'all', condition_value: '', assigned_to_ids: [], is_active: true });
 
-  const handleSave = (formData) => {
-    if (editingRule) {
-      setRules(prev => prev.map(r => r.id === editingRule.id ? { ...r, ...formData } : r));
-      setEditingRule(null);
+  const set = (k, v) => setForm(f => ({ ...f, [k]: v }));
+  const toggleUser = (id) => setForm(f => ({ ...f, assigned_to_ids: f.assigned_to_ids.includes(id) ? f.assigned_to_ids.filter(u => u !== id) : [...f.assigned_to_ids, id] }));
+  const startNew = () => { setForm({ name: '', type: 'round_robin', channel: 'all', condition_value: '', assigned_to_ids: [], is_active: true }); setEditing('new'); };
+  const startEdit = (r) => { setForm({ ...r }); setEditing(r.id); };
+
+  const save = () => {
+    if (!form.name.trim()) return;
+    const names = users.filter(u => form.assigned_to_ids.includes(u.id)).map(u => u.full_name);
+    if (editing === 'new') {
+      store.addRule({ id: genId('rule'), ...form, assigned_to_names: names, priority_order: rules.length + 1, round_robin_index: 0 });
     } else {
-      const created = { ...formData, id: genId('rule'), priority_order: rules.length, round_robin_index: 0, created_date: new Date().toISOString() };
-      setRules(prev => [...prev, created]);
+      store.updateRule(editing, { ...form, assigned_to_names: names });
     }
-    setShowForm(false);
+    setRules(store.getRules());
+    setEditing(null);
   };
 
-  const handleToggle = (rule) => {
-    setRules(prev => prev.map(r => r.id === rule.id ? { ...r, is_active: !r.is_active } : r));
-  };
+  const toggle = (id, val) => { store.updateRule(id, { is_active: val }); setRules(store.getRules()); };
+  const del = (id) => { store.deleteRule(id); setRules(store.getRules()); };
 
-  const handleDelete = (id) => {
-    setRules(prev => prev.filter(r => r.id !== id));
-  };
-
-  const handleEdit = (rule) => {
-    setEditingRule(rule);
-    setShowForm(true);
-  };
+  const inputCls = 'w-full bg-[#2A3942] text-white text-sm rounded-xl px-4 py-2.5 focus:outline-none focus:ring-1 focus:ring-[#25D366] border-0 placeholder:text-gray-600';
 
   return (
-    <div className="flex h-screen overflow-hidden bg-[#F5F5F7]">
-      <NavRail user={user} />
-
-      <div className="flex-1 overflow-y-auto scrollbar-thin">
+    <div className="flex h-screen overflow-hidden bg-[#111B21]">
+      <Sidebar />
+      <div className="flex-1 overflow-y-auto scrollbar-thin bg-[#0D1418]">
         <div className="max-w-3xl mx-auto px-6 py-8">
-          <div className="flex items-center justify-between mb-6">
+          <div className="flex items-center justify-between mb-8">
             <div>
-              <h1 className="text-2xl font-bold text-gray-900">Assignment Rules</h1>
-              <p className="text-sm text-gray-500 mt-1">Auto-assign conversations to your sales reps</p>
+              <h1 className="text-2xl font-bold text-white">Assignment Rules</h1>
+              <p className="text-sm text-gray-500 mt-1">Auto-assign incoming conversations to your team</p>
             </div>
-            <button
-              onClick={() => { setEditingRule(null); setShowForm(true); }}
-              className="flex items-center gap-2 px-4 py-2 bg-[#5C6CF7] text-white text-sm font-semibold rounded-xl hover:bg-[#4A5CE6] transition-colors shadow-sm"
-            >
-              <Plus className="w-4 h-4" />
-              New Rule
+            <button onClick={startNew}
+              className="flex items-center gap-2 px-4 py-2 bg-[#25D366] text-white text-sm font-semibold rounded-xl hover:bg-[#20BA5A] transition-colors">
+              <Plus className="w-4 h-4" /> New Rule
             </button>
           </div>
 
-          <div className="bg-[#5C6CF7]/5 border border-[#5C6CF7]/15 rounded-2xl p-4 mb-6">
-            <p className="text-sm text-[#5C6CF7] font-medium mb-1">How rules work</p>
-            <p className="text-xs text-gray-500">Rules are evaluated in order. When a new conversation arrives, the first matching active rule determines who gets assigned. Round Robin distributes evenly across selected reps.</p>
-          </div>
-
-          <AnimatePresence mode="popLayout">
-            {showForm && (
-              <motion.div
-                key="form"
-                initial={{ opacity: 0, y: -10 }}
-                animate={{ opacity: 1, y: 0 }}
-                exit={{ opacity: 0, y: -10 }}
-                className="mb-4"
-              >
-                <RuleForm
-                  users={MOCK_USERS}
-                  onSave={handleSave}
-                  onCancel={() => { setShowForm(false); setEditingRule(null); }}
-                  initial={editingRule}
-                />
-              </motion.div>
-            )}
-          </AnimatePresence>
-
-          {rules.length === 0 ? (
-            <div className="bg-white rounded-2xl p-16 text-center border border-gray-100 shadow-sm">
-              <Zap className="w-10 h-10 text-gray-200 mx-auto mb-4" />
-              <p className="text-sm font-medium text-gray-500">No rules yet</p>
-              <p className="text-xs text-gray-400 mt-1 mb-5">Create your first rule to auto-assign conversations</p>
-              <button
-                onClick={() => setShowForm(true)}
-                className="px-4 py-2 bg-[#5C6CF7] text-white text-sm font-semibold rounded-xl hover:bg-[#4A5CE6] transition-colors"
-              >
-                Create First Rule
-              </button>
-            </div>
-          ) : (
-            <div className="space-y-3">
-              <AnimatePresence>
-                {rules.map((rule, i) => (
-                  <div key={rule.id} className="flex items-start gap-3">
-                    <div className="w-6 h-6 rounded-full bg-gray-200 text-gray-500 text-xs font-bold flex items-center justify-center mt-4 shrink-0">
-                      {i + 1}
-                    </div>
-                    <div className="flex-1">
-                      <RuleCard
-                        rule={rule}
-                        users={MOCK_USERS}
-                        onToggle={handleToggle}
-                        onDelete={handleDelete}
-                        onEdit={handleEdit}
-                      />
-                    </div>
-                  </div>
-                ))}
-              </AnimatePresence>
+          {editing && (
+            <div className="bg-[#202C33] rounded-2xl border border-[#25D366]/40 p-5 mb-6 space-y-4">
+              <h3 className="font-semibold text-white text-sm">{editing === 'new' ? 'New Rule' : 'Edit Rule'}</h3>
+              <input className={inputCls} placeholder="Rule name *" value={form.name} onChange={e => set('name', e.target.value)} />
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="text-xs text-gray-500 mb-1 block">Type</label>
+                  <select value={form.type} onChange={e => set('type', e.target.value)} className="w-full bg-[#2A3942] text-white text-sm rounded-xl px-4 py-2.5 focus:outline-none border-0">
+                    {RULE_TYPES.map(t => <option key={t} value={t} className="capitalize">{t.replace('_',' ')}</option>)}
+                  </select>
+                </div>
+                <div>
+                  <label className="text-xs text-gray-500 mb-1 block">Channel</label>
+                  <select value={form.channel} onChange={e => set('channel', e.target.value)} className="w-full bg-[#2A3942] text-white text-sm rounded-xl px-4 py-2.5 focus:outline-none border-0">
+                    {CHANNELS_ALL.map(c => <option key={c} value={c} className="capitalize">{c}</option>)}
+                  </select>
+                </div>
+              </div>
+              {form.type !== 'round_robin' && (
+                <input className={inputCls} placeholder="Condition value" value={form.condition_value} onChange={e => set('condition_value', e.target.value)} />
+              )}
+              <div>
+                <label className="text-xs text-gray-500 mb-2 block">Assign to</label>
+                <div className="flex flex-wrap gap-2">
+                  {users.map(u => (
+                    <button key={u.id} onClick={() => toggleUser(u.id)}
+                      className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-medium transition-all border
+                        ${form.assigned_to_ids.includes(u.id) ? 'bg-[#25D366]/20 border-[#25D366]/40 text-[#25D366]' : 'border-white/10 text-gray-400 hover:border-white/20'}`}>
+                      <Avatar name={u.full_name} size="xs" />{u.full_name}
+                    </button>
+                  ))}
+                </div>
+              </div>
+              <div className="flex gap-3 pt-2">
+                <button onClick={() => setEditing(null)} className="px-4 py-2 border border-white/10 text-gray-300 rounded-xl text-sm">Cancel</button>
+                <button onClick={save} disabled={!form.name.trim()}
+                  className="px-6 py-2 bg-[#25D366] text-white font-semibold rounded-xl text-sm hover:bg-[#20BA5A] transition-colors disabled:opacity-40">Save Rule</button>
+              </div>
             </div>
           )}
+
+          <div className="space-y-3">
+            {rules.length === 0 && !editing && (
+              <div className="flex flex-col items-center py-20 text-center">
+                <Zap className="w-12 h-12 text-gray-700 mb-4" />
+                <p className="text-gray-500">No rules yet</p>
+              </div>
+            )}
+            {rules.map((r, idx) => (
+              <div key={r.id} className={`bg-[#202C33] rounded-2xl border px-5 py-4 ${r.is_active ? 'border-white/10' : 'border-white/5 opacity-60'} group`}>
+                <div className="flex items-start gap-3">
+                  <span className="text-xs text-gray-600 font-mono mt-0.5 w-4">#{idx + 1}</span>
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-2 mb-1.5">
+                      <span className="font-semibold text-white text-sm">{r.name}</span>
+                      <span className="text-[10px] text-gray-500 bg-white/5 px-2 py-0.5 rounded-full capitalize">{r.type.replace('_',' ')}</span>
+                      {r.channel !== 'all' && <ChannelBadge channel={r.channel} />}
+                    </div>
+                    {r.condition_value && <p className="text-xs text-gray-500 mb-2">When: "{r.condition_value}"</p>}
+                    <div className="flex items-center gap-1.5 flex-wrap">
+                      {(r.assigned_to_names || []).map(n => (
+                        <div key={n} className="flex items-center gap-1 bg-white/5 px-2 py-0.5 rounded-full">
+                          <Avatar name={n} size="xs" />
+                          <span className="text-[10px] text-gray-400">{n}</span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-2 shrink-0">
+                    <button onClick={() => toggle(r.id, !r.is_active)} className="text-gray-500 hover:text-white transition-colors">
+                      {r.is_active ? <ToggleRight className="w-5 h-5 text-[#25D366]" /> : <ToggleLeft className="w-5 h-5" />}
+                    </button>
+                    <button onClick={() => startEdit(r)} className="p-1.5 hover:bg-white/10 rounded-lg text-gray-600 hover:text-white transition-colors opacity-0 group-hover:opacity-100">
+                      <Edit3 className="w-4 h-4" />
+                    </button>
+                    <button onClick={() => del(r.id)} className="p-1.5 hover:bg-red-900/30 rounded-lg text-gray-600 hover:text-red-400 transition-colors opacity-0 group-hover:opacity-100">
+                      <Trash2 className="w-4 h-4" />
+                    </button>
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
         </div>
       </div>
     </div>
