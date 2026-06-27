@@ -1,0 +1,95 @@
+{
+  "name": "Conversation",
+  "type": "object",
+  "properties": {
+    "subject": {
+      "type": "string"
+    },
+    "contact_id": {
+      "type": "string"
+    },
+    "contact_name": {
+      "type": "string"
+    },
+    "contact_email": {
+      "type": "string"
+    },
+    "channel": {
+      "type": "string",
+      "enum": [
+        "email",
+        "whatsapp",
+        "chat",
+        "phone"
+      ],
+      "default": "email"
+    },
+    "status": {
+      "type": "string",
+      "enum": [
+        "unassigned",
+        "open",
+        "snoozed",
+        "closed"
+      ],
+      "default": "unassigned"
+    },
+    "assigned_to": {
+      "type": "string"
+    },
+    "assigned_to_name": {
+      "type": "string"
+    },
+    "priority": {
+      "type": "string",
+      "enum": [
+        "low",
+        "normal",
+        "high",
+        "urgent"
+      ],
+      "default": "normal"
+    },
+    "tags": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "last_message_preview": {
+      "type": "string"
+    },
+    "last_message_at": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "reminder_at": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "is_reminder_active": {
+      "type": "boolean",
+      "default": false
+    },
+    "unread": {
+      "type": "boolean",
+      "default": true
+    },
+    "deal_stage": {
+      "type": "string",
+      "enum": [
+        "New Lead",
+        "Contacted",
+        "Qualified",
+        "Proposal Sent",
+        "Negotiation",
+        "Closed Won",
+        "Closed Lost"
+      ],
+      "default": "New Lead"
+    }
+  },
+  "required": [
+    "subject"
+  ]
+}

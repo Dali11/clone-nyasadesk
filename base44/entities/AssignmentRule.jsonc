@@ -1,0 +1,60 @@
+{
+  "name": "AssignmentRule",
+  "type": "object",
+  "properties": {
+    "name": {
+      "type": "string"
+    },
+    "type": {
+      "type": "string",
+      "enum": [
+        "round_robin",
+        "lead_source",
+        "territory"
+      ],
+      "default": "round_robin"
+    },
+    "channel": {
+      "type": "string",
+      "enum": [
+        "email",
+        "whatsapp",
+        "chat",
+        "phone",
+        "all"
+      ],
+      "default": "all"
+    },
+    "condition_value": {
+      "type": "string"
+    },
+    "assigned_to_ids": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "assigned_to_names": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "is_active": {
+      "type": "boolean",
+      "default": true
+    },
+    "priority_order": {
+      "type": "number",
+      "default": 0
+    },
+    "round_robin_index": {
+      "type": "number",
+      "default": 0
+    }
+  },
+  "required": [
+    "name",
+    "type"
+  ]
+}

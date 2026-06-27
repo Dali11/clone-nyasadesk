@@ -1,0 +1,61 @@
+{
+  "name": "Contact",
+  "type": "object",
+  "properties": {
+    "full_name": {
+      "type": "string"
+    },
+    "email": {
+      "type": "string"
+    },
+    "phone": {
+      "type": "string"
+    },
+    "company": {
+      "type": "string"
+    },
+    "lead_source": {
+      "type": "string",
+      "enum": [
+        "email",
+        "whatsapp",
+        "chat",
+        "phone",
+        "referral",
+        "website",
+        "other"
+      ]
+    },
+    "territory": {
+      "type": "string"
+    },
+    "deal_stage": {
+      "type": "string",
+      "enum": [
+        "New Lead",
+        "Contacted",
+        "Qualified",
+        "Proposal Sent",
+        "Negotiation",
+        "Closed Won",
+        "Closed Lost"
+      ],
+      "default": "New Lead"
+    },
+    "avatar_url": {
+      "type": "string"
+    },
+    "notes": {
+      "type": "string"
+    },
+    "tags": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    }
+  },
+  "required": [
+    "full_name"
+  ]
+}
