@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { User, Users, Globe, Bell, Building2, Plus, Trash2, Check } from 'lucide-react';
+import { User, Users, Globe, Bell, Building2, Plus, Trash2, Check, ChevronRight } from 'lucide-react';
 import Sidebar from '@/components/Sidebar';
 import Avatar from '@/components/Avatar';
 import { store, genId } from '@/lib/store';
@@ -20,6 +20,8 @@ const SECTIONS = [
   { id: 'channels',  label: 'Channels',  icon: Globe     },
   { id: 'sla',       label: 'SLA',       icon: Bell      },
 ];
+
+const inputCls = 'w-full bg-[#2A3942] text-white text-sm rounded-xl px-4 py-2.5 focus:outline-none focus:ring-1 focus:ring-[#25D366] border-0 placeholder:text-gray-600';
 
 export default function Settings() {
   const { user, setUser } = useNyasaAuth();
@@ -51,13 +53,13 @@ export default function Settings() {
 
   const removeMember = (id) => { if (id === user.id) return; store.removeUser(id); setUsers(store.getUsers()); };
 
-  const inputCls = 'w-full bg-[#2A3942] text-white text-sm rounded-xl px-4 py-2.5 focus:outline-none focus:ring-1 focus:ring-[#25D366] border-0 placeholder:text-gray-600';
-
   return (
-    <div className="flex h-screen overflow-hidden bg-[#111B21]">
+    <div className="flex h-screen overflow-hidden bg-[#111B21] pb-[56px] md:pb-0">
       <Sidebar />
-      <div className="w-56 bg-[#111B21] border-r border-white/10 flex flex-col py-4 px-3 shrink-0">
-        <p className="text-xs font-semibold text-gray-600 uppercase tracking-wide px-3 mb-3">Settings</p>
+
+      {/* Desktop sub-nav */}
+      <div className="hidden md:flex w-56 bg-[#111B21] border-r border-white/10 flex-col py-4 px-3 shrink-0">
+        <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide px-3 mb-3">Settings</p>
         {SECTIONS.map(({ id, label, icon: Icon }) => (
           <button key={id} onClick={() => setSection(id)}
             className={`flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-all mb-0.5
@@ -67,154 +69,162 @@ export default function Settings() {
         ))}
       </div>
 
-      <div className="flex-1 overflow-y-auto scrollbar-thin bg-[#0D1418]">
-        <div className="max-w-2xl mx-auto px-8 py-8">
+      <div className="flex-1 flex flex-col overflow-hidden bg-[#0D1418]">
+        {/* Mobile top tab strip */}
+        <div className="md:hidden flex overflow-x-auto scrollbar-none bg-[#111B21] border-b border-white/10 px-2 pt-2 shrink-0 gap-1">
+          {SECTIONS.map(({ id, label, icon: Icon }) => (
+            <button key={id} onClick={() => setSection(id)}
+              className={`flex flex-col items-center gap-1 px-4 py-2 rounded-t-xl text-[10px] font-semibold whitespace-nowrap transition-all shrink-0
+                ${section === id ? 'text-[#25D366] border-b-2 border-[#25D366]' : 'text-gray-500'}`}>
+              <Icon className="w-4 h-4" />
+              {label}
+            </button>
+          ))}
+        </div>
 
-          {section === 'profile' && (
-            <div>
-              <h1 className="text-xl font-bold text-white mb-6">Profile</h1>
-              <div className="bg-[#202C33] rounded-2xl border border-white/10 p-6 space-y-4">
-                <div className="flex items-center gap-4 mb-2">
-                  <Avatar name={profileForm.full_name || user?.full_name || ''} size="xl" />
-                  <div>
-                    <p className="font-semibold text-white">{profileForm.full_name}</p>
-                    <span className={`text-[10px] font-semibold px-2 py-0.5 rounded-full ${ROLE_COLORS[user?.role] || 'text-gray-400 bg-white/5'}`}>{user?.role}</span>
-                  </div>
-                </div>
-                {[['full_name','Display Name'],['email','Email']].map(([k, ph]) => (
-                  <div key={k}>
-                    <label className="text-xs text-gray-500 mb-1 block">{ph}</label>
-                    <input className={inputCls} value={profileForm[k] || ''} onChange={e => setProfileForm(f => ({ ...f, [k]: e.target.value }))} />
-                  </div>
-                ))}
-                <button onClick={saveProfile} className="flex items-center gap-2 px-5 py-2.5 bg-[#25D366] text-white text-sm font-semibold rounded-xl hover:bg-[#20BA5A] transition-colors">
-                  {saved ? <><Check className="w-4 h-4" /> Saved!</> : 'Save Profile'}
-                </button>
-              </div>
-            </div>
-          )}
+        <div className="flex-1 overflow-y-auto scrollbar-thin">
+          <div className="max-w-2xl mx-auto px-4 md:px-8 py-6">
 
-          {section === 'workspace' && (
-            <div>
-              <h1 className="text-xl font-bold text-white mb-6">Workspace</h1>
-              <div className="bg-[#202C33] rounded-2xl border border-white/10 p-6 space-y-4">
-                <div>
-                  <label className="text-xs text-gray-500 mb-1 block">Workspace Name</label>
-                  <input className={inputCls} value={workspace.name} onChange={e => updateWorkspace({ name: e.target.value })} />
-                </div>
-                <div>
-                  <label className="text-xs text-gray-500 mb-1 block">Plan</label>
-                  <div className="flex items-center gap-2 bg-[#2A3942] rounded-xl px-4 py-2.5">
-                    <span className="text-sm text-white capitalize">{workspace.plan}</span>
-                    <span className="ml-auto text-xs text-[#25D366] font-semibold">Active</span>
-                  </div>
-                </div>
-                <div className="grid grid-cols-2 gap-3">
-                  {[['start','Start'],['end','End']].map(([k, label]) => (
-                    <div key={k}>
-                      <label className="text-xs text-gray-500 mb-1 block">Business Hours {label}</label>
-                      <input type="time" value={workspace.business_hours?.[k] || '09:00'}
-                        onChange={e => updateWorkspace({ business_hours: { ...workspace.business_hours, [k]: e.target.value } })}
-                        className={inputCls} />
+            {section === 'profile' && (
+              <div className="space-y-4">
+                {/* Profile hero card */}
+                <div className="bg-[#202C33] rounded-2xl border border-white/10 p-5">
+                  <div className="flex items-center gap-4 mb-5">
+                    <Avatar name={profileForm.full_name || user?.full_name || ''} size="xl" />
+                    <div>
+                      <p className="font-bold text-white text-base">{profileForm.full_name || 'Your Name'}</p>
+                      <span className={`text-[10px] font-semibold px-2 py-0.5 rounded-full ${ROLE_COLORS[user?.role] || 'text-gray-400 bg-white/5'}`}>{user?.role}</span>
                     </div>
-                  ))}
+                  </div>
+                  <div className="space-y-3">
+                    {[['full_name','Display Name'],['email','Email']].map(([k, ph]) => (
+                      <div key={k}>
+                        <label className="text-[11px] font-medium text-gray-400 mb-1.5 block">{ph}</label>
+                        <input className={inputCls} value={profileForm[k] || ''} onChange={e => setProfileForm(f => ({ ...f, [k]: e.target.value }))} />
+                      </div>
+                    ))}
+                  </div>
+                  <button onClick={saveProfile} className="mt-4 w-full flex items-center justify-center gap-2 py-3 bg-[#25D366] text-white text-sm font-bold rounded-xl hover:bg-[#20BA5A] transition-colors">
+                    {saved ? <><Check className="w-4 h-4" /> Saved!</> : 'Save Profile'}
+                  </button>
                 </div>
               </div>
-            </div>
-          )}
+            )}
 
-          {section === 'team' && (
-            <div>
-              <div className="flex items-center justify-between mb-6">
-                <h1 className="text-xl font-bold text-white">Team ({users.length})</h1>
-                <button onClick={() => setAddingMember(true)}
-                  className="flex items-center gap-2 px-4 py-2 bg-[#25D366] text-white text-sm font-semibold rounded-xl hover:bg-[#20BA5A] transition-colors">
-                  <Plus className="w-4 h-4" /> Invite Member
-                </button>
-              </div>
-              {addingMember && (
-                <div className="bg-[#202C33] rounded-2xl border border-[#25D366]/40 p-5 mb-4 space-y-3">
-                  <h3 className="font-semibold text-white text-sm">Invite Team Member</h3>
+            {section === 'workspace' && (
+              <div className="space-y-4">
+                <div className="bg-[#202C33] rounded-2xl border border-white/10 p-5 space-y-4">
+                  <div>
+                    <label className="text-[11px] font-medium text-gray-400 mb-1.5 block">Workspace Name</label>
+                    <input className={inputCls} value={workspace.name} onChange={e => updateWorkspace({ name: e.target.value })} />
+                  </div>
+                  <div>
+                    <label className="text-[11px] font-medium text-gray-400 mb-1.5 block">Plan</label>
+                    <div className="flex items-center gap-2 bg-[#2A3942] rounded-xl px-4 py-2.5">
+                      <span className="text-sm text-white capitalize">{workspace.plan}</span>
+                      <span className="ml-auto text-xs text-[#25D366] font-bold">Active</span>
+                    </div>
+                  </div>
                   <div className="grid grid-cols-2 gap-3">
+                    {[['start','Business Start'],['end','Business End']].map(([k, label]) => (
+                      <div key={k}>
+                        <label className="text-[11px] font-medium text-gray-400 mb-1.5 block">{label}</label>
+                        <input type="time" value={workspace.business_hours?.[k] || '09:00'}
+                          onChange={e => updateWorkspace({ business_hours: { ...workspace.business_hours, [k]: e.target.value } })}
+                          className={inputCls} />
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {section === 'team' && (
+              <div className="space-y-3">
+                <div className="flex items-center justify-between mb-2">
+                  <p className="text-sm font-semibold text-gray-300">{users.length} members</p>
+                  <button onClick={() => setAddingMember(true)}
+                    className="flex items-center gap-1.5 px-3 py-2 bg-[#25D366] text-white text-xs font-bold rounded-xl hover:bg-[#20BA5A] transition-colors">
+                    <Plus className="w-3.5 h-3.5" /> Invite
+                  </button>
+                </div>
+                {addingMember && (
+                  <div className="bg-[#202C33] rounded-2xl border border-[#25D366]/40 p-4 space-y-3">
+                    <h3 className="font-semibold text-white text-sm">Invite Team Member</h3>
                     <input className={inputCls} placeholder="Name *" value={newMember.full_name} onChange={e => setNewMember(f => ({ ...f, full_name: e.target.value }))} />
                     <input className={inputCls} placeholder="Email" value={newMember.email} onChange={e => setNewMember(f => ({ ...f, email: e.target.value }))} />
+                    <select value={newMember.role} onChange={e => setNewMember(f => ({ ...f, role: e.target.value }))}
+                      className="w-full bg-[#2A3942] text-white text-sm rounded-xl px-4 py-2.5 focus:outline-none border-0">
+                      <option value="agent">Agent</option>
+                      <option value="admin">Admin</option>
+                    </select>
+                    <div className="flex gap-3">
+                      <button onClick={() => setAddingMember(false)} className="flex-1 py-2 border border-white/10 text-gray-300 rounded-xl text-sm">Cancel</button>
+                      <button onClick={addMember} disabled={!newMember.full_name.trim()}
+                        className="flex-1 py-2 bg-[#25D366] text-white font-bold rounded-xl text-sm disabled:opacity-40">Add</button>
+                    </div>
                   </div>
-                  <select value={newMember.role} onChange={e => setNewMember(f => ({ ...f, role: e.target.value }))}
-                    className="w-full bg-[#2A3942] text-white text-sm rounded-xl px-4 py-2.5 focus:outline-none border-0">
-                    <option value="agent">Agent</option>
-                    <option value="admin">Admin</option>
-                  </select>
-                  <div className="flex gap-3">
-                    <button onClick={() => setAddingMember(false)} className="px-4 py-2 border border-white/10 text-gray-300 rounded-xl text-sm">Cancel</button>
-                    <button onClick={addMember} disabled={!newMember.full_name.trim()}
-                      className="px-6 py-2 bg-[#25D366] text-white font-semibold rounded-xl text-sm disabled:opacity-40">Add</button>
-                  </div>
-                </div>
-              )}
-              <div className="space-y-2">
+                )}
                 {users.map(u => (
-                  <div key={u.id} className="bg-[#202C33] rounded-2xl border border-white/10 px-5 py-4 flex items-center gap-4">
+                  <div key={u.id} className="bg-[#202C33] rounded-2xl border border-white/10 px-4 py-3.5 flex items-center gap-3">
                     <Avatar name={u.full_name} size="md" status={u.status} />
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center gap-2">
                         <p className="font-semibold text-white text-sm">{u.full_name}</p>
                         {u.id === user.id && <span className="text-[9px] text-[#25D366] bg-[#25D366]/10 px-1.5 py-0.5 rounded-full">You</span>}
                       </div>
-                      <p className="text-xs text-gray-500">{u.email}</p>
+                      <p className="text-xs text-gray-500 mt-0.5">{u.email}</p>
                     </div>
-                    <span className={`text-[10px] font-semibold px-2 py-0.5 rounded-full capitalize ${ROLE_COLORS[u.role]}`}>{u.role}</span>
-                    {u.id !== user.id && (
-                      <button onClick={() => removeMember(u.id)} className="p-1.5 hover:bg-red-900/30 hover:text-red-400 text-gray-600 rounded-lg transition-colors">
-                        <Trash2 className="w-4 h-4" />
-                      </button>
-                    )}
+                    <div className="flex items-center gap-2 shrink-0">
+                      <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full capitalize ${ROLE_COLORS[u.role]}`}>{u.role}</span>
+                      {u.id !== user.id && (
+                        <button onClick={() => removeMember(u.id)} className="p-1.5 hover:bg-red-900/30 hover:text-red-400 text-gray-600 rounded-lg transition-colors">
+                          <Trash2 className="w-3.5 h-3.5" />
+                        </button>
+                      )}
+                    </div>
                   </div>
                 ))}
               </div>
-            </div>
-          )}
+            )}
 
-          {section === 'channels' && (
-            <div>
-              <h1 className="text-xl font-bold text-white mb-6">Channels</h1>
+            {section === 'channels' && (
               <div className="space-y-3">
                 {CHANNEL_INFO.map(ch => {
                   const connected = workspace.channels.includes(ch.id);
                   return (
-                    <div key={ch.id} className="bg-[#202C33] rounded-2xl border border-white/10 px-5 py-4 flex items-center gap-4">
+                    <div key={ch.id} className="bg-[#202C33] rounded-2xl border border-white/10 px-4 py-4 flex items-center gap-3">
                       <div className={`w-10 h-10 rounded-xl ${ch.color} flex items-center justify-center text-xl shrink-0`}>{ch.icon}</div>
                       <div className="flex-1 min-w-0">
                         <p className="font-semibold text-white text-sm">{ch.label}</p>
-                        <p className="text-xs text-gray-500">{ch.desc}</p>
+                        <p className="text-xs text-gray-500 mt-0.5">{ch.desc}</p>
                       </div>
                       <button onClick={() => updateWorkspace({ channels: connected ? workspace.channels.filter(c => c !== ch.id) : [...workspace.channels, ch.id] })}
-                        className={`px-4 py-1.5 rounded-xl text-xs font-semibold transition-colors ${connected ? 'bg-[#25D366]/20 text-[#25D366] hover:bg-red-900/20 hover:text-red-400' : 'bg-white/10 text-gray-300 hover:bg-[#25D366]/20 hover:text-[#25D366]'}`}>
+                        className={`shrink-0 px-3 py-1.5 rounded-xl text-xs font-bold transition-colors ${connected ? 'bg-[#25D366]/20 text-[#25D366]' : 'bg-white/10 text-gray-300 hover:bg-[#25D366]/20 hover:text-[#25D366]'}`}>
                         {connected ? 'Connected' : 'Connect'}
                       </button>
                     </div>
                   );
                 })}
               </div>
-            </div>
-          )}
+            )}
 
-          {section === 'sla' && (
-            <div>
-              <h1 className="text-xl font-bold text-white mb-6">SLA Settings</h1>
-              <div className="bg-[#202C33] rounded-2xl border border-white/10 p-6 space-y-4">
+            {section === 'sla' && (
+              <div className="bg-[#202C33] rounded-2xl border border-white/10 p-5 space-y-4">
                 <div>
-                  <label className="text-xs text-gray-500 mb-1 block">First Response SLA (hours)</label>
+                  <label className="text-[11px] font-medium text-gray-400 mb-1.5 block">First Response SLA (hours)</label>
                   <input type="number" min={1} max={48} value={workspace.sla_hours}
                     onChange={e => updateWorkspace({ sla_hours: parseInt(e.target.value) || 4 })}
                     className={inputCls} />
-                  <p className="text-xs text-gray-600 mt-1">Conversations breaching this will be flagged in the dashboard.</p>
+                  <p className="text-xs text-gray-500 mt-2">Conversations breaching this will be flagged in the dashboard.</p>
                 </div>
                 <div className="bg-[#2A3942] rounded-xl p-4">
-                  <p className="text-sm text-white font-medium mb-1">Current SLA: <span className="text-[#25D366]">{workspace.sla_hours} hours</span></p>
+                  <p className="text-sm text-gray-300">Current SLA: <span className="text-[#25D366] font-bold">{workspace.sla_hours} hours</span></p>
                 </div>
               </div>
-            </div>
-          )}
+            )}
+
+          </div>
         </div>
       </div>
     </div>
