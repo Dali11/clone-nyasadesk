@@ -1,4 +1,4 @@
-import { ChevronDown, MoreVertical } from 'lucide-react';
+import { ChevronDown, MoreVertical, ArrowLeft } from 'lucide-react';
 import Avatar from '@/components/Avatar';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger, DropdownMenuSeparator } from '@/components/ui/dropdown-menu';
 
@@ -6,7 +6,7 @@ const PRIORITIES = ['low', 'normal', 'high', 'urgent'];
 const STATUSES = ['open', 'snoozed', 'closed'];
 const STATUS_COLOR = { open: 'bg-green-500', snoozed: 'bg-yellow-500', closed: 'bg-gray-500', unassigned: 'bg-orange-400' };
 
-export default function ChatHeader({ conversation, users, onUpdate }) {
+export default function ChatHeader({ conversation, users, onUpdate, onBack }) {
   if (!conversation) return null;
 
   const assign = (userId, userName) => onUpdate({ ...conversation, assigned_to: userId, assigned_to_name: userName, status: 'open' });
@@ -15,6 +15,12 @@ export default function ChatHeader({ conversation, users, onUpdate }) {
 
   return (
     <div className="bg-[#202C33] border-b border-white/10 px-4 py-2.5 flex items-center gap-3 shrink-0">
+      {/* Back button: only visible on mobile */}
+      {onBack && (
+        <button onClick={onBack} className="md:hidden p-1.5 -ml-1 text-gray-400 hover:text-white transition-colors">
+          <ArrowLeft className="w-5 h-5" />
+        </button>
+      )}
       <Avatar name={conversation.contact_name || '?'} size="md" />
       <div className="flex-1 min-w-0">
         <p className="text-sm font-semibold text-white truncate">{conversation.contact_name}</p>

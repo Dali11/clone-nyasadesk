@@ -29,6 +29,9 @@ export default function Inbox() {
   const [search, setSearch] = useState('');
   const [showNew, setShowNew] = useState(false);
 
+  // Phone-first: on mobile, show list or chat (never both)
+  const showChat = !!activeConv;
+
   const filtered = conversations.filter(c => {
     if (filter === 'unassigned' && c.assigned_to) return false;
     if (filter === 'open' && c.status !== 'open' && c.status !== 'unassigned') return false;
@@ -73,10 +76,18 @@ export default function Inbox() {
 
   return (
     <div className="flex h-screen overflow-hidden bg-[#111B21]">
-      <Sidebar />
+      {/* Sidebar: hidden on mobile when chat is open */}
+      <div className={`${showChat ? 'hidden md:flex' : 'flex'} shrink-0`}>
+        <Sidebar />
+      </div>
 
-      {/* Left panel: conversation list */}
-      <div className="flex flex-col w-[340px] bg-[#111B21] border-r border-white/10 shrink-0">
+      {/* Conversation list panel */}
+      {/* Mobile: full width, hidden when chat open. md+: fixed 340px always visible */}
+      <div className={`
+        flex flex-col bg-[#111B21] border-r border-white/10
+        ${showChat ? 'hidden md:flex md:w-[340px]' : 'flex w-full md:w-[340px]'}
+        shrink-0
+      `}>
         <div className="px-4 pt-4 pb-2 border-b border-white/10">
           <div className="flex items-center justify-between mb-3">
             <div>
@@ -127,14 +138,25 @@ export default function Inbox() {
         </div>
       </div>
 
-      {/* Main area */}
-      <div className="flex-1 flex flex-col min-w-0 bg-[#0B1418]">
+      {/* Chat area: full screen on mobile when open, flex-1 on md+ */}
+      <div className={`
+        flex-1 flex flex-col min-w-0 bg-[#0B1418]
+        ${showChat ? 'flex' : 'hidden md:flex'}
+      `}>
         {activeConv ? (
           <>
-            <ChatHeader conversation={activeConv} users={users} onUpdate={handleConvUpdate} />
+            <ChatHeader
+              conversation={activeConv}
+              users={users}
+              onUpdate={handleConvUpdate}
+              onBack={() => setActiveConv(null)}
+            />
             <div className="flex flex-1 min-h-0">
               <MessageThread conversation={activeConv} user={user} onUpdate={handleConvUpdate} />
-              <ContactPanel conversation={activeConv} onUpdate={handleConvUpdate} />
+              {/* ContactPanel: hidden on mobile, visible on lg+ */}
+              <div className="hidden lg:block">
+                <ContactPanel conversation={activeConv} onUpdate={handleConvUpdate} />
+              </div>
             </div>
           </>
         ) : (
