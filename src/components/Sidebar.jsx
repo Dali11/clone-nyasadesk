@@ -13,32 +13,58 @@ const NAV = [
   { path: '/settings',   icon: Settings,      label: 'Settings'  },
 ];
 
+// Show only the 4 most-used tabs on mobile bottom bar
+const MOBILE_NAV = [
+  { path: '/',          icon: MessageSquare, label: 'Inbox'    },
+  { path: '/contacts',  icon: Users,         label: 'Contacts' },
+  { path: '/dashboard', icon: BarChart2,     label: 'Dashboard'},
+  { path: '/settings',  icon: Settings,      label: 'Settings' },
+];
+
 export default function Sidebar() {
   const { pathname } = useLocation();
   const { user } = useNyasaAuth();
 
   return (
-    <div className="w-16 flex flex-col items-center py-3 gap-1 shrink-0 bg-[#111B21] border-r border-white/5">
-      <div className="w-10 h-10 rounded-2xl bg-[#25D366] flex items-center justify-center mb-4 shrink-0">
-        <span className="text-white font-black text-lg">N</span>
+    <>
+      {/* Desktop: vertical side rail */}
+      <div className="hidden md:flex w-16 flex-col items-center py-3 gap-1 shrink-0 bg-[#111B21] border-r border-white/5">
+        <div className="w-10 h-10 rounded-2xl bg-[#25D366] flex items-center justify-center mb-4 shrink-0">
+          <span className="text-white font-black text-lg">N</span>
+        </div>
+
+        {NAV.map(({ path, icon: Icon, label }) => {
+          const active = pathname === path;
+          return (
+            <Link key={path} to={path} title={label}
+              className={`w-10 h-10 rounded-xl flex items-center justify-center transition-all group relative
+                ${active ? 'bg-[#25D366]/20 text-[#25D366]' : 'text-gray-500 hover:bg-white/10 hover:text-gray-200'}`}>
+              <Icon className="w-5 h-5" />
+              <div className="absolute left-full ml-2 px-2 py-1 bg-gray-900 text-white text-xs rounded whitespace-nowrap opacity-0 group-hover:opacity-100 pointer-events-none z-50 transition-opacity">
+                {label}
+              </div>
+            </Link>
+          );
+        })}
+
+        <div className="flex-1" />
+        <Avatar name={user?.full_name || ''} size="sm" status={user?.status || 'online'} />
       </div>
 
-      {NAV.map(({ path, icon: Icon, label }) => {
-        const active = pathname === path;
-        return (
-          <Link key={path} to={path} title={label}
-            className={`w-10 h-10 rounded-xl flex items-center justify-center transition-all group relative
-              ${active ? 'bg-[#25D366]/20 text-[#25D366]' : 'text-gray-500 hover:bg-white/10 hover:text-gray-200'}`}>
-            <Icon className="w-5 h-5" />
-            <div className="absolute left-full ml-2 px-2 py-1 bg-gray-900 text-white text-xs rounded whitespace-nowrap opacity-0 group-hover:opacity-100 pointer-events-none z-50 transition-opacity">
-              {label}
-            </div>
-          </Link>
-        );
-      })}
-
-      <div className="flex-1" />
-      <Avatar name={user?.full_name || ''} size="sm" status={user?.status || 'online'} />
-    </div>
+      {/* Mobile: bottom tab bar */}
+      <nav className="md:hidden fixed bottom-0 left-0 right-0 z-50 bg-[#111B21] border-t border-white/10 flex items-center justify-around px-2 pb-safe">
+        {MOBILE_NAV.map(({ path, icon: Icon, label }) => {
+          const active = pathname === path;
+          return (
+            <Link key={path} to={path}
+              className={`flex flex-col items-center gap-0.5 py-2 px-4 transition-colors
+                ${active ? 'text-[#25D366]' : 'text-gray-500'}`}>
+              <Icon className="w-5 h-5" />
+              <span className="text-[10px] font-medium">{label}</span>
+            </Link>
+          );
+        })}
+      </nav>
+    </>
   );
 }

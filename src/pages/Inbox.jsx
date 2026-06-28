@@ -75,11 +75,8 @@ export default function Inbox() {
   const unread = conversations.filter(c => c.unread && (c.assigned_to === user?.id || !c.assigned_to)).length;
 
   return (
-    <div className="flex h-screen overflow-hidden bg-[#111B21]">
-      {/* Sidebar: hidden on mobile when chat is open */}
-      <div className={`${showChat ? 'hidden md:flex' : 'flex'} shrink-0`}>
-        <Sidebar />
-      </div>
+    <div className="flex h-screen overflow-hidden bg-[#111B21] pb-[56px] md:pb-0">
+      <Sidebar />
 
       {/* Conversation list panel */}
       {/* Mobile: full width, hidden when chat open. md+: fixed 340px always visible */}
