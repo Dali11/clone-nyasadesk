@@ -21,6 +21,7 @@ const CHANNELS_FILTER = ['all', 'whatsapp', 'messenger', 'email', 'website'];
 
 export default function Inbox() {
   const { user } = useNyasaAuth();
+  const workspace = store.getWorkspace();
   const users = store.getUsers();
   const [conversations, setConversations] = useState(store.getConversations());
   const [activeConv, setActiveConv] = useState(null);
@@ -88,7 +89,8 @@ export default function Inbox() {
         <div className="px-4 pt-4 pb-2 border-b border-white/10">
           <div className="flex items-center justify-between mb-3">
             <div>
-              <h1 className="text-base font-bold text-white">Inbox</h1>
+              <p className="text-[10px] font-semibold text-gray-500 uppercase tracking-wide">{workspace.name}</p>
+              <h1 className="text-base font-bold text-white leading-tight">Inbox</h1>
               {unread > 0 && <p className="text-xs text-[#25D366]">{unread} unread</p>}
             </div>
             <button onClick={() => setShowNew(true)}
