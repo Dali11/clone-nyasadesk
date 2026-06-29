@@ -1,8 +1,9 @@
 import { useState } from 'react';
-import { User, Users, Globe, Bell, Building2, Plus, Trash2, Check, ChevronRight, ChevronDown, ExternalLink, AlertCircle, CheckCircle2 } from 'lucide-react';
+import { User, Users, Globe, Bell, Building2, Check, ChevronDown, ExternalLink, AlertCircle, CheckCircle2 } from 'lucide-react';
 import Sidebar from '@/components/Sidebar';
 import Avatar from '@/components/Avatar';
-import { store, genId } from '@/lib/store';
+import TeamSection from '@/components/settings/TeamSection';
+import { store } from '@/lib/store';
 import { useNyasaAuth } from '@/lib/NyasaAuth';
 
 const CHANNEL_INFO = [
@@ -66,12 +67,9 @@ const inputCls = 'w-full bg-[#2A3942] text-white text-sm rounded-xl px-4 py-2.5 
 export default function Settings() {
   const { user, setUser } = useNyasaAuth();
   const [section, setSection] = useState('profile');
-  const [users, setUsers] = useState(store.getUsers());
   const [workspace, setWorkspaceState] = useState(store.getWorkspace());
   const [profileForm, setProfileForm] = useState({ full_name: user?.full_name || '', email: user?.email || '' });
   const [saved, setSaved] = useState(false);
-  const [newMember, setNewMember] = useState({ full_name: '', email: '', role: 'agent' });
-  const [addingMember, setAddingMember] = useState(false);
   const [expandedChannel, setExpandedChannel] = useState(null);
   const [channelConfigs, setChannelConfigs] = useState(store.getWorkspace().channel_configs || {});
   const [channelSaved, setChannelSaved] = useState({});
@@ -99,17 +97,6 @@ export default function Settings() {
   };
 
   const updateWorkspace = (data) => { store.updateWorkspace(data); setWorkspaceState(store.getWorkspace()); };
-
-  const addMember = () => {
-    if (!newMember.full_name.trim()) return;
-    const u = { id: genId('user'), ...newMember, avatar: null, workspace_id: workspace.id, status: 'offline' };
-    store.addUser(u);
-    setUsers(store.getUsers());
-    setAddingMember(false);
-    setNewMember({ full_name: '', email: '', role: 'agent' });
-  };
-
-  const removeMember = (id) => { if (id === user.id) return; store.removeUser(id); setUsers(store.getUsers()); };
 
   return (
     <div className="flex h-screen overflow-hidden bg-[#111B21] pb-[56px] md:pb-0">
@@ -197,54 +184,7 @@ export default function Settings() {
               </div>
             )}
 
-            {section === 'team' && (
-              <div className="space-y-3">
-                <div className="flex items-center justify-between mb-2">
-                  <p className="text-sm font-semibold text-gray-300">{users.length} members</p>
-                  <button onClick={() => setAddingMember(true)}
-                    className="flex items-center gap-1.5 px-3 py-2 bg-[#25D366] text-white text-xs font-bold rounded-xl hover:bg-[#20BA5A] transition-colors">
-                    <Plus className="w-3.5 h-3.5" /> Invite
-                  </button>
-                </div>
-                {addingMember && (
-                  <div className="bg-[#202C33] rounded-2xl border border-[#25D366]/40 p-4 space-y-3">
-                    <h3 className="font-semibold text-white text-sm">Invite Team Member</h3>
-                    <input className={inputCls} placeholder="Name *" value={newMember.full_name} onChange={e => setNewMember(f => ({ ...f, full_name: e.target.value }))} />
-                    <input className={inputCls} placeholder="Email" value={newMember.email} onChange={e => setNewMember(f => ({ ...f, email: e.target.value }))} />
-                    <select value={newMember.role} onChange={e => setNewMember(f => ({ ...f, role: e.target.value }))}
-                      className="w-full bg-[#2A3942] text-white text-sm rounded-xl px-4 py-2.5 focus:outline-none border-0">
-                      <option value="agent">Agent</option>
-                      <option value="admin">Admin</option>
-                    </select>
-                    <div className="flex gap-3">
-                      <button onClick={() => setAddingMember(false)} className="flex-1 py-2 border border-white/10 text-gray-300 rounded-xl text-sm">Cancel</button>
-                      <button onClick={addMember} disabled={!newMember.full_name.trim()}
-                        className="flex-1 py-2 bg-[#25D366] text-white font-bold rounded-xl text-sm disabled:opacity-40">Add</button>
-                    </div>
-                  </div>
-                )}
-                {users.map(u => (
-                  <div key={u.id} className="bg-[#202C33] rounded-2xl border border-white/10 px-4 py-3.5 flex items-center gap-3">
-                    <Avatar name={u.full_name} size="md" status={u.status} />
-                    <div className="flex-1 min-w-0">
-                      <div className="flex items-center gap-2">
-                        <p className="font-semibold text-white text-sm">{u.full_name}</p>
-                        {u.id === user.id && <span className="text-[9px] text-[#25D366] bg-[#25D366]/10 px-1.5 py-0.5 rounded-full">You</span>}
-                      </div>
-                      <p className="text-xs text-gray-500 mt-0.5">{u.email}</p>
-                    </div>
-                    <div className="flex items-center gap-2 shrink-0">
-                      <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full capitalize ${ROLE_COLORS[u.role]}`}>{u.role}</span>
-                      {u.id !== user.id && (
-                        <button onClick={() => removeMember(u.id)} className="p-1.5 hover:bg-red-900/30 hover:text-red-400 text-gray-600 rounded-lg transition-colors">
-                          <Trash2 className="w-3.5 h-3.5" />
-                        </button>
-                      )}
-                    </div>
-                  </div>
-                ))}
-              </div>
-            )}
+            {section === 'team' && <TeamSection currentUser={user} />}
 
             {section === 'channels' && (
               <div className="space-y-3">
