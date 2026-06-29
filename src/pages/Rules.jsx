@@ -5,7 +5,11 @@ import ChannelBadge, { CHANNELS } from '@/components/ChannelBadge';
 import Avatar from '@/components/Avatar';
 import { store, genId } from '@/lib/store';
 
-const RULE_TYPES = ['round_robin', 'lead_source', 'territory'];
+const RULE_TYPES = [
+  { value: 'round_robin', label: 'Round Robin', desc: 'Rotate conversations evenly across selected agents in order' },
+  { value: 'lead_source', label: 'By Lead Source', desc: 'Assign when the channel matches a specific value (e.g. "whatsapp")' },
+  { value: 'territory',   label: 'By Territory', desc: 'Assign based on contact territory or region keyword' },
+];
 const CHANNELS_ALL = ['all', ...CHANNELS];
 
 export default function Rules() {
@@ -37,19 +41,33 @@ export default function Rules() {
   const inputCls = 'w-full bg-[#2A3942] text-white text-sm rounded-xl px-4 py-2.5 focus:outline-none focus:ring-1 focus:ring-[#25D366] border-0 placeholder:text-gray-600';
 
   return (
-    <div className="flex h-screen overflow-hidden bg-[#111B21]">
+    <div className="flex h-screen overflow-hidden bg-[#111B21] pb-[56px] md:pb-0">
       <Sidebar />
       <div className="flex-1 overflow-y-auto scrollbar-thin bg-[#0D1418]">
         <div className="max-w-3xl mx-auto px-6 py-8">
-          <div className="flex items-center justify-between mb-8">
+          <div className="flex items-start justify-between mb-6 gap-3">
             <div>
-              <h1 className="text-2xl font-bold text-white">Assignment Rules</h1>
-              <p className="text-sm text-gray-500 mt-1">Auto-assign incoming conversations to your team</p>
+              <h1 className="text-xl md:text-2xl font-bold text-white">Assignment Rules</h1>
+              <p className="text-xs md:text-sm text-gray-400 mt-1">Auto-assign incoming conversations to your team</p>
             </div>
             <button onClick={startNew}
-              className="flex items-center gap-2 px-4 py-2 bg-[#25D366] text-white text-sm font-semibold rounded-xl hover:bg-[#20BA5A] transition-colors">
+              className="flex items-center gap-2 px-3 md:px-4 py-2 bg-[#25D366] text-white text-sm font-semibold rounded-xl hover:bg-[#20BA5A] transition-colors shrink-0">
               <Plus className="w-4 h-4" /> New Rule
             </button>
+          </div>
+
+          {/* Assignment logic explainer */}
+          <div className="bg-[#202C33] rounded-2xl border border-white/10 p-4 mb-6 space-y-3">
+            <p className="text-xs font-bold text-gray-300 uppercase tracking-wide">How assignment works</p>
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+              {RULE_TYPES.map(rt => (
+                <div key={rt.value} className="bg-[#2A3942] rounded-xl p-3">
+                  <p className="text-xs font-bold text-white mb-1">{rt.label}</p>
+                  <p className="text-[11px] text-gray-400 leading-relaxed">{rt.desc}</p>
+                </div>
+              ))}
+            </div>
+            <p className="text-[11px] text-gray-500">Rules are evaluated top-to-bottom. The first matching rule wins. Conversations with no matching rule stay <span className="text-gray-300 font-medium">Unassigned</span>.</p>
           </div>
 
           {editing && (
@@ -60,7 +78,7 @@ export default function Rules() {
                 <div>
                   <label className="text-xs text-gray-500 mb-1 block">Type</label>
                   <select value={form.type} onChange={e => set('type', e.target.value)} className="w-full bg-[#2A3942] text-white text-sm rounded-xl px-4 py-2.5 focus:outline-none border-0">
-                    {RULE_TYPES.map(t => <option key={t} value={t} className="capitalize">{t.replace('_',' ')}</option>)}
+                    {RULE_TYPES.map(t => <option key={t.value} value={t.value}>{t.label}</option>)}
                   </select>
                 </div>
                 <div>
@@ -107,7 +125,7 @@ export default function Rules() {
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-2 mb-1.5">
                       <span className="font-semibold text-white text-sm">{r.name}</span>
-                      <span className="text-[10px] text-gray-500 bg-white/5 px-2 py-0.5 rounded-full capitalize">{r.type.replace('_',' ')}</span>
+                      <span className="text-[10px] text-gray-500 bg-white/5 px-2 py-0.5 rounded-full">{RULE_TYPES.find(t => t.value === r.type)?.label || r.type}</span>
                       {r.channel !== 'all' && <ChannelBadge channel={r.channel} />}
                     </div>
                     {r.condition_value && <p className="text-xs text-gray-500 mb-2">When: "{r.condition_value}"</p>}

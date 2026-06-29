@@ -1,15 +1,55 @@
 import { useState } from 'react';
-import { User, Users, Globe, Bell, Building2, Plus, Trash2, Check, ChevronRight } from 'lucide-react';
+import { User, Users, Globe, Bell, Building2, Plus, Trash2, Check, ChevronRight, ChevronDown, ExternalLink, AlertCircle, CheckCircle2 } from 'lucide-react';
 import Sidebar from '@/components/Sidebar';
 import Avatar from '@/components/Avatar';
 import { store, genId } from '@/lib/store';
 import { useNyasaAuth } from '@/lib/NyasaAuth';
 
 const CHANNEL_INFO = [
-  { id: 'whatsapp',  label: 'WhatsApp',          icon: '💬', desc: 'Connect WhatsApp Business API',         color: 'bg-green-500' },
-  { id: 'messenger', label: 'Facebook Messenger', icon: '📘', desc: 'Connect your Facebook Page',            color: 'bg-blue-600' },
-  { id: 'email',     label: 'Email',              icon: '📧', desc: 'Connect a mailbox (IMAP/SMTP or Gmail)', color: 'bg-indigo-500' },
-  { id: 'website',   label: 'Website Chat',       icon: '🌐', desc: 'Embed a live chat widget on your site', color: 'bg-cyan-500' },
+  {
+    id: 'whatsapp', label: 'WhatsApp', icon: '💬', color: 'bg-green-500',
+    desc: 'Connect WhatsApp Business API to send & receive messages',
+    docsUrl: 'https://developers.facebook.com/docs/whatsapp/cloud-api/',
+    fields: [
+      { key: 'phone_number_id', label: 'Phone Number ID', placeholder: 'e.g. 123456789012345', type: 'text' },
+      { key: 'waba_id',         label: 'WhatsApp Business Account ID', placeholder: 'e.g. 987654321098765', type: 'text' },
+      { key: 'access_token',    label: 'Permanent Access Token', placeholder: 'EAAxxxxx...', type: 'password' },
+      { key: 'verify_token',    label: 'Webhook Verify Token', placeholder: 'Your custom secret string', type: 'text' },
+    ],
+  },
+  {
+    id: 'messenger', label: 'Facebook Messenger', icon: '📘', color: 'bg-blue-600',
+    desc: 'Connect your Facebook Page to receive Messenger conversations',
+    docsUrl: 'https://developers.facebook.com/docs/messenger-platform/',
+    fields: [
+      { key: 'page_id',      label: 'Facebook Page ID',    placeholder: 'e.g. 123456789', type: 'text' },
+      { key: 'page_token',   label: 'Page Access Token',   placeholder: 'EAAxxxxx...', type: 'password' },
+      { key: 'app_secret',   label: 'App Secret',          placeholder: 'From your Facebook App', type: 'password' },
+      { key: 'verify_token', label: 'Webhook Verify Token', placeholder: 'Your custom secret string', type: 'text' },
+    ],
+  },
+  {
+    id: 'email', label: 'Email', icon: '📧', color: 'bg-indigo-500',
+    desc: 'Connect a mailbox via IMAP/SMTP to handle email conversations',
+    docsUrl: 'https://support.google.com/mail/answer/7126229',
+    fields: [
+      { key: 'imap_host',   label: 'IMAP Host',     placeholder: 'imap.gmail.com', type: 'text' },
+      { key: 'imap_port',   label: 'IMAP Port',     placeholder: '993', type: 'text' },
+      { key: 'smtp_host',   label: 'SMTP Host',     placeholder: 'smtp.gmail.com', type: 'text' },
+      { key: 'smtp_port',   label: 'SMTP Port',     placeholder: '587', type: 'text' },
+      { key: 'email',       label: 'Email Address', placeholder: 'support@yourdomain.com', type: 'text' },
+      { key: 'password',    label: 'Password / App Password', placeholder: '••••••••••••', type: 'password' },
+    ],
+  },
+  {
+    id: 'website', label: 'Website Chat', icon: '🌐', color: 'bg-cyan-500',
+    desc: 'Embed a live chat widget on your website',
+    docsUrl: null,
+    fields: [
+      { key: 'allowed_domains', label: 'Allowed Domains', placeholder: 'yourdomain.com, app.yourdomain.com', type: 'text' },
+      { key: 'widget_color',    label: 'Widget Color',    placeholder: '#25D366', type: 'text' },
+    ],
+  },
 ];
 
 const ROLE_COLORS = { owner: 'text-yellow-400 bg-yellow-900/20', admin: 'text-blue-400 bg-blue-900/20', agent: 'text-gray-400 bg-white/5' };
@@ -32,6 +72,24 @@ export default function Settings() {
   const [saved, setSaved] = useState(false);
   const [newMember, setNewMember] = useState({ full_name: '', email: '', role: 'agent' });
   const [addingMember, setAddingMember] = useState(false);
+  const [expandedChannel, setExpandedChannel] = useState(null);
+  const [channelConfigs, setChannelConfigs] = useState(store.getWorkspace().channel_configs || {});
+  const [channelSaved, setChannelSaved] = useState({});
+
+  const saveChannelConfig = (chId) => {
+    updateWorkspace({ channel_configs: { ...channelConfigs } });
+    setChannelSaved(s => ({ ...s, [chId]: true }));
+    setTimeout(() => setChannelSaved(s => ({ ...s, [chId]: false })), 2000);
+  };
+
+  const setChannelField = (chId, key, val) => {
+    setChannelConfigs(prev => ({ ...prev, [chId]: { ...(prev[chId] || {}), [key]: val } }));
+  };
+
+  const isChannelConfigured = (ch) => {
+    const cfg = channelConfigs[ch.id] || {};
+    return ch.fields.every(f => cfg[f.key]?.trim());
+  };
 
   const saveProfile = () => {
     store.updateUser(user.id, profileForm);
@@ -190,19 +248,80 @@ export default function Settings() {
 
             {section === 'channels' && (
               <div className="space-y-3">
+                <p className="text-xs text-gray-500 mb-1">Configure each channel with your API credentials. All fields are required to activate a channel.</p>
                 {CHANNEL_INFO.map(ch => {
-                  const connected = workspace.channels.includes(ch.id);
+                  const configured = isChannelConfigured(ch);
+                  const expanded = expandedChannel === ch.id;
+                  const cfg = channelConfigs[ch.id] || {};
                   return (
-                    <div key={ch.id} className="bg-[#202C33] rounded-2xl border border-white/10 px-4 py-4 flex items-center gap-3">
-                      <div className={`w-10 h-10 rounded-xl ${ch.color} flex items-center justify-center text-xl shrink-0`}>{ch.icon}</div>
-                      <div className="flex-1 min-w-0">
-                        <p className="font-semibold text-white text-sm">{ch.label}</p>
-                        <p className="text-xs text-gray-500 mt-0.5">{ch.desc}</p>
-                      </div>
-                      <button onClick={() => updateWorkspace({ channels: connected ? workspace.channels.filter(c => c !== ch.id) : [...workspace.channels, ch.id] })}
-                        className={`shrink-0 px-3 py-1.5 rounded-xl text-xs font-bold transition-colors ${connected ? 'bg-[#25D366]/20 text-[#25D366]' : 'bg-white/10 text-gray-300 hover:bg-[#25D366]/20 hover:text-[#25D366]'}`}>
-                        {connected ? 'Connected' : 'Connect'}
+                    <div key={ch.id} className={`bg-[#202C33] rounded-2xl border transition-colors ${expanded ? 'border-[#25D366]/40' : 'border-white/10'}`}>
+                      {/* Header row */}
+                      <button className="w-full px-4 py-4 flex items-center gap-3 text-left"
+                        onClick={() => setExpandedChannel(expanded ? null : ch.id)}>
+                        <div className={`w-10 h-10 rounded-xl ${ch.color} flex items-center justify-center text-xl shrink-0`}>{ch.icon}</div>
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center gap-2">
+                            <p className="font-semibold text-white text-sm">{ch.label}</p>
+                            {configured
+                              ? <span className="flex items-center gap-1 text-[10px] font-bold text-[#25D366] bg-[#25D366]/10 px-2 py-0.5 rounded-full"><CheckCircle2 className="w-3 h-3" />Configured</span>
+                              : <span className="flex items-center gap-1 text-[10px] font-bold text-gray-500 bg-white/5 px-2 py-0.5 rounded-full"><AlertCircle className="w-3 h-3" />Not set up</span>
+                            }
+                          </div>
+                          <p className="text-xs text-gray-500 mt-0.5">{ch.desc}</p>
+                        </div>
+                        <ChevronDown className={`w-4 h-4 text-gray-500 shrink-0 transition-transform ${expanded ? 'rotate-180' : ''}`} />
                       </button>
+
+                      {/* Expanded config form */}
+                      {expanded && (
+                        <div className="px-4 pb-4 space-y-3 border-t border-white/5 pt-3">
+                          {ch.docsUrl && (
+                            <a href={ch.docsUrl} target="_blank" rel="noreferrer"
+                              className="inline-flex items-center gap-1.5 text-xs text-[#25D366] hover:underline">
+                              <ExternalLink className="w-3 h-3" /> View API documentation
+                            </a>
+                          )}
+                          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                            {ch.fields.map(f => (
+                              <div key={f.key}>
+                                <label className="text-[11px] font-medium text-gray-400 mb-1.5 block">{f.label}</label>
+                                <input
+                                  type={f.type}
+                                  placeholder={f.placeholder}
+                                  value={cfg[f.key] || ''}
+                                  onChange={e => setChannelField(ch.id, f.key, e.target.value)}
+                                  className={inputCls}
+                                />
+                              </div>
+                            ))}
+                          </div>
+                          {ch.id === 'whatsapp' && (
+                            <div className="bg-[#2A3942] rounded-xl p-3 text-xs text-gray-400 leading-relaxed">
+                              <p className="font-semibold text-gray-300 mb-1">Webhook URL</p>
+                              <code className="text-[#25D366] break-all">https://api.nyasadesk.com/webhooks/whatsapp</code>
+                              <p className="mt-1">Set this as your webhook URL in the Meta Developer Console.</p>
+                            </div>
+                          )}
+                          {ch.id === 'messenger' && (
+                            <div className="bg-[#2A3942] rounded-xl p-3 text-xs text-gray-400 leading-relaxed">
+                              <p className="font-semibold text-gray-300 mb-1">Webhook URL</p>
+                              <code className="text-[#25D366] break-all">https://api.nyasadesk.com/webhooks/messenger</code>
+                              <p className="mt-1">Add this in your Facebook App → Webhooks → Subscribe to <strong>messages</strong> and <strong>messaging_postbacks</strong>.</p>
+                            </div>
+                          )}
+                          {ch.id === 'website' && (
+                            <div className="bg-[#2A3942] rounded-xl p-3 text-xs text-gray-400 leading-relaxed">
+                              <p className="font-semibold text-gray-300 mb-1">Embed snippet</p>
+                              <code className="text-[#25D366] break-all">{'<script src="https://cdn.nyasadesk.com/widget.js" data-workspace="ws-1"></script>'}</code>
+                              <p className="mt-1">Paste this before the closing <code>&lt;/body&gt;</code> tag on your website.</p>
+                            </div>
+                          )}
+                          <button onClick={() => saveChannelConfig(ch.id)}
+                            className="w-full py-2.5 bg-[#25D366] text-white text-sm font-bold rounded-xl hover:bg-[#20BA5A] transition-colors flex items-center justify-center gap-2">
+                            {channelSaved[ch.id] ? <><CheckCircle2 className="w-4 h-4" /> Saved!</> : `Save ${ch.label} Config`}
+                          </button>
+                        </div>
+                      )}
                     </div>
                   );
                 })}
