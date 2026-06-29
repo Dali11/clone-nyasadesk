@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
-import { Send, StickyNote, Sparkles } from 'lucide-react';
+import { Send, StickyNote, Sparkles, Zap, X, Search } from 'lucide-react';
 import { formatDistanceToNow } from 'date-fns';
 import { motion, AnimatePresence } from 'framer-motion';
 import { store, genId } from '@/lib/store';
@@ -47,6 +47,8 @@ export default function MessageThread({ conversation, user, onUpdate }) {
   const [aiLoading, setAiLoading] = useState(false);
   const [canned, setCanned] = useState([]);
   const [showCanned, setShowCanned] = useState(false);
+  const [showCannedPicker, setShowCannedPicker] = useState(false);
+  const [pickerSearch, setPickerSearch] = useState('');
   const bottomRef = useRef(null);
 
   useEffect(() => {
@@ -65,6 +67,7 @@ export default function MessageThread({ conversation, user, onUpdate }) {
     onUpdate({ ...conversation, last_message_preview: body.trim().slice(0, 100), last_message_at: new Date().toISOString(), unread: false });
     setBody('');
     setShowCanned(false);
+    setShowCannedPicker(false);
   };
 
   const handleKeyDown = (e) => { if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) send(); };
@@ -87,6 +90,8 @@ export default function MessageThread({ conversation, user, onUpdate }) {
   const insertCanned = (cr) => {
     setBody(cr.body.replace(/\{\{name\}\}/g, conversation?.contact_name || 'there'));
     setShowCanned(false);
+    setShowCannedPicker(false);
+    setPickerSearch('');
   };
 
   const handleBodyChange = (e) => {
@@ -114,7 +119,7 @@ export default function MessageThread({ conversation, user, onUpdate }) {
   }
 
   return (
-    <div className="flex-1 flex flex-col min-h-0">
+    <div className="flex-1 flex flex-col min-h-0 relative">
       <div className="flex-1 overflow-y-auto scrollbar-thin px-4 py-4 flex flex-col gap-2"
         style={{ backgroundColor: '#E5DDD5', backgroundImage: "url(\"data:image/svg+xml,%3Csvg width='60' height='60' viewBox='0 0 60 60' xmlns='http://www.w3.org/2000/svg'%3E%3Cg fill='none'%3E%3Cg fill='%23b2a99a' fill-opacity='0.12'%3E%3Cpath d='M36 34v-4h-2v4h-4v2h4v4h2v-4h4v-2h-4zm0-30V0h-2v4h-4v2h4v4h2V6h4V4h-4zM6 34v-4H4v4H0v2h4v4h2v-4h4v-2H6zM6 4V0H4v4H0v2h4v4h2V6h4V4H6z'/%3E%3C/g%3E%3C/g%3E%3C/svg%3E\")" }}>
         {messages.length === 0 ? (
@@ -132,7 +137,7 @@ export default function MessageThread({ conversation, user, onUpdate }) {
       </div>
 
       {filteredCanned.length > 0 && (
-        <div className="bg-[#233138] border-t border-white/10 max-h-40 overflow-y-auto">
+        <div className="bg-[#233138] border-t border-white/10 max-h-44 overflow-y-auto scrollbar-thin">
           {filteredCanned.map(cr => (
             <button key={cr.id} onClick={() => insertCanned(cr)} className="w-full text-left px-4 py-2.5 hover:bg-white/10 transition-colors">
               <div className="flex items-center gap-2">
@@ -142,6 +147,45 @@ export default function MessageThread({ conversation, user, onUpdate }) {
               <p className="text-xs text-gray-500 truncate mt-0.5">{cr.body.slice(0, 70)}</p>
             </button>
           ))}
+        </div>
+      )}
+
+      {/* Canned Picker Modal */}
+      {showCannedPicker && (
+        <div className="absolute inset-0 z-30 flex items-end md:items-center justify-center" style={{ pointerEvents: 'auto' }}>
+          <div className="absolute inset-0 bg-black/50" onClick={() => setShowCannedPicker(false)} />
+          <div className="relative w-full max-w-md mx-2 mb-2 md:mb-0 bg-[#202C33] rounded-2xl border border-white/10 shadow-2xl overflow-hidden flex flex-col max-h-[70vh]">
+            <div className="flex items-center gap-3 px-4 py-3 border-b border-white/10">
+              <Zap className="w-4 h-4 text-[#25D366] shrink-0" />
+              <span className="text-sm font-bold text-white flex-1">Canned Responses</span>
+              <button onClick={() => setShowCannedPicker(false)} className="text-gray-500 hover:text-gray-300"><X className="w-4 h-4" /></button>
+            </div>
+            <div className="px-3 py-2 border-b border-white/10">
+              <div className="relative">
+                <Search className="w-3.5 h-3.5 text-gray-500 absolute left-3 top-1/2 -translate-y-1/2" />
+                <input autoFocus value={pickerSearch} onChange={e => setPickerSearch(e.target.value)}
+                  placeholder="Search responses…"
+                  className="w-full pl-8 pr-3 py-2 text-xs bg-[#2A3942] rounded-lg border-0 text-white placeholder:text-gray-600 focus:outline-none focus:ring-1 focus:ring-[#25D366]" />
+              </div>
+            </div>
+            <div className="overflow-y-auto scrollbar-thin">
+              {canned.filter(cr =>
+                !pickerSearch || cr.title.toLowerCase().includes(pickerSearch.toLowerCase()) || cr.shortcut.toLowerCase().includes(pickerSearch.toLowerCase()) || cr.body.toLowerCase().includes(pickerSearch.toLowerCase())
+              ).map(cr => (
+                <button key={cr.id} onClick={() => insertCanned(cr)}
+                  className="w-full text-left px-4 py-3 hover:bg-white/10 transition-colors border-b border-white/5 last:border-0">
+                  <div className="flex items-center gap-2 mb-1">
+                    <span className="text-[10px] font-mono text-[#25D366] bg-[#25D366]/10 px-1.5 py-0.5 rounded">{cr.shortcut}</span>
+                    <span className="text-sm font-semibold text-white">{cr.title}</span>
+                  </div>
+                  <p className="text-xs text-gray-400 leading-relaxed line-clamp-2">{cr.body}</p>
+                </button>
+              ))}
+              {canned.length === 0 && (
+                <p className="text-center text-sm text-gray-500 py-8">No canned responses yet</p>
+              )}
+            </div>
+          </div>
         </div>
       )}
 
@@ -155,6 +199,11 @@ export default function MessageThread({ conversation, user, onUpdate }) {
             </button>
           ))}
           <div className="flex-1" />
+          <button onClick={() => setShowCannedPicker(true)}
+            className="flex items-center gap-1 px-2.5 py-1 text-xs font-semibold rounded-full bg-[#25D366]/15 text-[#25D366] hover:bg-[#25D366]/25 transition-colors">
+            <Zap className="w-3 h-3" />
+            Canned
+          </button>
           <button onClick={aiReply} disabled={aiLoading}
             className="flex items-center gap-1 px-2.5 py-1 text-xs font-semibold rounded-full bg-purple-500/20 text-purple-400 hover:bg-purple-500/30 transition-colors disabled:opacity-50">
             <Sparkles className="w-3 h-3" />

@@ -28,18 +28,18 @@ export default function CannedResponses() {
   const inputCls = 'w-full bg-[#2A3942] text-white text-sm rounded-xl px-4 py-2.5 focus:outline-none focus:ring-1 focus:ring-[#25D366] border-0 placeholder:text-gray-600';
 
   return (
-    <div className="flex h-screen overflow-hidden bg-[#111B21]">
+    <div className="flex h-screen overflow-hidden bg-[#111B21] pb-[56px] md:pb-0">
       <Sidebar />
       <div className="flex-1 overflow-y-auto scrollbar-thin bg-[#0D1418]">
         <div className="max-w-3xl mx-auto px-6 py-8">
-          <div className="flex items-center justify-between mb-8">
+          <div className="flex items-center justify-between mb-6">
             <div>
-              <h1 className="text-2xl font-bold text-white">Canned Responses</h1>
-              <p className="text-sm text-gray-500 mt-1">Quick replies your team can insert with a shortcut</p>
+              <h1 className="text-xl md:text-2xl font-bold text-white">Canned Responses</h1>
+              <p className="text-xs md:text-sm text-gray-400 mt-1">Type <span className="font-mono text-[#25D366]">/shortcut</span> in chat or click <span className="text-[#25D366] font-semibold">⚡ Canned</span> to insert</p>
             </div>
             <button onClick={startNew}
-              className="flex items-center gap-2 px-4 py-2 bg-[#25D366] text-white text-sm font-semibold rounded-xl hover:bg-[#20BA5A] transition-colors">
-              <Plus className="w-4 h-4" /> New Response
+              className="flex items-center gap-2 px-3 md:px-4 py-2 bg-[#25D366] text-white text-sm font-semibold rounded-xl hover:bg-[#20BA5A] transition-colors shrink-0">
+              <Plus className="w-4 h-4" /> <span className="hidden sm:inline">New Response</span><span className="sm:hidden">New</span>
             </button>
           </div>
 
