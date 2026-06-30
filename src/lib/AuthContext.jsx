@@ -9,41 +9,50 @@ export function AuthProvider({ children }) {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    // Hydrate from existing session
+    let done = false;
+
+    // Hard 5s timeout on initial session fetch
+    const timeout = setTimeout(() => {
+      if (!done) {
+        console.warn('[AuthContext] Session fetch timed out — treating as logged out');
+        done = true;
+        setLoading(false);
+      }
+    }, 5000);
+
     supabase.auth.getSession().then(({ data: { session } }) => {
+      if (done) return;
+      done = true;
+      clearTimeout(timeout);
       setSession(session);
       setUser(session?.user ?? null);
       setLoading(false);
+    }).catch(() => {
+      if (done) return;
+      done = true;
+      clearTimeout(timeout);
+      setLoading(false);
     });
 
-    // Listen for auth state changes
     const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
       setSession(session);
       setUser(session?.user ?? null);
       setLoading(false);
     });
 
-    return () => subscription.unsubscribe();
+    return () => { subscription.unsubscribe(); clearTimeout(timeout); };
   }, []);
 
-  const signIn = (email, password) =>
-    supabase.auth.signInWithPassword({ email, password });
-
-  const signUp = (email, password, meta = {}) =>
-    supabase.auth.signUp({ email, password, options: { data: meta } });
-
-  const signInWithGoogle = () =>
-    supabase.auth.signInWithOAuth({
-      provider: 'google',
-      options: { redirectTo: `${window.location.origin}/` },
-    });
-
+  const signIn  = (email, password) => supabase.auth.signInWithPassword({ email, password });
+  const signUp  = (email, password, meta = {}) => supabase.auth.signUp({ email, password, options: { data: meta } });
   const signOut = () => supabase.auth.signOut();
-
-  const resetPassword = (email) =>
-    supabase.auth.resetPasswordForEmail(email, {
-      redirectTo: `${window.location.origin}/reset-password`,
-    });
+  const signInWithGoogle = () => supabase.auth.signInWithOAuth({
+    provider: 'google',
+    options: { redirectTo: `${window.location.origin}/` },
+  });
+  const resetPassword = (email) => supabase.auth.resetPasswordForEmail(email, {
+    redirectTo: `${window.location.origin}/reset-password`,
+  });
 
   return (
     <AuthContext.Provider value={{ user, session, loading, signIn, signUp, signInWithGoogle, signOut, resetPassword }}>
