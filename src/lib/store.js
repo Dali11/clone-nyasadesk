@@ -17,10 +17,19 @@ let canned = [
   { id: 'cr-5', title: 'Closing',    shortcut: '/bye',   body: 'Thanks for chatting with us today, {{name}}! Feel free to reach out anytime.' },
 ];
 
+export const genId = (prefix = 'id') =>
+  `${prefix}-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
+
+let messagesByConv = {};
+
 export const store = {
   // Workspace
   getWorkspace: () => workspace,
   updateWorkspace: (data) => { workspace = { ...workspace, ...data }; },
+
+  // Messages (local until migrated)
+  getMessages: (convId) => messagesByConv[convId] ?? [],
+  addMessage:  (convId, msg) => { messagesByConv[convId] = [...(messagesByConv[convId] ?? []), msg]; },
 
   // Canned responses (local until migrated)
   getCanned: () => canned,
@@ -30,7 +39,6 @@ export const store = {
 
   // Stubs — consumers should migrate to Supabase queries
   getConversations: () => [],
-  getMessages:      () => [],
   getContacts:      () => [],
   getUsers:         () => [],
   getBroadcasts:    () => [],
