@@ -45,10 +45,7 @@ export default function Landing() {
             <span style={{ fontWeight: 700, fontSize: 18, color: TEXT }}>Nyasadesk</span>
           </div>
           <div style={{ display: 'flex', gap: 12 }}>
-            <Link to="/login" style={{ color: MUTED, textDecoration: 'none', fontSize: 14, padding: '8px 16px', borderRadius: 8 }}>
-              Sign in
-            </Link>
-            <Link to="/register" style={{ background: WA_GREEN, color: '#fff', textDecoration: 'none', fontSize: 14, fontWeight: 600, padding: '8px 18px', borderRadius: 8 }}>
+<Link to="/register" style={{ background: WA_GREEN, color: '#fff', textDecoration: 'none', fontSize: 14, fontWeight: 600, padding: '8px 18px', borderRadius: 8 }}>
               Get started free
             </Link>
           </div>
