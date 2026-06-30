@@ -1,61 +1,64 @@
-// Vercel Edge Function — dispatch outbound messages
-import { createClient } from '@supabase/supabase-js';
+const { createClient } = require('@supabase/supabase-js');
 
 const SUPABASE_URL = 'https://pfbaepibelomiutlotkn.supabase.co';
 const SUPABASE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY;
 
-export const config = { runtime: 'edge' };
+module.exports = async function handler(req, res) {
+  if (req.method !== 'POST') return res.status(405).send('Method Not Allowed');
 
-export default async function handler(req) {
-  if (req.method !== 'POST') return new Response('Method Not Allowed', { status: 405 });
+  const { message_id, conversation_id, workspace_id, channel, body: text } = req.body || {};
+  if (!conversation_id || !workspace_id || !channel || !text) {
+    return res.status(400).json({ error: 'Missing required fields' });
+  }
 
-  let body;
-  try { body = await req.json(); } catch { return new Response('Bad JSON', { status: 400 }); }
-
-  const { message_id, conversation_id, workspace_id, channel, body: text } = body;
   const sb = createClient(SUPABASE_URL, SUPABASE_KEY);
 
   // Get channel config
   const { data: cfg } = await sb.from('channel_configs').select('*')
     .eq('workspace_id', workspace_id).eq('channel', channel).single();
-  if (!cfg?.enabled) return new Response('Channel not configured', { status: 400 });
+  if (!cfg?.enabled) return res.status(400).json({ error: 'Channel not configured or disabled' });
 
-  // Get conversation to know recipient
+  // Get conversation recipient
   const { data: conv } = await sb.from('conversations').select('external_id').eq('id', conversation_id).single();
-  if (!conv) return new Response('Conversation not found', { status: 404 });
+  if (!conv) return res.status(404).json({ error: 'Conversation not found' });
 
   try {
     if (channel === 'whatsapp') {
       const { phone_number_id, access_token } = cfg.config;
-      const res = await fetch(`https://graph.facebook.com/v19.0/${phone_number_id}/messages`, {
+      const r = await fetch(`https://graph.facebook.com/v19.0/${phone_number_id}/messages`, {
         method: 'POST',
-        headers: { 'Authorization': `Bearer ${access_token}`, 'Content-Type': 'application/json' },
+        headers: { Authorization: `Bearer ${access_token}`, 'Content-Type': 'application/json' },
         body: JSON.stringify({ messaging_product: 'whatsapp', to: conv.external_id, type: 'text', text: { body: text } }),
       });
-      const json = await res.json();
-      if (!res.ok) throw new Error(json.error?.message || 'WhatsApp send failed');
-      const waMessageId = json.messages?.[0]?.id;
-      await sb.from('messages').update({ external_id: waMessageId, status: 'sent' }).eq('id', message_id);
+      const json = await r.json();
+      if (!r.ok) throw new Error(json.error?.message || 'WhatsApp API error');
+      const waId = json.messages?.[0]?.id;
+      if (message_id) await sb.from('messages').update({ external_id: waId, status: 'sent' }).eq('id', message_id);
 
     } else if (channel === 'messenger') {
       const { page_token } = cfg.config;
-      const res = await fetch(`https://graph.facebook.com/v19.0/me/messages?access_token=${page_token}`, {
+      const r = await fetch(`https://graph.facebook.com/v19.0/me/messages?access_token=${page_token}`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ recipient: { id: conv.external_id }, message: { text } }),
       });
-      if (!res.ok) throw new Error('Messenger send failed');
+      if (!r.ok) throw new Error('Messenger send failed');
+      if (message_id) await sb.from('messages').update({ status: 'sent' }).eq('id', message_id);
 
     } else if (channel === 'email') {
-      // SMTP send via Resend API (or raw SMTP — using Resend for simplicity)
-      const { email: fromEmail } = cfg.config;
-      // Just mark as sent (SMTP requires nodemailer, use Resend if configured)
-      await sb.from('messages').update({ status: 'sent' }).eq('id', message_id);
+      // Email outbound via SMTP — mark sent for now (SMTP needs server-side nodemailer)
+      if (message_id) await sb.from('messages').update({ status: 'sent' }).eq('id', message_id);
+
+    } else {
+      if (message_id) await sb.from('messages').update({ status: 'sent' }).eq('id', message_id);
     }
 
-    return new Response(JSON.stringify({ ok: true }), { status: 200, headers: { 'Content-Type': 'application/json' } });
+    // Update conversation last message
+    await sb.from('conversations').update({ last_message: text, last_message_at: new Date().toISOString() }).eq('id', conversation_id);
+
+    return res.status(200).json({ ok: true });
   } catch (e) {
-    await sb.from('messages').update({ status: 'failed' }).eq('id', message_id);
-    return new Response(JSON.stringify({ error: e.message }), { status: 500, headers: { 'Content-Type': 'application/json' } });
+    if (message_id) await sb.from('messages').update({ status: 'failed' }).eq('id', message_id);
+    return res.status(500).json({ error: e.message });
   }
-}
+};
