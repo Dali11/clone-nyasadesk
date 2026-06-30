@@ -1,113 +1,78 @@
-const { createClient } = require('@supabase/supabase-js');
+import { createClient } from '@supabase/supabase-js';
 
 const SUPABASE_URL = 'https://pfbaepibelomiutlotkn.supabase.co';
 const SUPABASE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY;
 
-module.exports = async function handler(req, res) {
-  const sb = createClient(SUPABASE_URL, SUPABASE_KEY);
+export default async function handler(req, res) {
+  try {
+    const sb = createClient(SUPABASE_URL, SUPABASE_KEY);
 
-  // ── GET: webhook verification ────────────────────────────────────────────
-  if (req.method === 'GET') {
-    const mode      = req.query['hub.mode'];
-    const token     = req.query['hub.verify_token'];
-    const challenge = req.query['hub.challenge'];
-
-    if (mode === 'subscribe') {
-      // Accept if verify_token matches any stored workspace config
-      const { data: cfgs } = await sb.from('channel_configs').select('config').eq('channel', 'whatsapp');
-      const match = cfgs?.find(c => c.config?.verify_token === token);
-      if (match || !cfgs?.length) {
-        return res.status(200).send(challenge);
+    if (req.method === 'GET') {
+      const mode      = req.query['hub.mode'];
+      const token     = req.query['hub.verify_token'];
+      const challenge = req.query['hub.challenge'];
+      if (mode === 'subscribe') {
+        const { data: cfgs } = await sb.from('channel_configs').select('config').eq('channel', 'whatsapp');
+        const match = cfgs?.find(c => c.config?.verify_token === token);
+        if (match || !cfgs?.length) return res.status(200).send(challenge);
+        return res.status(403).send('Forbidden');
       }
-      return res.status(403).send('Forbidden');
+      return res.status(400).send('Bad Request');
     }
-    return res.status(400).send('Bad Request');
-  }
 
-  // ── POST: incoming messages ───────────────────────────────────────────────
-  if (req.method === 'POST') {
-    const payload = req.body || {};
+    if (req.method === 'POST') {
+      const payload = req.body || {};
+      for (const entry of payload.entry || []) {
+        for (const change of entry.changes || []) {
+          const value   = change.value || {};
+          const phoneId = value.metadata?.phone_number_id;
+          const { data: cfgs } = await sb.from('channel_configs').select('*').eq('channel', 'whatsapp');
+          const cfg = cfgs?.find(c => c.config?.phone_number_id === phoneId);
+          if (!cfg) continue;
+          const workspaceId = cfg.workspace_id;
 
-    for (const entry of payload.entry || []) {
-      for (const change of entry.changes || []) {
-        const value  = change.value || {};
-        const phoneId = value.metadata?.phone_number_id;
+          for (const msg of value.messages || []) {
+            const from        = msg.from;
+            const msgId       = msg.id;
+            const body        = msg.text?.body || `[${msg.type}]`;
+            const contactName = value.contacts?.find(c => c.wa_id === from)?.profile?.name || from;
+            const ts          = new Date(parseInt(msg.timestamp || Date.now()/1000) * 1000).toISOString();
 
-        // Find workspace by phone_number_id
-        const { data: cfgs } = await sb.from('channel_configs').select('*').eq('channel', 'whatsapp');
-        const cfg = cfgs?.find(c => c.config?.phone_number_id === phoneId);
-        if (!cfg) continue;
+            const { data: contact } = await sb.from('contacts')
+              .upsert({ workspace_id: workspaceId, channel: 'whatsapp', external_id: from,
+                full_name: contactName, phone: '+' + from, lead_source: 'whatsapp' },
+                { onConflict: 'workspace_id,channel,external_id' }).select('id').single();
 
-        const workspaceId = cfg.workspace_id;
+            const { data: conv } = await sb.from('conversations')
+              .upsert({ workspace_id: workspaceId, channel: 'whatsapp', external_id: from,
+                contact_id: contact?.id, status: 'open', subject: contactName,
+                last_message: body, last_message_at: ts },
+                { onConflict: 'workspace_id,channel,external_id' }).select('id,unread_count').single();
 
-        for (const msg of value.messages || []) {
-          const from        = msg.from; // phone number
-          const msgId       = msg.id;
-          const body        = msg.text?.body || `[${msg.type}]`;
-          const contactName = value.contacts?.find(c => c.wa_id === from)?.profile?.name || from;
-          const ts          = new Date(parseInt(msg.timestamp) * 1000).toISOString();
-
-          // Upsert contact
-          const { data: contact } = await sb.from('contacts')
-            .upsert({
-              workspace_id: workspaceId,
-              channel:      'whatsapp',
-              external_id:  from,
-              full_name:    contactName,
-              phone:        '+' + from,
-              lead_source:  'whatsapp',
-            }, { onConflict: 'workspace_id,channel,external_id' })
-            .select('id').single();
-
-          // Upsert conversation
-          const { data: conv } = await sb.from('conversations')
-            .upsert({
-              workspace_id:    workspaceId,
-              channel:         'whatsapp',
-              external_id:     from,
-              contact_id:      contact?.id,
-              status:          'open',
-              subject:         contactName,
-              last_message:    body,
-              last_message_at: ts,
-            }, { onConflict: 'workspace_id,channel,external_id' })
-            .select('id,unread_count').single();
-
-          // Increment unread
-          if (conv?.id) {
-            await sb.from('conversations')
-              .update({ unread_count: (conv.unread_count || 0) + 1, last_message: body, last_message_at: ts })
-              .eq('id', conv.id);
+            if (conv?.id) {
+              await sb.from('conversations').update({
+                unread_count: (conv.unread_count || 0) + 1, last_message: body, last_message_at: ts
+              }).eq('id', conv.id);
+              await sb.from('messages').upsert({
+                conversation_id: conv.id, workspace_id: workspaceId,
+                direction: 'inbound', body, channel: 'whatsapp',
+                external_id: msgId, sender_name: contactName, sender_id: from,
+                status: 'delivered', created_at: ts,
+              }, { onConflict: 'conversation_id,external_id' });
+            }
           }
 
-          // Insert message (ignore duplicate)
-          await sb.from('messages')
-            .upsert({
-              conversation_id: conv?.id,
-              workspace_id:    workspaceId,
-              direction:       'inbound',
-              body,
-              channel:         'whatsapp',
-              external_id:     msgId,
-              sender_name:     contactName,
-              sender_id:       from,
-              status:          'delivered',
-              created_at:      ts,
-            }, { onConflict: 'conversation_id,external_id' });
-        }
-
-        // Mark messages as read back to WhatsApp
-        for (const status of value.statuses || []) {
-          await sb.from('messages')
-            .update({ status: status.status })
-            .eq('external_id', status.id)
-            .eq('workspace_id', workspaceId);
+          for (const status of value.statuses || []) {
+            await sb.from('messages').update({ status: status.status })
+              .eq('external_id', status.id).eq('workspace_id', workspaceId);
+          }
         }
       }
+      return res.status(200).send('OK');
     }
-
-    return res.status(200).send('OK');
+    return res.status(405).send('Method Not Allowed');
+  } catch (err) {
+    console.error('WhatsApp webhook error:', err);
+    return res.status(500).json({ error: err.message });
   }
-
-  return res.status(405).send('Method Not Allowed');
-};
+}
