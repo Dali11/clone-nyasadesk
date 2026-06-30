@@ -84,7 +84,7 @@ export default function Inbox() {
   const showChat = !!activeConv;
 
   return (
-    <div className="flex h-screen overflow-hidden bg-[#111B21] pb-[56px] md:pb-0">
+    <div className="flex h-screen overflow-hidden bg-[#111B21] pt-14 md:pt-0 pb-[56px] md:pb-0">
       <Sidebar />
 
       {/* Conversation list — hidden on mobile when chat is open */}
