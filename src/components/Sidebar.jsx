@@ -13,45 +13,102 @@ const NAV = [
   { path: '/settings',   icon: Settings,      label: 'Settings'  },
 ];
 
-// Show only the 4 most-used tabs on mobile bottom bar
 const MOBILE_NAV = [
   { path: '/',          icon: MessageSquare, label: 'Inbox'    },
   { path: '/contacts',  icon: Users,         label: 'Contacts' },
-  { path: '/dashboard', icon: BarChart2,     label: 'Dashboard'},
+  { path: '/dashboard', icon: BarChart2,     label: 'Reports'  },
   { path: '/settings',  icon: Settings,      label: 'Settings' },
 ];
 
 export default function Sidebar() {
   const { pathname } = useLocation();
-  const { user } = useNyasaAuth();
+  const { user, profile } = useNyasaAuth();
+  const workspaceName = profile?.workspace_name || user?.workspace_name || '';
 
   return (
     <>
-      {/* Desktop: vertical side rail */}
-      <div className="hidden md:flex w-16 flex-col items-center py-3 gap-1 shrink-0 bg-[#111B21] border-r border-white/5">
-        <div className="w-10 h-10 rounded-2xl bg-[#25D366] flex items-center justify-center mb-4 shrink-0">
-          <span className="text-white font-black text-lg">N</span>
+      {/* ── Desktop: vertical rail ─────────────────────────────────────── */}
+      <div className="hidden md:flex w-64 flex-col shrink-0 bg-[#111B21] border-r border-white/5">
+
+        {/* Header — matches onboarding style */}
+        <div
+          className="px-5 pt-5 pb-4 border-b border-white/5"
+          style={{ background: 'linear-gradient(135deg, #075E54 0%, #128C7E 100%)' }}
+        >
+          <div className="flex items-center gap-3">
+            {/* Logo mark */}
+            <div className="w-9 h-9 rounded-xl bg-white/20 flex items-center justify-center shrink-0 shadow-inner">
+              <span className="text-white font-black text-lg leading-none">N</span>
+            </div>
+            <div className="min-w-0">
+              <p className="text-white font-bold text-base leading-tight tracking-wide">Nyasadesk</p>
+              {workspaceName && (
+                <p className="text-white/60 text-[11px] font-medium truncate leading-tight mt-0.5">
+                  {workspaceName}
+                </p>
+              )}
+            </div>
+          </div>
         </div>
 
-        {NAV.map(({ path, icon: Icon, label }) => {
-          const active = pathname === path;
-          return (
-            <Link key={path} to={path} title={label}
-              className={`w-10 h-10 rounded-xl flex items-center justify-center transition-all group relative
-                ${active ? 'bg-[#25D366]/20 text-[#25D366]' : 'text-gray-500 hover:bg-white/10 hover:text-gray-200'}`}>
-              <Icon className="w-5 h-5" />
-              <div className="absolute left-full ml-2 px-2 py-1 bg-gray-900 text-white text-xs rounded whitespace-nowrap opacity-0 group-hover:opacity-100 pointer-events-none z-50 transition-opacity">
+        {/* Nav links */}
+        <div className="flex-1 overflow-y-auto py-3 px-2 space-y-0.5">
+          {NAV.map(({ path, icon: Icon, label }) => {
+            const active = pathname === path;
+            return (
+              <Link key={path} to={path}
+                className={`flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-all
+                  ${active
+                    ? 'bg-[#25D366]/15 text-[#25D366]'
+                    : 'text-gray-400 hover:bg-white/5 hover:text-gray-200'
+                  }`}
+              >
+                <Icon className="w-4 h-4 shrink-0" />
                 {label}
-              </div>
-            </Link>
-          );
-        })}
+              </Link>
+            );
+          })}
+        </div>
 
-        <div className="flex-1" />
-        <Avatar name={user?.full_name || ''} size="sm" status={user?.status || 'online'} />
+        {/* User footer */}
+        <div className="p-3 border-t border-white/5">
+          <div className="flex items-center gap-3 px-2 py-2 rounded-xl hover:bg-white/5 transition-colors cursor-pointer">
+            <Avatar name={user?.full_name || ''} size="sm" status={user?.status || 'online'} />
+            <div className="min-w-0 flex-1">
+              <p className="text-sm font-semibold text-white truncate leading-tight">
+                {user?.full_name || user?.email || 'You'}
+              </p>
+              <p className="text-[11px] text-gray-500 truncate leading-tight capitalize">
+                {user?.role || 'agent'}
+              </p>
+            </div>
+          </div>
+        </div>
       </div>
 
-      {/* Mobile: bottom tab bar */}
+      {/* ── Mobile: top header + bottom tab bar ───────────────────────── */}
+      {/* Top header bar */}
+      <div
+        className="md:hidden fixed top-0 left-0 right-0 z-50 flex items-center gap-3 px-4 h-14 border-b border-white/10"
+        style={{ background: 'linear-gradient(135deg, #075E54 0%, #128C7E 100%)' }}
+      >
+        <div className="w-8 h-8 rounded-lg bg-white/20 flex items-center justify-center shrink-0">
+          <span className="text-white font-black text-base leading-none">N</span>
+        </div>
+        <div className="min-w-0">
+          <p className="text-white font-bold text-sm leading-tight">Nyasadesk</p>
+          {workspaceName && (
+            <p className="text-white/60 text-[10px] font-medium truncate leading-tight">
+              {workspaceName}
+            </p>
+          )}
+        </div>
+        <div className="ml-auto">
+          <Avatar name={user?.full_name || ''} size="xs" status={user?.status || 'online'} />
+        </div>
+      </div>
+
+      {/* Bottom tab bar */}
       <nav className="md:hidden fixed bottom-0 left-0 right-0 z-50 bg-[#111B21] border-t border-white/10 flex items-center justify-around px-2 pb-safe">
         {MOBILE_NAV.map(({ path, icon: Icon, label }) => {
           const active = pathname === path;
