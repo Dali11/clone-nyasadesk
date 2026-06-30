@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { User, Users, Globe, Bell, Building2, Check, ChevronDown, ExternalLink,
-         AlertCircle, CheckCircle2, Copy, RefreshCw, Loader2, Trash2 } from 'lucide-react';
+         AlertCircle, Loader2, Trash2, Copy, Code2 } from 'lucide-react';
 import Sidebar from '@/components/Sidebar';
 import Avatar from '@/components/Avatar';
 import TeamSection from '@/components/settings/TeamSection';
@@ -18,10 +18,10 @@ const CHANNEL_INFO = [
     docsUrl: 'https://developers.facebook.com/docs/whatsapp/cloud-api/get-started',
     webhookUrl: `${PROD_URL}/api/webhooks/whatsapp`,
     fields: [
-      { key: 'phone_number_id', label: 'Phone Number ID',              placeholder: '123456789012345',  type: 'text'     },
-      { key: 'waba_id',         label: 'WhatsApp Business Account ID', placeholder: '987654321098765',  type: 'text'     },
-      { key: 'access_token',    label: 'Permanent Access Token',       placeholder: 'EAAxxxxx…',        type: 'password' },
-      { key: 'verify_token',    label: 'Webhook Verify Token',         placeholder: 'my-secret-token',  type: 'text'     },
+      { key: 'phone_number_id', label: 'Phone Number ID',              placeholder: '123456789012345', type: 'text'     },
+      { key: 'waba_id',         label: 'WhatsApp Business Account ID', placeholder: '987654321098765', type: 'text'     },
+      { key: 'access_token',    label: 'Permanent Access Token',       placeholder: 'EAAxxxxx…',       type: 'password' },
+      { key: 'verify_token',    label: 'Webhook Verify Token',         placeholder: 'my-secret-token', type: 'text'     },
     ],
   },
   {
@@ -31,10 +31,10 @@ const CHANNEL_INFO = [
     docsUrl: 'https://developers.facebook.com/docs/messenger-platform/get-started',
     webhookUrl: `${PROD_URL}/api/webhooks/messenger`,
     fields: [
-      { key: 'page_id',      label: 'Facebook Page ID',     placeholder: '123456789',      type: 'text'     },
-      { key: 'page_token',   label: 'Page Access Token',    placeholder: 'EAAxxxxx…',      type: 'password' },
+      { key: 'page_id',      label: 'Facebook Page ID',     placeholder: '123456789',       type: 'text'     },
+      { key: 'page_token',   label: 'Page Access Token',    placeholder: 'EAAxxxxx…',       type: 'password' },
       { key: 'app_secret',   label: 'App Secret',           placeholder: 'From App Dashboard', type: 'password' },
-      { key: 'verify_token', label: 'Webhook Verify Token', placeholder: 'my-secret-token', type: 'text'    },
+      { key: 'verify_token', label: 'Webhook Verify Token', placeholder: 'my-secret-token', type: 'text'     },
     ],
   },
   {
@@ -42,25 +42,27 @@ const CHANNEL_INFO = [
     color: '#6366F1', bgColor: '#6366F118',
     desc: 'Pull emails from any mailbox and reply directly from the inbox.',
     docsUrl: 'https://support.google.com/mail/answer/7126229',
-    webhookUrl: null,
+    webhookUrl: `${PROD_URL}/api/webhooks/email`,
     fields: [
-      { key: 'imap_host', label: 'IMAP Host',            placeholder: 'imap.gmail.com',      type: 'text'     },
-      { key: 'imap_port', label: 'IMAP Port',            placeholder: '993',                 type: 'text'     },
-      { key: 'smtp_host', label: 'SMTP Host',            placeholder: 'smtp.gmail.com',      type: 'text'     },
-      { key: 'smtp_port', label: 'SMTP Port',            placeholder: '587',                 type: 'text'     },
-      { key: 'email',     label: 'Email Address',        placeholder: 'support@yourdomain.com', type: 'text' },
-      { key: 'password',  label: 'Password / App Password', placeholder: '••••••••',        type: 'password' },
+      { key: 'imap_host', label: 'IMAP Host',              placeholder: 'imap.gmail.com',         type: 'text'     },
+      { key: 'imap_port', label: 'IMAP Port',              placeholder: '993',                    type: 'text'     },
+      { key: 'smtp_host', label: 'SMTP Host',              placeholder: 'smtp.gmail.com',         type: 'text'     },
+      { key: 'smtp_port', label: 'SMTP Port',              placeholder: '587',                    type: 'text'     },
+      { key: 'email',     label: 'Email Address',          placeholder: 'support@yourdomain.com', type: 'text'     },
+      { key: 'password',  label: 'Password / App Password', placeholder: '••••••••',             type: 'password' },
     ],
   },
   {
     id: 'website', label: 'Website Live Chat', icon: '🌐',
     color: '#06B6D4', bgColor: '#06B6D418',
-    desc: 'Embed a live chat widget on any website.',
+    desc: 'Embed a live chat bubble on any website — one line of code.',
     docsUrl: null,
     webhookUrl: null,
     fields: [
-      { key: 'allowed_domains', label: 'Allowed Domains',  placeholder: 'yourdomain.com', type: 'text' },
-      { key: 'widget_color',    label: 'Widget Accent Color', placeholder: '#25D366',     type: 'text' },
+      { key: 'greeting',        label: 'Greeting Message',   placeholder: 'Hi there 👋 How can we help?', type: 'text' },
+      { key: 'label',           label: 'Widget Button Label', placeholder: 'Chat with us',                type: 'text' },
+      { key: 'widget_color',    label: 'Accent Color',        placeholder: '#25D366',                     type: 'text' },
+      { key: 'allowed_domains', label: 'Allowed Domains',     placeholder: 'yourdomain.com, app.example.com', type: 'text' },
     ],
   },
 ];
@@ -75,12 +77,12 @@ const SECTIONS = [
 
 const inputCls = 'w-full bg-[#2A3942] text-white text-sm rounded-xl px-4 py-2.5 focus:outline-none focus:ring-1 focus:ring-[#25D366] border-0 placeholder:text-gray-600';
 
-function CopyButton({ text }) {
+function CopyButton({ text, className = '' }) {
   const [copied, setCopied] = useState(false);
   return (
     <button
       onClick={() => { navigator.clipboard.writeText(text); setCopied(true); setTimeout(() => setCopied(false), 1800); }}
-      className="shrink-0 p-1.5 rounded-lg bg-white/5 hover:bg-white/10 transition-colors"
+      className={`shrink-0 p-1.5 rounded-lg bg-white/5 hover:bg-white/10 transition-colors ${className}`}
       title="Copy"
     >
       {copied ? <Check className="w-3.5 h-3.5 text-[#25D366]" /> : <Copy className="w-3.5 h-3.5 text-gray-400" />}
@@ -88,14 +90,21 @@ function CopyButton({ text }) {
   );
 }
 
-function ChannelCard({ ch, saved: savedConfig, onSave, onDelete }) {
-  const [open, setOpen] = useState(false);
-  const [fields, setFields] = useState(savedConfig?.config || {});
-  const [saving, setSaving] = useState(false);
+function ChannelCard({ ch, saved: savedConfig, workspaceId, onSave, onDelete }) {
+  const [open, setOpen]       = useState(false);
+  const [fields, setFields]   = useState(savedConfig?.config || {});
+  const [saving, setSaving]   = useState(false);
   const [deleting, setDeleting] = useState(false);
   const [feedback, setFeedback] = useState('');
 
-  const isConfigured = savedConfig?.enabled && ch.fields.every(f => fields[f.key]?.trim?.());
+  const isConfigured = savedConfig?.enabled && ch.fields.every(f =>
+    f.key === 'allowed_domains' || f.key === 'label' || f.key === 'greeting' ? true : (fields[f.key]?.trim?.() || ch.id === 'website')
+  );
+
+  // Website channel is always "configured" once saved (no required secrets)
+  const isWebsiteReady = ch.id === 'website' && !!savedConfig?.enabled;
+
+  const embedSnippet = `<script src="${PROD_URL}/widget.js" data-workspace-id="${workspaceId}"></script>`;
 
   const handleSave = async () => {
     setSaving(true); setFeedback('');
@@ -119,9 +128,9 @@ function ChannelCard({ ch, saved: savedConfig, onSave, onDelete }) {
   return (
     <div
       className="rounded-2xl border overflow-hidden transition-all"
-      style={{ borderColor: isConfigured ? ch.color + '44' : 'rgba(255,255,255,0.08)', background: '#1a2530' }}
+      style={{ borderColor: (isConfigured || isWebsiteReady) ? ch.color + '44' : 'rgba(255,255,255,0.08)', background: '#1a2530' }}
     >
-      {/* Header row */}
+      {/* Header */}
       <button className="w-full flex items-center gap-3 p-4 text-left" onClick={() => setOpen(o => !o)}>
         <div className="w-10 h-10 rounded-xl flex items-center justify-center text-lg shrink-0"
           style={{ background: ch.bgColor }}>
@@ -132,26 +141,53 @@ function ChannelCard({ ch, saved: savedConfig, onSave, onDelete }) {
           <p className="text-[11px] text-gray-500 truncate">{ch.desc}</p>
         </div>
         <div className="flex items-center gap-2 shrink-0">
-          {isConfigured
-            ? <span className="flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded-full bg-green-500/15 text-green-400"><span className="w-1.5 h-1.5 rounded-full bg-green-400 animate-pulse inline-block" />Live</span>
+          {(isConfigured || isWebsiteReady)
+            ? <span className="flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded-full bg-green-500/15 text-green-400">
+                <span className="w-1.5 h-1.5 rounded-full bg-green-400 animate-pulse inline-block" />Live
+              </span>
             : <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-white/5 text-gray-500">Not connected</span>
           }
           <ChevronDown className={`w-4 h-4 text-gray-500 transition-transform ${open ? 'rotate-180' : ''}`} />
         </div>
       </button>
 
-      {/* Expanded config */}
+      {/* Expanded */}
       {open && (
         <div className="px-4 pb-4 space-y-3 border-t border-white/5 pt-4">
-          {/* Webhook URL */}
+
+          {/* Webhook URL (non-website channels) */}
           {ch.webhookUrl && (
-            <div className="bg-[#111B21] rounded-xl p-3 mb-2">
+            <div className="bg-[#111B21] rounded-xl p-3">
               <p className="text-[10px] font-bold text-gray-500 uppercase tracking-wide mb-1.5">Your Webhook URL</p>
               <div className="flex items-center gap-2">
                 <p className="text-xs text-[#25D366] font-mono truncate flex-1">{ch.webhookUrl}</p>
                 <CopyButton text={ch.webhookUrl} />
               </div>
-              <p className="text-[10px] text-gray-600 mt-1">Paste this in your Meta App → Webhooks configuration.</p>
+              <p className="text-[10px] text-gray-600 mt-1">Paste this into your Meta App → Webhooks.</p>
+            </div>
+          )}
+
+          {/* Website: embed snippet auto-filled with workspace ID */}
+          {ch.id === 'website' && workspaceId && (
+            <div className="bg-[#111B21] rounded-xl p-3 space-y-2">
+              <div className="flex items-center gap-2 mb-1">
+                <Code2 className="w-3.5 h-3.5 text-cyan-400" />
+                <p className="text-[10px] font-bold text-cyan-400 uppercase tracking-wide">Your Embed Snippet</p>
+              </div>
+              <p className="text-[10px] text-gray-500">Copy and paste this into the <code className="text-cyan-400">&lt;head&gt;</code> or <code className="text-cyan-400">&lt;body&gt;</code> of every page you want the widget on.</p>
+              <div className="flex items-start gap-2 mt-2">
+                <code className="text-[11px] text-cyan-300 font-mono flex-1 break-all leading-relaxed bg-[#0D1418] rounded-lg p-2.5">
+                  {embedSnippet}
+                </code>
+                <CopyButton text={embedSnippet} className="mt-1" />
+              </div>
+              <div className="mt-1 pt-2 border-t border-white/5">
+                <p className="text-[10px] text-gray-500">Your Workspace ID:</p>
+                <div className="flex items-center gap-2 mt-1">
+                  <code className="text-[11px] text-gray-300 font-mono flex-1 truncate">{workspaceId}</code>
+                  <CopyButton text={workspaceId} />
+                </div>
+              </div>
             </div>
           )}
 
@@ -169,7 +205,6 @@ function ChannelCard({ ch, saved: savedConfig, onSave, onDelete }) {
             </div>
           ))}
 
-          {/* Docs link */}
           {ch.docsUrl && (
             <a href={ch.docsUrl} target="_blank" rel="noreferrer"
               className="inline-flex items-center gap-1.5 text-[11px] text-blue-400 hover:text-blue-300 transition-colors">
@@ -177,26 +212,11 @@ function ChannelCard({ ch, saved: savedConfig, onSave, onDelete }) {
             </a>
           )}
 
-          {/* Website embed snippet */}
-          {ch.id === 'website' && (
-            <div className="bg-[#111B21] rounded-xl p-3">
-              <p className="text-[10px] font-bold text-gray-500 uppercase tracking-wide mb-1.5">Embed Snippet</p>
-              <div className="flex items-start gap-2">
-                <code className="text-[10px] text-cyan-400 font-mono flex-1 break-all">
-                  {`<script src="https://nyasadesk1.vercel.app/widget.js" data-workspace-id="YOUR_ID"></script>`}
-                </code>
-                <CopyButton text={`<script src="https://nyasadesk1.vercel.app/widget.js" data-workspace-id="YOUR_ID"></script>`} />
-              </div>
-            </div>
-          )}
-
           {/* Actions */}
           <div className="flex gap-2 pt-1">
-            <button
-              onClick={handleSave} disabled={saving}
-              className="flex-1 flex items-center justify-center gap-2 py-2.5 rounded-xl text-sm font-bold transition-colors"
-              style={{ background: ch.color, color: '#fff', opacity: saving ? 0.7 : 1 }}
-            >
+            <button onClick={handleSave} disabled={saving}
+              className="flex-1 flex items-center justify-center gap-2 py-2.5 rounded-xl text-sm font-bold transition-all"
+              style={{ background: ch.color, color: '#fff', opacity: saving ? 0.7 : 1 }}>
               {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : feedback === 'saved' ? <Check className="w-4 h-4" /> : null}
               {saving ? 'Saving…' : feedback === 'saved' ? 'Saved!' : 'Save & Connect'}
             </button>
@@ -208,7 +228,9 @@ function ChannelCard({ ch, saved: savedConfig, onSave, onDelete }) {
             )}
           </div>
           {feedback.startsWith('error:') && (
-            <p className="text-xs text-red-400 flex items-center gap-1.5"><AlertCircle className="w-3.5 h-3.5" />{feedback.slice(6)}</p>
+            <p className="text-xs text-red-400 flex items-center gap-1.5">
+              <AlertCircle className="w-3.5 h-3.5" />{feedback.slice(6)}
+            </p>
           )}
         </div>
       )}
@@ -218,24 +240,25 @@ function ChannelCard({ ch, saved: savedConfig, onSave, onDelete }) {
 
 export default function Settings() {
   const { user, profile } = useNyasaAuth();
-  const [section, setSection] = useState('channels');
+  const [section, setSection]       = useState('channels');
   const [profileForm, setProfileForm] = useState({ full_name: user?.full_name || '', email: user?.email || '' });
   const [profileSaved, setProfileSaved] = useState(false);
   const [channelConfigs, setChannelConfigs] = useState({});
   const [loadingChannels, setLoadingChannels] = useState(true);
-  const [wsName, setWsName] = useState(profile?.workspace_name || '');
-  const [wsSaved, setWsSaved] = useState(false);
+  const [wsName, setWsName]         = useState(profile?.workspace_name || '');
+  const [wsSaved, setWsSaved]       = useState(false);
 
-  // Load channel configs from Supabase
   useEffect(() => {
     if (!user?.id) return;
     setLoadingChannels(true);
-    getChannelConfigs(user.id).then(rows => {
-      const map = {};
-      rows.forEach(r => { map[r.channel] = r; });
-      setChannelConfigs(map);
-      setLoadingChannels(false);
-    }).catch(() => setLoadingChannels(false));
+    getChannelConfigs(user.id)
+      .then(rows => {
+        const map = {};
+        rows.forEach(r => { map[r.channel] = r; });
+        setChannelConfigs(map);
+      })
+      .catch(() => {})
+      .finally(() => setLoadingChannels(false));
   }, [user?.id]);
 
   const handleSaveChannel = async (channel, fields) => {
@@ -296,7 +319,9 @@ export default function Settings() {
               <>
                 <div className="mb-2">
                   <h2 className="text-base font-bold text-white">Channels</h2>
-                  <p className="text-xs text-gray-500 mt-0.5">Connect messaging channels — credentials are encrypted and stored securely.</p>
+                  <p className="text-xs text-gray-500 mt-0.5">
+                    Connect messaging channels. Your Workspace ID is <code className="text-[#25D366] font-mono">{user?.id?.slice(0,8)}…</code>
+                  </p>
                 </div>
                 {loadingChannels
                   ? <div className="flex items-center gap-2 text-gray-500 text-sm py-8 justify-center"><Loader2 className="w-4 h-4 animate-spin" />Loading…</div>
@@ -305,6 +330,7 @@ export default function Settings() {
                       key={ch.id}
                       ch={ch}
                       saved={channelConfigs[ch.id]}
+                      workspaceId={user?.id}
                       onSave={handleSaveChannel}
                       onDelete={handleDeleteChannel}
                     />
@@ -326,10 +352,12 @@ export default function Settings() {
                 {[['full_name','Display Name'],['email','Email']].map(([k, label]) => (
                   <div key={k}>
                     <label className="text-[11px] font-medium text-gray-400 mb-1.5 block">{label}</label>
-                    <input className={inputCls} value={profileForm[k] || ''} onChange={e => setProfileForm(f => ({ ...f, [k]: e.target.value }))} />
+                    <input className={inputCls} value={profileForm[k] || ''}
+                      onChange={e => setProfileForm(f => ({ ...f, [k]: e.target.value }))} />
                   </div>
                 ))}
-                <button onClick={saveProfile} className="w-full flex items-center justify-center gap-2 py-3 bg-[#25D366] text-white text-sm font-bold rounded-xl hover:bg-[#20BA5A] transition-colors">
+                <button onClick={saveProfile}
+                  className="w-full flex items-center justify-center gap-2 py-3 bg-[#25D366] text-white text-sm font-bold rounded-xl hover:bg-[#20BA5A] transition-colors">
                   {profileSaved ? <><Check className="w-4 h-4" />Saved!</> : 'Save Profile'}
                 </button>
               </div>
@@ -342,7 +370,8 @@ export default function Settings() {
                   <label className="text-[11px] font-medium text-gray-400 mb-1.5 block">Workspace Name</label>
                   <input className={inputCls} value={wsName} onChange={e => setWsName(e.target.value)} placeholder="My Company" />
                 </div>
-                <button onClick={saveWorkspace} className="w-full flex items-center justify-center gap-2 py-3 bg-[#25D366] text-white text-sm font-bold rounded-xl hover:bg-[#20BA5A] transition-colors">
+                <button onClick={saveWorkspace}
+                  className="w-full flex items-center justify-center gap-2 py-3 bg-[#25D366] text-white text-sm font-bold rounded-xl hover:bg-[#20BA5A] transition-colors">
                   {wsSaved ? <><Check className="w-4 h-4" />Saved!</> : 'Save Workspace'}
                 </button>
               </div>
