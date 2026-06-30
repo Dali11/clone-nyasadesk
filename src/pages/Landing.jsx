@@ -12,7 +12,7 @@ const MUTED         = '#8696A0';
 
 const FEATURES = [
   { icon: MessageSquare, title: 'Omnichannel Inbox',   desc: 'WhatsApp, email, live chat — all in one place. No more tab-switching.' },
-  { icon: Users,         title: 'Team Collaboration',  desc: 'Assign conversations, leave internal notes, see who's online in real time.' },
+  { icon: Users,         title: 'Team Collaboration',  desc: 'Assign conversations, leave internal notes, see who\u2019s online in real time.' },
   { icon: Zap,           title: 'Smart Automation',    desc: 'Auto-assign by keyword, SLA alerts, canned responses, broadcast campaigns.' },
   { icon: Shield,        title: 'Built for Sales',     desc: 'Deal stages, contact CRM, pipeline overview — your sales context lives here.' },
   { icon: Globe,         title: 'Any Channel',         desc: 'Connect WhatsApp Business, Facebook Messenger, email or a website widget.' },
