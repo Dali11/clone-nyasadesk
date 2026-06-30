@@ -1,59 +1,70 @@
-import { useState } from 'react';
-import { User, Users, Globe, Bell, Building2, Check, ChevronDown, ExternalLink, AlertCircle, CheckCircle2 } from 'lucide-react';
+import { useState, useEffect } from 'react';
+import { User, Users, Globe, Bell, Building2, Check, ChevronDown, ExternalLink,
+         AlertCircle, CheckCircle2, Copy, RefreshCw, Loader2, Trash2 } from 'lucide-react';
 import Sidebar from '@/components/Sidebar';
 import Avatar from '@/components/Avatar';
 import TeamSection from '@/components/settings/TeamSection';
-import { store } from '@/lib/store';
 import { useNyasaAuth } from '@/lib/NyasaAuth';
+import { getChannelConfigs, saveChannelConfig, deleteChannelConfig } from '@/lib/channels';
+import { supabase } from '@/lib/supabase';
+
+const PROD_URL = 'https://nyasadesk1.vercel.app';
 
 const CHANNEL_INFO = [
   {
-    id: 'whatsapp', label: 'WhatsApp', icon: '💬', color: 'bg-green-500',
-    desc: 'Connect WhatsApp Business API to send & receive messages',
-    docsUrl: 'https://developers.facebook.com/docs/whatsapp/cloud-api/',
+    id: 'whatsapp', label: 'WhatsApp Business', icon: '💬',
+    color: '#25D366', bgColor: '#25D36618',
+    desc: 'Receive & send WhatsApp messages via the Cloud API.',
+    docsUrl: 'https://developers.facebook.com/docs/whatsapp/cloud-api/get-started',
+    webhookUrl: `${PROD_URL}/api/webhooks/whatsapp`,
     fields: [
-      { key: 'phone_number_id', label: 'Phone Number ID', placeholder: 'e.g. 123456789012345', type: 'text' },
-      { key: 'waba_id',         label: 'WhatsApp Business Account ID', placeholder: 'e.g. 987654321098765', type: 'text' },
-      { key: 'access_token',    label: 'Permanent Access Token', placeholder: 'EAAxxxxx...', type: 'password' },
-      { key: 'verify_token',    label: 'Webhook Verify Token', placeholder: 'Your custom secret string', type: 'text' },
+      { key: 'phone_number_id', label: 'Phone Number ID',              placeholder: '123456789012345',  type: 'text'     },
+      { key: 'waba_id',         label: 'WhatsApp Business Account ID', placeholder: '987654321098765',  type: 'text'     },
+      { key: 'access_token',    label: 'Permanent Access Token',       placeholder: 'EAAxxxxx…',        type: 'password' },
+      { key: 'verify_token',    label: 'Webhook Verify Token',         placeholder: 'my-secret-token',  type: 'text'     },
     ],
   },
   {
-    id: 'messenger', label: 'Facebook Messenger', icon: '📘', color: 'bg-blue-600',
-    desc: 'Connect your Facebook Page to receive Messenger conversations',
-    docsUrl: 'https://developers.facebook.com/docs/messenger-platform/',
+    id: 'messenger', label: 'Facebook Messenger', icon: '📘',
+    color: '#0084FF', bgColor: '#0084FF18',
+    desc: 'Connect your Facebook Page to handle Messenger conversations.',
+    docsUrl: 'https://developers.facebook.com/docs/messenger-platform/get-started',
+    webhookUrl: `${PROD_URL}/api/webhooks/messenger`,
     fields: [
-      { key: 'page_id',      label: 'Facebook Page ID',    placeholder: 'e.g. 123456789', type: 'text' },
-      { key: 'page_token',   label: 'Page Access Token',   placeholder: 'EAAxxxxx...', type: 'password' },
-      { key: 'app_secret',   label: 'App Secret',          placeholder: 'From your Facebook App', type: 'password' },
-      { key: 'verify_token', label: 'Webhook Verify Token', placeholder: 'Your custom secret string', type: 'text' },
+      { key: 'page_id',      label: 'Facebook Page ID',     placeholder: '123456789',      type: 'text'     },
+      { key: 'page_token',   label: 'Page Access Token',    placeholder: 'EAAxxxxx…',      type: 'password' },
+      { key: 'app_secret',   label: 'App Secret',           placeholder: 'From App Dashboard', type: 'password' },
+      { key: 'verify_token', label: 'Webhook Verify Token', placeholder: 'my-secret-token', type: 'text'    },
     ],
   },
   {
-    id: 'email', label: 'Email', icon: '📧', color: 'bg-indigo-500',
-    desc: 'Connect a mailbox via IMAP/SMTP to handle email conversations',
+    id: 'email', label: 'Email (IMAP/SMTP)', icon: '📧',
+    color: '#6366F1', bgColor: '#6366F118',
+    desc: 'Pull emails from any mailbox and reply directly from the inbox.',
     docsUrl: 'https://support.google.com/mail/answer/7126229',
+    webhookUrl: null,
     fields: [
-      { key: 'imap_host',   label: 'IMAP Host',     placeholder: 'imap.gmail.com', type: 'text' },
-      { key: 'imap_port',   label: 'IMAP Port',     placeholder: '993', type: 'text' },
-      { key: 'smtp_host',   label: 'SMTP Host',     placeholder: 'smtp.gmail.com', type: 'text' },
-      { key: 'smtp_port',   label: 'SMTP Port',     placeholder: '587', type: 'text' },
-      { key: 'email',       label: 'Email Address', placeholder: 'support@yourdomain.com', type: 'text' },
-      { key: 'password',    label: 'Password / App Password', placeholder: '••••••••••••', type: 'password' },
+      { key: 'imap_host', label: 'IMAP Host',            placeholder: 'imap.gmail.com',      type: 'text'     },
+      { key: 'imap_port', label: 'IMAP Port',            placeholder: '993',                 type: 'text'     },
+      { key: 'smtp_host', label: 'SMTP Host',            placeholder: 'smtp.gmail.com',      type: 'text'     },
+      { key: 'smtp_port', label: 'SMTP Port',            placeholder: '587',                 type: 'text'     },
+      { key: 'email',     label: 'Email Address',        placeholder: 'support@yourdomain.com', type: 'text' },
+      { key: 'password',  label: 'Password / App Password', placeholder: '••••••••',        type: 'password' },
     ],
   },
   {
-    id: 'website', label: 'Website Chat', icon: '🌐', color: 'bg-cyan-500',
-    desc: 'Embed a live chat widget on your website',
+    id: 'website', label: 'Website Live Chat', icon: '🌐',
+    color: '#06B6D4', bgColor: '#06B6D418',
+    desc: 'Embed a live chat widget on any website.',
     docsUrl: null,
+    webhookUrl: null,
     fields: [
-      { key: 'allowed_domains', label: 'Allowed Domains', placeholder: 'yourdomain.com, app.yourdomain.com', type: 'text' },
-      { key: 'widget_color',    label: 'Widget Color',    placeholder: '#25D366', type: 'text' },
+      { key: 'allowed_domains', label: 'Allowed Domains',  placeholder: 'yourdomain.com', type: 'text' },
+      { key: 'widget_color',    label: 'Widget Accent Color', placeholder: '#25D366',     type: 'text' },
     ],
   },
 ];
 
-const ROLE_COLORS = { owner: 'text-yellow-400 bg-yellow-900/20', admin: 'text-blue-400 bg-blue-900/20', agent: 'text-gray-400 bg-white/5' };
 const SECTIONS = [
   { id: 'profile',   label: 'Profile',   icon: User      },
   { id: 'workspace', label: 'Workspace', icon: Building2 },
@@ -64,39 +75,190 @@ const SECTIONS = [
 
 const inputCls = 'w-full bg-[#2A3942] text-white text-sm rounded-xl px-4 py-2.5 focus:outline-none focus:ring-1 focus:ring-[#25D366] border-0 placeholder:text-gray-600';
 
+function CopyButton({ text }) {
+  const [copied, setCopied] = useState(false);
+  return (
+    <button
+      onClick={() => { navigator.clipboard.writeText(text); setCopied(true); setTimeout(() => setCopied(false), 1800); }}
+      className="shrink-0 p-1.5 rounded-lg bg-white/5 hover:bg-white/10 transition-colors"
+      title="Copy"
+    >
+      {copied ? <Check className="w-3.5 h-3.5 text-[#25D366]" /> : <Copy className="w-3.5 h-3.5 text-gray-400" />}
+    </button>
+  );
+}
+
+function ChannelCard({ ch, saved: savedConfig, onSave, onDelete }) {
+  const [open, setOpen] = useState(false);
+  const [fields, setFields] = useState(savedConfig?.config || {});
+  const [saving, setSaving] = useState(false);
+  const [deleting, setDeleting] = useState(false);
+  const [feedback, setFeedback] = useState('');
+
+  const isConfigured = savedConfig?.enabled && ch.fields.every(f => fields[f.key]?.trim?.());
+
+  const handleSave = async () => {
+    setSaving(true); setFeedback('');
+    try {
+      await onSave(ch.id, fields);
+      setFeedback('saved');
+    } catch (e) {
+      setFeedback('error:' + e.message);
+    } finally {
+      setSaving(false);
+      setTimeout(() => setFeedback(''), 3000);
+    }
+  };
+
+  const handleDelete = async () => {
+    setDeleting(true);
+    try { await onDelete(ch.id); } catch {}
+    setDeleting(false);
+  };
+
+  return (
+    <div
+      className="rounded-2xl border overflow-hidden transition-all"
+      style={{ borderColor: isConfigured ? ch.color + '44' : 'rgba(255,255,255,0.08)', background: '#1a2530' }}
+    >
+      {/* Header row */}
+      <button className="w-full flex items-center gap-3 p-4 text-left" onClick={() => setOpen(o => !o)}>
+        <div className="w-10 h-10 rounded-xl flex items-center justify-center text-lg shrink-0"
+          style={{ background: ch.bgColor }}>
+          {ch.icon}
+        </div>
+        <div className="flex-1 min-w-0">
+          <p className="text-sm font-semibold text-white">{ch.label}</p>
+          <p className="text-[11px] text-gray-500 truncate">{ch.desc}</p>
+        </div>
+        <div className="flex items-center gap-2 shrink-0">
+          {isConfigured
+            ? <span className="flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded-full bg-green-500/15 text-green-400"><span className="w-1.5 h-1.5 rounded-full bg-green-400 animate-pulse inline-block" />Live</span>
+            : <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-white/5 text-gray-500">Not connected</span>
+          }
+          <ChevronDown className={`w-4 h-4 text-gray-500 transition-transform ${open ? 'rotate-180' : ''}`} />
+        </div>
+      </button>
+
+      {/* Expanded config */}
+      {open && (
+        <div className="px-4 pb-4 space-y-3 border-t border-white/5 pt-4">
+          {/* Webhook URL */}
+          {ch.webhookUrl && (
+            <div className="bg-[#111B21] rounded-xl p-3 mb-2">
+              <p className="text-[10px] font-bold text-gray-500 uppercase tracking-wide mb-1.5">Your Webhook URL</p>
+              <div className="flex items-center gap-2">
+                <p className="text-xs text-[#25D366] font-mono truncate flex-1">{ch.webhookUrl}</p>
+                <CopyButton text={ch.webhookUrl} />
+              </div>
+              <p className="text-[10px] text-gray-600 mt-1">Paste this in your Meta App → Webhooks configuration.</p>
+            </div>
+          )}
+
+          {/* Fields */}
+          {ch.fields.map(f => (
+            <div key={f.key}>
+              <label className="text-[11px] font-medium text-gray-400 mb-1.5 block">{f.label}</label>
+              <input
+                className={inputCls}
+                type={f.type}
+                placeholder={f.placeholder}
+                value={fields[f.key] || ''}
+                onChange={e => setFields(prev => ({ ...prev, [f.key]: e.target.value }))}
+              />
+            </div>
+          ))}
+
+          {/* Docs link */}
+          {ch.docsUrl && (
+            <a href={ch.docsUrl} target="_blank" rel="noreferrer"
+              className="inline-flex items-center gap-1.5 text-[11px] text-blue-400 hover:text-blue-300 transition-colors">
+              <ExternalLink className="w-3 h-3" /> Setup guide
+            </a>
+          )}
+
+          {/* Website embed snippet */}
+          {ch.id === 'website' && (
+            <div className="bg-[#111B21] rounded-xl p-3">
+              <p className="text-[10px] font-bold text-gray-500 uppercase tracking-wide mb-1.5">Embed Snippet</p>
+              <div className="flex items-start gap-2">
+                <code className="text-[10px] text-cyan-400 font-mono flex-1 break-all">
+                  {`<script src="https://nyasadesk1.vercel.app/widget.js" data-workspace-id="YOUR_ID"></script>`}
+                </code>
+                <CopyButton text={`<script src="https://nyasadesk1.vercel.app/widget.js" data-workspace-id="YOUR_ID"></script>`} />
+              </div>
+            </div>
+          )}
+
+          {/* Actions */}
+          <div className="flex gap-2 pt-1">
+            <button
+              onClick={handleSave} disabled={saving}
+              className="flex-1 flex items-center justify-center gap-2 py-2.5 rounded-xl text-sm font-bold transition-colors"
+              style={{ background: ch.color, color: '#fff', opacity: saving ? 0.7 : 1 }}
+            >
+              {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : feedback === 'saved' ? <Check className="w-4 h-4" /> : null}
+              {saving ? 'Saving…' : feedback === 'saved' ? 'Saved!' : 'Save & Connect'}
+            </button>
+            {savedConfig && (
+              <button onClick={handleDelete} disabled={deleting}
+                className="p-2.5 rounded-xl bg-red-500/10 text-red-400 hover:bg-red-500/20 transition-colors">
+                {deleting ? <Loader2 className="w-4 h-4 animate-spin" /> : <Trash2 className="w-4 h-4" />}
+              </button>
+            )}
+          </div>
+          {feedback.startsWith('error:') && (
+            <p className="text-xs text-red-400 flex items-center gap-1.5"><AlertCircle className="w-3.5 h-3.5" />{feedback.slice(6)}</p>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
 export default function Settings() {
-  const { user, setUser } = useNyasaAuth();
-  const [section, setSection] = useState('profile');
-  const [workspace, setWorkspaceState] = useState(store.getWorkspace());
+  const { user, profile } = useNyasaAuth();
+  const [section, setSection] = useState('channels');
   const [profileForm, setProfileForm] = useState({ full_name: user?.full_name || '', email: user?.email || '' });
-  const [saved, setSaved] = useState(false);
-  const [expandedChannel, setExpandedChannel] = useState(null);
-  const [channelConfigs, setChannelConfigs] = useState(store.getWorkspace().channel_configs || {});
-  const [channelSaved, setChannelSaved] = useState({});
+  const [profileSaved, setProfileSaved] = useState(false);
+  const [channelConfigs, setChannelConfigs] = useState({});
+  const [loadingChannels, setLoadingChannels] = useState(true);
+  const [wsName, setWsName] = useState(profile?.workspace_name || '');
+  const [wsSaved, setWsSaved] = useState(false);
 
-  const saveChannelConfig = (chId) => {
-    updateWorkspace({ channel_configs: { ...channelConfigs } });
-    setChannelSaved(s => ({ ...s, [chId]: true }));
-    setTimeout(() => setChannelSaved(s => ({ ...s, [chId]: false })), 2000);
+  // Load channel configs from Supabase
+  useEffect(() => {
+    if (!user?.id) return;
+    setLoadingChannels(true);
+    getChannelConfigs(user.id).then(rows => {
+      const map = {};
+      rows.forEach(r => { map[r.channel] = r; });
+      setChannelConfigs(map);
+      setLoadingChannels(false);
+    }).catch(() => setLoadingChannels(false));
+  }, [user?.id]);
+
+  const handleSaveChannel = async (channel, fields) => {
+    const row = await saveChannelConfig(user.id, channel, fields, true);
+    setChannelConfigs(prev => ({ ...prev, [channel]: row }));
   };
 
-  const setChannelField = (chId, key, val) => {
-    setChannelConfigs(prev => ({ ...prev, [chId]: { ...(prev[chId] || {}), [key]: val } }));
+  const handleDeleteChannel = async (channel) => {
+    await deleteChannelConfig(user.id, channel);
+    setChannelConfigs(prev => { const n = { ...prev }; delete n[channel]; return n; });
   };
 
-  const isChannelConfigured = (ch) => {
-    const cfg = channelConfigs[ch.id] || {};
-    return ch.fields.every(f => cfg[f.key]?.trim());
+  const saveProfile = async () => {
+    await supabase.from('profiles').update({ full_name: profileForm.full_name }).eq('id', user?.id);
+    setProfileSaved(true);
+    setTimeout(() => setProfileSaved(false), 2000);
   };
 
-  const saveProfile = () => {
-    store.updateUser(user.id, profileForm);
-    setUser({ ...user, ...profileForm });
-    setSaved(true);
-    setTimeout(() => setSaved(false), 2000);
+  const saveWorkspace = async () => {
+    await supabase.from('profiles').update({ workspace_name: wsName }).eq('id', user?.id);
+    setWsSaved(true);
+    setTimeout(() => setWsSaved(false), 2000);
   };
-
-  const updateWorkspace = (data) => { store.updateWorkspace(data); setWorkspaceState(store.getWorkspace()); };
 
   return (
     <div className="flex h-screen overflow-hidden bg-[#111B21] pb-[56px] md:pb-0">
@@ -115,171 +277,85 @@ export default function Settings() {
       </div>
 
       <div className="flex-1 flex flex-col overflow-hidden bg-[#0D1418]">
-        {/* Mobile top tab strip */}
+        {/* Mobile tab strip */}
         <div className="md:hidden flex overflow-x-auto scrollbar-none bg-[#111B21] border-b border-white/10 px-2 pt-2 shrink-0 gap-1">
           {SECTIONS.map(({ id, label, icon: Icon }) => (
             <button key={id} onClick={() => setSection(id)}
               className={`flex flex-col items-center gap-1 px-4 py-2 rounded-t-xl text-[10px] font-semibold whitespace-nowrap transition-all shrink-0
                 ${section === id ? 'text-[#25D366] border-b-2 border-[#25D366]' : 'text-gray-500'}`}>
-              <Icon className="w-4 h-4" />
-              {label}
+              <Icon className="w-4 h-4" />{label}
             </button>
           ))}
         </div>
 
         <div className="flex-1 overflow-y-auto scrollbar-thin">
-          <div className="max-w-2xl mx-auto px-4 md:px-8 py-6">
+          <div className="max-w-2xl mx-auto px-4 md:px-8 py-6 space-y-4">
 
-            {section === 'profile' && (
-              <div className="space-y-4">
-                {/* Profile hero card */}
-                <div className="bg-[#202C33] rounded-2xl border border-white/10 p-5">
-                  <div className="flex items-center gap-4 mb-5">
-                    <Avatar name={profileForm.full_name || user?.full_name || ''} size="xl" />
-                    <div>
-                      <p className="font-bold text-white text-base">{profileForm.full_name || 'Your Name'}</p>
-                      <span className={`text-[10px] font-semibold px-2 py-0.5 rounded-full ${ROLE_COLORS[user?.role] || 'text-gray-400 bg-white/5'}`}>{user?.role}</span>
-                    </div>
-                  </div>
-                  <div className="space-y-3">
-                    {[['full_name','Display Name'],['email','Email']].map(([k, ph]) => (
-                      <div key={k}>
-                        <label className="text-[11px] font-medium text-gray-400 mb-1.5 block">{ph}</label>
-                        <input className={inputCls} value={profileForm[k] || ''} onChange={e => setProfileForm(f => ({ ...f, [k]: e.target.value }))} />
-                      </div>
-                    ))}
-                  </div>
-                  <button onClick={saveProfile} className="mt-4 w-full flex items-center justify-center gap-2 py-3 bg-[#25D366] text-white text-sm font-bold rounded-xl hover:bg-[#20BA5A] transition-colors">
-                    {saved ? <><Check className="w-4 h-4" /> Saved!</> : 'Save Profile'}
-                  </button>
-                </div>
-              </div>
-            )}
-
-            {section === 'workspace' && (
-              <div className="space-y-4">
-                <div className="bg-[#202C33] rounded-2xl border border-white/10 p-5 space-y-4">
-                  <div>
-                    <label className="text-[11px] font-medium text-gray-400 mb-1.5 block">Workspace Name</label>
-                    <input className={inputCls} value={workspace.name} onChange={e => updateWorkspace({ name: e.target.value })} />
-                  </div>
-                  <div>
-                    <label className="text-[11px] font-medium text-gray-400 mb-1.5 block">Plan</label>
-                    <div className="flex items-center gap-2 bg-[#2A3942] rounded-xl px-4 py-2.5">
-                      <span className="text-sm text-white capitalize">{workspace.plan}</span>
-                      <span className="ml-auto text-xs text-[#25D366] font-bold">Active</span>
-                    </div>
-                  </div>
-                  <div className="grid grid-cols-2 gap-3">
-                    {[['start','Business Start'],['end','Business End']].map(([k, label]) => (
-                      <div key={k}>
-                        <label className="text-[11px] font-medium text-gray-400 mb-1.5 block">{label}</label>
-                        <input type="time" value={workspace.business_hours?.[k] || '09:00'}
-                          onChange={e => updateWorkspace({ business_hours: { ...workspace.business_hours, [k]: e.target.value } })}
-                          className={inputCls} />
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              </div>
-            )}
-
-            {section === 'team' && <TeamSection currentUser={user} />}
-
+            {/* ── CHANNELS ─────────────────────────────────────────────────── */}
             {section === 'channels' && (
-              <div className="space-y-3">
-                <p className="text-xs text-gray-500 mb-1">Configure each channel with your API credentials. All fields are required to activate a channel.</p>
-                {CHANNEL_INFO.map(ch => {
-                  const configured = isChannelConfigured(ch);
-                  const expanded = expandedChannel === ch.id;
-                  const cfg = channelConfigs[ch.id] || {};
-                  return (
-                    <div key={ch.id} className={`bg-[#202C33] rounded-2xl border transition-colors ${expanded ? 'border-[#25D366]/40' : 'border-white/10'}`}>
-                      {/* Header row */}
-                      <button className="w-full px-4 py-4 flex items-center gap-3 text-left"
-                        onClick={() => setExpandedChannel(expanded ? null : ch.id)}>
-                        <div className={`w-10 h-10 rounded-xl ${ch.color} flex items-center justify-center text-xl shrink-0`}>{ch.icon}</div>
-                        <div className="flex-1 min-w-0">
-                          <div className="flex items-center gap-2">
-                            <p className="font-semibold text-white text-sm">{ch.label}</p>
-                            {configured
-                              ? <span className="flex items-center gap-1 text-[10px] font-bold text-[#25D366] bg-[#25D366]/10 px-2 py-0.5 rounded-full"><CheckCircle2 className="w-3 h-3" />Configured</span>
-                              : <span className="flex items-center gap-1 text-[10px] font-bold text-gray-500 bg-white/5 px-2 py-0.5 rounded-full"><AlertCircle className="w-3 h-3" />Not set up</span>
-                            }
-                          </div>
-                          <p className="text-xs text-gray-500 mt-0.5">{ch.desc}</p>
-                        </div>
-                        <ChevronDown className={`w-4 h-4 text-gray-500 shrink-0 transition-transform ${expanded ? 'rotate-180' : ''}`} />
-                      </button>
+              <>
+                <div className="mb-2">
+                  <h2 className="text-base font-bold text-white">Channels</h2>
+                  <p className="text-xs text-gray-500 mt-0.5">Connect messaging channels — credentials are encrypted and stored securely.</p>
+                </div>
+                {loadingChannels
+                  ? <div className="flex items-center gap-2 text-gray-500 text-sm py-8 justify-center"><Loader2 className="w-4 h-4 animate-spin" />Loading…</div>
+                  : CHANNEL_INFO.map(ch => (
+                    <ChannelCard
+                      key={ch.id}
+                      ch={ch}
+                      saved={channelConfigs[ch.id]}
+                      onSave={handleSaveChannel}
+                      onDelete={handleDeleteChannel}
+                    />
+                  ))
+                }
+              </>
+            )}
 
-                      {/* Expanded config form */}
-                      {expanded && (
-                        <div className="px-4 pb-4 space-y-3 border-t border-white/5 pt-3">
-                          {ch.docsUrl && (
-                            <a href={ch.docsUrl} target="_blank" rel="noreferrer"
-                              className="inline-flex items-center gap-1.5 text-xs text-[#25D366] hover:underline">
-                              <ExternalLink className="w-3 h-3" /> View API documentation
-                            </a>
-                          )}
-                          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                            {ch.fields.map(f => (
-                              <div key={f.key}>
-                                <label className="text-[11px] font-medium text-gray-400 mb-1.5 block">{f.label}</label>
-                                <input
-                                  type={f.type}
-                                  placeholder={f.placeholder}
-                                  value={cfg[f.key] || ''}
-                                  onChange={e => setChannelField(ch.id, f.key, e.target.value)}
-                                  className={inputCls}
-                                />
-                              </div>
-                            ))}
-                          </div>
-                          {ch.id === 'whatsapp' && (
-                            <div className="bg-[#2A3942] rounded-xl p-3 text-xs text-gray-400 leading-relaxed">
-                              <p className="font-semibold text-gray-300 mb-1">Webhook URL</p>
-                              <code className="text-[#25D366] break-all">https://api.nyasadesk.com/webhooks/whatsapp</code>
-                              <p className="mt-1">Set this as your webhook URL in the Meta Developer Console.</p>
-                            </div>
-                          )}
-                          {ch.id === 'messenger' && (
-                            <div className="bg-[#2A3942] rounded-xl p-3 text-xs text-gray-400 leading-relaxed">
-                              <p className="font-semibold text-gray-300 mb-1">Webhook URL</p>
-                              <code className="text-[#25D366] break-all">https://api.nyasadesk.com/webhooks/messenger</code>
-                              <p className="mt-1">Add this in your Facebook App → Webhooks → Subscribe to <strong>messages</strong> and <strong>messaging_postbacks</strong>.</p>
-                            </div>
-                          )}
-                          {ch.id === 'website' && (
-                            <div className="bg-[#2A3942] rounded-xl p-3 text-xs text-gray-400 leading-relaxed">
-                              <p className="font-semibold text-gray-300 mb-1">Embed snippet</p>
-                              <code className="text-[#25D366] break-all">{'<script src="https://cdn.nyasadesk.com/widget.js" data-workspace="ws-1"></script>'}</code>
-                              <p className="mt-1">Paste this before the closing <code>&lt;/body&gt;</code> tag on your website.</p>
-                            </div>
-                          )}
-                          <button onClick={() => saveChannelConfig(ch.id)}
-                            className="w-full py-2.5 bg-[#25D366] text-white text-sm font-bold rounded-xl hover:bg-[#20BA5A] transition-colors flex items-center justify-center gap-2">
-                            {channelSaved[ch.id] ? <><CheckCircle2 className="w-4 h-4" /> Saved!</> : `Save ${ch.label} Config`}
-                          </button>
-                        </div>
-                      )}
-                    </div>
-                  );
-                })}
+            {/* ── PROFILE ──────────────────────────────────────────────────── */}
+            {section === 'profile' && (
+              <div className="bg-[#202C33] rounded-2xl border border-white/10 p-5 space-y-4">
+                <div className="flex items-center gap-4 mb-2">
+                  <Avatar name={profileForm.full_name || ''} size="xl" />
+                  <div>
+                    <p className="font-bold text-white">{profileForm.full_name || 'Your Name'}</p>
+                    <p className="text-xs text-gray-500">{user?.role}</p>
+                  </div>
+                </div>
+                {[['full_name','Display Name'],['email','Email']].map(([k, label]) => (
+                  <div key={k}>
+                    <label className="text-[11px] font-medium text-gray-400 mb-1.5 block">{label}</label>
+                    <input className={inputCls} value={profileForm[k] || ''} onChange={e => setProfileForm(f => ({ ...f, [k]: e.target.value }))} />
+                  </div>
+                ))}
+                <button onClick={saveProfile} className="w-full flex items-center justify-center gap-2 py-3 bg-[#25D366] text-white text-sm font-bold rounded-xl hover:bg-[#20BA5A] transition-colors">
+                  {profileSaved ? <><Check className="w-4 h-4" />Saved!</> : 'Save Profile'}
+                </button>
               </div>
             )}
 
-            {section === 'sla' && (
+            {/* ── WORKSPACE ────────────────────────────────────────────────── */}
+            {section === 'workspace' && (
               <div className="bg-[#202C33] rounded-2xl border border-white/10 p-5 space-y-4">
                 <div>
-                  <label className="text-[11px] font-medium text-gray-400 mb-1.5 block">First Response SLA (hours)</label>
-                  <input type="number" min={1} max={48} value={workspace.sla_hours}
-                    onChange={e => updateWorkspace({ sla_hours: parseInt(e.target.value) || 4 })}
-                    className={inputCls} />
-                  <p className="text-xs text-gray-500 mt-2">Conversations breaching this will be flagged in the dashboard.</p>
+                  <label className="text-[11px] font-medium text-gray-400 mb-1.5 block">Workspace Name</label>
+                  <input className={inputCls} value={wsName} onChange={e => setWsName(e.target.value)} placeholder="My Company" />
                 </div>
-                <div className="bg-[#2A3942] rounded-xl p-4">
-                  <p className="text-sm text-gray-300">Current SLA: <span className="text-[#25D366] font-bold">{workspace.sla_hours} hours</span></p>
-                </div>
+                <button onClick={saveWorkspace} className="w-full flex items-center justify-center gap-2 py-3 bg-[#25D366] text-white text-sm font-bold rounded-xl hover:bg-[#20BA5A] transition-colors">
+                  {wsSaved ? <><Check className="w-4 h-4" />Saved!</> : 'Save Workspace'}
+                </button>
+              </div>
+            )}
+
+            {/* ── TEAM ─────────────────────────────────────────────────────── */}
+            {section === 'team' && <TeamSection />}
+
+            {/* ── SLA ──────────────────────────────────────────────────────── */}
+            {section === 'sla' && (
+              <div className="bg-[#202C33] rounded-2xl border border-white/10 p-5">
+                <p className="text-sm font-bold text-white mb-1">SLA Configuration</p>
+                <p className="text-xs text-gray-500">SLA breach alerts coming soon.</p>
               </div>
             )}
 
