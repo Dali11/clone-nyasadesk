@@ -90,7 +90,7 @@ export default function Dashboard() {
   }).sort((a, b) => a.slaMinutes - b.slaMinutes).slice(0, 5);
 
   return (
-    <div className="flex h-screen overflow-hidden bg-[#111B21] pb-[56px] md:pb-0">
+    <div className="flex h-screen overflow-hidden bg-[#111B21] pt-14 md:pt-0 pb-[56px] md:pb-0">
       <Sidebar />
       <div className="flex-1 overflow-y-auto scrollbar-thin bg-[#0D1418]">
         <div className="max-w-6xl mx-auto px-4 md:px-6 py-6 md:py-8">
