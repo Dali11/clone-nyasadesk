@@ -28,7 +28,7 @@ export default function CannedResponses() {
   const inputCls = 'w-full bg-[#2A3942] text-white text-sm rounded-xl px-4 py-2.5 focus:outline-none focus:ring-1 focus:ring-[#25D366] border-0 placeholder:text-gray-600';
 
   return (
-    <div className="flex h-screen overflow-hidden bg-[#111B21] pb-[56px] md:pb-0">
+    <div className="flex h-screen overflow-hidden bg-[#111B21] pt-14 md:pt-0 pb-[56px] md:pb-0">
       <Sidebar />
       <div className="flex-1 overflow-y-auto scrollbar-thin bg-[#0D1418]">
         <div className="max-w-3xl mx-auto px-6 py-8">
