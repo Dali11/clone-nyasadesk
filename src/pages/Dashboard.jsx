@@ -5,6 +5,7 @@ import Sidebar from '@/components/Sidebar';
 import Avatar from '@/components/Avatar';
 import { useNyasaAuth } from '@/lib/NyasaAuth';
 import { getConversations } from '@/lib/channels';
+import { useDocumentTitle } from '@/hooks/useDocumentTitle';
 
 function StatCard({ label, value, sub, color, icon: Icon, trend, trendLabel }) {
   const TrendIcon = trend === 'up' ? TrendingUp : trend === 'down' ? TrendingDown : Minus;
@@ -71,6 +72,7 @@ function dayOverDay(todayCount, yesterdayCount) {
 }
 
 export default function Dashboard() {
+  useDocumentTitle('Dashboard');
   const { user } = useNyasaAuth();
   const [conversations, setConversations] = useState([]);
   const [loading, setLoading] = useState(true);
