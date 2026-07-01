@@ -86,6 +86,26 @@ export async function updateConversation(id, updates) {
 
 // ── Contacts ─────────────────────────────────────────────────────────────────
 
+export async function getContacts(workspaceId) {
+  const { data, error } = await supabase
+    .from('contacts')
+    .select('*')
+    .eq('workspace_id', workspaceId)
+    .order('created_at', { ascending: false });
+  if (error) throw error;
+  return data || [];
+}
+
+export async function createContact(workspaceId, data) {
+  const { data: contact, error } = await supabase
+    .from('contacts')
+    .insert({ workspace_id: workspaceId, channel: data.channel || 'manual', ...data })
+    .select()
+    .single();
+  if (error) throw error;
+  return contact;
+}
+
 export async function updateContact(contactId, updates) {
   const { data, error } = await supabase
     .from('contacts')
@@ -95,6 +115,11 @@ export async function updateContact(contactId, updates) {
     .single();
   if (error) throw error;
   return data;
+}
+
+export async function deleteContact(contactId) {
+  const { error } = await supabase.from('contacts').delete().eq('id', contactId);
+  if (error) throw error;
 }
 
 // ── Messages ─────────────────────────────────────────────────────────────────
@@ -185,4 +210,88 @@ export function subscribeToMessages(conversationId, callback) {
       filter: `conversation_id=eq.${conversationId}`,
     }, callback)
     .subscribe();
+}
+
+// ── Broadcasts ───────────────────────────────────────────────────────────────
+
+export async function getBroadcasts(workspaceId) {
+  const { data, error } = await supabase
+    .from('broadcasts')
+    .select('*')
+    .eq('workspace_id', workspaceId)
+    .order('created_at', { ascending: false });
+  if (error) throw error;
+  return data || [];
+}
+
+export async function createBroadcast(workspaceId, { name, channel, message, audience }) {
+  const { data, error } = await supabase
+    .from('broadcasts')
+    .insert({ workspace_id: workspaceId, name, channel, message, audience, status: 'draft' })
+    .select()
+    .single();
+  if (error) throw error;
+  return data;
+}
+
+export async function deleteBroadcast(id) {
+  const { error } = await supabase.from('broadcasts').delete().eq('id', id);
+  if (error) throw error;
+}
+
+// Actually sends the broadcast: for each contact in the audience, find (or
+// create) a conversation on the broadcast's channel and insert a real
+// outbound message via sendMessage() — same dispatch pipeline a normal reply
+// uses, so delivery status (delivered/failed) is genuine, not simulated.
+export async function sendBroadcast(workspaceId, broadcastId) {
+  const { data: bc, error: bcErr } = await supabase.from('broadcasts').select('*').eq('id', broadcastId).single();
+  if (bcErr) throw bcErr;
+
+  const contactIds = bc.audience || [];
+  let sentCount = 0;
+
+  await Promise.all(contactIds.map(async (contactId) => {
+    try {
+      const { data: contact } = await supabase.from('contacts').select('*').eq('id', contactId).single();
+      if (!contact) return;
+
+      const personalizedBody = bc.message.replace(/\{\{\s*name\s*\}\}/gi, contact.full_name || 'there');
+
+      // Find an existing conversation with this contact on this channel, else create one
+      let { data: conv } = await supabase
+        .from('conversations')
+        .select('id')
+        .eq('workspace_id', workspaceId)
+        .eq('contact_id', contactId)
+        .eq('channel', bc.channel)
+        .maybeSingle();
+
+      if (!conv) {
+        const { data: newConv, error: convErr } = await supabase
+          .from('conversations')
+          .insert({
+            workspace_id: workspaceId, contact_id: contactId, channel: bc.channel,
+            status: 'open', last_message: personalizedBody, last_message_at: new Date().toISOString(),
+          })
+          .select('id')
+          .single();
+        if (convErr) throw convErr;
+        conv = newConv;
+      }
+
+      await sendMessage(workspaceId, conv.id, personalizedBody, 'Broadcast');
+      sentCount += 1;
+    } catch (e) {
+      console.error('[sendBroadcast] failed for contact', contactId, e);
+    }
+  }));
+
+  const { data: updated, error: updateErr } = await supabase
+    .from('broadcasts')
+    .update({ status: 'sent', sent_at: new Date().toISOString(), sent_count: sentCount, updated_at: new Date().toISOString() })
+    .eq('id', broadcastId)
+    .select()
+    .single();
+  if (updateErr) throw updateErr;
+  return updated;
 }
