@@ -3,8 +3,10 @@ import { Plus, Edit3, Trash2, BookOpen, Loader2 } from 'lucide-react';
 import Sidebar from '@/components/Sidebar';
 import { useNyasaAuth } from '@/lib/NyasaAuth';
 import { getCannedResponses, createCannedResponse, updateCannedResponse, deleteCannedResponse } from '@/lib/channels';
+import { useDocumentTitle } from '@/hooks/useDocumentTitle';
 
 export default function CannedResponses() {
+  useDocumentTitle('Canned Responses');
   const { user, profile } = useNyasaAuth();
   const workspaceId = profile?.workspace_id || user?.id;
 
