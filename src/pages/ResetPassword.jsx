@@ -1,32 +1,68 @@
-import React, { useState } from "react";
-import { Link, useSearchParams } from "react-router-dom";
-import { base44 } from "@/api/base44Client";
+import React, { useState, useEffect } from "react";
+import { Link, useNavigate } from "react-router-dom";
+import { supabase } from "@/lib/supabase";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Lock, Loader2, AlertTriangle } from "lucide-react";
 import AuthLayout from "@/components/AuthLayout";
 
+// Supabase's password-recovery flow doesn't hand you a manual "token" query
+// param — clicking the emailed link lands you back here with the recovery
+// info in the URL hash, which the Supabase client (detectSessionInUrl: true)
+// parses automatically and turns into a temporary logged-in session, firing
+// a PASSWORD_RECOVERY auth event. From there you just call
+// supabase.auth.updateUser({ password }) — no token handling needed at all.
+// (Old code expected ?token=... and called a dead base44.auth.resetPassword()
+// that had nothing to do with our real Supabase auth — it never worked.)
 export default function ResetPassword() {
-  const [searchParams] = useSearchParams();
-  const resetToken = searchParams.get("token");
+  const navigate = useNavigate();
+  const [ready, setReady] = useState(false);
+  const [checking, setChecking] = useState(true);
 
   const [newPassword, setNewPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
+  const [done, setDone] = useState(false);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
+      if (cancelled) return;
+      if (event === 'PASSWORD_RECOVERY') { setReady(true); setChecking(false); }
+    });
+
+    // Also check immediately in case the recovery session was already
+    // established (e.g. detectSessionInUrl parsed the hash before this
+    // listener attached).
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      if (cancelled) return;
+      if (session) setReady(true);
+      setChecking(false);
+    });
+
+    // Give it a moment to parse the URL hash before giving up
+    const timeout = setTimeout(() => { if (!cancelled) setChecking(false); }, 3000);
+
+    return () => { cancelled = true; subscription.unsubscribe(); clearTimeout(timeout); };
+  }, []);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
     setError("");
-    if (newPassword !== confirmPassword) {
-      setError("Passwords do not match");
-      return;
-    }
+    const fd = new FormData(e.currentTarget);
+    const passwordVal = (fd.get('password') || newPassword || '').toString();
+    const confirmVal  = (fd.get('confirm')  || confirmPassword || '').toString();
+    if (passwordVal !== confirmVal) { setError("Passwords do not match"); return; }
+    if (passwordVal.length < 8)     { setError("Password must be at least 8 characters"); return; }
     setLoading(true);
     try {
-      await base44.auth.resetPassword({ resetToken, newPassword });
-      window.location.href = "/login";
+      const { error: err } = await supabase.auth.updateUser({ password: passwordVal });
+      if (err) throw err;
+      setDone(true);
+      setTimeout(() => navigate('/login', { replace: true }), 1500);
     } catch (err) {
       setError(err.message || "Failed to reset password");
     } finally {
@@ -34,12 +70,20 @@ export default function ResetPassword() {
     }
   };
 
-  if (!resetToken) {
+  if (checking) {
+    return (
+      <AuthLayout icon={Lock} title="Verifying link…" subtitle="Just a moment">
+        <div className="flex justify-center py-4"><Loader2 className="w-6 h-6 animate-spin text-primary" /></div>
+      </AuthLayout>
+    );
+  }
+
+  if (!ready) {
     return (
       <AuthLayout
         icon={AlertTriangle}
-        title="Invalid reset link"
-        subtitle="This password reset link is missing or invalid"
+        title="Invalid or expired link"
+        subtitle="This password reset link is missing, invalid, or has expired"
         footer={
           <Link to="/forgot-password" className="text-primary font-medium hover:underline">
             Request a new link
@@ -47,8 +91,16 @@ export default function ResetPassword() {
         }
       >
         <p className="text-sm text-foreground text-center">
-          The link you used appears to be incomplete. Please request a new password reset email.
+          Please request a new password reset email and use the link within a few minutes of receiving it.
         </p>
+      </AuthLayout>
+    );
+  }
+
+  if (done) {
+    return (
+      <AuthLayout icon={Lock} title="Password updated" subtitle="Redirecting you to sign in…">
+        <div className="flex justify-center py-4"><Loader2 className="w-6 h-6 animate-spin text-primary" /></div>
       </AuthLayout>
     );
   }
@@ -71,6 +123,7 @@ export default function ResetPassword() {
             <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" aria-hidden="true" />
             <Input
               id="password"
+              name="password"
               type="password"
               autoComplete="new-password"
               autoFocus
@@ -88,6 +141,7 @@ export default function ResetPassword() {
             <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" aria-hidden="true" />
             <Input
               id="confirm"
+              name="confirm"
               type="password"
               autoComplete="new-password"
               placeholder="••••••••"
