@@ -18,6 +18,12 @@
   const WID    = script?.getAttribute('data-workspace-id');
   const MODE   = (script?.getAttribute('data-mode') || 'popup').toLowerCase(); // 'popup' | 'inline'
   const THEME  = (script?.getAttribute('data-theme') || 'auto').toLowerCase(); // 'auto' | 'light' | 'dark'
+  // Whether to sniff the REAL host page's background/text/font (for genuine
+  // 3rd-party site embeds). Our own hosted Support Page already declares an
+  // explicit theme and correct contrast on its own — it opts out of this
+  // heuristic via data-native-detect="false" so it never inherits stray
+  // colors from the rest of the app's UI.
+  const NATIVE_DETECT = script?.getAttribute('data-native-detect') !== 'false';
   if (!WID) { console.warn('[Nyasadesk] data-workspace-id is required'); return; }
 
   const INLINE = MODE === 'inline';
@@ -62,7 +68,7 @@
   // In inline mode, try to read the REAL host container so we blend into the
   // actual page instead of guessing — this is the "feels native" part.
   let hostBg = null, hostText = null, hostFont = null, hostRadius = null;
-  if (INLINE && THEME === 'auto') {
+  if (INLINE && THEME === 'auto' && NATIVE_DETECT) {
     try {
       const mountEl = document.getElementById('nyasa-inline-target') || script.parentElement || document.body;
       // Walk up until we find a container with a real (non-transparent) background.
