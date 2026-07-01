@@ -44,6 +44,8 @@ function AppRoutes() {
         <Route path="/forgot-password" element={<ForgotPassword />} />
         <Route path="/reset-password"  element={<ResetPassword />} />
         {/* Any other path → landing */}
+        <Route path="/privacy"         element={<PrivacyPolicy />} />
+        <Route path="/data-deletion"    element={<DataDeletion />} />
         <Route path="*"                element={<Navigate to="/" replace />} />
       </Routes>
     );
@@ -68,6 +70,8 @@ function AppRoutes() {
       <Route path="/broadcasts" element={<Broadcasts />} />
       <Route path="/rules"      element={<Rules />} />
       <Route path="/canned"     element={<CannedResponses />} />
+      <Route path="/privacy"        element={<PrivacyPolicy />} />
+      <Route path="/data-deletion"   element={<DataDeletion />} />
       <Route path="/settings"   element={<Settings />} />
       {/* Redirect /login and /register back to inbox when already logged in */}
       <Route path="/login"      element={<Navigate to="/" replace />} />
