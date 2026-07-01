@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Mail, Phone, Edit3, Check, X, Plus, Bell } from 'lucide-react';
+import { Mail, Phone, Edit3, Check, X, Plus, Bell, ArrowLeft } from 'lucide-react';
 import Avatar from '@/components/Avatar';
 import { store, genId } from '@/lib/store';
 import { updateContact as updateContactRemote } from '@/lib/channels';
@@ -11,7 +11,7 @@ const STAGE_COLORS = {
   'Closed Won': 'text-green-400', 'Closed Lost': 'text-red-400',
 };
 
-export default function ContactPanel({ conversation, onUpdate = () => {} }) {
+export default function ContactPanel({ conversation, onUpdate = () => {}, onClose, className = '' }) {
   const [contact, setContact] = useState(null);
   const [editing, setEditing] = useState(false);
   const [editData, setEditData] = useState({});
@@ -72,7 +72,15 @@ export default function ContactPanel({ conversation, onUpdate = () => {} }) {
   const inputCls = 'w-full bg-[#2A3942] text-white text-xs rounded-lg px-3 py-1.5 focus:outline-none focus:ring-1 focus:ring-[#25D366] border-0 placeholder:text-gray-600';
 
   return (
-    <div className="w-72 bg-[#111B21] border-l border-white/10 flex flex-col overflow-y-auto scrollbar-thin shrink-0">
+    <div className={`bg-[#111B21] flex-col overflow-y-auto scrollbar-thin ${className}`}>
+      {/* Mobile/tablet back bar — the panel is docked permanently at xl+, so this only shows below that */}
+      <div className="xl:hidden flex items-center gap-3 px-4 h-14 border-b border-white/10 shrink-0 sticky top-0 bg-[#111B21] z-10">
+        <button onClick={onClose} className="p-1.5 -ml-1.5 text-gray-400 hover:text-white transition-colors">
+          <ArrowLeft className="w-5 h-5" />
+        </button>
+        <p className="text-sm font-semibold text-white">Contact info</p>
+      </div>
+
       {/* Header */}
       <div className="px-4 pt-5 pb-4 border-b border-white/10 text-center">
         <Avatar name={conversation.contact_name || '?'} size="lg" />
