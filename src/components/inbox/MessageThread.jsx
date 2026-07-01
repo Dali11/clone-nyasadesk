@@ -2,7 +2,7 @@ import { useState, useEffect, useRef } from 'react';
 import { Send, StickyNote, Loader2, Check, CheckCheck, X, Zap, Paperclip, Mic, Square, Play, Pause } from 'lucide-react';
 import { formatDistanceToNow } from 'date-fns';
 import { motion, AnimatePresence } from 'framer-motion';
-import { getMessages, sendMessage, sendMediaMessage, subscribeToMessages, getCannedResponses } from '@/lib/channels';
+import { getMessages, sendMessage, sendMediaMessage, addNote, subscribeToMessages, getCannedResponses } from '@/lib/channels';
 import { useNyasaAuth } from '@/lib/NyasaAuth';
 
 const CHANNEL_COLOR = {
@@ -184,12 +184,22 @@ export default function MessageThread({ conversation, workspaceId }) {
     inputRef.current?.focus();
 
     if (tab === 'note') {
-      // Notes are local only (internal)
+      // Notes are real, persisted messages (direction: 'note') — saved to the
+      // DB and synced live to every other team member on this conversation,
+      // just never dispatched to the external channel.
+      const tempId = `note-temp-${Date.now()}`;
       setMessages(prev => [...prev, {
-        id: `note-${Date.now()}`, conversation_id: conversation.id,
+        id: tempId, conversation_id: conversation.id,
         direction: 'note', body: text, sender_name: user?.full_name || 'You',
         created_at: new Date().toISOString(),
       }]);
+      try {
+        const saved = await addNote(wId, conversation.id, text, user?.full_name || 'You', user?.id);
+        setMessages(prev => prev.map(m => m.id === tempId ? saved : m));
+      } catch (e) {
+        console.error('[MessageThread] failed to save note:', e);
+        setMessages(prev => prev.map(m => m.id === tempId ? { ...m, body: `${text}\n\n⚠ Failed to save — try again` } : m));
+      }
       sendingRef.current = false;
       setSending(false);
       return;
