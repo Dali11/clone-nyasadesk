@@ -481,7 +481,7 @@ function WebsiteCard({ saved, workspaceId, onSave, onDelete }) {
           )}
           {embedTab === 'inline' && (
             <>
-              <p className="text-[10px] text-gray-500">Always-open chat panel that fills a container on your own page — e.g. drop it into a "Contact us" page.</p>
+              <p className="text-[10px] text-gray-500">Always-open chat panel that fills a container on your own page — e.g. drop it into a "Contact us" page. Auto-adapts to your site's font, colors and light/dark mode.</p>
               <div className="flex items-start gap-2 mt-1">
                 <code className="text-[11px] text-cyan-300 font-mono flex-1 break-all leading-relaxed bg-[#0D1418] rounded-lg p-2.5 whitespace-pre-wrap">
                   {inlineSnippet}
@@ -492,7 +492,7 @@ function WebsiteCard({ saved, workspaceId, onSave, onDelete }) {
           )}
           {embedTab === 'page' && (
             <>
-              <p className="text-[10px] text-gray-500">A ready-made, hosted support page — iframe it in, or just link customers straight to it.</p>
+              <p className="text-[10px] text-gray-500">A ready-made, hosted support page — iframe it in, or just link customers straight to it. Follows visitors' light/dark preference; add ?theme=light or ?theme=dark to the URL to force it.</p>
               <div className="flex items-center gap-2 mt-1">
                 <p className="text-[11px] text-cyan-300 font-mono truncate flex-1">{supportPageUrl}</p>
                 <CopyBtn text={supportPageUrl} />
