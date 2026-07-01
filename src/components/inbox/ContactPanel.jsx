@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { Mail, Phone, Edit3, Check, X, Plus, Bell } from 'lucide-react';
 import Avatar from '@/components/Avatar';
 import { store, genId } from '@/lib/store';
+import { updateContact as updateContactRemote } from '@/lib/channels';
 
 const DEAL_STAGES = ['New Lead', 'Contacted', 'Qualified', 'Proposal Sent', 'Negotiation', 'Closed Won', 'Closed Lost'];
 const STAGE_COLORS = {
@@ -10,7 +11,7 @@ const STAGE_COLORS = {
   'Closed Won': 'text-green-400', 'Closed Lost': 'text-red-400',
 };
 
-export default function ContactPanel({ conversation, onUpdate }) {
+export default function ContactPanel({ conversation, onUpdate = () => {} }) {
   const [contact, setContact] = useState(null);
   const [editing, setEditing] = useState(false);
   const [editData, setEditData] = useState({});
@@ -21,18 +22,32 @@ export default function ContactPanel({ conversation, onUpdate }) {
 
   useEffect(() => {
     if (!conversation) { setContact(null); return; }
-    const c = store.getContacts().find(c => c.id === conversation.contact_id) || null;
+    // conversation.contact comes from the Supabase join in getConversations() —
+    // it's the real, live contact record (not the old in-memory store stub).
+    const c = conversation.contact
+      ? { id: conversation.contact_id, ...conversation.contact }
+      : null;
     setContact(c);
     setEditData(c ? { ...c } : {});
-  }, [conversation?.id, conversation?.contact_id]);
+  }, [conversation?.id, conversation?.contact_id, conversation?.contact]);
 
   if (!conversation) return null;
 
-  const saveContact = () => {
+  const saveContact = async () => {
     if (!contact) return;
-    store.updateContact(contact.id, editData);
-    setContact({ ...contact, ...editData });
-    setEditing(false);
+    try {
+      await updateContactRemote(contact.id, editData);
+      setContact({ ...contact, ...editData });
+      onUpdate({
+        ...conversation,
+        contact_name: editData.full_name || conversation.contact_name,
+        contact_company: editData.company ?? conversation.contact_company,
+        contact_phone: editData.phone ?? conversation.contact_phone,
+      });
+      setEditing(false);
+    } catch (e) {
+      console.error('Failed to save contact:', e);
+    }
   };
 
   const addTag = () => {
@@ -50,7 +65,7 @@ export default function ContactPanel({ conversation, onUpdate }) {
   };
 
   const setStage = (stage) => {
-    if (contact) store.updateContact(contact.id, { deal_stage: stage });
+    if (contact) updateContactRemote(contact.id, { deal_stage: stage }).catch(e => console.error('Failed to update deal stage:', e));
     onUpdate({ ...conversation, deal_stage: stage });
   };
 
@@ -151,7 +166,7 @@ export default function ContactPanel({ conversation, onUpdate }) {
         <div className="px-4 py-3">
           <p className="text-[10px] font-semibold text-gray-600 uppercase tracking-wide mb-2">Notes</p>
           <textarea rows={3} defaultValue={contact.notes || ''}
-            onBlur={e => { store.updateContact(contact.id, { notes: e.target.value }); setContact(prev => ({ ...prev, notes: e.target.value })); }}
+            onBlur={e => { updateContactRemote(contact.id, { notes: e.target.value }).catch(err => console.error('Failed to save notes:', err)); setContact(prev => ({ ...prev, notes: e.target.value })); }}
             placeholder="Add notes…"
             className="w-full bg-[#2A3942] text-xs text-gray-300 placeholder:text-gray-600 rounded-lg px-3 py-2 resize-none focus:outline-none focus:ring-1 focus:ring-[#25D366] border-0" />
         </div>
