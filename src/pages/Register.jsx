@@ -24,10 +24,19 @@ export default function Register() {
   const handleSubmit = async (e) => {
     e.preventDefault();
     setError('');
-    if (password !== confirm)    { setError('Passwords do not match'); return; }
-    if (password.length < 8)     { setError('Password must be at least 8 characters'); return; }
+    // FormData fallback — same fix as Login.jsx: some browsers'
+    // autofill/password-manager fills fields without firing React's
+    // onChange, leaving controlled state empty at submit time.
+    const fd = new FormData(e.currentTarget);
+    const nameVal     = (fd.get('name') || name || '').toString().trim();
+    const emailVal    = (fd.get('email') || email || '').toString().trim();
+    const passwordVal = (fd.get('password') || password || '').toString();
+    const confirmVal  = (fd.get('confirm') || confirm || '').toString();
+    if (!nameVal || !emailVal) { setError('Please fill in all fields'); return; }
+    if (passwordVal !== confirmVal) { setError('Passwords do not match'); return; }
+    if (passwordVal.length < 8)     { setError('Password must be at least 8 characters'); return; }
     setLoading(true);
-    const { error: err } = await signUp(email, password, { full_name: name });
+    const { error: err } = await signUp(emailVal, passwordVal, { full_name: nameVal });
     setLoading(false);
     if (err) { setError(err.message || 'Registration failed'); return; }
     setDone(true);
@@ -79,22 +88,22 @@ export default function Register() {
         <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
           <div style={{ position: 'relative' }}>
             <User size={16} color={MUTED} style={{ position: 'absolute', left: 14, top: '50%', transform: 'translateY(-50%)' }} />
-            <input style={inputStyle} type="text" placeholder="Your full name" value={name} onChange={e => setName(e.target.value)} required />
+            <input name="name" autoComplete="name" style={inputStyle} type="text" placeholder="Your full name" value={name} onChange={e => setName(e.target.value)} required />
           </div>
           <div style={{ position: 'relative' }}>
             <Mail size={16} color={MUTED} style={{ position: 'absolute', left: 14, top: '50%', transform: 'translateY(-50%)' }} />
-            <input style={inputStyle} type="email" placeholder="Work email" value={email} onChange={e => setEmail(e.target.value)} required />
+            <input name="email" autoComplete="email" style={inputStyle} type="email" placeholder="Work email" value={email} onChange={e => setEmail(e.target.value)} required />
           </div>
           <div style={{ position: 'relative' }}>
             <Lock size={16} color={MUTED} style={{ position: 'absolute', left: 14, top: '50%', transform: 'translateY(-50%)' }} />
-            <input style={{ ...inputStyle, paddingRight: 44 }} type={showPw ? 'text' : 'password'} placeholder="Password (min. 8 chars)" value={password} onChange={e => setPassword(e.target.value)} required />
+            <input name="password" autoComplete="new-password" style={{ ...inputStyle, paddingRight: 44 }} type={showPw ? 'text' : 'password'} placeholder="Password (min. 8 chars)" value={password} onChange={e => setPassword(e.target.value)} required />
             <button type="button" onClick={() => setShowPw(v => !v)} style={{ position: 'absolute', right: 14, top: '50%', transform: 'translateY(-50%)', background: 'none', border: 'none', cursor: 'pointer', color: MUTED, padding: 0 }}>
               {showPw ? <EyeOff size={16} /> : <Eye size={16} />}
             </button>
           </div>
           <div style={{ position: 'relative' }}>
             <Lock size={16} color={MUTED} style={{ position: 'absolute', left: 14, top: '50%', transform: 'translateY(-50%)' }} />
-            <input style={inputStyle} type="password" placeholder="Confirm password" value={confirm} onChange={e => setConfirm(e.target.value)} required />
+            <input name="confirm" autoComplete="new-password" style={inputStyle} type="password" placeholder="Confirm password" value={confirm} onChange={e => setConfirm(e.target.value)} required />
           </div>
           <button type="submit" disabled={loading} style={{ background: WA_GREEN, color: '#fff', border: 'none', borderRadius: 14, padding: '15px', fontWeight: 700, fontSize: 15, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, opacity: loading ? 0.7 : 1, marginTop: 4 }}>
             {loading ? <Loader2 size={18} style={{ animation: 'spin 1s linear infinite' }} /> : null}
