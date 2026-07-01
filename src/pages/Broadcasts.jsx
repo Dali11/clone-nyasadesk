@@ -1,14 +1,16 @@
-import { useState } from 'react';
-import { Plus, Send, Trash2, X, Megaphone } from 'lucide-react';
+import { useState, useEffect } from 'react';
+import { Plus, Send, Trash2, X, Megaphone, Loader2 } from 'lucide-react';
 import Sidebar from '@/components/Sidebar';
 import ChannelBadge, { CHANNELS } from '@/components/ChannelBadge';
 import Avatar from '@/components/Avatar';
-import { store, genId } from '@/lib/store';
+import { useNyasaAuth } from '@/lib/NyasaAuth';
+import { getContacts, getBroadcasts, createBroadcast, sendBroadcast, deleteBroadcast } from '@/lib/channels';
 
 const STATUS_COLORS = { sent: 'text-green-400 bg-green-900/20', draft: 'text-yellow-400 bg-yellow-900/20', sending: 'text-blue-400 bg-blue-900/20' };
 
-function BroadcastCard({ bc, contacts, onDelete, onSend }) {
-  const audience = contacts.filter(c => bc.audience.includes(c.id));
+function BroadcastCard({ bc, contacts, sending, onDelete, onSend }) {
+  const audience = contacts.filter(c => (bc.audience || []).includes(c.id));
+  const isSending = sending === bc.id;
   return (
     <div className="bg-[#202C33] rounded-2xl border border-white/10 p-5">
       <div className="flex items-start justify-between mb-3">
@@ -19,7 +21,7 @@ function BroadcastCard({ bc, contacts, onDelete, onSend }) {
           </div>
           <div className="flex items-center gap-2">
             <ChannelBadge channel={bc.channel} showLabel />
-            <span className="text-xs text-gray-500">{bc.audience.length} recipients</span>
+            <span className="text-xs text-gray-500">{(bc.audience || []).length} recipients</span>
           </div>
         </div>
         <button onClick={() => onDelete(bc.id)} className="p-1.5 hover:bg-white/10 rounded-lg text-gray-600 hover:text-red-400 transition-colors">
@@ -32,18 +34,14 @@ function BroadcastCard({ bc, contacts, onDelete, onSend }) {
         {audience.length > 5 && <span className="text-xs text-gray-500">+{audience.length - 5}</span>}
       </div>
       {bc.status === 'sent' ? (
-        <div className="grid grid-cols-3 gap-3">
-          {[['Sent', bc.sent_count],['Delivered', bc.delivered_count],['Read', bc.read_count]].map(([label, val]) => (
-            <div key={label} className="text-center bg-[#2A3942] rounded-xl py-2">
-              <p className="text-lg font-bold text-[#25D366]">{val}</p>
-              <p className="text-[10px] text-gray-500">{label}</p>
-            </div>
-          ))}
+        <div className="text-center bg-[#2A3942] rounded-xl py-2.5">
+          <p className="text-lg font-bold text-[#25D366]">{bc.sent_count}</p>
+          <p className="text-[10px] text-gray-500">Messages dispatched</p>
         </div>
       ) : (
-        <button onClick={() => onSend(bc.id)}
-          className="w-full py-2 bg-[#25D366] text-white text-sm font-semibold rounded-xl hover:bg-[#20BA5A] transition-colors flex items-center justify-center gap-2">
-          <Send className="w-4 h-4" /> Send Broadcast
+        <button onClick={() => onSend(bc.id)} disabled={isSending}
+          className="w-full py-2 bg-[#25D366] text-white text-sm font-semibold rounded-xl hover:bg-[#20BA5A] transition-colors flex items-center justify-center gap-2 disabled:opacity-60">
+          {isSending ? <><Loader2 className="w-4 h-4 animate-spin" /> Sending…</> : <><Send className="w-4 h-4" /> Send Broadcast</>}
         </button>
       )}
     </div>
@@ -51,31 +49,70 @@ function BroadcastCard({ bc, contacts, onDelete, onSend }) {
 }
 
 export default function Broadcasts() {
-  const [broadcasts, setBroadcasts] = useState(store.getBroadcasts());
-  const contacts = store.getContacts();
+  const { user, profile } = useNyasaAuth();
+  const workspaceId = profile?.workspace_id || user?.id;
+
+  const [broadcasts, setBroadcasts] = useState([]);
+  const [contacts, setContacts] = useState([]);
+  const [loading, setLoading] = useState(true);
   const [showNew, setShowNew] = useState(false);
+  const [creating, setCreating] = useState(false);
+  const [sendingId, setSendingId] = useState(null);
   const [form, setForm] = useState({ name: '', channel: 'whatsapp', message: '', audience: [] });
+
+  const load = async () => {
+    if (!workspaceId) { setLoading(false); return; }
+    try {
+      const [bcs, cts] = await Promise.all([getBroadcasts(workspaceId), getContacts(workspaceId)]);
+      setBroadcasts(bcs);
+      setContacts(cts);
+    } catch (e) {
+      console.error('[Broadcasts] load error:', e);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => { load(); }, [workspaceId]);
 
   const set = (k, v) => setForm(f => ({ ...f, [k]: v }));
   const toggleAudience = (id) => setForm(f => ({ ...f, audience: f.audience.includes(id) ? f.audience.filter(a => a !== id) : [...f.audience, id] }));
 
-  const create = () => {
-    if (!form.name.trim() || !form.message.trim() || !form.audience.length) return;
-    const bc = { id: genId('bc'), ...form, status: 'draft', sent_at: null, sent_count: 0, delivered_count: 0, read_count: 0, created_date: new Date().toISOString() };
-    store.addBroadcast(bc);
-    setBroadcasts(store.getBroadcasts());
-    setShowNew(false);
-    setForm({ name: '', channel: 'whatsapp', message: '', audience: [] });
+  const create = async () => {
+    if (!form.name.trim() || !form.message.trim() || !form.audience.length || creating) return;
+    setCreating(true);
+    try {
+      await createBroadcast(workspaceId, form);
+      setShowNew(false);
+      setForm({ name: '', channel: 'whatsapp', message: '', audience: [] });
+      await load();
+    } catch (e) {
+      console.error('[Broadcasts] create error:', e);
+    } finally {
+      setCreating(false);
+    }
   };
 
-  const send = (id) => {
-    const bc = broadcasts.find(b => b.id === id);
-    if (!bc) return;
-    store.updateBroadcast(id, { status: 'sent', sent_at: new Date().toISOString(), sent_count: bc.audience.length, delivered_count: bc.audience.length, read_count: Math.floor(bc.audience.length * 0.7) });
-    setBroadcasts(store.getBroadcasts());
+  const send = async (id) => {
+    setSendingId(id);
+    try {
+      await sendBroadcast(workspaceId, id);
+      await load();
+    } catch (e) {
+      console.error('[Broadcasts] send error:', e);
+    } finally {
+      setSendingId(null);
+    }
   };
 
-  const del = (id) => { store.deleteBroadcast(id); setBroadcasts(store.getBroadcasts()); };
+  const del = async (id) => {
+    try {
+      await deleteBroadcast(id);
+      setBroadcasts(prev => prev.filter(b => b.id !== id));
+    } catch (e) {
+      console.error('[Broadcasts] delete error:', e);
+    }
+  };
 
   const inputCls = 'w-full bg-[#2A3942] text-white text-sm rounded-xl px-4 py-2.5 focus:outline-none focus:ring-1 focus:ring-[#25D366] border-0 placeholder:text-gray-600';
 
@@ -95,14 +132,20 @@ export default function Broadcasts() {
             </button>
           </div>
 
-          {broadcasts.length === 0 ? (
+          {loading ? (
+            <div className="flex items-center justify-center py-24">
+              <Loader2 className="w-6 h-6 text-[#25D366] animate-spin" />
+            </div>
+          ) : broadcasts.length === 0 ? (
             <div className="flex flex-col items-center justify-center py-24 text-center">
               <Megaphone className="w-12 h-12 text-gray-700 mb-4" />
               <p className="text-gray-500">No broadcasts yet</p>
             </div>
           ) : (
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              {broadcasts.map(bc => <BroadcastCard key={bc.id} bc={bc} contacts={contacts} onDelete={del} onSend={send} />)}
+              {broadcasts.map(bc => (
+                <BroadcastCard key={bc.id} bc={bc} contacts={contacts} sending={sendingId} onDelete={del} onSend={send} />
+              ))}
             </div>
           )}
         </div>
@@ -130,6 +173,7 @@ export default function Broadcasts() {
             <div>
               <label className="text-xs text-gray-500 mb-1.5 block">Recipients ({form.audience.length} selected)</label>
               <div className="bg-[#2A3942] rounded-xl p-3 max-h-48 overflow-y-auto scrollbar-thin space-y-1">
+                {contacts.length === 0 && <p className="text-xs text-gray-500 px-2 py-3 text-center">No contacts yet — add some in Contacts first.</p>}
                 {contacts.map(c => (
                   <button key={c.id} onClick={() => toggleAudience(c.id)}
                     className={`w-full flex items-center gap-3 px-3 py-2 rounded-lg transition-colors ${form.audience.includes(c.id) ? 'bg-[#25D366]/20' : 'hover:bg-white/10'}`}>
@@ -142,9 +186,9 @@ export default function Broadcasts() {
             </div>
             <div className="flex gap-3 pt-2">
               <button onClick={() => setShowNew(false)} className="flex-1 py-2.5 border border-white/10 text-gray-300 rounded-xl text-sm">Cancel</button>
-              <button onClick={create} disabled={!form.name.trim() || !form.message.trim() || !form.audience.length}
-                className="flex-1 py-2.5 bg-[#25D366] text-white font-semibold rounded-xl hover:bg-[#20BA5A] transition-colors text-sm disabled:opacity-40">
-                Create Draft
+              <button onClick={create} disabled={!form.name.trim() || !form.message.trim() || !form.audience.length || creating}
+                className="flex-1 py-2.5 bg-[#25D366] text-white font-semibold rounded-xl hover:bg-[#20BA5A] transition-colors text-sm disabled:opacity-40 flex items-center justify-center gap-2">
+                {creating ? <><Loader2 className="w-4 h-4 animate-spin" /> Creating…</> : 'Create Draft'}
               </button>
             </div>
           </div>
