@@ -1,9 +1,14 @@
-
-/* Nyasadesk Live Chat Widget v1.1
+/* Nyasadesk Live Chat Widget v1.2
  * Floating bubble:  <script src="https://nyasadesk1.vercel.app/widget.js" data-workspace-id="YOUR_ID"></script>
  * Inline / support-page embed (fills its container, always open, no popup bubble):
  *   <div id="nyasa-inline-target"></div>
  *   <script src="https://nyasadesk1.vercel.app/widget.js" data-workspace-id="YOUR_ID" data-mode="inline"></script>
+ *
+ * Theming: the widget auto-adapts to the host site — it inherits the page's
+ * font, follows OS/browser light-dark mode automatically, and (in inline
+ * mode) reads the real background/text color of the container it's mounted
+ * in so it visually blends into the surrounding page instead of looking like
+ * a foreign popup. Force a theme with data-theme="light" | "dark" | "auto".
  */
 (function () {
   'use strict';
@@ -12,6 +17,7 @@
   const script = document.currentScript || document.querySelector('script[data-workspace-id]');
   const WID    = script?.getAttribute('data-workspace-id');
   const MODE   = (script?.getAttribute('data-mode') || 'popup').toLowerCase(); // 'popup' | 'inline'
+  const THEME  = (script?.getAttribute('data-theme') || 'auto').toLowerCase(); // 'auto' | 'light' | 'dark'
   if (!WID) { console.warn('[Nyasadesk] data-workspace-id is required'); return; }
 
   const INLINE = MODE === 'inline';
@@ -38,10 +44,69 @@
     return `${h % 12 || 12}:${m} ${h < 12 ? 'AM' : 'PM'}`;
   };
 
+  // ── Theme detection ───────────────────────────────────────────────────────
+  // Parse "rgb(r,g,b)" / "rgba(r,g,b,a)" into perceived luminance (0-255).
+  const luminanceOf = (colorStr) => {
+    if (!colorStr) return null;
+    const m = colorStr.match(/rgba?\(\s*(\d+)\s*,\s*(\d+)\s*,\s*(\d+)(?:\s*,\s*([\d.]+))?\s*\)/);
+    if (!m) return null;
+    const [_, r, g, b, a] = m;
+    if (a !== undefined && parseFloat(a) < 0.15) return null; // effectively transparent
+    return (0.299 * r + 0.587 * g + 0.114 * b);
+  };
+
+  const prefersDark = () => window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches;
+
+  let isDark = THEME === 'dark' ? true : THEME === 'light' ? false : prefersDark();
+
+  // In inline mode, try to read the REAL host container so we blend into the
+  // actual page instead of guessing — this is the "feels native" part.
+  let hostBg = null, hostText = null, hostFont = null, hostRadius = null;
+  if (INLINE && THEME === 'auto') {
+    try {
+      const mountEl = document.getElementById('nyasa-inline-target') || script.parentElement || document.body;
+      // Walk up until we find a container with a real (non-transparent) background.
+      let node = mountEl;
+      for (let i = 0; i < 6 && node; i++) {
+        const cs = window.getComputedStyle(node);
+        const lum = luminanceOf(cs.backgroundColor);
+        if (lum !== null) { hostBg = cs.backgroundColor; isDark = lum < 128; break; }
+        node = node.parentElement;
+      }
+      const bodyStyle = window.getComputedStyle(document.body);
+      hostText = bodyStyle.color || null;
+      hostFont = bodyStyle.fontFamily || null;
+      const btnLike = document.querySelector('button, a.btn, [class*="btn"]');
+      if (btnLike) {
+        const br = window.getComputedStyle(btnLike).borderRadius;
+        if (br && parseFloat(br) >= 0) hostRadius = br;
+      }
+    } catch (e) { /* cross-origin or unreadable — fall back to auto light/dark */ }
+  }
+
   // ── DOM Build ─────────────────────────────────────────────────────────────
   const style = document.createElement('style');
   style.textContent = `
-    #nyasa-widget * { box-sizing: border-box; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; margin: 0; padding: 0; }
+    #nyasa-widget, #nyasa-widget * {
+      box-sizing: border-box; margin: 0; padding: 0;
+      font-family: var(--nyasa-font, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif);
+    }
+    #nyasa-widget {
+      --nyasa-color: #25D366;
+      --nyasa-page-bg: #ECE5DD; --nyasa-panel-bg: #ffffff; --nyasa-in-bubble: #ffffff;
+      --nyasa-out-bubble: #DCF8C6; --nyasa-text: #1a1a1a; --nyasa-muted: #888888;
+      --nyasa-border: #eeeeee; --nyasa-radius: 12px;
+    }
+    @media (prefers-color-scheme: dark) {
+      #nyasa-widget.nyasa-theme-auto {
+        --nyasa-page-bg: #17181A; --nyasa-panel-bg: #1F2023; --nyasa-in-bubble: #2A2B2E;
+        --nyasa-out-bubble: #1F6E4A; --nyasa-text: #EDEDED; --nyasa-muted: #9A9A9A; --nyasa-border: #2E2F33;
+      }
+    }
+    #nyasa-widget.nyasa-theme-dark {
+      --nyasa-page-bg: #17181A; --nyasa-panel-bg: #1F2023; --nyasa-in-bubble: #2A2B2E;
+      --nyasa-out-bubble: #1F6E4A; --nyasa-text: #EDEDED; --nyasa-muted: #9A9A9A; --nyasa-border: #2E2F33;
+    }
     #nyasa-fab {
       position: fixed; bottom: 24px; right: 24px; z-index: 2147483640;
       width: 58px; height: 58px; border-radius: 50%;
@@ -62,9 +127,10 @@
       position: fixed; bottom: 96px; right: 24px; z-index: 2147483639;
       width: 360px; max-width: calc(100vw - 32px);
       height: 520px; max-height: calc(100vh - 120px);
-      border-radius: 16px; overflow: hidden;
+      border-radius: var(--nyasa-radius); overflow: hidden;
       box-shadow: 0 8px 48px rgba(0,0,0,0.35);
       display: flex; flex-direction: column;
+      background: var(--nyasa-panel-bg);
       transform-origin: bottom right;
       transition: transform .25s cubic-bezier(.4,0,.2,1), opacity .25s;
     }
@@ -72,10 +138,10 @@
     /* ── Inline / support-page mode: fill the container instead of floating ── */
     #nyasa-widget.nyasa-inline #nyasa-window {
       position: static; width: 100%; height: 100%; max-width: none; max-height: none;
-      border-radius: 12px; box-shadow: none; transform: none !important; opacity: 1 !important;
+      border-radius: var(--nyasa-radius); box-shadow: none; transform: none !important; opacity: 1 !important;
       pointer-events: auto !important; min-height: 480px;
     }
-    #nyasa-widget.nyasa-inline { display: block; width: 100%; height: 100%; }
+    #nyasa-widget.nyasa-inline { display: block; width: 100%; height: 100%; background: var(--nyasa-page-bg); border-radius: var(--nyasa-radius); }
     #nyasa-header {
       background: var(--nyasa-color); padding: 14px 16px;
       display: flex; align-items: center; gap: 10px; flex-shrink: 0;
@@ -91,36 +157,36 @@
     #nyasa-header .dot { width: 6px; height: 6px; border-radius: 50%; background: #fff; display: inline-block; }
     #nyasa-close { background: none; border: none; cursor: pointer; color: rgba(255,255,255,0.8); font-size: 20px; padding: 4px; }
     #nyasa-msgs {
-      flex: 1; overflow-y: auto; padding: 16px; background: #ECE5DD;
+      flex: 1; overflow-y: auto; padding: 16px; background: var(--nyasa-page-bg);
       display: flex; flex-direction: column; gap: 10px;
     }
     #nyasa-msgs::-webkit-scrollbar { width: 4px; }
-    #nyasa-msgs::-webkit-scrollbar-thumb { background: rgba(0,0,0,0.1); border-radius: 2px; }
+    #nyasa-msgs::-webkit-scrollbar-thumb { background: rgba(128,128,128,0.25); border-radius: 2px; }
     .nyasa-bubble { display: flex; flex-direction: column; max-width: 78%; }
     .nyasa-bubble.out { align-self: flex-end; align-items: flex-end; }
     .nyasa-bubble.in  { align-self: flex-start; align-items: flex-start; }
     .nyasa-bubble .text {
       padding: 10px 14px 11px; font-size: 14px; line-height: 1.45; word-break: break-word;
-      box-shadow: 0 1px 0.5px rgba(0,0,0,0.13);
+      box-shadow: 0 1px 0.5px rgba(0,0,0,0.13); color: var(--nyasa-text);
     }
-    .nyasa-bubble.out .text { background: #DCF8C6; color: #1a1a1a; border-radius: 12px 3px 12px 12px; }
-    .nyasa-bubble.in  .text { background: #fff;      color: #1a1a1a; border-radius: 3px 12px 12px 12px; }
-    .nyasa-bubble .meta { font-size: 10px; color: #888; margin-top: 3px; padding: 0 4px; }
-    .nyasa-system { text-align: center; font-size: 11px; color: #888; padding: 4px 0; }
-    #nyasa-name-gate { background: #fff; padding: 16px; border-top: 1px solid #eee; flex-shrink: 0; }
-    #nyasa-name-gate p { font-size: 12px; color: #666; margin-bottom: 8px; }
+    .nyasa-bubble.out .text { background: var(--nyasa-out-bubble); border-radius: 12px 3px 12px 12px; }
+    .nyasa-bubble.in  .text { background: var(--nyasa-in-bubble);  border-radius: 3px 12px 12px 12px; }
+    .nyasa-bubble .meta { font-size: 10px; color: var(--nyasa-muted); margin-top: 3px; padding: 0 4px; }
+    .nyasa-system { text-align: center; font-size: 11px; color: var(--nyasa-muted); padding: 4px 0; }
+    #nyasa-name-gate { background: var(--nyasa-panel-bg); padding: 16px; border-top: 1px solid var(--nyasa-border); flex-shrink: 0; }
+    #nyasa-name-gate p { font-size: 12px; color: var(--nyasa-muted); margin-bottom: 8px; }
     #nyasa-name-gate input {
-      width: 100%; border: 1px solid #ddd; border-radius: 10px; padding: 8px 12px;
-      font-size: 13px; margin-bottom: 8px; outline: none;
+      width: 100%; border: 1px solid var(--nyasa-border); border-radius: 10px; padding: 8px 12px;
+      font-size: 13px; margin-bottom: 8px; outline: none; background: var(--nyasa-panel-bg); color: var(--nyasa-text);
     }
     #nyasa-name-gate input:focus { border-color: var(--nyasa-color); }
     #nyasa-name-gate button {
       width: 100%; padding: 9px; border: none; border-radius: 10px;
       background: var(--nyasa-color); color: #fff; font-size: 13px; font-weight: 600; cursor: pointer;
     }
-    #nyasa-composer { background: #f0f0f0; padding: 10px 12px; display: flex; gap: 8px; align-items: flex-end; flex-shrink: 0; }
+    #nyasa-composer { background: var(--nyasa-panel-bg); padding: 10px 12px; display: flex; gap: 8px; align-items: flex-end; flex-shrink: 0; border-top: 1px solid var(--nyasa-border); }
     #nyasa-input {
-      flex: 1; border: none; background: #fff; border-radius: 22px;
+      flex: 1; border: none; background: var(--nyasa-page-bg); color: var(--nyasa-text); border-radius: 22px;
       padding: 9px 14px; font-size: 13px; resize: none; outline: none;
       max-height: 100px; line-height: 1.4;
     }
@@ -132,8 +198,8 @@
     }
     #nyasa-send:disabled { background: #ccc; cursor: default; }
     #nyasa-send svg { width: 18px; height: 18px; fill: #fff; }
-    #nyasa-powered { background: #f0f0f0; text-align: center; font-size: 10px; color: #aaa; padding: 4px 0 6px; flex-shrink: 0; }
-    #nyasa-powered a { color: #aaa; text-decoration: none; }
+    #nyasa-powered { background: var(--nyasa-panel-bg); text-align: center; font-size: 10px; color: var(--nyasa-muted); padding: 4px 0 6px; flex-shrink: 0; }
+    #nyasa-powered a { color: var(--nyasa-muted); text-decoration: none; }
     @media (max-width: 420px) {
       #nyasa-window { bottom: 84px; right: 12px; width: calc(100vw - 24px); }
       #nyasa-fab { bottom: 16px; right: 16px; }
@@ -143,13 +209,29 @@
 
   const root = document.createElement('div');
   root.id = 'nyasa-widget';
+  root.classList.add(THEME === 'auto' ? 'nyasa-theme-auto' : (isDark ? 'nyasa-theme-dark' : 'nyasa-theme-light'));
   if (INLINE) {
-    root.className = 'nyasa-inline';
+    root.classList.add('nyasa-inline');
     // In inline mode, mount into a target container if present, else right where the script tag is
     const target = document.getElementById('nyasa-inline-target') || script.parentElement || document.body;
     target.appendChild(root);
   } else {
     document.body.appendChild(root);
+  }
+
+  // Apply host-detected theme values (inline mode only) as inline CSS vars —
+  // these override the auto light/dark defaults with the page's real colors.
+  if (hostFont) root.style.setProperty('--nyasa-font', hostFont);
+  if (hostRadius) root.style.setProperty('--nyasa-radius', hostRadius);
+  if (hostBg) {
+    root.style.setProperty('--nyasa-page-bg', hostBg);
+    root.style.setProperty('--nyasa-panel-bg', hostBg);
+    if (hostText) {
+      root.style.setProperty('--nyasa-text', hostText);
+      root.style.setProperty('--nyasa-muted', hostText);
+    }
+    root.style.setProperty('--nyasa-in-bubble', isDark ? 'rgba(255,255,255,0.06)' : 'rgba(0,0,0,0.035)');
+    root.style.setProperty('--nyasa-border', isDark ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.08)');
   }
 
   root.innerHTML = `
