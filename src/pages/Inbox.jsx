@@ -28,6 +28,7 @@ export default function Inbox() {
   const [channelFilter, setChannelFilter] = useState('all');
   const [search, setSearch] = useState('');
   const [showNew, setShowNew] = useState(false);
+  const [contactOpen, setContactOpen] = useState(false);
 
   const loadConversations = useCallback(async () => {
     if (!user?.id) return;
@@ -81,6 +82,7 @@ export default function Inbox() {
 
   const handleSelect = async (conv) => {
     setActiveConv(conv);
+    setContactOpen(false); // reset the contact-info overlay whenever a different chat is opened
     if (conv.unread_count > 0) {
       await updateConversation(conv.id, { unread_count: 0 }).catch(() => {});
       setConversations(prev => prev.map(c => c.id === conv.id ? { ...c, unread_count: 0 } : c));
@@ -173,10 +175,21 @@ export default function Inbox() {
               users={user ? [{ id: user.id, full_name: user.full_name || user.email || 'You' }] : []}
               onBack={() => setActiveConv(null)}
               onUpdate={handleConvUpdate}
+              onOpenContact={() => setContactOpen(true)}
             />
-            <div className="flex-1 flex overflow-hidden">
+            <div className="flex-1 flex overflow-hidden relative">
               <MessageThread conversation={activeConv} workspaceId={user?.id} />
-              <ContactPanel conversation={activeConv} onUpdate={handleConvUpdate} className="hidden xl:flex" />
+              {/* Below xl: full-screen slide-over opened by tapping the contact in ChatHeader.
+                  At xl+: permanently docked side panel, same as before. */}
+              <ContactPanel
+                conversation={activeConv}
+                onUpdate={handleConvUpdate}
+                onClose={() => setContactOpen(false)}
+                className={`${contactOpen ? 'flex' : 'hidden'}
+                  fixed top-14 bottom-[56px] left-0 right-0 z-40
+                  md:top-0 md:bottom-0 md:left-16
+                  xl:static xl:inset-auto xl:z-auto xl:flex xl:w-72 xl:border-l xl:border-white/10 xl:shrink-0`}
+              />
             </div>
           </>
         ) : (
