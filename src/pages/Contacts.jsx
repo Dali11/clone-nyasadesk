@@ -1,9 +1,10 @@
-import { useState } from 'react';
-import { Search, Plus, Trash2, X, Check } from 'lucide-react';
+import { useState, useEffect } from 'react';
+import { Search, Plus, Trash2, X, Loader2 } from 'lucide-react';
 import Sidebar from '@/components/Sidebar';
 import Avatar from '@/components/Avatar';
 import ChannelBadge from '@/components/ChannelBadge';
-import { store, genId } from '@/lib/store';
+import { useNyasaAuth } from '@/lib/NyasaAuth';
+import { getContacts, createContact, updateContact, deleteContact, getConversations } from '@/lib/channels';
 
 const STAGES = ['All', 'New Lead', 'Contacted', 'Qualified', 'Proposal Sent', 'Negotiation', 'Closed Won', 'Closed Lost'];
 const STAGE_COLORS = {
@@ -13,11 +14,18 @@ const STAGE_COLORS = {
   'Closed Lost': 'text-red-400 bg-red-900/20',
 };
 
-function ContactDrawer({ contact, onClose, onSave }) {
+function ContactDrawer({ contact, workspaceId, onClose, onSave }) {
   const [editData, setEditData] = useState({ ...contact });
+  const [conversations, setConversations] = useState([]);
   const set = (k, v) => setEditData(d => ({ ...d, [k]: v }));
-  const conversations = store.getConversations().filter(c => c.contact_id === contact.id);
   const inputCls = 'w-full bg-[#2A3942] text-white text-sm rounded-xl px-4 py-2.5 focus:outline-none focus:ring-1 focus:ring-[#25D366] border-0 placeholder:text-gray-600';
+
+  useEffect(() => {
+    if (!workspaceId || !contact?.id) return;
+    getConversations(workspaceId)
+      .then(all => setConversations(all.filter(c => c.contact_id === contact.id)))
+      .catch(() => setConversations([]));
+  }, [workspaceId, contact?.id]);
 
   return (
     <div className="fixed inset-0 z-50 flex">
@@ -56,7 +64,7 @@ function ContactDrawer({ contact, onClose, onSave }) {
                 <div key={c.id} className="bg-[#2A3942] rounded-xl px-3 py-2">
                   <div className="flex items-center gap-2 mb-0.5">
                     <ChannelBadge channel={c.channel} />
-                    <span className="text-xs text-gray-300 truncate">{c.subject}</span>
+                    <span className="text-xs text-gray-300 truncate">{c.last_message_preview || c.last_message}</span>
                   </div>
                 </div>
               ))}
@@ -64,7 +72,7 @@ function ContactDrawer({ contact, onClose, onSave }) {
           </div>
         )}
         <div className="px-5 py-4 mt-auto border-t border-white/10">
-          <button onClick={() => { onSave(editData); onClose(); }}
+          <button onClick={() => onSave(editData)}
             className="w-full py-2.5 bg-[#25D366] text-white font-semibold rounded-xl hover:bg-[#20BA5A] transition-colors text-sm">
             Save Contact
           </button>
@@ -75,12 +83,31 @@ function ContactDrawer({ contact, onClose, onSave }) {
 }
 
 export default function Contacts() {
-  const [contacts, setContacts] = useState(store.getContacts());
+  const { user, profile } = useNyasaAuth();
+  const workspaceId = profile?.workspace_id || user?.id;
+
+  const [contacts, setContacts] = useState([]);
+  const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
   const [stageFilter, setStageFilter] = useState('All');
   const [selected, setSelected] = useState(null);
   const [showNew, setShowNew] = useState(false);
   const [newForm, setNewForm] = useState({ full_name: '', email: '', phone: '', company: '' });
+  const [saving, setSaving] = useState(false);
+
+  const load = async () => {
+    if (!workspaceId) { setLoading(false); return; }
+    try {
+      const data = await getContacts(workspaceId);
+      setContacts(data);
+    } catch (e) {
+      console.error('[Contacts] load error:', e);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => { load(); }, [workspaceId]);
 
   const filtered = contacts.filter(c => {
     if (stageFilter !== 'All' && c.deal_stage !== stageFilter) return false;
@@ -91,16 +118,43 @@ export default function Contacts() {
     return true;
   });
 
-  const saveContact = (data) => { store.updateContact(data.id, data); setContacts(store.getContacts()); };
-  const createContact = () => {
-    if (!newForm.full_name.trim()) return;
-    const c = { id: genId('c'), ...newForm, deal_stage: 'New Lead', tags: [], notes: '', avatar: null, created_date: new Date().toISOString() };
-    store.addContact(c);
-    setContacts(store.getContacts());
-    setShowNew(false);
-    setNewForm({ full_name: '', email: '', phone: '', company: '' });
+  const saveContact = async (data) => {
+    try {
+      await updateContact(data.id, {
+        full_name: data.full_name, email: data.email, phone: data.phone,
+        company: data.company, deal_stage: data.deal_stage, notes: data.notes,
+      });
+      setSelected(null);
+      await load();
+    } catch (e) {
+      console.error('[Contacts] save error:', e);
+    }
   };
-  const deleteContact = (id) => { store.deleteContact(id); setContacts(store.getContacts()); if (selected?.id === id) setSelected(null); };
+
+  const handleCreate = async () => {
+    if (!newForm.full_name.trim() || !workspaceId || saving) return;
+    setSaving(true);
+    try {
+      await createContact(workspaceId, { ...newForm, deal_stage: 'New Lead' });
+      setShowNew(false);
+      setNewForm({ full_name: '', email: '', phone: '', company: '' });
+      await load();
+    } catch (e) {
+      console.error('[Contacts] create error:', e);
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleDelete = async (id) => {
+    try {
+      await deleteContact(id);
+      if (selected?.id === id) setSelected(null);
+      setContacts(prev => prev.filter(c => c.id !== id));
+    } catch (e) {
+      console.error('[Contacts] delete error:', e);
+    }
+  };
 
   const inputCls = 'w-full bg-[#2A3942] text-white text-sm rounded-xl px-4 py-2.5 focus:outline-none focus:ring-1 focus:ring-[#25D366] border-0 placeholder:text-gray-600';
 
@@ -131,46 +185,52 @@ export default function Contacts() {
           ))}
         </div>
         <div className="flex-1 overflow-y-auto scrollbar-thin">
-          <table className="w-full">
-            <thead>
-              <tr className="border-b border-white/10">
-                {['Name','Company','Stage',''].map(h => (
-                  <th key={h} className="text-left px-6 py-3 text-[10px] font-semibold text-gray-500 uppercase tracking-wide">{h}</th>
-                ))}
-              </tr>
-            </thead>
-            <tbody>
-              {filtered.map(c => (
-                <tr key={c.id} onClick={() => setSelected(c)}
-                  className="border-b border-white/5 hover:bg-white/5 cursor-pointer transition-colors group">
-                  <td className="px-6 py-3">
-                    <div className="flex items-center gap-3">
-                      <Avatar name={c.full_name} size="sm" />
-                      <div>
-                        <p className="text-sm font-medium text-white">{c.full_name}</p>
-                        <p className="text-xs text-gray-500">{c.email}</p>
-                      </div>
-                    </div>
-                  </td>
-                  <td className="px-6 py-3 text-sm text-gray-400">{c.company}</td>
-                  <td className="px-6 py-3">
-                    <span className={`text-[10px] font-semibold px-2 py-0.5 rounded-full ${STAGE_COLORS[c.deal_stage] || 'text-gray-400 bg-white/5'}`}>
-                      {c.deal_stage || 'New Lead'}
-                    </span>
-                  </td>
-                  <td className="px-4 py-3">
-                    <button onClick={e => { e.stopPropagation(); deleteContact(c.id); }}
-                      className="opacity-0 group-hover:opacity-100 p-1.5 hover:bg-red-900/30 hover:text-red-400 text-gray-600 rounded-lg transition-all">
-                      <Trash2 className="w-3.5 h-3.5" />
-                    </button>
-                  </td>
+          {loading ? (
+            <div className="flex items-center justify-center py-24">
+              <Loader2 className="w-6 h-6 text-[#25D366] animate-spin" />
+            </div>
+          ) : (
+            <table className="w-full">
+              <thead>
+                <tr className="border-b border-white/10">
+                  {['Name','Company','Stage',''].map(h => (
+                    <th key={h} className="text-left px-6 py-3 text-[10px] font-semibold text-gray-500 uppercase tracking-wide">{h}</th>
+                  ))}
                 </tr>
-              ))}
-              {!filtered.length && (
-                <tr><td colSpan={4} className="py-16 text-center text-sm text-gray-500">No contacts found</td></tr>
-              )}
-            </tbody>
-          </table>
+              </thead>
+              <tbody>
+                {filtered.map(c => (
+                  <tr key={c.id} onClick={() => setSelected(c)}
+                    className="border-b border-white/5 hover:bg-white/5 cursor-pointer transition-colors group">
+                    <td className="px-6 py-3">
+                      <div className="flex items-center gap-3">
+                        <Avatar name={c.full_name} size="sm" />
+                        <div>
+                          <p className="text-sm font-medium text-white">{c.full_name}</p>
+                          <p className="text-xs text-gray-500">{c.email}</p>
+                        </div>
+                      </div>
+                    </td>
+                    <td className="px-6 py-3 text-sm text-gray-400">{c.company}</td>
+                    <td className="px-6 py-3">
+                      <span className={`text-[10px] font-semibold px-2 py-0.5 rounded-full ${STAGE_COLORS[c.deal_stage] || 'text-gray-400 bg-white/5'}`}>
+                        {c.deal_stage || 'New Lead'}
+                      </span>
+                    </td>
+                    <td className="px-4 py-3">
+                      <button onClick={e => { e.stopPropagation(); handleDelete(c.id); }}
+                        className="opacity-0 group-hover:opacity-100 p-1.5 hover:bg-red-900/30 hover:text-red-400 text-gray-600 rounded-lg transition-all">
+                        <Trash2 className="w-3.5 h-3.5" />
+                      </button>
+                    </td>
+                  </tr>
+                ))}
+                {!filtered.length && (
+                  <tr><td colSpan={4} className="py-16 text-center text-sm text-gray-500">No contacts found</td></tr>
+                )}
+              </tbody>
+            </table>
+          )}
         </div>
       </div>
 
@@ -185,14 +245,14 @@ export default function Contacts() {
             {[['full_name','Name *'],['email','Email'],['phone','Phone'],['company','Company']].map(([k, ph]) => (
               <input key={k} className={inputCls} placeholder={ph} value={newForm[k] || ''} onChange={e => setNewForm(f => ({ ...f, [k]: e.target.value }))} />
             ))}
-            <button onClick={createContact} disabled={!newForm.full_name.trim()}
-              className="w-full py-2.5 bg-[#25D366] text-white font-semibold rounded-xl hover:bg-[#20BA5A] transition-colors text-sm disabled:opacity-40">
-              Add Contact
+            <button onClick={handleCreate} disabled={!newForm.full_name.trim() || saving}
+              className="w-full py-2.5 bg-[#25D366] text-white font-semibold rounded-xl hover:bg-[#20BA5A] transition-colors text-sm disabled:opacity-40 flex items-center justify-center gap-2">
+              {saving ? <><Loader2 className="w-4 h-4 animate-spin" /> Adding…</> : 'Add Contact'}
             </button>
           </div>
         </div>
       )}
-      {selected && <ContactDrawer contact={selected} onClose={() => setSelected(null)} onSave={saveContact} />}
+      {selected && <ContactDrawer contact={selected} workspaceId={workspaceId} onClose={() => setSelected(null)} onSave={saveContact} />}
     </div>
   );
 }
