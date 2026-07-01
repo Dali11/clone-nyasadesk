@@ -1,7 +1,7 @@
 import { Toaster } from "@/components/ui/toaster";
 import { QueryClientProvider } from "@tanstack/react-query";
 import { queryClientInstance } from "@/lib/query-client";
-import { BrowserRouter as Router, Route, Routes, Navigate } from "react-router-dom";
+import { BrowserRouter as Router, Route, Routes, Navigate, useLocation } from "react-router-dom";
 import { AuthProvider, useAuth } from "@/lib/AuthContext";
 import { NyasaAuthProvider, useNyasaAuth } from "@/lib/NyasaAuth";
 import ScrollToTop from "./components/ScrollToTop";
@@ -21,10 +21,24 @@ import CannedResponses from "./pages/CannedResponses";
 import Settings        from "./pages/Settings";
 import PrivacyPolicy   from './pages/PrivacyPolicy';
 import DataDeletion    from './pages/DataDeletion';
+import SupportPage     from './pages/SupportPage';
 
 function AppRoutes() {
+  const location = useLocation();
   const { user, loading: authLoading } = useAuth();
   const { onboardingComplete, loadingProfile } = useNyasaAuth();
+
+  // ── Public embeddable support page — no auth, no loading gate. ─────────
+  // Meant to be iframed on a customer's own site or linked to directly, so
+  // it must render instantly regardless of whether this browser has a
+  // Nyasadesk session.
+  if (location.pathname.startsWith('/support/')) {
+    return (
+      <Routes>
+        <Route path="/support/:workspaceId" element={<SupportPage />} />
+      </Routes>
+    );
+  }
 
   // Show spinner while restoring session / loading profile
   if (authLoading || loadingProfile) {
