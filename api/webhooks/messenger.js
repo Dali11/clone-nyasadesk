@@ -30,11 +30,47 @@ export default async function handler(req, res) {
         const workspaceId = cfg.workspace_id;
 
         for (const event of entry.messaging || []) {
-          if (!event.message) continue;
           const senderId = event.sender?.id;
+
+          // Delivery receipt — Meta gives us the specific message ids delivered
+          if (event.delivery) {
+            const mids = event.delivery.mids || [];
+            if (mids.length) {
+              await sb.from('messages').update({ status: 'delivered' })
+                .in('external_id', mids).eq('workspace_id', workspaceId).neq('status', 'read');
+            }
+            continue;
+          }
+
+          // Read receipt — Meta gives a watermark; everything we sent up to that
+          // timestamp in this conversation has been read
+          if (event.read) {
+            const watermarkTs = new Date(event.read.watermark).toISOString();
+            const { data: conv } = await sb.from('conversations')
+              .select('id').eq('workspace_id', workspaceId).eq('channel', 'messenger')
+              .eq('external_id', senderId).maybeSingle();
+            if (conv?.id) {
+              await sb.from('messages').update({ status: 'read' })
+                .eq('conversation_id', conv.id).eq('direction', 'outbound')
+                .lte('created_at', watermarkTs);
+            }
+            continue;
+          }
+
+          if (!event.message) continue;
           const msgId    = event.message?.mid;
-          const body     = event.message?.text || '[attachment]';
           const ts       = new Date(event.timestamp || Date.now()).toISOString();
+
+          // Messenger attachments arrive with a direct Meta CDN URL — no need to
+          // re-fetch/re-host like WhatsApp (whose media URLs require an access token).
+          const metaAttachment = event.message?.attachments?.[0];
+          const attachTypeMap = { image: 'image', video: 'video', audio: 'audio' };
+          let body = event.message?.text || '[attachment]';
+          let attachments = null;
+          if (metaAttachment && attachTypeMap[metaAttachment.type] && metaAttachment.payload?.url) {
+            attachments = [{ url: metaAttachment.payload.url, type: attachTypeMap[metaAttachment.type] }];
+            body = metaAttachment.type === 'image' ? '📷 Photo' : metaAttachment.type === 'video' ? '🎥 Video' : '🎤 Voice message';
+          }
 
           const { data: contact } = await sb.from('contacts')
             .upsert({ workspace_id: workspaceId, channel: 'messenger', external_id: senderId,
@@ -55,6 +91,7 @@ export default async function handler(req, res) {
               conversation_id: conv.id, workspace_id: workspaceId,
               direction: 'inbound', body, channel: 'messenger',
               external_id: msgId, sender_id: senderId, status: 'delivered', created_at: ts,
+              ...(attachments ? { attachments } : {}),
             }, { onConflict: 'conversation_id,external_id' });
           }
         }
