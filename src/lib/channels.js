@@ -1,5 +1,6 @@
 // channels.js — Supabase-backed channel configs + conversation/message helpers
 import { supabase } from '@/lib/supabase';
+import { applyAssignmentRules } from '../../api/_lib/assignRules.js';
 
 // ── Channel Configs ──────────────────────────────────────────────────────────
 
@@ -346,7 +347,7 @@ export async function createManualConversation(workspaceId, { contact_name, cont
   const { data: contact, error: contactErr } = await supabase
     .from('contacts')
     .insert({ workspace_id: workspaceId, channel: channel || 'website', full_name: contact_name, email: contact_email || null })
-    .select('id')
+    .select('*')
     .single();
   if (contactErr) throw contactErr;
 
@@ -354,13 +355,37 @@ export async function createManualConversation(workspaceId, { contact_name, cont
     .from('conversations')
     .insert({
       workspace_id: workspaceId, contact_id: contact.id, channel: channel || 'website',
-      status: assigned_to ? 'open' : 'unassigned', subject, priority: priority || 'normal',
+      // Always 'open' — "unassigned" is represented purely by assigned_to
+      // being null, matching every other conversation-creation path (the
+      // webhooks) and the Inbox's "Unassigned" tab filter, which looks for
+      // status='open' AND assigned_to IS NULL. The old code set the literal
+      // status string 'unassigned' here, which that tab filter never
+      // actually matched — manually-created unassigned conversations would
+      // silently never show up under "Unassigned".
+      status: 'open', subject, priority: priority || 'normal',
       assigned_to: assigned_to || null, assigned_to_name: assigned_to_name || null,
       last_message: '', last_message_at: new Date().toISOString(),
     })
     .select('*, contact:contacts(id,full_name,phone,email,company,avatar_url,deal_stage,tags,notes)')
     .single();
   if (convErr) throw convErr;
+
+  // If no assignee was explicitly picked, try the same auto-assignment rules
+  // used for inbound WhatsApp/Messenger/email conversations, for consistency.
+  if (!assigned_to) {
+    try {
+      const result = await applyAssignmentRules(supabase, {
+        workspaceId, conversationId: conv.id, channel: channel || 'website', contact,
+      });
+      if (result) {
+        conv.assigned_to = result.assignedId;
+        conv.assigned_to_name = result.assignedName;
+      }
+    } catch (e) {
+      console.error('[createManualConversation] rule application error:', e);
+    }
+  }
+
   return normalizeConversation(conv);
 }
 
