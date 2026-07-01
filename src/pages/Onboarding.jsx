@@ -4,6 +4,7 @@ import { useAuth } from '@/lib/AuthContext';
 import { useNyasaAuth } from '@/lib/NyasaAuth';
 import { supabase } from '@/lib/supabase';
 import { Check, ArrowRight, Building2, Zap, Users, Loader2, ChevronRight, Wifi, Mail, Globe, MessageSquare } from 'lucide-react';
+import { useDocumentTitle } from '@/hooks/useDocumentTitle';
 
 const WA_GREEN      = '#25D366';
 const WA_DARK_GREEN = '#128C7E';
@@ -29,6 +30,7 @@ const CHANNELS = [
 ];
 
 export default function Onboarding() {
+  useDocumentTitle('Get Started');
   const navigate = useNavigate();
   const { user } = useAuth();
   const { setOnboardingComplete } = useNyasaAuth();
