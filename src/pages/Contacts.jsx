@@ -5,6 +5,7 @@ import Avatar from '@/components/Avatar';
 import ChannelBadge from '@/components/ChannelBadge';
 import { useNyasaAuth } from '@/lib/NyasaAuth';
 import { getContacts, createContact, updateContact, deleteContact, getConversations } from '@/lib/channels';
+import { useDocumentTitle } from '@/hooks/useDocumentTitle';
 
 const STAGES = ['All', 'New Lead', 'Contacted', 'Qualified', 'Proposal Sent', 'Negotiation', 'Closed Won', 'Closed Lost'];
 const STAGE_COLORS = {
@@ -83,6 +84,7 @@ function ContactDrawer({ contact, workspaceId, onClose, onSave }) {
 }
 
 export default function Contacts() {
+  useDocumentTitle('Contacts');
   const { user, profile } = useNyasaAuth();
   const workspaceId = profile?.workspace_id || user?.id;
 
