@@ -36,10 +36,28 @@ export async function deleteChannelConfig(workspaceId, channel) {
 
 // ── Conversations ────────────────────────────────────────────────────────────
 
+// Normalizes a raw Supabase row (with nested `contact:contacts(...)`) into the
+// flat shape the UI components (ConvRow, ChatHeader, ContactPanel) expect.
+// Keeping this in one place means every consumer sees consistent field names.
+function normalizeConversation(row) {
+  if (!row) return row;
+  const c = row.contact || {};
+  return {
+    ...row,
+    contact_name: c.full_name || 'Unknown Contact',
+    contact_email: c.email || null,
+    contact_phone: c.phone || null,
+    contact_company: c.company || null,
+    contact_avatar_url: c.avatar_url || null,
+    last_message_preview: row.last_message || '',
+    unread: (row.unread_count || 0) > 0,
+  };
+}
+
 export async function getConversations(workspaceId, filters = {}) {
   let q = supabase
     .from('conversations')
-    .select('*, contact:contacts(full_name,phone,email,company,avatar_url)')
+    .select('*, contact:contacts(id,full_name,phone,email,company,avatar_url,deal_stage,tags,notes)')
     .eq('workspace_id', workspaceId)
     .order('last_message_at', { ascending: false });
 
@@ -52,7 +70,7 @@ export async function getConversations(workspaceId, filters = {}) {
 
   const { data, error } = await q;
   if (error) throw error;
-  return data || [];
+  return (data || []).map(normalizeConversation);
 }
 
 export async function updateConversation(id, updates) {
@@ -60,6 +78,19 @@ export async function updateConversation(id, updates) {
     .from('conversations')
     .update({ ...updates, updated_at: new Date().toISOString() })
     .eq('id', id)
+    .select('*, contact:contacts(id,full_name,phone,email,company,avatar_url,deal_stage,tags,notes)')
+    .single();
+  if (error) throw error;
+  return normalizeConversation(data);
+}
+
+// ── Contacts ─────────────────────────────────────────────────────────────────
+
+export async function updateContact(contactId, updates) {
+  const { data, error } = await supabase
+    .from('contacts')
+    .update(updates)
+    .eq('id', contactId)
     .select()
     .single();
   if (error) throw error;
