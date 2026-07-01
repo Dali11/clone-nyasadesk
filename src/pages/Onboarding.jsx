@@ -57,6 +57,31 @@ export default function Onboarding() {
         updated_at: new Date().toISOString(),
       });
       if (err) throw err;
+
+      // Actually invite the teammates entered in the "Invite your team" step —
+      // previously this data was collected in the UI and then silently
+      // discarded; nobody ever got invited no matter what you typed here.
+      const emailsToInvite = teamEmails.map(e => e.trim()).filter(Boolean);
+      if (emailsToInvite.length) {
+        try {
+          const { data: { session } } = await supabase.auth.getSession();
+          await Promise.all(emailsToInvite.map(email =>
+            fetch('/api/team/invite', {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json',
+                ...(session?.access_token ? { Authorization: `Bearer ${session.access_token}` } : {}),
+              },
+              body: JSON.stringify({ email, role: 'user', workspace_id: user.id }),
+            }).catch(e => console.error('[Onboarding] invite failed for', email, e))
+          ));
+        } catch (e) {
+          // Don't block launch on invite failures — team can always invite
+          // people later from Settings > Team.
+          console.error('[Onboarding] team invite step failed:', e);
+        }
+      }
+
       setOnboardingComplete(true);
       navigate('/');
     } catch (e) {
