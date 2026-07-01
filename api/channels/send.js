@@ -60,6 +60,40 @@ export default async function handler(req, res) {
       });
       if (!r.ok) throw new Error('Messenger send failed');
       if (message_id) await sb.from('messages').update({ status: 'sent' }).eq('id', message_id);
+
+    } else if (channel === 'instagram') {
+      const { ig_user_id, page_access_token } = cfg.config;
+      let messagePayload;
+      if (media && ['image', 'video', 'audio'].includes(media.type)) {
+        messagePayload = { attachment: { type: media.type, payload: { url: media.url, is_reusable: true } } };
+      } else {
+        messagePayload = { text };
+      }
+      const r = await fetch(`https://graph.facebook.com/v19.0/${ig_user_id}/messages?access_token=${page_access_token}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ recipient: { id: conv.external_id }, message: messagePayload }),
+      });
+      const json = await r.json().catch(() => ({}));
+      if (!r.ok) throw new Error(json.error?.message || 'Instagram send failed');
+      if (message_id) await sb.from('messages').update({ status: 'sent' }).eq('id', message_id);
+
+    } else if (channel === 'telegram') {
+      const { bot_token } = cfg.config;
+      let tgMethod = 'sendMessage';
+      let tgBody = { chat_id: conv.external_id, text };
+      if (media?.type === 'image') { tgMethod = 'sendPhoto'; tgBody = { chat_id: conv.external_id, photo: media.url, ...(text ? { caption: text } : {}) }; }
+      else if (media?.type === 'video') { tgMethod = 'sendVideo'; tgBody = { chat_id: conv.external_id, video: media.url, ...(text ? { caption: text } : {}) }; }
+      else if (media?.type === 'audio') { tgMethod = 'sendVoice'; tgBody = { chat_id: conv.external_id, voice: media.url }; }
+      const r = await fetch(`https://api.telegram.org/bot${bot_token}/${tgMethod}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(tgBody),
+      });
+      const json = await r.json().catch(() => ({}));
+      if (!r.ok || !json.ok) throw new Error(json.description || 'Telegram send failed');
+      if (message_id) await sb.from('messages').update({ external_id: String(json.result?.message_id || ''), status: 'sent' }).eq('id', message_id);
+
     } else {
       if (message_id) await sb.from('messages').update({ status: 'sent' }).eq('id', message_id);
     }
