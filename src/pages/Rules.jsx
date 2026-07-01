@@ -5,6 +5,7 @@ import ChannelBadge, { CHANNELS } from '@/components/ChannelBadge';
 import Avatar from '@/components/Avatar';
 import { useNyasaAuth } from '@/lib/NyasaAuth';
 import { getRules, createRule, updateRule, deleteRule } from '@/lib/channels';
+import { useDocumentTitle } from '@/hooks/useDocumentTitle';
 
 const RULE_TYPES = [
   { value: 'round_robin', label: 'Round Robin', desc: 'Rotate conversations evenly across selected agents in order' },
@@ -14,6 +15,7 @@ const RULE_TYPES = [
 const CHANNELS_ALL = ['all', ...CHANNELS];
 
 export default function Rules() {
+  useDocumentTitle('Assignment Rules');
   const { user, profile } = useNyasaAuth();
   const workspaceId = profile?.workspace_id || user?.id;
 
