@@ -422,11 +422,10 @@ function WebsiteCard({ saved, workspaceId, onSave, onDelete }) {
   const [fields, setFields] = useState(saved ? saved.config || {} : {});
   const [saving, setSaving] = useState(false);
   const [status, setStatus] = useState('');
-  const [embedTab, setEmbedTab] = useState('popup'); // 'popup' | 'inline'
+  const [embedTab, setEmbedTab] = useState('popup'); // 'popup' | 'inline' | 'page'
   const isLive = !!(saved && saved.enabled);
   const popupSnippet  = '<script src="' + PROD_URL + '/widget.js" data-workspace-id="' + workspaceId + '"></script>';
-  const inlineSnippet = '<div id="nyasa-inline-target"></div>
-<script src="' + PROD_URL + '/widget.js" data-workspace-id="' + workspaceId + '" data-mode="inline"></script>';
+  const inlineSnippet = '<div id="nyasa-inline-target"></div>\n<script src="' + PROD_URL + '/widget.js" data-workspace-id="' + workspaceId + '" data-mode="inline"></script>';
   const supportPageUrl = PROD_URL + '/support/' + workspaceId;
   const iframeSnippet  = '<iframe src="' + supportPageUrl + '" style="width:100%;height:600px;border:0;border-radius:12px"></iframe>';
 
@@ -459,8 +458,8 @@ function WebsiteCard({ saved, workspaceId, onSave, onDelete }) {
               { id: 'inline', label: 'Inline panel' },
               { id: 'page',   label: 'Support page (iframe)' },
             ].map(t => (
-              <button key={t.id} onClick={() => setEmbedTab(t.id)} type="button"
-                className="flex-1 py-1.5 rounded-lg text-[10px] font-bold transition-all"
+              <button key={t.id} onClick={() => setEmbedTab(t.id)} type="button" 
+                className="flex-1 py-1.5 rounded-lg text-[10px] font-bold transition-all" 
                 style={{
                   background: embedTab === t.id ? '#06B6D4' : 'rgba(255,255,255,0.05)',
                   color: embedTab === t.id ? '#fff' : '#9ca3af',
