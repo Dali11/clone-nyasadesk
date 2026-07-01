@@ -8,6 +8,7 @@ import ContactPanel from '@/components/inbox/ContactPanel';
 import NewConvModal from '@/components/inbox/NewConvModal';
 import { useNyasaAuth } from '@/lib/NyasaAuth';
 import { getConversations, updateConversation, subscribeToConversations } from '@/lib/channels';
+import { useDocumentTitle } from '@/hooks/useDocumentTitle';
 
 const STATUS_TABS = [
   { key: 'all',        label: 'All'        },
@@ -20,6 +21,7 @@ const STATUS_TABS = [
 const CHANNELS_FILTER = ['all', 'whatsapp', 'messenger', 'email', 'website'];
 
 export default function Inbox() {
+  useDocumentTitle('Inbox');
   const { user } = useNyasaAuth();
   const [conversations, setConversations] = useState([]);
   const [loading, setLoading] = useState(true);
