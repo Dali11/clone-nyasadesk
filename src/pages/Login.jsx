@@ -21,8 +21,18 @@ export default function Login() {
   const handleSubmit = async (e) => {
     e.preventDefault();
     setError('');
+    // Read the actual DOM values via FormData, not just React state — some
+    // browsers' autofill/password-manager fills the input visually without
+    // firing a React-visible 'input' event, leaving controlled state empty
+    // even though the field looks filled. This was the root cause of the
+    // "missing email or phone" bug: state was '' at submit time despite the
+    // field showing text. FormData reads what's actually in the DOM.
+    const fd = new FormData(e.currentTarget);
+    const emailVal = (fd.get('email') || email || '').toString().trim();
+    const passwordVal = (fd.get('password') || password || '').toString();
+    if (!emailVal || !passwordVal) { setError('Please enter your email and password'); return; }
     setLoading(true);
-    const { error: err } = await signIn(email, password);
+    const { error: err } = await signIn(emailVal, passwordVal);
     if (err) { setError(err.message || 'Invalid email or password'); setLoading(false); }
   };
 
@@ -69,11 +79,11 @@ export default function Login() {
         <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
           <div style={{ position: 'relative' }}>
             <Mail size={16} color={MUTED} style={{ position: 'absolute', left: 14, top: '50%', transform: 'translateY(-50%)' }} />
-            <input style={inputStyle} type="email" placeholder="Email address" value={email} onChange={e => setEmail(e.target.value)} required />
+            <input name="email" autoComplete="email" style={inputStyle} type="email" placeholder="Email address" value={email} onChange={e => setEmail(e.target.value)} required />
           </div>
           <div style={{ position: 'relative' }}>
             <Lock size={16} color={MUTED} style={{ position: 'absolute', left: 14, top: '50%', transform: 'translateY(-50%)' }} />
-            <input style={{ ...inputStyle, paddingRight: 44 }} type={showPw ? 'text' : 'password'} placeholder="Password" value={password} onChange={e => setPassword(e.target.value)} required />
+            <input name="password" autoComplete="current-password" style={{ ...inputStyle, paddingRight: 44 }} type={showPw ? 'text' : 'password'} placeholder="Password" value={password} onChange={e => setPassword(e.target.value)} required />
             <button type="button" onClick={() => setShowPw(v => !v)} style={{ position: 'absolute', right: 14, top: '50%', transform: 'translateY(-50%)', background: 'none', border: 'none', cursor: 'pointer', color: MUTED, padding: 0 }}>
               {showPw ? <EyeOff size={16} /> : <Eye size={16} />}
             </button>
