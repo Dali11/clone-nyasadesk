@@ -531,6 +531,138 @@ function WebsiteCard({ saved, workspaceId, onSave, onDelete }) {
   );
 }
 
+
+function InstagramCard({ saved, workspaceId, onSave, onDelete }) {
+  const [fields, setFields] = useState(saved ? saved.config || {} : {});
+  const [saving, setSaving] = useState(false);
+  const [status, setStatus] = useState('');
+  const isLive = !!(saved && saved.enabled && saved.config && saved.config.ig_user_id);
+
+  const handleSave = async () => {
+    setSaving(true);
+    try {
+      await onSave('instagram', fields);
+      setStatus('saved');
+    } catch (e) {
+      setStatus('error: ' + e.message);
+    } finally {
+      setSaving(false);
+      setTimeout(() => setStatus(''), 3000);
+    }
+  };
+
+  const subtitle = isLive ? 'Connected · Instagram Direct' : 'Reply to Instagram DMs in your inbox';
+
+  return (
+    <ChannelCard emoji="📸" title="Instagram" subtitle={subtitle} accentColor="#E1306C" isLive={isLive}>
+      <div className="space-y-3">
+        <div className="bg-[#111B21] rounded-xl p-3">
+          <p className="text-[10px] font-bold text-gray-500 uppercase tracking-wide mb-1.5">Webhook URL</p>
+          <div className="flex items-center gap-2">
+            <p className="text-xs text-[#E1306C] font-mono truncate flex-1">{PROD_URL}/api/webhooks/instagram</p>
+            <CopyBtn text={PROD_URL + '/api/webhooks/instagram'} />
+          </div>
+        </div>
+        <p className="text-[11px] text-gray-500 leading-relaxed">
+          Needs an Instagram professional account connected to a Facebook Page. Generate a Page Access Token with the <span className="text-gray-400 font-mono">instagram_basic</span> and <span className="text-gray-400 font-mono">instagram_manage_messages</span> permissions.
+        </p>
+        <ManualFields fields={fields} setFields={setFields} fieldDefs={[
+          { key: 'ig_user_id',        label: 'Instagram Business Account ID', placeholder: '1784...' },
+          { key: 'page_access_token', label: 'Page Access Token',            placeholder: 'EAAxxxxx…', secret: true },
+          { key: 'verify_token',      label: 'Verify Token',                 placeholder: 'nyasadesk_verify' },
+        ]} />
+        <a href="https://developers.facebook.com/docs/messenger-platform/instagram"
+          target="_blank" rel="noreferrer"
+          className="inline-flex items-center gap-1.5 text-[11px] text-blue-400 hover:text-blue-300">
+          <ExternalLink className="w-3 h-3" />Setup guide
+        </a>
+        <div className="flex gap-2 pt-1">
+          <button onClick={handleSave} disabled={saving}
+            className="flex-1 py-2.5 rounded-xl text-sm font-bold text-white"
+            style={{ background: '#E1306C', opacity: saving ? 0.7 : 1 }}>
+            {saving ? 'Saving…' : status === 'saved' ? '✅ Saved!' : 'Save'}
+          </button>
+          {saved && (
+            <button onClick={() => onDelete('instagram')}
+              className="p-2.5 rounded-xl bg-red-500/10 text-red-400 hover:bg-red-500/20">
+              <Trash2 className="w-4 h-4" />
+            </button>
+          )}
+        </div>
+        {status.startsWith('error:') && (
+          <p className="text-xs text-red-400 flex items-center gap-1.5">
+            <AlertCircle className="w-3.5 h-3.5" />{status.slice(6)}
+          </p>
+        )}
+      </div>
+    </ChannelCard>
+  );
+}
+
+function TelegramCard({ saved, workspaceId, onSave, onDelete }) {
+  const [fields, setFields] = useState(saved ? saved.config || {} : {});
+  const [saving, setSaving] = useState(false);
+  const [status, setStatus] = useState('');
+  const isLive = !!(saved && saved.enabled && saved.config && saved.config.bot_token && saved.config.webhook_active);
+
+  const handleActivate = async () => {
+    if (!fields.bot_token) { setStatus('error: Bot token is required'); return; }
+    setSaving(true);
+    setStatus('');
+    try {
+      const res = await fetch('/api/channels/telegram-setup', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ bot_token: fields.bot_token, workspace_id: workspaceId }),
+      });
+      const data = await res.json();
+      if (!data.ok) throw new Error(data.error || 'Failed to activate webhook');
+      await onSave('telegram', { bot_token: fields.bot_token, bot_username: data.bot_username, webhook_active: true });
+      setStatus('saved');
+    } catch (e) {
+      setStatus('error: ' + e.message);
+    } finally {
+      setSaving(false);
+      setTimeout(() => setStatus(''), 4000);
+    }
+  };
+
+  const subtitle = isLive ? `Connected · @${(saved.config && saved.config.bot_username) || 'bot'}` : 'Reply to Telegram messages in your inbox';
+
+  return (
+    <ChannelCard emoji="✈️" title="Telegram" subtitle={subtitle} accentColor="#26A5E4" isLive={isLive}>
+      <div className="space-y-3">
+        <div className="bg-[#111B21] rounded-xl p-3 space-y-1.5">
+          <p className="text-sm font-bold text-white">Create a bot in 2 minutes</p>
+          <p className="text-xs text-gray-400 leading-relaxed">
+            Message <a href="https://t.me/BotFather" target="_blank" rel="noreferrer" className="text-[#26A5E4] font-semibold">@BotFather</a> on Telegram, send <span className="text-gray-300 font-mono">/newbot</span>, and paste the token it gives you below.
+          </p>
+        </div>
+        <ManualFields fields={fields} setFields={setFields} fieldDefs={[
+          { key: 'bot_token', label: 'Bot Token', placeholder: '123456789:AAxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx', secret: true },
+        ]} />
+        <button onClick={handleActivate} disabled={saving || !fields.bot_token}
+          className="w-full flex items-center justify-center gap-2 py-3 rounded-xl text-sm font-bold text-white disabled:opacity-40"
+          style={{ background: '#26A5E4' }}>
+          {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : '✈️'}
+          {saving ? 'Activating…' : isLive ? 'Reconnect' : 'Activate Bot'}
+        </button>
+        {saved && (
+          <button onClick={() => onDelete('telegram')}
+            className="w-full py-2 rounded-xl text-xs font-semibold bg-red-500/10 text-red-400 hover:bg-red-500/20 flex items-center justify-center gap-1.5">
+            <Trash2 className="w-3.5 h-3.5" />Disconnect
+          </button>
+        )}
+        {status.startsWith('error:') && (
+          <p className="text-xs text-red-400 flex items-center gap-1.5">
+            <AlertCircle className="w-3.5 h-3.5" />{status.slice(6)}
+          </p>
+        )}
+      </div>
+    </ChannelCard>
+  );
+}
+
 export default function Settings() {
   useDocumentTitle('Settings');
   const { user, profile } = useNyasaAuth();
@@ -543,6 +675,8 @@ export default function Settings() {
   const [wsName, setWsName]   = useState('');
   const [wsSaved, setWsSaved] = useState(false);
   const [banner, setBanner]   = useState(null);
+  const [slaHours, setSlaHours] = useState(4);
+  const [slaSaved, setSlaSaved] = useState(false);
 
   useEffect(() => {
     const tab = searchParams.get('tab');
@@ -561,6 +695,7 @@ export default function Settings() {
     if (user) {
       setProfileForm({ full_name: user.full_name || '', email: user.email || '' });
       setWsName((profile && profile.workspace_name) || '');
+      setSlaHours((profile && profile.sla_hours) || 4);
     }
   }, [user, profile]);
 
@@ -601,6 +736,14 @@ export default function Settings() {
     await supabase.from('profiles').update({ workspace_name: wsName }).eq('id', user && user.id);
     setWsSaved(true);
     setTimeout(() => setWsSaved(false), 2000);
+  };
+
+  const saveSla = async () => {
+    const hours = Math.max(1, parseInt(slaHours, 10) || 4);
+    await supabase.from('profiles').update({ sla_hours: hours }).eq('id', user && user.id);
+    setSlaHours(hours);
+    setSlaSaved(true);
+    setTimeout(() => setSlaSaved(false), 2000);
   };
 
   return (
@@ -665,6 +808,8 @@ export default function Settings() {
                   <>
                     <WhatsAppCard  saved={channelConfigs.whatsapp}  workspaceId={user && user.id} onSave={handleSaveChannel} onDelete={handleDeleteChannel} />
                     <MessengerCard saved={channelConfigs.messenger} workspaceId={user && user.id} onSave={handleSaveChannel} onDelete={handleDeleteChannel} />
+                    <InstagramCard saved={channelConfigs.instagram} workspaceId={user && user.id} onSave={handleSaveChannel} onDelete={handleDeleteChannel} />
+                    <TelegramCard  saved={channelConfigs.telegram}  workspaceId={user && user.id} onSave={handleSaveChannel} onDelete={handleDeleteChannel} />
                     <EmailCard     saved={channelConfigs.email}     workspaceId={user && user.id} onSave={handleSaveChannel} onDelete={handleDeleteChannel} />
                     <WebsiteCard   saved={channelConfigs.website}   workspaceId={user && user.id} onSave={handleSaveChannel} onDelete={handleDeleteChannel} />
                   </>
@@ -681,13 +826,20 @@ export default function Settings() {
                     <p className="text-xs text-gray-500">{user && user.role}</p>
                   </div>
                 </div>
-                {[['full_name', 'Display Name'], ['email', 'Email']].map(([k, label]) => (
-                  <div key={k}>
-                    <label className="text-[11px] font-medium text-gray-400 mb-1.5 block">{label}</label>
-                    <input className={inputCls} value={profileForm[k] || ''}
-                      onChange={e => setProfileForm(f => ({ ...f, [k]: e.target.value }))} />
-                  </div>
-                ))}
+                <div>
+                  <label className="text-[11px] font-medium text-gray-400 mb-1.5 block">Display Name</label>
+                  <input className={inputCls} value={profileForm.full_name || ''}
+                    onChange={e => setProfileForm(f => ({ ...f, full_name: e.target.value }))} />
+                </div>
+                <div>
+                  <label className="text-[11px] font-medium text-gray-400 mb-1.5 block">Email</label>
+                  {/* Read-only — this used to be a live-looking editable field, but
+                      saveProfile() only ever wrote full_name, so typing here silently
+                      did nothing. Changing a login email needs Supabase's own
+                      verified-email-change flow, which isn't wired up yet. */}
+                  <input className={inputCls + ' opacity-50 cursor-not-allowed'} value={profileForm.email || ''} disabled readOnly />
+                  <p className="text-[10px] text-gray-600 mt-1">Your login email can't be changed here yet — contact support if you need it updated.</p>
+                </div>
                 <button onClick={saveProfile}
                   className="w-full flex items-center justify-center gap-2 py-3 rounded-xl text-sm font-bold text-white"
                   style={{ background: '#25D366' }}>
@@ -714,9 +866,25 @@ export default function Settings() {
             {section === 'team' && <TeamSection />}
 
             {section === 'sla' && (
-              <div className="bg-[#202C33] rounded-2xl border border-white/10 p-5">
-                <p className="text-sm font-bold text-white mb-1">SLA Configuration</p>
-                <p className="text-xs text-gray-500">SLA breach alerts coming soon.</p>
+              <div className="bg-[#202C33] rounded-2xl border border-white/10 p-5 space-y-4">
+                <div>
+                  <p className="text-sm font-bold text-white mb-1">SLA Configuration</p>
+                  <p className="text-xs text-gray-500 leading-relaxed">
+                    New conversations get a live countdown badge and show up as "at risk" on the dashboard once they've
+                    been open longer than this response-time target.
+                  </p>
+                </div>
+                <div>
+                  <label className="text-[11px] font-medium text-gray-400 mb-1.5 block">Response time target (hours)</label>
+                  <input type="number" min="1" max="720" className={inputCls} value={slaHours}
+                    onChange={e => setSlaHours(e.target.value)} />
+                </div>
+                <button onClick={saveSla}
+                  className="w-full flex items-center justify-center gap-2 py-3 rounded-xl text-sm font-bold text-white"
+                  style={{ background: '#25D366' }}>
+                  {slaSaved ? <><Check className="w-4 h-4" />Saved!</> : 'Save SLA Setting'}
+                </button>
+                <p className="text-[11px] text-gray-600">Applies to new conversations going forward — existing ones keep their original deadline.</p>
               </div>
             )}
 
