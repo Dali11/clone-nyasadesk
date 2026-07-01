@@ -1,4 +1,5 @@
 import { createClient } from '@supabase/supabase-js';
+import { applyAssignmentRules } from '../_lib/assignRules.js';
 
 const SUPABASE_URL = 'https://pfbaepibelomiutlotkn.supabase.co';
 const SUPABASE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY;
@@ -75,13 +76,13 @@ export default async function handler(req, res) {
           const { data: contact } = await sb.from('contacts')
             .upsert({ workspace_id: workspaceId, channel: 'messenger', external_id: senderId,
               full_name: `Messenger User ${senderId?.slice(-4)}`, lead_source: 'messenger' },
-              { onConflict: 'workspace_id,channel,external_id' }).select('id').single();
+              { onConflict: 'workspace_id,channel,external_id' }).select('*').single();
 
           const { data: conv } = await sb.from('conversations')
             .upsert({ workspace_id: workspaceId, channel: 'messenger', external_id: senderId,
               contact_id: contact?.id, status: 'open', subject: `Messenger: ${senderId?.slice(-6)}`,
               last_message: body, last_message_at: ts },
-              { onConflict: 'workspace_id,channel,external_id' }).select('id,unread_count').single();
+              { onConflict: 'workspace_id,channel,external_id' }).select('id,unread_count,assigned_to').single();
 
           if (conv?.id) {
             await sb.from('conversations').update({
@@ -93,6 +94,10 @@ export default async function handler(req, res) {
               external_id: msgId, sender_id: senderId, status: 'delivered', created_at: ts,
               ...(attachments ? { attachments } : {}),
             }, { onConflict: 'conversation_id,external_id' });
+
+            if (!conv.assigned_to) {
+              await applyAssignmentRules(sb, { workspaceId, conversationId: conv.id, channel: 'messenger', contact });
+            }
           }
         }
       }
