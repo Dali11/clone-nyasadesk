@@ -8,6 +8,7 @@ import ContactPanel from '@/components/inbox/ContactPanel';
 import NewConvModal from '@/components/inbox/NewConvModal';
 import { useNyasaAuth } from '@/lib/NyasaAuth';
 import { getConversations, updateConversation, subscribeToConversations } from '@/lib/channels';
+import { supabase } from '@/lib/supabase';
 import { useDocumentTitle } from '@/hooks/useDocumentTitle';
 
 const STATUS_TABS = [
@@ -18,7 +19,7 @@ const STATUS_TABS = [
   { key: 'closed',     label: 'Closed'     },
 ];
 
-const CHANNELS_FILTER = ['all', 'whatsapp', 'messenger', 'email', 'website'];
+const CHANNELS_FILTER = ['all', 'whatsapp', 'messenger', 'instagram', 'telegram', 'email', 'website'];
 
 export default function Inbox() {
   useDocumentTitle('Inbox');
@@ -31,6 +32,10 @@ export default function Inbox() {
   const [search, setSearch] = useState('');
   const [showNew, setShowNew] = useState(false);
   const [contactOpen, setContactOpen] = useState(false);
+  // Real team roster for the "Assign to" menu — this used to just be the
+  // current user, so you could never actually assign a conversation to a
+  // teammate from the chat header, only to yourself.
+  const [teamUsers, setTeamUsers] = useState([]);
 
   const loadConversations = useCallback(async () => {
     if (!user?.id) return;
@@ -46,6 +51,25 @@ export default function Inbox() {
 
   // Initial load
   useEffect(() => { loadConversations(); }, [loadConversations]);
+
+  // Load the real team roster once, for the chat header's "Assign to" menu
+  useEffect(() => {
+    if (!user?.id) return;
+    (async () => {
+      try {
+        const { data: { session } } = await supabase.auth.getSession();
+        const res = await fetch(`/api/team/list?workspace_id=${encodeURIComponent(user.workspace_id || user.id)}`, {
+          headers: session?.access_token ? { Authorization: `Bearer ${session.access_token}` } : {},
+        });
+        const data = await res.json();
+        if (res.ok) {
+          setTeamUsers((data.users || []).map(u => ({ id: u.id, full_name: u.full_name || u.email || 'Teammate' })));
+        }
+      } catch (e) {
+        console.error('[Inbox] failed to load team roster:', e);
+      }
+    })();
+  }, [user?.id, user?.workspace_id]);
 
   // Realtime subscription
   useEffect(() => {
@@ -174,7 +198,7 @@ export default function Inbox() {
           <>
             <ChatHeader
               conversation={activeConv}
-              users={user ? [{ id: user.id, full_name: user.full_name || user.email || 'You' }] : []}
+              users={teamUsers.length ? teamUsers : (user ? [{ id: user.id, full_name: user.full_name || user.email || 'You' }] : [])}
               onBack={() => setActiveConv(null)}
               onUpdate={handleConvUpdate}
               onOpenContact={() => setContactOpen(true)}
