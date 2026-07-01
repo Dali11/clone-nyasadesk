@@ -8,6 +8,7 @@ import TeamSection from '@/components/settings/TeamSection';
 import { useNyasaAuth } from '@/lib/NyasaAuth';
 import { getChannelConfigs, saveChannelConfig, deleteChannelConfig } from '@/lib/channels';
 import { supabase } from '@/lib/supabase';
+import { useDocumentTitle } from '@/hooks/useDocumentTitle';
 
 const PROD_URL  = 'https://nyasadesk1.vercel.app';
 const FB_APP_ID = import.meta.env.VITE_FACEBOOK_APP_ID || '';
@@ -531,6 +532,7 @@ function WebsiteCard({ saved, workspaceId, onSave, onDelete }) {
 }
 
 export default function Settings() {
+  useDocumentTitle('Settings');
   const { user, profile } = useNyasaAuth();
   const [searchParams]    = useSearchParams();
   const [section, setSection]       = useState('channels');
