@@ -73,6 +73,12 @@ export default function Inbox() {
     closed:     conversations.filter(c => c.status === 'closed').length,
   };
 
+  const handleConvUpdate = (updates) => {
+    setActiveConv(prev => ({ ...prev, ...updates }));
+    setConversations(prev => prev.map(c => c.id === updates.id ? { ...c, ...updates } : c));
+    updateConversation(updates.id, updates).catch(() => {});
+  };
+
   const handleSelect = async (conv) => {
     setActiveConv(conv);
     if (conv.unread_count > 0) {
@@ -164,16 +170,13 @@ export default function Inbox() {
           <>
             <ChatHeader
               conversation={activeConv}
+              users={user ? [{ id: user.id, full_name: user.full_name || user.email || 'You' }] : []}
               onBack={() => setActiveConv(null)}
-              onUpdate={updates => {
-                setActiveConv(prev => ({ ...prev, ...updates }));
-                setConversations(prev => prev.map(c => c.id === activeConv.id ? { ...c, ...updates } : c));
-                updateConversation(activeConv.id, updates).catch(() => {});
-              }}
+              onUpdate={handleConvUpdate}
             />
             <div className="flex-1 flex overflow-hidden">
               <MessageThread conversation={activeConv} workspaceId={user?.id} />
-              <ContactPanel conversation={activeConv} className="hidden xl:flex" />
+              <ContactPanel conversation={activeConv} onUpdate={handleConvUpdate} className="hidden xl:flex" />
             </div>
           </>
         ) : (
