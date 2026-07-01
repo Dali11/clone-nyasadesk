@@ -7,6 +7,7 @@ import { NyasaAuthProvider, useNyasaAuth } from "@/lib/NyasaAuth";
 import ScrollToTop from "./components/ScrollToTop";
 
 import Landing         from "./pages/Landing";
+import Pricing         from "./pages/Pricing";
 import Login           from "./pages/Login";
 import Register        from "./pages/Register";
 import ForgotPassword  from "./pages/ForgotPassword";
@@ -56,6 +57,7 @@ function AppRoutes() {
     return (
       <Routes>
         <Route path="/"                element={<Landing />} />
+        <Route path="/pricing"         element={<Pricing />} />
         <Route path="/login"           element={<Login />} />
         <Route path="/register"        element={<Register />} />
         <Route path="/forgot-password" element={<ForgotPassword />} />
@@ -90,6 +92,7 @@ function AppRoutes() {
       <Route path="/privacy"        element={<PrivacyPolicy />} />
       <Route path="/data-deletion"   element={<DataDeletion />} />
       <Route path="/settings"   element={<Settings />} />
+      <Route path="/pricing"    element={<Pricing />} />
       <Route path="/admin"      element={<AdminPanel />} />
       {/* Redirect /login and /register back to inbox when already logged in */}
       <Route path="/login"      element={<Navigate to="/" replace />} />
