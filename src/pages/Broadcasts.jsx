@@ -5,6 +5,7 @@ import ChannelBadge, { CHANNELS } from '@/components/ChannelBadge';
 import Avatar from '@/components/Avatar';
 import { useNyasaAuth } from '@/lib/NyasaAuth';
 import { getContacts, getBroadcasts, createBroadcast, sendBroadcast, deleteBroadcast } from '@/lib/channels';
+import { useDocumentTitle } from '@/hooks/useDocumentTitle';
 
 const STATUS_COLORS = { sent: 'text-green-400 bg-green-900/20', draft: 'text-yellow-400 bg-yellow-900/20', sending: 'text-blue-400 bg-blue-900/20' };
 
@@ -49,6 +50,7 @@ function BroadcastCard({ bc, contacts, sending, onDelete, onSend }) {
 }
 
 export default function Broadcasts() {
+  useDocumentTitle('Broadcasts');
   const { user, profile } = useNyasaAuth();
   const workspaceId = profile?.workspace_id || user?.id;
 
