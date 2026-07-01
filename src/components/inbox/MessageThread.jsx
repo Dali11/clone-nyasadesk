@@ -92,6 +92,8 @@ export default function MessageThread({ conversation, workspaceId }) {
   const canned = store.getCanned();
   const bottomRef = useRef(null);
   const inputRef  = useRef(null);
+  const sendingRef = useRef(false); // synchronous lock — `sending` state alone can be bypassed
+                                     // if two triggers (e.g. Enter + click) fire before React re-renders
 
   const wId = workspaceId || user?.id;
 
@@ -123,7 +125,8 @@ export default function MessageThread({ conversation, workspaceId }) {
 
   const handleSend = async () => {
     const text = body.trim();
-    if (!text || !conversation || sending) return;
+    if (!text || !conversation || sendingRef.current) return;
+    sendingRef.current = true;
     setBody('');
     setSending(true);
     inputRef.current?.focus();
@@ -135,6 +138,7 @@ export default function MessageThread({ conversation, workspaceId }) {
         direction: 'note', body: text, sender_name: user?.full_name || 'You',
         created_at: new Date().toISOString(),
       }]);
+      sendingRef.current = false;
       setSending(false);
       return;
     }
@@ -154,6 +158,7 @@ export default function MessageThread({ conversation, workspaceId }) {
     } catch (e) {
       setMessages(prev => prev.map(m => m.id === tempId ? { ...m, status: 'failed' } : m));
     } finally {
+      sendingRef.current = false;
       setSending(false);
     }
   };
