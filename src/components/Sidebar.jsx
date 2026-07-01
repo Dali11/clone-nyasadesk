@@ -1,5 +1,5 @@
 import { Link, useLocation } from 'react-router-dom';
-import { MessageSquare, BarChart2, Users, Megaphone, Settings, Zap, BookOpen } from 'lucide-react';
+import { MessageSquare, BarChart2, Users, Megaphone, Settings, Zap, BookOpen, ShieldCheck } from 'lucide-react';
 import Avatar from './Avatar';
 import { useNyasaAuth } from '@/lib/NyasaAuth';
 
@@ -22,8 +22,13 @@ const MOBILE_NAV = [
 
 export default function Sidebar() {
   const { pathname } = useLocation();
-  const { user, profile } = useNyasaAuth();
+  const { user, profile, isPlatformAdmin } = useNyasaAuth();
   const workspaceName = profile?.workspace_name || user?.workspace_name || '';
+  // Platform-admin-only nav entry — separate from the per-workspace "admin"
+  // role. Only the small allowlist in platform_admin_emails ever sees this.
+  const navItems = isPlatformAdmin
+    ? [...NAV, { path: '/admin', icon: ShieldCheck, label: 'Admin Panel' }]
+    : NAV;
 
   return (
     <>
@@ -53,7 +58,7 @@ export default function Sidebar() {
 
         {/* Nav links */}
         <div className="flex-1 overflow-y-auto py-3 px-2 space-y-0.5">
-          {NAV.map(({ path, icon: Icon, label }) => {
+          {navItems.map(({ path, icon: Icon, label }) => {
             const active = pathname === path;
             return (
               <Link key={path} to={path}
@@ -98,7 +103,7 @@ export default function Sidebar() {
         </div>
 
         <div className="flex-1 overflow-y-auto py-3 flex flex-col items-center gap-1">
-          {NAV.map(({ path, icon: Icon, label }) => {
+          {navItems.map(({ path, icon: Icon, label }) => {
             const active = pathname === path;
             return (
               <Link key={path} to={path} title={label}
