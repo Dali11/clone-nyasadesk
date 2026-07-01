@@ -1,6 +1,9 @@
 
-/* Nyasadesk Live Chat Widget v1.0
- * Embed: <script src="https://nyasadesk1.vercel.app/widget.js" data-workspace-id="YOUR_ID"></script>
+/* Nyasadesk Live Chat Widget v1.1
+ * Floating bubble:  <script src="https://nyasadesk1.vercel.app/widget.js" data-workspace-id="YOUR_ID"></script>
+ * Inline / support-page embed (fills its container, always open, no popup bubble):
+ *   <div id="nyasa-inline-target"></div>
+ *   <script src="https://nyasadesk1.vercel.app/widget.js" data-workspace-id="YOUR_ID" data-mode="inline"></script>
  */
 (function () {
   'use strict';
@@ -8,15 +11,18 @@
   const API    = 'https://nyasadesk1.vercel.app/api/widget/chat';
   const script = document.currentScript || document.querySelector('script[data-workspace-id]');
   const WID    = script?.getAttribute('data-workspace-id');
+  const MODE   = (script?.getAttribute('data-mode') || 'popup').toLowerCase(); // 'popup' | 'inline'
   if (!WID) { console.warn('[Nyasadesk] data-workspace-id is required'); return; }
 
+  const INLINE = MODE === 'inline';
+
   // ── State ─────────────────────────────────────────────────────────────────
-  let sessionId  = localStorage.getItem('nyasa_session_' + WID) || null;
+  let sessionId    = localStorage.getItem('nyasa_session_' + WID) || null;
   let visitorName  = localStorage.getItem('nyasa_name_' + WID)  || null;
-  let color      = '#25D366';
-  let lastPollAt = new Date().toISOString();
-  let open       = false;
-  let pollTimer  = null;
+  let color        = '#25D366';
+  let lastPollAt   = new Date().toISOString();
+  let open         = INLINE ? true : false;
+  let pollTimer    = null;
 
   // ── Helpers ───────────────────────────────────────────────────────────────
   const api = (body) => fetch(API, {
@@ -63,6 +69,13 @@
       transition: transform .25s cubic-bezier(.4,0,.2,1), opacity .25s;
     }
     #nyasa-window.closed { transform: scale(0.7) translateY(20px); opacity: 0; pointer-events: none; }
+    /* ── Inline / support-page mode: fill the container instead of floating ── */
+    #nyasa-widget.nyasa-inline #nyasa-window {
+      position: static; width: 100%; height: 100%; max-width: none; max-height: none;
+      border-radius: 12px; box-shadow: none; transform: none !important; opacity: 1 !important;
+      pointer-events: auto !important; min-height: 480px;
+    }
+    #nyasa-widget.nyasa-inline { display: block; width: 100%; height: 100%; }
     #nyasa-header {
       background: var(--nyasa-color); padding: 14px 16px;
       display: flex; align-items: center; gap: 10px; flex-shrink: 0;
@@ -79,7 +92,7 @@
     #nyasa-close { background: none; border: none; cursor: pointer; color: rgba(255,255,255,0.8); font-size: 20px; padding: 4px; }
     #nyasa-msgs {
       flex: 1; overflow-y: auto; padding: 16px; background: #ECE5DD;
-      display: flex; flex-direction: column; gap: 8px;
+      display: flex; flex-direction: column; gap: 10px;
     }
     #nyasa-msgs::-webkit-scrollbar { width: 4px; }
     #nyasa-msgs::-webkit-scrollbar-thumb { background: rgba(0,0,0,0.1); border-radius: 2px; }
@@ -87,11 +100,12 @@
     .nyasa-bubble.out { align-self: flex-end; align-items: flex-end; }
     .nyasa-bubble.in  { align-self: flex-start; align-items: flex-start; }
     .nyasa-bubble .text {
-      padding: 8px 12px; font-size: 13px; line-height: 1.4; word-break: break-word;
+      padding: 10px 14px 11px; font-size: 14px; line-height: 1.45; word-break: break-word;
+      box-shadow: 0 1px 0.5px rgba(0,0,0,0.13);
     }
-    .nyasa-bubble.out .text { background: #DCF8C6; color: #1a1a1a; border-radius: 10px 2px 10px 10px; }
-    .nyasa-bubble.in  .text { background: #fff;      color: #1a1a1a; border-radius: 2px 10px 10px 10px; }
-    .nyasa-bubble .meta { font-size: 10px; color: #888; margin-top: 2px; padding: 0 4px; }
+    .nyasa-bubble.out .text { background: #DCF8C6; color: #1a1a1a; border-radius: 12px 3px 12px 12px; }
+    .nyasa-bubble.in  .text { background: #fff;      color: #1a1a1a; border-radius: 3px 12px 12px 12px; }
+    .nyasa-bubble .meta { font-size: 10px; color: #888; margin-top: 3px; padding: 0 4px; }
     .nyasa-system { text-align: center; font-size: 11px; color: #888; padding: 4px 0; }
     #nyasa-name-gate { background: #fff; padding: 16px; border-top: 1px solid #eee; flex-shrink: 0; }
     #nyasa-name-gate p { font-size: 12px; color: #666; margin-bottom: 8px; }
@@ -129,20 +143,29 @@
 
   const root = document.createElement('div');
   root.id = 'nyasa-widget';
-  document.body.appendChild(root);
+  if (INLINE) {
+    root.className = 'nyasa-inline';
+    // In inline mode, mount into a target container if present, else right where the script tag is
+    const target = document.getElementById('nyasa-inline-target') || script.parentElement || document.body;
+    target.appendChild(root);
+  } else {
+    document.body.appendChild(root);
+  }
+
   root.innerHTML = `
+    ${INLINE ? '' : `
     <button id="nyasa-fab" title="Chat with us">
       <span id="nyasa-badge"></span>
       <svg viewBox="0 0 24 24"><path d="M20 2H4a2 2 0 0 0-2 2v18l4-4h14a2 2 0 0 0 2-2V4a2 2 0 0 0-2-2z"/></svg>
-    </button>
-    <div id="nyasa-window" class="closed">
+    </button>`}
+    <div id="nyasa-window" class="${INLINE ? '' : 'closed'}">
       <div id="nyasa-header">
         <div class="avatar">💬</div>
         <div class="info">
-          <div class="name">Support Team</div>
+          <div class="name" id="nyasa-header-name">Support Team</div>
           <div class="status"><span class="dot"></span> Online</div>
         </div>
-        <button id="nyasa-close" title="Close">✕</button>
+        ${INLINE ? '' : '<button id="nyasa-close" title="Close">✕</button>'}
       </div>
       <div id="nyasa-msgs"></div>
       <div id="nyasa-name-gate" style="display:none">
@@ -162,18 +185,24 @@
   `;
 
   // ── Refs ──────────────────────────────────────────────────────────────────
-  const fab       = document.getElementById('nyasa-fab');
-  const win       = document.getElementById('nyasa-window');
-  const badge     = document.getElementById('nyasa-badge');
-  const msgs      = document.getElementById('nyasa-msgs');
-  const nameGate  = document.getElementById('nyasa-name-gate');
-  const composer  = document.getElementById('nyasa-composer');
-  const nameInput = document.getElementById('nyasa-name-input');
-  const emailInput= document.getElementById('nyasa-email-input');
-  const nameBtn   = document.getElementById('nyasa-name-btn');
-  const input     = document.getElementById('nyasa-input');
-  const sendBtn   = document.getElementById('nyasa-send');
-  const closeBtn  = document.getElementById('nyasa-close');
+  const fab        = document.getElementById('nyasa-fab');
+  const win         = document.getElementById('nyasa-window');
+  const badge       = document.getElementById('nyasa-badge');
+  const msgs        = document.getElementById('nyasa-msgs');
+  const nameGate    = document.getElementById('nyasa-name-gate');
+  const composer    = document.getElementById('nyasa-composer');
+  const nameInput   = document.getElementById('nyasa-name-input');
+  const emailInput  = document.getElementById('nyasa-email-input');
+  const nameBtn     = document.getElementById('nyasa-name-btn');
+  const input       = document.getElementById('nyasa-input');
+  const sendBtn     = document.getElementById('nyasa-send');
+  const closeBtn    = document.getElementById('nyasa-close');
+  const headerName  = document.getElementById('nyasa-header-name');
+
+  const showComposerOrGate = () => {
+    if (!visitorName) { nameGate.style.display = 'block'; composer.style.display = 'none'; }
+    else { nameGate.style.display = 'none'; composer.style.display = 'flex'; }
+  };
 
   // ── Init ──────────────────────────────────────────────────────────────────
   api({ action: 'start', session_id: sessionId }).then(data => {
@@ -181,31 +210,39 @@
     root.style.setProperty('--nyasa-color', color);
     if (data.session_id) { sessionId = data.session_id; localStorage.setItem('nyasa_session_' + WID, sessionId); }
     const label = data.label || 'Chat with us';
-    fab.title = label;
+    if (fab) fab.title = label;
+    if (headerName) headerName.textContent = data.agent_name || 'Support Team';
     addMsg('in', data.greeting || 'Hi! How can we help?', new Date().toISOString());
-    badge.style.display = 'flex';
-    badge.textContent = '1';
+    if (!INLINE) {
+      badge.style.display = 'flex';
+      badge.textContent = '1';
+    } else {
+      showComposerOrGate();
+      startPolling();
+      if (visitorName) input.focus();
+    }
   }).catch(() => {
     root.style.setProperty('--nyasa-color', '#25D366');
+    if (INLINE) showComposerOrGate();
   });
 
-  // ── Toggle ────────────────────────────────────────────────────────────────
+  // ── Toggle (popup mode only) ─────────────────────────────────────────────
   const toggleOpen = () => {
     open = !open;
     win.classList.toggle('closed', !open);
     badge.style.display = 'none';
     badge.textContent = '0';
     if (open) {
-      if (!visitorName) { nameGate.style.display = 'block'; composer.style.display = 'none'; }
-      else { nameGate.style.display = 'none'; composer.style.display = 'flex'; input.focus(); }
+      showComposerOrGate();
+      if (visitorName) input.focus();
       startPolling();
       msgs.scrollTop = msgs.scrollHeight;
     } else {
       stopPolling();
     }
   };
-  fab.addEventListener('click', toggleOpen);
-  closeBtn.addEventListener('click', toggleOpen);
+  if (fab) fab.addEventListener('click', toggleOpen);
+  if (closeBtn) closeBtn.addEventListener('click', toggleOpen);
 
   // ── Name gate ─────────────────────────────────────────────────────────────
   nameBtn.addEventListener('click', () => {
