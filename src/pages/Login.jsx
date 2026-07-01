@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { Link } from 'react-router-dom';
 import { useAuth } from '@/lib/AuthContext';
 import { Loader2, Mail, Lock, Eye, EyeOff } from 'lucide-react';
+import { useDocumentTitle } from '@/hooks/useDocumentTitle';
 
 const WA_GREEN = '#25D366';
 const BG = '#111B21';
@@ -11,6 +12,7 @@ const TEXT = '#E9EDF0';
 const MUTED = '#8696A0';
 
 export default function Login() {
+  useDocumentTitle('Sign In');
   const { signIn, signInWithGoogle } = useAuth();
   const [email, setEmail]       = useState('');
   const [password, setPassword] = useState('');
