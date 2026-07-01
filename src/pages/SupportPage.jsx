@@ -23,6 +23,11 @@ export default function SupportPage() {
     script.setAttribute('data-workspace-id', workspaceId || '');
     script.setAttribute('data-mode', 'inline');
     script.setAttribute('data-theme', theme);
+    // This page already declares its theme explicitly and the widget's own
+    // light/dark palette has correct contrast built in — skip the "guess the
+    // real host page's colors" heuristic meant for 3rd-party site embeds, so
+    // this page never inherits stray colors from elsewhere in the app.
+    script.setAttribute('data-native-detect', 'false');
     document.body.appendChild(script);
 
     return () => {
