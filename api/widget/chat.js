@@ -24,10 +24,11 @@ export default async function handler(req, res) {
     // ── START SESSION: visitor opens the widget ──────────────────────────────
     if (action === 'start' || req.method === 'GET') {
       const visitorId = session_id || `visitor-${Date.now()}-${Math.random().toString(36).slice(2,8)}`;
-      const greeting  = cfg?.config?.greeting || "Hi there! 👋 How can we help you today?";
-      const color     = cfg?.config?.widget_color || '#25D366';
-      const label     = cfg?.config?.label || 'Chat with us';
-      return res.status(200).json({ session_id: visitorId, greeting, color, label });
+      const greeting   = cfg?.config?.greeting || "Hi there! 👋 How can we help you today?";
+      const color      = cfg?.config?.widget_color || '#25D366';
+      const label      = cfg?.config?.label || 'Chat with us';
+      const agent_name = cfg?.config?.agent_name || 'Support Team';
+      return res.status(200).json({ session_id: visitorId, greeting, color, label, agent_name });
     }
 
     // ── SEND: visitor sends a message ────────────────────────────────────────
