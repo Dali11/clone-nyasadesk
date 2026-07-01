@@ -335,3 +335,112 @@ export async function sendBroadcast(workspaceId, broadcastId) {
   if (updateErr) throw updateErr;
   return updated;
 }
+
+// ── Manual conversations (New Conversation modal) ────────────────────────────
+
+// Creates a manual contact + conversation (used by "New Conversation" in the
+// inbox — e.g. logging an offline/phone lead by hand). Channel defaults to
+// 'website' since that's the only channel that doesn't require a real
+// external_id from a connected provider.
+export async function createManualConversation(workspaceId, { contact_name, contact_email, subject, channel, priority, assigned_to, assigned_to_name }) {
+  const { data: contact, error: contactErr } = await supabase
+    .from('contacts')
+    .insert({ workspace_id: workspaceId, channel: channel || 'website', full_name: contact_name, email: contact_email || null })
+    .select('id')
+    .single();
+  if (contactErr) throw contactErr;
+
+  const { data: conv, error: convErr } = await supabase
+    .from('conversations')
+    .insert({
+      workspace_id: workspaceId, contact_id: contact.id, channel: channel || 'website',
+      status: assigned_to ? 'open' : 'unassigned', subject, priority: priority || 'normal',
+      assigned_to: assigned_to || null, assigned_to_name: assigned_to_name || null,
+      last_message: '', last_message_at: new Date().toISOString(),
+    })
+    .select('*, contact:contacts(id,full_name,phone,email,company,avatar_url,deal_stage,tags,notes)')
+    .single();
+  if (convErr) throw convErr;
+  return normalizeConversation(conv);
+}
+
+// ── Rules ────────────────────────────────────────────────────────────────────
+
+export async function getRules(workspaceId) {
+  const { data, error } = await supabase
+    .from('rules')
+    .select('*')
+    .eq('workspace_id', workspaceId)
+    .order('priority_order', { ascending: true });
+  if (error) throw error;
+  return data || [];
+}
+
+export async function createRule(workspaceId, rule) {
+  const { data, error } = await supabase
+    .from('rules')
+    .insert({
+      workspace_id: workspaceId, name: rule.name, type: rule.type, channel: rule.channel,
+      condition_value: rule.condition_value || null, assigned_to_ids: rule.assigned_to_ids || [],
+      assigned_to_names: rule.assigned_to_names || [], priority_order: rule.priority_order || 1,
+      is_active: rule.is_active !== false,
+    })
+    .select()
+    .single();
+  if (error) throw error;
+  return data;
+}
+
+export async function updateRule(id, updates) {
+  const { data, error } = await supabase
+    .from('rules')
+    .update({ ...updates, updated_at: new Date().toISOString() })
+    .eq('id', id)
+    .select()
+    .single();
+  if (error) throw error;
+  return data;
+}
+
+export async function deleteRule(id) {
+  const { error } = await supabase.from('rules').delete().eq('id', id);
+  if (error) throw error;
+}
+
+// ── Canned responses ─────────────────────────────────────────────────────────
+
+export async function getCannedResponses(workspaceId) {
+  const { data, error } = await supabase
+    .from('canned_responses')
+    .select('*')
+    .eq('workspace_id', workspaceId)
+    .order('created_at', { ascending: true });
+  if (error) throw error;
+  return data || [];
+}
+
+export async function createCannedResponse(workspaceId, { title, shortcut, body }) {
+  const { data, error } = await supabase
+    .from('canned_responses')
+    .insert({ workspace_id: workspaceId, title, shortcut, body })
+    .select()
+    .single();
+  if (error) throw error;
+  return data;
+}
+
+export async function updateCannedResponse(id, updates) {
+  const { data, error } = await supabase
+    .from('canned_responses')
+    .update({ ...updates, updated_at: new Date().toISOString() })
+    .eq('id', id)
+    .select()
+    .single();
+  if (error) throw error;
+  return data;
+}
+
+export async function deleteCannedResponse(id) {
+  const { error } = await supabase.from('canned_responses').delete().eq('id', id);
+  if (error) throw error;
+}
