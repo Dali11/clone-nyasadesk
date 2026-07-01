@@ -105,7 +105,7 @@ export default function Contacts() {
   const inputCls = 'w-full bg-[#2A3942] text-white text-sm rounded-xl px-4 py-2.5 focus:outline-none focus:ring-1 focus:ring-[#25D366] border-0 placeholder:text-gray-600';
 
   return (
-    <div className="flex h-screen overflow-hidden bg-[#111B21]">
+    <div className="flex h-screen overflow-hidden bg-[#111B21] pt-14 md:pt-0 pb-[56px] md:pb-0">
       <Sidebar />
       <div className="flex-1 flex flex-col overflow-hidden bg-[#0D1418]">
         <div className="px-6 py-4 border-b border-white/10 flex items-center gap-4 bg-[#111B21]">
