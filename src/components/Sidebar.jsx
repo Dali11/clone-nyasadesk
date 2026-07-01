@@ -27,8 +27,8 @@ export default function Sidebar() {
 
   return (
     <>
-      {/* ── Desktop: vertical rail ─────────────────────────────────────── */}
-      <div className="hidden md:flex w-64 flex-col shrink-0 bg-[#111B21] border-r border-white/5">
+      {/* ── Desktop (≥1024px): full labeled rail ──────────────────────── */}
+      <div className="hidden lg:flex w-64 flex-col shrink-0 bg-[#111B21] border-r border-white/5">
 
         {/* Header — matches onboarding style */}
         <div
@@ -86,7 +86,40 @@ export default function Sidebar() {
         </div>
       </div>
 
-      {/* ── Mobile: top header + bottom tab bar ───────────────────────── */}
+      {/* ── Tablet (768–1023px): compact icon-only rail ───────────────── */}
+      <div className="hidden md:flex lg:hidden w-16 flex-col shrink-0 bg-[#111B21] border-r border-white/5">
+        <div
+          className="h-14 flex items-center justify-center border-b border-white/5 shrink-0"
+          style={{ background: 'linear-gradient(135deg, #075E54 0%, #128C7E 100%)' }}
+        >
+          <div className="w-8 h-8 rounded-lg bg-white/20 flex items-center justify-center">
+            <span className="text-white font-black text-sm leading-none">N</span>
+          </div>
+        </div>
+
+        <div className="flex-1 overflow-y-auto py-3 flex flex-col items-center gap-1">
+          {NAV.map(({ path, icon: Icon, label }) => {
+            const active = pathname === path;
+            return (
+              <Link key={path} to={path} title={label}
+                className={`flex items-center justify-center w-10 h-10 rounded-xl transition-all
+                  ${active
+                    ? 'bg-[#25D366]/15 text-[#25D366]'
+                    : 'text-gray-400 hover:bg-white/5 hover:text-gray-200'
+                  }`}
+              >
+                <Icon className="w-4.5 h-4.5" />
+              </Link>
+            );
+          })}
+        </div>
+
+        <div className="p-2 border-t border-white/5 flex items-center justify-center">
+          <Avatar name={user?.full_name || ''} size="sm" status={user?.status || 'online'} />
+        </div>
+      </div>
+
+      {/* ── Mobile (<768px): top header + bottom tab bar ──────────────── */}
       {/* Top header bar */}
       <div
         className="md:hidden fixed top-0 left-0 right-0 z-50 flex items-center gap-3 px-4 h-14 border-b border-white/10"
