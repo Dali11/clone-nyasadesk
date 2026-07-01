@@ -110,7 +110,12 @@ export async function getMessages(conversationId) {
 }
 
 export async function sendMessage(workspaceId, conversationId, body, senderName) {
-  // 1. Insert message record
+  // 1. Insert message record — return as soon as this lands so the caller can
+  // reconcile its optimistic bubble immediately. Everything below (steps 2 & 3)
+  // used to be awaited before returning, which left a multi-hundred-ms window
+  // where the realtime INSERT event for this same row could reach the client
+  // and get appended as a second, duplicate bubble before the temp bubble was
+  // reconciled. Returning early shrinks that window to near-zero.
   const { data: msg, error } = await supabase
     .from('messages')
     .insert({
@@ -125,29 +130,30 @@ export async function sendMessage(workspaceId, conversationId, body, senderName)
     .single();
   if (error) throw error;
 
-  // 2. Update conversation last_message
-  await supabase.from('conversations').update({
-    last_message: body,
-    last_message_at: new Date().toISOString(),
-    updated_at: new Date().toISOString(),
-  }).eq('id', conversationId);
+  // 2 & 3 run in the background — NOT awaited before returning. Their outcome
+  // (status → 'delivered' / 'failed') reaches the UI via the realtime UPDATE
+  // subscription in subscribeToMessages, not via this function's return value.
+  (async () => {
+    try {
+      // Update conversation preview
+      await supabase.from('conversations').update({
+        last_message: body,
+        last_message_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+      }).eq('id', conversationId);
 
-  // 3. Dispatch via edge function
-  try {
-    const { data: conv } = await supabase.from('conversations').select('channel,external_id,workspace_id').eq('id', conversationId).single();
-    const res = await fetch('/api/channels/send', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ message_id: msg.id, conversation_id: conversationId, workspace_id: workspaceId, channel: conv.channel, body }),
-    });
-    if (res.ok) {
-      await supabase.from('messages').update({ status: 'delivered' }).eq('id', msg.id);
-    } else {
+      // Dispatch via edge function
+      const { data: conv } = await supabase.from('conversations').select('channel,external_id,workspace_id').eq('id', conversationId).single();
+      const res = await fetch('/api/channels/send', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ message_id: msg.id, conversation_id: conversationId, workspace_id: workspaceId, channel: conv.channel, body }),
+      });
+      await supabase.from('messages').update({ status: res.ok ? 'delivered' : 'failed' }).eq('id', msg.id);
+    } catch (e) {
       await supabase.from('messages').update({ status: 'failed' }).eq('id', msg.id);
     }
-  } catch (e) {
-    await supabase.from('messages').update({ status: 'failed' }).eq('id', msg.id);
-  }
+  })();
 
   return msg;
 }
@@ -170,7 +176,10 @@ export function subscribeToMessages(conversationId, callback) {
   return supabase
     .channel('messages:' + conversationId)
     .on('postgres_changes', {
-      event: 'INSERT',
+      // '*' (not just INSERT) — a message's status flips from 'sending' to
+      // 'delivered'/'failed' via a later UPDATE once dispatch completes, and
+      // the UI needs that event too or the spinner never clears.
+      event: '*',
       schema: 'public',
       table: 'messages',
       filter: `conversation_id=eq.${conversationId}`,
