@@ -1,5 +1,5 @@
 import { Link } from 'react-router-dom';
-import { MessageSquare, Users, Zap, Shield, Globe, ChevronRight, Check, ArrowRight } from 'lucide-react';
+import { MessageSquare, Users, Zap, Shield, Globe, Clock, ArrowRight } from 'lucide-react';
 
 const WA_GREEN      = '#25D366';
 const WA_DARK_GREEN = '#128C7E';
@@ -11,17 +11,12 @@ const TEXT          = '#E9EDF0';
 const MUTED         = '#8696A0';
 
 const FEATURES = [
-  { icon: MessageSquare, title: 'Omnichannel Inbox',   desc: 'WhatsApp, email, live chat — all in one place. No more tab-switching.' },
-  { icon: Users,         title: 'Team Collaboration',  desc: 'Assign conversations, leave internal notes, see who\u2019s online in real time.' },
-  { icon: Zap,           title: 'Smart Automation',    desc: 'Auto-assign by keyword, SLA alerts, canned responses, broadcast campaigns.' },
-  { icon: Shield,        title: 'Built for Sales',     desc: 'Deal stages, contact CRM, pipeline overview — your sales context lives here.' },
-  { icon: Globe,         title: 'Any Channel',         desc: 'Connect WhatsApp Business, Facebook Messenger, email or a website widget.' },
-];
-
-const PLANS = [
-  { name: 'Starter', price: '$29', period: '/mo', seats: '3 agents', features: ['1 channel', 'Shared inbox', 'Canned responses', 'Basic reports'], cta: 'Start free trial' },
-  { name: 'Growth',  price: '$79', period: '/mo', seats: '10 agents', features: ['5 channels', 'All Starter features', 'Broadcasts', 'SLA management', 'API access'], cta: 'Start free trial', highlight: true },
-  { name: 'Scale',   price: '$199',period: '/mo', seats: 'Unlimited', features: ['Unlimited channels', 'All Growth features', 'Custom workflows', 'Priority support', 'SSO'], cta: 'Contact sales' },
+  { icon: MessageSquare, title: 'Omnichannel Inbox',    desc: 'WhatsApp, Facebook Messenger, email, and your website chat — all in one shared inbox.' },
+  { icon: Users,         title: 'Team Collaboration',   desc: 'Invite your team, assign conversations, and see who\u2019s handling what in real time.' },
+  { icon: Zap,           title: 'Smart Auto-Assignment',desc: 'Round-robin, by channel, or by lead source — incoming chats route straight to the right agent.' },
+  { icon: Clock,         title: 'SLA Tracking',         desc: 'Set a response-time target and get a live countdown on every open conversation.' },
+  { icon: Shield,        title: 'Built for Sales',      desc: 'Deal stages, contact CRM, canned responses, and broadcast campaigns — your sales context lives here.' },
+  { icon: Globe,         title: 'Any Channel, One Setup',desc: 'Connect WhatsApp Business, Messenger, email, or embed a website widget in minutes.' },
 ];
 
 const MOCK_MSGS = [
@@ -44,9 +39,12 @@ export default function Landing() {
             </div>
             <span style={{ fontWeight: 700, fontSize: 18, color: TEXT }}>Nyasadesk</span>
           </div>
-          <div style={{ display: 'flex', gap: 12 }}>
-<Link to="/register" style={{ background: WA_GREEN, color: '#fff', textDecoration: 'none', fontSize: 14, fontWeight: 600, padding: '8px 18px', borderRadius: 8 }}>
-              Get started free
+          <div style={{ display: 'flex', alignItems: 'center', gap: 20 }}>
+            <Link to="/pricing" style={{ color: MUTED, textDecoration: 'none', fontSize: 14, fontWeight: 600 }}>
+              Pricing
+            </Link>
+            <Link to="/register" style={{ background: WA_GREEN, color: '#fff', textDecoration: 'none', fontSize: 14, fontWeight: 600, padding: '8px 18px', borderRadius: 8 }}>
+              Get started
             </Link>
           </div>
         </div>
@@ -55,26 +53,24 @@ export default function Landing() {
       {/* HERO */}
       <section style={{ maxWidth: 1100, margin: '0 auto', padding: '80px 24px 60px', display: 'flex', alignItems: 'center', gap: 60, flexWrap: 'wrap' }}>
         <div style={{ flex: '1 1 400px' }}>
-          <div style={{ display: 'inline-flex', alignItems: 'center', gap: 8, background: `${WA_GREEN}18`, border: `1px solid ${WA_GREEN}40`, borderRadius: 999, padding: '6px 14px', marginBottom: 24 }}>
-            <span style={{ width: 8, height: 8, borderRadius: '50%', background: WA_GREEN, display: 'inline-block' }} />
-            <span style={{ color: WA_GREEN, fontSize: 13, fontWeight: 500 }}>Now in beta — free until launch</span>
-          </div>
           <h1 style={{ fontSize: 'clamp(36px, 5vw, 56px)', fontWeight: 800, lineHeight: 1.1, marginBottom: 20, color: TEXT }}>
             Your team's shared<br />
             <span style={{ color: WA_GREEN }}>sales inbox.</span>
           </h1>
           <p style={{ fontSize: 16, color: MUTED, lineHeight: 1.7, marginBottom: 36, maxWidth: 460 }}>
-            Nyasadesk brings WhatsApp, email, and live chat into one inbox your whole sales team can work from — with contacts, deal stages, and automation built in.
+            Nyasadesk brings WhatsApp, Messenger, email, and live chat into one inbox your whole team can work from — with contacts, deal stages, and automatic assignment built in.
           </p>
           <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap' }}>
             <Link to="/register" style={{ background: WA_GREEN, color: '#fff', textDecoration: 'none', fontWeight: 700, fontSize: 15, padding: '14px 28px', borderRadius: 12, display: 'flex', alignItems: 'center', gap: 8 }}>
-              Start for free <ArrowRight size={18} />
+              Get started <ArrowRight size={18} />
             </Link>
             <a href="#features" style={{ background: SURFACE2, color: TEXT, textDecoration: 'none', fontWeight: 600, fontSize: 15, padding: '14px 28px', borderRadius: 12 }}>
               See how it works
             </a>
           </div>
-          <p style={{ marginTop: 16, fontSize: 13, color: MUTED }}>No credit card required · Free 14-day trial</p>
+          <p style={{ marginTop: 16, fontSize: 13, color: MUTED }}>
+            <Link to="/pricing" style={{ color: WA_GREEN, textDecoration: 'none', fontWeight: 600 }}>View pricing →</Link>
+          </p>
         </div>
 
         {/* Mock inbox preview */}
@@ -119,7 +115,7 @@ export default function Landing() {
       <section id="features" style={{ borderTop: `1px solid ${SURFACE2}`, padding: '80px 24px' }}>
         <div style={{ maxWidth: 1100, margin: '0 auto' }}>
           <div style={{ textAlign: 'center', marginBottom: 56 }}>
-            <h2 style={{ fontSize: 36, fontWeight: 800, color: TEXT, marginBottom: 12 }}>Everything your sales team needs</h2>
+            <h2 style={{ fontSize: 36, fontWeight: 800, color: TEXT, marginBottom: 12 }}>Everything your team needs</h2>
             <p style={{ color: MUTED, fontSize: 16 }}>Built from the ground up for teams that close deals over messaging.</p>
           </div>
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: 24 }}>
@@ -136,51 +132,18 @@ export default function Landing() {
         </div>
       </section>
 
-      {/* PRICING */}
-      <section style={{ borderTop: `1px solid ${SURFACE2}`, padding: '80px 24px', background: SURFACE }}>
-        <div style={{ maxWidth: 1100, margin: '0 auto' }}>
-          <div style={{ textAlign: 'center', marginBottom: 56 }}>
-            <h2 style={{ fontSize: 36, fontWeight: 800, color: TEXT, marginBottom: 12 }}>Simple, transparent pricing</h2>
-            <p style={{ color: MUTED, fontSize: 16 }}>Start free. Scale as you grow.</p>
-          </div>
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(260px, 1fr))', gap: 24, alignItems: 'start' }}>
-            {PLANS.map(p => (
-              <div key={p.name} style={{
-                background: p.highlight ? `linear-gradient(135deg, ${WA_NAVY}, ${WA_DARK_GREEN})` : BG,
-                borderRadius: 20, padding: '32px 28px',
-                border: p.highlight ? `2px solid ${WA_GREEN}` : `1px solid ${SURFACE2}`,
-                position: 'relative'
-              }}>
-                {p.highlight && (
-                  <div style={{ position: 'absolute', top: -13, left: '50%', transform: 'translateX(-50%)', background: WA_GREEN, color: '#fff', fontSize: 12, fontWeight: 700, padding: '4px 14px', borderRadius: 999 }}>
-                    Most popular
-                  </div>
-                )}
-                <p style={{ color: MUTED, fontSize: 13, fontWeight: 600, textTransform: 'uppercase', letterSpacing: 1, marginBottom: 8 }}>{p.name}</p>
-                <div style={{ display: 'flex', alignItems: 'baseline', gap: 4, marginBottom: 4 }}>
-                  <span style={{ fontSize: 42, fontWeight: 800, color: TEXT }}>{p.price}</span>
-                  <span style={{ color: MUTED, fontSize: 14 }}>{p.period}</span>
-                </div>
-                <p style={{ color: MUTED, fontSize: 13, marginBottom: 24 }}>{p.seats}</p>
-                <ul style={{ listStyle: 'none', padding: 0, margin: '0 0 28px', display: 'flex', flexDirection: 'column', gap: 10 }}>
-                  {p.features.map(f => (
-                    <li key={f} style={{ display: 'flex', alignItems: 'center', gap: 10, fontSize: 14, color: TEXT }}>
-                      <Check size={16} color={WA_GREEN} style={{ flexShrink: 0 }} />
-                      {f}
-                    </li>
-                  ))}
-                </ul>
-                <Link to="/register" style={{
-                  display: 'block', textAlign: 'center', textDecoration: 'none',
-                  background: p.highlight ? WA_GREEN : SURFACE2,
-                  color: '#fff', fontWeight: 700, fontSize: 14,
-                  padding: '12px 0', borderRadius: 10
-                }}>
-                  {p.cta}
-                </Link>
-              </div>
-            ))}
-          </div>
+      {/* PRICING TEASER — full tiers live on /pricing */}
+      <section style={{ borderTop: `1px solid ${SURFACE2}`, padding: '64px 24px', background: SURFACE, textAlign: 'center' }}>
+        <div style={{ maxWidth: 640, margin: '0 auto' }}>
+          <h2 style={{ fontSize: 28, fontWeight: 800, color: TEXT, marginBottom: 12 }}>Simple, transparent pricing</h2>
+          <p style={{ color: MUTED, fontSize: 15, marginBottom: 28 }}>Plans starting at $10/month — pick the one that fits your team.</p>
+          <Link to="/pricing" style={{
+            display: 'inline-flex', alignItems: 'center', gap: 8, textDecoration: 'none',
+            background: WA_GREEN, color: '#fff', fontWeight: 700, fontSize: 15,
+            padding: '14px 28px', borderRadius: 12,
+          }}>
+            View pricing <ArrowRight size={18} />
+          </Link>
         </div>
       </section>
 
@@ -195,14 +158,14 @@ export default function Landing() {
             Join teams already using Nyasadesk to manage their sales conversations at scale.
           </p>
           <Link to="/register" style={{ background: WA_GREEN, color: '#fff', textDecoration: 'none', fontWeight: 700, fontSize: 16, padding: '16px 36px', borderRadius: 14, display: 'inline-flex', alignItems: 'center', gap: 10 }}>
-            Get started free <ArrowRight size={20} />
+            Get started <ArrowRight size={20} />
           </Link>
-          <p style={{ marginTop: 16, fontSize: 13, color: MUTED }}>No credit card · 14-day free trial · Cancel anytime</p>
         </div>
         <div style={{ borderTop: `1px solid ${SURFACE2}`, marginTop: 80, paddingTop: 32, display: 'flex', justifyContent: 'center', gap: 32, flexWrap: 'wrap' }}>
-          {['© 2026 Nyasadesk','Privacy Policy','Terms of Service','Contact'].map(item => (
-            <span key={item} style={{ fontSize: 13, color: MUTED, cursor: 'pointer' }}>{item}</span>
-          ))}
+          <Link to="/pricing" style={{ fontSize: 13, color: MUTED, textDecoration: 'none' }}>Pricing</Link>
+          <Link to="/privacy" style={{ fontSize: 13, color: MUTED, textDecoration: 'none' }}>Privacy Policy</Link>
+          <Link to="/data-deletion" style={{ fontSize: 13, color: MUTED, textDecoration: 'none' }}>Data Deletion</Link>
+          <span style={{ fontSize: 13, color: MUTED }}>© 2026 Nyasadesk</span>
         </div>
       </section>
     </div>
