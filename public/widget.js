@@ -103,12 +103,6 @@
       --nyasa-out-bubble: #DCF8C6; --nyasa-text: #1a1a1a; --nyasa-muted: #888888;
       --nyasa-border: #eeeeee; --nyasa-radius: 12px;
     }
-    @media (prefers-color-scheme: dark) {
-      #nyasa-widget.nyasa-theme-auto {
-        --nyasa-page-bg: #17181A; --nyasa-panel-bg: #1F2023; --nyasa-in-bubble: #2A2B2E;
-        --nyasa-out-bubble: #1F6E4A; --nyasa-text: #EDEDED; --nyasa-muted: #9A9A9A; --nyasa-border: #2E2F33;
-      }
-    }
     #nyasa-widget.nyasa-theme-dark {
       --nyasa-page-bg: #17181A; --nyasa-panel-bg: #1F2023; --nyasa-in-bubble: #2A2B2E;
       --nyasa-out-bubble: #1F6E4A; --nyasa-text: #EDEDED; --nyasa-muted: #9A9A9A; --nyasa-border: #2E2F33;
@@ -215,7 +209,10 @@
 
   const root = document.createElement('div');
   root.id = 'nyasa-widget';
-  root.classList.add(THEME === 'auto' ? 'nyasa-theme-auto' : (isDark ? 'nyasa-theme-dark' : 'nyasa-theme-light'));
+  // Resolve to a concrete theme class using the JS-computed isDark value —
+  // this covers explicit dark/light AND 'auto', so there's no separate CSS
+  // media-query path to fall out of sync with what we just calculated.
+  if (isDark) root.classList.add('nyasa-theme-dark');
   if (INLINE) {
     root.classList.add('nyasa-inline');
     // In inline mode, mount into a target container if present, else right where the script tag is
