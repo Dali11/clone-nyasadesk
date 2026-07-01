@@ -1,8 +1,10 @@
+import { useState, useEffect, useCallback } from 'react';
 import { BarChart, Bar, XAxis, YAxis, ResponsiveContainer, Tooltip, Cell, PieChart, Pie } from 'recharts';
-import { MessageSquare, Clock, AlertCircle, CheckCircle, TrendingUp, TrendingDown, Minus } from 'lucide-react';
+import { MessageSquare, Clock, AlertCircle, CheckCircle, TrendingUp, TrendingDown, Minus, Loader2 } from 'lucide-react';
 import Sidebar from '@/components/Sidebar';
 import Avatar from '@/components/Avatar';
-import { store } from '@/lib/store';
+import { useNyasaAuth } from '@/lib/NyasaAuth';
+import { getConversations } from '@/lib/channels';
 
 function StatCard({ label, value, sub, color, icon: Icon, trend, trendLabel }) {
   const TrendIcon = trend === 'up' ? TrendingUp : trend === 'down' ? TrendingDown : Minus;
@@ -60,17 +62,54 @@ function StatCard({ label, value, sub, color, icon: Icon, trend, trendLabel }) {
   );
 }
 
+// Real, honest day-over-day comparison — no guessed percentages.
+// Returns a trend direction + a plain-language delta label.
+function dayOverDay(todayCount, yesterdayCount) {
+  const diff = todayCount - yesterdayCount;
+  if (diff === 0) return { trend: 'neutral', label: yesterdayCount === 0 && todayCount === 0 ? 'No activity yet' : 'Same as yesterday' };
+  return { trend: diff > 0 ? 'up' : 'down', label: `${diff > 0 ? '+' : ''}${diff} vs yesterday` };
+}
+
 export default function Dashboard() {
-  const conversations = store.getConversations();
-  const users = store.getUsers();
+  const { user } = useNyasaAuth();
+  const [conversations, setConversations] = useState([]);
+  const [loading, setLoading] = useState(true);
+
+  const load = useCallback(async () => {
+    if (!user?.id) return;
+    try {
+      const data = await getConversations(user.id);
+      setConversations(data);
+    } catch (e) {
+      console.error('Failed to load dashboard data:', e);
+    } finally {
+      setLoading(false);
+    }
+  }, [user?.id]);
+
+  useEffect(() => { load(); }, [load]);
+
+  const now = new Date();
+  const startOfDay = (d) => { const x = new Date(d); x.setHours(0, 0, 0, 0); return x; };
+  const today = startOfDay(now);
+  const yesterdayStart = new Date(today); yesterdayStart.setDate(yesterdayStart.getDate() - 1);
+  const isToday = (d) => d && new Date(d) >= today;
+  const isYesterday = (d) => d && new Date(d) >= yesterdayStart && new Date(d) < today;
 
   const totalOpen = conversations.filter(c => c.status !== 'closed').length;
-  const unassigned = conversations.filter(c => !c.assigned_to).length;
+  const unassigned = conversations.filter(c => !c.assigned_to && c.status !== 'closed').length;
   const urgent = conversations.filter(c => c.priority === 'urgent' && c.status !== 'closed').length;
-  const closedToday = conversations.filter(c => {
-    if (c.status !== 'closed') return false;
-    return new Date(c.updated_date).toDateString() === new Date().toDateString();
-  }).length;
+  const closedToday = conversations.filter(c => c.status === 'closed' && isToday(c.updated_at)).length;
+  const closedYesterday = conversations.filter(c => c.status === 'closed' && isYesterday(c.updated_at)).length;
+
+  const newToday = conversations.filter(c => isToday(c.created_at)).length;
+  const newYesterday = conversations.filter(c => isYesterday(c.created_at)).length;
+  const newUnassignedToday = conversations.filter(c => !c.assigned_to && isToday(c.created_at)).length;
+  const newUnassignedYesterday = conversations.filter(c => !c.assigned_to && isYesterday(c.created_at)).length;
+
+  const openTrend = dayOverDay(newToday, newYesterday);
+  const unassignedTrend = dayOverDay(newUnassignedToday, newUnassignedYesterday);
+  const closedTrend = dayOverDay(closedToday, closedYesterday);
 
   const channelData = ['whatsapp', 'messenger', 'email', 'website'].map(ch => ({
     name: ch.charAt(0).toUpperCase() + ch.slice(1),
@@ -89,6 +128,8 @@ export default function Dashboard() {
     return { ...c, slaMinutes: mins };
   }).sort((a, b) => a.slaMinutes - b.slaMinutes).slice(0, 5);
 
+  const hasChannelData = channelData.some(d => d.value > 0);
+
   return (
     <div className="flex h-screen overflow-hidden bg-[#111B21] pt-14 md:pt-0 pb-[56px] md:pb-0">
       <Sidebar />
@@ -101,6 +142,12 @@ export default function Dashboard() {
             <p className="text-xs md:text-sm text-gray-400 mt-0.5">Team performance & pipeline</p>
           </div>
 
+          {loading ? (
+            <div className="flex items-center justify-center py-20 text-gray-500">
+              <Loader2 className="w-6 h-6 animate-spin" />
+            </div>
+          ) : (
+          <>
           {/* Stat Cards */}
           <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 mb-6">
             <StatCard
@@ -109,8 +156,8 @@ export default function Dashboard() {
               sub="Active conversations"
               icon={MessageSquare}
               color="#25D366"
-              trend="up"
-              trendLabel="+12%"
+              trend={openTrend.trend}
+              trendLabel={openTrend.label}
             />
             <StatCard
               label="Unassigned"
@@ -118,8 +165,8 @@ export default function Dashboard() {
               sub="Need assignment"
               icon={Clock}
               color="#F59E0B"
-              trend="down"
-              trendLabel="-3"
+              trend={unassignedTrend.trend}
+              trendLabel={unassignedTrend.label}
             />
             <StatCard
               label="Urgent"
@@ -136,8 +183,8 @@ export default function Dashboard() {
               sub="Resolved"
               icon={CheckCircle}
               color="#6366F1"
-              trend="up"
-              trendLabel="+5"
+              trend={closedTrend.trend}
+              trendLabel={closedTrend.label}
             />
           </div>
 
@@ -145,22 +192,28 @@ export default function Dashboard() {
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 mb-6">
             <div className="bg-[#202C33] rounded-2xl p-4 md:p-5 border border-white/10">
               <h3 className="text-xs font-bold text-gray-300 uppercase tracking-wide mb-4">By Channel</h3>
-              <ResponsiveContainer width="100%" height={160}>
-                <PieChart>
-                  <Pie data={channelData} dataKey="value" nameKey="name" cx="50%" cy="50%" outerRadius={60} innerRadius={30}>
-                    {channelData.map((_, i) => <Cell key={i} fill={COLORS[i % COLORS.length]} />)}
-                  </Pie>
-                  <Tooltip contentStyle={{ background: '#202C33', border: '1px solid #374151', borderRadius: 8, fontSize: 12 }} />
-                </PieChart>
-              </ResponsiveContainer>
-              <div className="flex flex-wrap gap-2 mt-2">
-                {channelData.map((d, i) => (
-                  <div key={d.name} className="flex items-center gap-1.5 text-[11px] text-gray-400">
-                    <span className="w-2 h-2 rounded-full" style={{ background: COLORS[i % COLORS.length] }} />
-                    {d.name} ({d.value})
+              {hasChannelData ? (
+                <>
+                  <ResponsiveContainer width="100%" height={160}>
+                    <PieChart>
+                      <Pie data={channelData} dataKey="value" nameKey="name" cx="50%" cy="50%" outerRadius={60} innerRadius={30}>
+                        {channelData.map((_, i) => <Cell key={i} fill={COLORS[i % COLORS.length]} />)}
+                      </Pie>
+                      <Tooltip contentStyle={{ background: '#202C33', border: '1px solid #374151', borderRadius: 8, fontSize: 12 }} />
+                    </PieChart>
+                  </ResponsiveContainer>
+                  <div className="flex flex-wrap gap-2 mt-2">
+                    {channelData.map((d, i) => (
+                      <div key={d.name} className="flex items-center gap-1.5 text-[11px] text-gray-400">
+                        <span className="w-2 h-2 rounded-full" style={{ background: COLORS[i % COLORS.length] }} />
+                        {d.name} ({d.value})
+                      </div>
+                    ))}
                   </div>
-                ))}
-              </div>
+                </>
+              ) : (
+                <p className="text-xs text-gray-500 py-10 text-center">No conversations yet</p>
+              )}
             </div>
 
             <div className="bg-[#202C33] rounded-2xl p-4 md:p-5 border border-white/10">
@@ -186,9 +239,9 @@ export default function Dashboard() {
                 {slaData.map(c => (
                   <div key={c.id} className="flex items-center justify-between py-2 border-b border-white/5 last:border-0">
                     <div className="flex items-center gap-3">
-                      <Avatar name={c.contact_name || 'Unknown'} size="sm" />
+                      <Avatar name={c.contact?.full_name || 'Unknown'} size="sm" />
                       <div>
-                        <p className="text-sm font-medium text-white">{c.contact_name || 'Unknown'}</p>
+                        <p className="text-sm font-medium text-white">{c.contact?.full_name || 'Unknown'}</p>
                         <p className="text-[11px] text-gray-500">{c.channel}</p>
                       </div>
                     </div>
@@ -200,32 +253,8 @@ export default function Dashboard() {
               </div>
             </div>
           )}
-
-          {/* Team activity */}
-          <div className="bg-[#202C33] rounded-2xl p-4 md:p-5 border border-white/10">
-            <h3 className="text-xs font-bold text-gray-300 uppercase tracking-wide mb-4">Team Activity</h3>
-            <div className="space-y-3">
-              {users.slice(0, 5).map(u => {
-                const handled = conversations.filter(c => c.assigned_to === u.id).length;
-                const max = Math.max(...users.map(x => conversations.filter(c => c.assigned_to === x.id).length), 1);
-                return (
-                  <div key={u.id} className="flex items-center gap-3">
-                    <Avatar name={u.full_name || u.email} size="sm" />
-                    <div className="flex-1 min-w-0">
-                      <div className="flex items-center justify-between mb-1">
-                        <p className="text-xs font-medium text-white truncate">{u.full_name || u.email}</p>
-                        <p className="text-xs text-gray-400 ml-2 shrink-0">{handled}</p>
-                      </div>
-                      <div className="h-1.5 bg-white/10 rounded-full overflow-hidden">
-                        <div className="h-full bg-[#25D366] rounded-full transition-all" style={{ width: `${(handled / max) * 100}%` }} />
-                      </div>
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-          </div>
-
+          </>
+          )}
         </div>
       </div>
     </div>
