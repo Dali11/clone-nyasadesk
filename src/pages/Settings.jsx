@@ -422,8 +422,13 @@ function WebsiteCard({ saved, workspaceId, onSave, onDelete }) {
   const [fields, setFields] = useState(saved ? saved.config || {} : {});
   const [saving, setSaving] = useState(false);
   const [status, setStatus] = useState('');
+  const [embedTab, setEmbedTab] = useState('popup'); // 'popup' | 'inline'
   const isLive = !!(saved && saved.enabled);
-  const embedSnippet = '<script src="' + PROD_URL + '/widget.js" data-workspace-id="' + workspaceId + '"></script>';
+  const popupSnippet  = '<script src="' + PROD_URL + '/widget.js" data-workspace-id="' + workspaceId + '"></script>';
+  const inlineSnippet = '<div id="nyasa-inline-target"></div>
+<script src="' + PROD_URL + '/widget.js" data-workspace-id="' + workspaceId + '" data-mode="inline"></script>';
+  const supportPageUrl = PROD_URL + '/support/' + workspaceId;
+  const iframeSnippet  = '<iframe src="' + supportPageUrl + '" style="width:100%;height:600px;border:0;border-radius:12px"></iframe>';
 
   const handleSave = async () => {
     setSaving(true);
@@ -448,15 +453,62 @@ function WebsiteCard({ saved, workspaceId, onSave, onDelete }) {
             <Code2 className="w-3.5 h-3.5 text-cyan-400" />
             <p className="text-[10px] font-bold text-cyan-400 uppercase tracking-wide">Your Embed Snippet</p>
           </div>
-          <p className="text-[10px] text-gray-500">Paste into your website head or body.</p>
-          <div className="flex items-start gap-2 mt-1">
-            <code className="text-[11px] text-cyan-300 font-mono flex-1 break-all leading-relaxed bg-[#0D1418] rounded-lg p-2.5">
-              {embedSnippet}
-            </code>
-            <CopyBtn text={embedSnippet} />
+          <div className="flex gap-2 pt-1">
+            {[
+              { id: 'popup',  label: 'Floating bubble' },
+              { id: 'inline', label: 'Inline panel' },
+              { id: 'page',   label: 'Support page (iframe)' },
+            ].map(t => (
+              <button key={t.id} onClick={() => setEmbedTab(t.id)} type="button"
+                className="flex-1 py-1.5 rounded-lg text-[10px] font-bold transition-all"
+                style={{
+                  background: embedTab === t.id ? '#06B6D4' : 'rgba(255,255,255,0.05)',
+                  color: embedTab === t.id ? '#fff' : '#9ca3af',
+                }}>
+                {t.label}
+              </button>
+            ))}
           </div>
+          {embedTab === 'popup' && (
+            <>
+              <p className="text-[10px] text-gray-500">A chat bubble that floats over your existing site. Paste anywhere in the body.</p>
+              <div className="flex items-start gap-2 mt-1">
+                <code className="text-[11px] text-cyan-300 font-mono flex-1 break-all leading-relaxed bg-[#0D1418] rounded-lg p-2.5">
+                  {popupSnippet}
+                </code>
+                <CopyBtn text={popupSnippet} />
+              </div>
+            </>
+          )}
+          {embedTab === 'inline' && (
+            <>
+              <p className="text-[10px] text-gray-500">Always-open chat panel that fills a container on your own page — e.g. drop it into a "Contact us" page.</p>
+              <div className="flex items-start gap-2 mt-1">
+                <code className="text-[11px] text-cyan-300 font-mono flex-1 break-all leading-relaxed bg-[#0D1418] rounded-lg p-2.5 whitespace-pre-wrap">
+                  {inlineSnippet}
+                </code>
+                <CopyBtn text={inlineSnippet} />
+              </div>
+            </>
+          )}
+          {embedTab === 'page' && (
+            <>
+              <p className="text-[10px] text-gray-500">A ready-made, hosted support page — iframe it in, or just link customers straight to it.</p>
+              <div className="flex items-center gap-2 mt-1">
+                <p className="text-[11px] text-cyan-300 font-mono truncate flex-1">{supportPageUrl}</p>
+                <CopyBtn text={supportPageUrl} />
+              </div>
+              <div className="flex items-start gap-2 mt-2">
+                <code className="text-[11px] text-cyan-300 font-mono flex-1 break-all leading-relaxed bg-[#0D1418] rounded-lg p-2.5 whitespace-pre-wrap">
+                  {iframeSnippet}
+                </code>
+                <CopyBtn text={iframeSnippet} />
+              </div>
+            </>
+          )}
         </div>
         <ManualFields fields={fields} setFields={setFields} fieldDefs={[
+          { key: 'agent_name',   label: 'Header Display Name', placeholder: 'Support Team' },
           { key: 'greeting',     label: 'Greeting Message', placeholder: 'Hi there 👋 How can we help?' },
           { key: 'label',        label: 'Button Label',     placeholder: 'Chat with us' },
           { key: 'widget_color', label: 'Accent Color',     placeholder: '#25D366' },
