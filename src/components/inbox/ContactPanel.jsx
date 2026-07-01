@@ -1,7 +1,6 @@
 import { useState, useEffect } from 'react';
 import { Mail, Phone, Edit3, Check, X, Plus, Bell, ArrowLeft } from 'lucide-react';
 import Avatar from '@/components/Avatar';
-import { store, genId } from '@/lib/store';
 import { updateContact as updateContactRemote } from '@/lib/channels';
 
 const DEAL_STAGES = ['New Lead', 'Contacted', 'Qualified', 'Proposal Sent', 'Negotiation', 'Closed Won', 'Closed Lost'];
