@@ -6,7 +6,7 @@ const PRIORITIES = ['low', 'normal', 'high', 'urgent'];
 const STATUSES = ['open', 'snoozed', 'closed'];
 const STATUS_COLOR = { open: 'bg-green-500', snoozed: 'bg-yellow-500', closed: 'bg-gray-500', unassigned: 'bg-orange-400' };
 
-export default function ChatHeader({ conversation, users = [], onUpdate, onBack }) {
+export default function ChatHeader({ conversation, users = [], onUpdate, onBack, onOpenContact }) {
   if (!conversation) return null;
 
   const assign = (userId, userName) => onUpdate({ ...conversation, assigned_to: userId, assigned_to_name: userName, status: 'open' });
@@ -21,16 +21,18 @@ export default function ChatHeader({ conversation, users = [], onUpdate, onBack 
           <ArrowLeft className="w-5 h-5" />
         </button>
       )}
-      <Avatar name={conversation.contact_name || '?'} size="md" />
-      <div className="flex-1 min-w-0">
-        <p className="text-sm font-semibold text-white truncate">{conversation.contact_name}</p>
-        <div className="flex items-center gap-1.5 text-xs text-gray-500">
-          <span className={`w-1.5 h-1.5 rounded-full ${STATUS_COLOR[conversation.status] || 'bg-gray-500'}`} />
-          <span className="capitalize">{conversation.status}</span>
-          {conversation.assigned_to_name && <><span>·</span><span className="text-[#25D366]">{conversation.assigned_to_name}</span></>}
-          {!conversation.assigned_to && <span className="text-orange-400">Unassigned</span>}
+      <button onClick={onOpenContact} className="flex items-center gap-3 flex-1 min-w-0 text-left hover:opacity-80 transition-opacity">
+        <Avatar name={conversation.contact_name || '?'} size="md" />
+        <div className="flex-1 min-w-0">
+          <p className="text-sm font-semibold text-white truncate">{conversation.contact_name}</p>
+          <div className="flex items-center gap-1.5 text-xs text-gray-500">
+            <span className={`w-1.5 h-1.5 rounded-full ${STATUS_COLOR[conversation.status] || 'bg-gray-500'}`} />
+            <span className="capitalize">{conversation.status}</span>
+            {conversation.assigned_to_name && <><span>·</span><span className="text-[#25D366]">{conversation.assigned_to_name}</span></>}
+            {!conversation.assigned_to && <span className="text-orange-400">Unassigned</span>}
+          </div>
         </div>
-      </div>
+      </button>
 
       <div className="flex items-center gap-2 shrink-0">
         <DropdownMenu>
