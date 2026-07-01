@@ -203,7 +203,7 @@ export default function Inbox() {
         )}
       </div>
 
-      {showNew && <NewConvModal onClose={() => setShowNew(false)} onCreated={c => { setConversations(p => [c, ...p]); setShowNew(false); setActiveConv(c); }} workspaceId={user?.id} />}
+      <NewConvModal open={showNew} onClose={() => setShowNew(false)} onCreated={c => { setConversations(p => [c, ...p]); setShowNew(false); setActiveConv(c); }} workspaceId={user?.id} />
     </div>
   );
 }
