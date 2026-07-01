@@ -19,6 +19,7 @@ import Broadcasts      from "./pages/Broadcasts";
 import Rules           from "./pages/Rules";
 import CannedResponses from "./pages/CannedResponses";
 import Settings        from "./pages/Settings";
+import AdminPanel      from "./pages/AdminPanel";
 import PrivacyPolicy   from './pages/PrivacyPolicy';
 import DataDeletion    from './pages/DataDeletion';
 import SupportPage     from './pages/SupportPage';
@@ -89,6 +90,7 @@ function AppRoutes() {
       <Route path="/privacy"        element={<PrivacyPolicy />} />
       <Route path="/data-deletion"   element={<DataDeletion />} />
       <Route path="/settings"   element={<Settings />} />
+      <Route path="/admin"      element={<AdminPanel />} />
       {/* Redirect /login and /register back to inbox when already logged in */}
       <Route path="/login"      element={<Navigate to="/" replace />} />
       <Route path="/register"   element={<Navigate to="/" replace />} />
