@@ -159,6 +159,30 @@ export async function sendMediaMessage(workspaceId, conversationId, file, kind, 
   return sendMessage(workspaceId, conversationId, placeholderBody, senderName, attachments);
 }
 
+// Internal notes are NEVER dispatched to the external channel — just saved
+// as a real message row (direction: 'note') so they persist across refreshes
+// and sync live to every other team member viewing the conversation via the
+// same realtime subscription used for normal messages. (Previously these
+// were built as local-only React state in MessageThread.jsx and vanished on
+// refresh — turns out the messages table's CHECK constraint only allowed
+// 'inbound'/'outbound' anyway, so a real insert would have failed silently.)
+export async function addNote(workspaceId, conversationId, body, senderName, senderId = null) {
+  const { data: msg, error } = await supabase
+    .from('messages')
+    .insert({
+      workspace_id: workspaceId,
+      conversation_id: conversationId,
+      direction: 'note',
+      body,
+      sender_name: senderName,
+      sender_id: senderId,
+    })
+    .select()
+    .single();
+  if (error) throw error;
+  return msg;
+}
+
 export async function sendMessage(workspaceId, conversationId, body, senderName, attachments = null) {
   // 1. Insert message record — return as soon as this lands so the caller can
   // reconcile its optimistic bubble immediately. Everything below (steps 2 & 3)
