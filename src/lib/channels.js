@@ -134,7 +134,31 @@ export async function getMessages(conversationId) {
   return data || [];
 }
 
-export async function sendMessage(workspaceId, conversationId, body, senderName) {
+// Uploads a File/Blob to the public 'chat-media' storage bucket and returns its
+// public URL. Used for images, videos, and recorded voice notes.
+export async function uploadChatMedia(workspaceId, file, kind) {
+  const ext = (file.name?.split('.').pop() || (kind === 'audio' ? 'webm' : 'bin')).toLowerCase();
+  const path = `${workspaceId}/${kind}/${Date.now()}-${Math.random().toString(36).slice(2, 8)}.${ext}`;
+  const { error } = await supabase.storage.from('chat-media').upload(path, file, {
+    contentType: file.type || undefined,
+    upsert: false,
+  });
+  if (error) throw error;
+  const { data } = supabase.storage.from('chat-media').getPublicUrl(path);
+  return data.publicUrl;
+}
+
+// Sends a media message (image/video/audio/voice note). Uploads the file to
+// storage first, then goes through the exact same sendMessage() pipeline so
+// status handling / realtime / dedupe logic is identical to text messages.
+export async function sendMediaMessage(workspaceId, conversationId, file, kind, senderName, caption = '') {
+  const url = await uploadChatMedia(workspaceId, file, kind);
+  const attachments = [{ url, type: kind, mime: file.type, name: file.name || null }];
+  const placeholderBody = caption || (kind === 'image' ? '📷 Photo' : kind === 'video' ? '🎥 Video' : '🎤 Voice message');
+  return sendMessage(workspaceId, conversationId, placeholderBody, senderName, attachments);
+}
+
+export async function sendMessage(workspaceId, conversationId, body, senderName, attachments = null) {
   // 1. Insert message record — return as soon as this lands so the caller can
   // reconcile its optimistic bubble immediately. Everything below (steps 2 & 3)
   // used to be awaited before returning, which left a multi-hundred-ms window
@@ -150,14 +174,24 @@ export async function sendMessage(workspaceId, conversationId, body, senderName)
       body,
       sender_name: senderName,
       status: 'sending',
+      ...(attachments ? { attachments } : {}),
     })
     .select()
     .single();
   if (error) throw error;
 
-  // 2 & 3 run in the background — NOT awaited before returning. Their outcome
-  // (status → 'delivered' / 'failed') reaches the UI via the realtime UPDATE
-  // subscription in subscribeToMessages, not via this function's return value.
+  // 2 & 3 run in the background — NOT awaited before returning.
+  //
+  // Status semantics (matches WhatsApp): 'sending' (optimistic, local only) ->
+  // 'sent' (server/API accepted it — set by /api/channels/send itself once the
+  // Graph API call succeeds) -> 'delivered' -> 'read' (both set later by the
+  // WhatsApp/Messenger webhook handlers when Meta sends real delivery/read
+  // receipts). This function must NOT stomp status to 'delivered' itself on a
+  // successful fetch — that would fake a receipt we don't actually have yet.
+  // It only ever forces 'failed', and only when the request truly never
+  // reached the server (network/fetch-level failure) or the server reported
+  // an error — send.js already marks 'failed' server-side on API errors, but
+  // we back it up here in case the response itself was lost.
   (async () => {
     try {
       // Update conversation preview
@@ -172,9 +206,15 @@ export async function sendMessage(workspaceId, conversationId, body, senderName)
       const res = await fetch('/api/channels/send', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ message_id: msg.id, conversation_id: conversationId, workspace_id: workspaceId, channel: conv.channel, body }),
+        body: JSON.stringify({
+          message_id: msg.id, conversation_id: conversationId, workspace_id: workspaceId,
+          channel: conv.channel, body, attachments,
+        }),
       });
-      await supabase.from('messages').update({ status: res.ok ? 'delivered' : 'failed' }).eq('id', msg.id);
+      if (!res.ok) {
+        await supabase.from('messages').update({ status: 'failed' }).eq('id', msg.id);
+      }
+      // On success: leave status alone. send.js already set it to 'sent' server-side.
     } catch (e) {
       await supabase.from('messages').update({ status: 'failed' }).eq('id', msg.id);
     }
