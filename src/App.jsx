@@ -19,6 +19,8 @@ import Broadcasts      from "./pages/Broadcasts";
 import Rules           from "./pages/Rules";
 import CannedResponses from "./pages/CannedResponses";
 import Settings        from "./pages/Settings";
+import PrivacyPolicy   from './pages/PrivacyPolicy';
+import DataDeletion    from './pages/DataDeletion';
 
 function AppRoutes() {
   const { user, loading: authLoading } = useAuth();
