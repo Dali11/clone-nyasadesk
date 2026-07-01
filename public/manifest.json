@@ -1,0 +1,12 @@
+{
+  "name": "Nyasadesk — Team Inbox",
+  "short_name": "Nyasadesk",
+  "description": "A shared team inbox for WhatsApp, Messenger, email and website chat.",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#111B21",
+  "theme_color": "#128C7E",
+  "icons": [
+    { "src": "/favicon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any maskable" }
+  ]
+}
