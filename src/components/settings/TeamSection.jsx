@@ -1,9 +1,12 @@
 import { useState, useEffect } from 'react';
-import { Plus, Trash2, Loader2, Mail } from 'lucide-react';
+import { Plus, Loader2, Mail } from 'lucide-react';
 import Avatar from '@/components/Avatar';
-import { base44 } from '@/api/base44Client';
+import { useNyasaAuth } from '@/lib/NyasaAuth';
 
-export default function TeamSection({ currentUser }) {
+export default function TeamSection() {
+  const { user, profile } = useNyasaAuth();
+  const workspaceId = profile?.workspace_id || user?.id;
+
   const [users, setUsers] = useState([]);
   const [loading, setLoading] = useState(true);
   const [inviting, setInviting] = useState(false);
@@ -13,25 +16,35 @@ export default function TeamSection({ currentUser }) {
   const [successMsg, setSuccessMsg] = useState('');
 
   const loadUsers = async () => {
+    if (!workspaceId) { setLoading(false); return; }
     try {
-      const list = await base44.entities.User.list();
-      setUsers(list);
+      const res = await fetch(`/api/team/list?workspace_id=${encodeURIComponent(workspaceId)}`);
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Failed to load team');
+      setUsers(data.users || []);
     } catch (e) {
-      console.error(e);
+      console.error('[TeamSection] load error:', e);
+      setUsers([]);
     } finally {
       setLoading(false);
     }
   };
 
-  useEffect(() => { loadUsers(); }, []);
+  useEffect(() => { loadUsers(); }, [workspaceId]);
 
   const handleInvite = async () => {
-    if (!form.email.trim()) return;
+    if (!form.email.trim() || !workspaceId) return;
     setInviting(true);
     setError('');
     setSuccessMsg('');
     try {
-      await base44.users.inviteUser(form.email.trim(), form.role);
+      const res = await fetch('/api/team/invite', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email: form.email.trim(), role: form.role, workspace_id: workspaceId }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Failed to send invite');
       setSuccessMsg(`Invitation sent to ${form.email.trim()}`);
       setForm({ email: '', role: 'user' });
       setShowForm(false);
@@ -116,7 +129,7 @@ export default function TeamSection({ currentUser }) {
           <div className="flex-1 min-w-0">
             <div className="flex items-center gap-2">
               <p className="font-semibold text-white text-sm truncate">{u.full_name || u.email}</p>
-              {u.id === currentUser?.id && (
+              {u.id === user?.id && (
                 <span className="text-[9px] text-[#25D366] bg-[#25D366]/10 px-1.5 py-0.5 rounded-full shrink-0">You</span>
               )}
             </div>
