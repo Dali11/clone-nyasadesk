@@ -9,6 +9,7 @@ export function NyasaAuthProvider({ children }) {
   const [profile, setProfile]                       = useState(null);
   const [onboardingComplete, setOnboardingComplete] = useState(false);
   const [loadingProfile, setLoadingProfile]         = useState(true);
+  const [isPlatformAdmin, setIsPlatformAdmin]       = useState(false);
 
   useEffect(() => {
     if (authLoading) return;
@@ -16,6 +17,7 @@ export function NyasaAuthProvider({ children }) {
     if (!user) {
       setProfile(null);
       setOnboardingComplete(false);
+      setIsPlatformAdmin(false);
       setLoadingProfile(false);
       return;
     }
@@ -32,13 +34,19 @@ export function NyasaAuthProvider({ children }) {
 
     (async () => {
       try {
-        const { data, error } = await supabase
-          .from('profiles')
-          .select('*')
-          .eq('id', user.id)
-          .single();
+        const [{ data, error }, adminCheck] = await Promise.all([
+          supabase.from('profiles').select('*').eq('id', user.id).single(),
+          // Platform-admin allowlist check — RLS only lets a user see their
+          // OWN row here (self_check policy: email = auth.email()), so this
+          // never leaks the admin list to anyone else. Purely for showing/
+          // hiding the "Admin Panel" nav link — real access is re-verified
+          // server-side by every /api/admin/* endpoint.
+          supabase.from('platform_admin_emails').select('email').eq('email', user.email).maybeSingle(),
+        ]);
 
         if (cancelled) return;
+
+        setIsPlatformAdmin(!!adminCheck?.data);
 
         if (data) {
           setProfile(data);
@@ -71,7 +79,7 @@ export function NyasaAuthProvider({ children }) {
   } : null;
 
   return (
-    <NyasaAuthContext.Provider value={{ user: nyasaUser, profile, onboardingComplete, setOnboardingComplete, loadingProfile }}>
+    <NyasaAuthContext.Provider value={{ user: nyasaUser, profile, onboardingComplete, setOnboardingComplete, loadingProfile, isPlatformAdmin }}>
       {children}
     </NyasaAuthContext.Provider>
   );
