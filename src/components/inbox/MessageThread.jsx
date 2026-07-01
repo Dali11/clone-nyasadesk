@@ -2,9 +2,8 @@ import { useState, useEffect, useRef } from 'react';
 import { Send, StickyNote, Loader2, Check, CheckCheck, X, Zap, Paperclip, Mic, Square, Play, Pause } from 'lucide-react';
 import { formatDistanceToNow } from 'date-fns';
 import { motion, AnimatePresence } from 'framer-motion';
-import { getMessages, sendMessage, sendMediaMessage, subscribeToMessages } from '@/lib/channels';
+import { getMessages, sendMessage, sendMediaMessage, subscribeToMessages, getCannedResponses } from '@/lib/channels';
 import { useNyasaAuth } from '@/lib/NyasaAuth';
-import { store } from '@/lib/store';
 
 const CHANNEL_COLOR = {
   whatsapp: '#DCF8C6',
@@ -132,7 +131,7 @@ export default function MessageThread({ conversation, workspaceId }) {
   const [showCanned, setShowCanned] = useState(false);
   const [recording, setRecording] = useState(false);
   const [recordSecs, setRecordSecs] = useState(0);
-  const canned = store.getCanned();
+  const [canned, setCanned] = useState([]);
   const bottomRef = useRef(null);
   const inputRef  = useRef(null);
   const fileInputRef = useRef(null);
@@ -152,6 +151,12 @@ export default function MessageThread({ conversation, workspaceId }) {
       .then(data => { setMessages(data); setLoading(false); })
       .catch(() => setLoading(false));
   }, [conversation?.id]);
+
+  // Load canned responses (real, persisted — was reading from a dead in-memory stub)
+  useEffect(() => {
+    if (!wId) return;
+    getCannedResponses(wId).then(setCanned).catch(() => setCanned([]));
+  }, [wId]);
 
   // Realtime
   useEffect(() => {
