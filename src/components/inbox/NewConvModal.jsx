@@ -1,33 +1,44 @@
 import { useState } from 'react';
+import { Loader2 } from 'lucide-react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
-import { store, genId } from '@/lib/store';
+import { useNyasaAuth } from '@/lib/NyasaAuth';
+import { createManualConversation } from '@/lib/channels';
 
 const CHANNELS = ['whatsapp', 'messenger', 'email', 'website'];
 
-export default function NewConvModal({ open, onClose, onCreated, user }) {
+export default function NewConvModal({ open, onClose, onCreated, workspaceId }) {
+  const { user } = useNyasaAuth();
+  const wId = workspaceId || user?.id;
   const [form, setForm] = useState({ contact_name: '', contact_email: '', subject: '', channel: 'whatsapp', priority: 'normal' });
+  const [creating, setCreating] = useState(false);
+  const [error, setError] = useState('');
   const set = (k, v) => setForm(f => ({ ...f, [k]: v }));
 
-  const create = () => {
-    if (!form.contact_name.trim() || !form.subject.trim()) return;
-    const conv = {
-      id: genId('conv'), ...form, contact_id: null, status: 'open',
-      assigned_to: user?.id || null, assigned_to_name: user?.full_name || null,
-      tags: [], last_message_preview: '', last_message_at: new Date().toISOString(),
-      unread: false, deal_stage: 'New Lead', is_reminder_active: false,
-      sla_breach_at: new Date(Date.now() + 4 * 3600000).toISOString(),
-      created_date: new Date().toISOString(), updated_date: new Date().toISOString(),
-    };
-    store.addConversation(conv);
-    onCreated(conv);
-    setForm({ contact_name: '', contact_email: '', subject: '', channel: 'whatsapp', priority: 'normal' });
-    onClose();
+  const create = async () => {
+    if (!form.contact_name.trim() || !form.subject.trim() || creating) return;
+    setCreating(true);
+    setError('');
+    try {
+      const conv = await createManualConversation(wId, {
+        ...form,
+        assigned_to: user?.id || null,
+        assigned_to_name: user?.full_name || user?.email || null,
+      });
+      onCreated(conv);
+      setForm({ contact_name: '', contact_email: '', subject: '', channel: 'whatsapp', priority: 'normal' });
+      onClose();
+    } catch (e) {
+      console.error('[NewConvModal] create error:', e);
+      setError('Could not create conversation. Please try again.');
+    } finally {
+      setCreating(false);
+    }
   };
 
   const inputCls = 'w-full bg-[#2A3942] text-white text-sm rounded-xl px-4 py-2.5 focus:outline-none focus:ring-1 focus:ring-[#25D366] border-0 placeholder:text-gray-600';
 
   return (
-    <Dialog open={open} onOpenChange={onClose}>
+    <Dialog open={open} onOpenChange={(v) => { if (!v) onClose(); }}>
       <DialogContent className="bg-[#233138] border border-white/10 text-white max-w-md">
         <DialogHeader>
           <DialogTitle className="text-white">New Conversation</DialogTitle>
@@ -50,9 +61,10 @@ export default function NewConvModal({ open, onClose, onCreated, user }) {
               </select>
             </div>
           </div>
-          <button onClick={create} disabled={!form.contact_name.trim() || !form.subject.trim()}
-            className="w-full py-2.5 bg-[#25D366] text-white text-sm font-semibold rounded-xl hover:bg-[#20BA5A] transition-colors disabled:opacity-40">
-            Start Conversation
+          {error && <p className="text-xs text-red-400">{error}</p>}
+          <button onClick={create} disabled={!form.contact_name.trim() || !form.subject.trim() || creating}
+            className="w-full py-2.5 bg-[#25D366] text-white text-sm font-semibold rounded-xl hover:bg-[#20BA5A] transition-colors disabled:opacity-40 flex items-center justify-center gap-2">
+            {creating ? <><Loader2 className="w-4 h-4 animate-spin" /> Creating…</> : 'Start Conversation'}
           </button>
         </div>
       </DialogContent>
