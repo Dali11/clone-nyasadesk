@@ -34,9 +34,40 @@ export default async function handler(req, res) {
           for (const msg of value.messages || []) {
             const from        = msg.from;
             const msgId       = msg.id;
-            const body        = msg.text?.body || `[${msg.type}]`;
             const contactName = value.contacts?.find(c => c.wa_id === from)?.profile?.name || from;
             const ts          = new Date(parseInt(msg.timestamp || Date.now()/1000) * 1000).toISOString();
+
+            // Media messages (image/video/audio/voice note) — WhatsApp only gives us
+            // a media id + a temporary authenticated URL, so we fetch it with the
+            // page's access token and re-host it in our own public storage bucket.
+            let body = msg.text?.body || `[${msg.type}]`;
+            let attachments = null;
+            const mediaKindMap = { image: 'image', video: 'video', audio: 'audio' };
+            const mediaKind = mediaKindMap[msg.type];
+            if (mediaKind && msg[msg.type]?.id) {
+              try {
+                const accessToken = cfg.config?.access_token;
+                const mediaId = msg[msg.type].id;
+                const metaRes = await fetch(`https://graph.facebook.com/v19.0/${mediaId}`, {
+                  headers: { Authorization: `Bearer ${accessToken}` },
+                });
+                const metaJson = await metaRes.json();
+                if (metaJson.url) {
+                  const fileRes = await fetch(metaJson.url, { headers: { Authorization: `Bearer ${accessToken}` } });
+                  const buf = await fileRes.arrayBuffer();
+                  const ext = (metaJson.mime_type || '').split('/')[1]?.split(';')[0] || 'bin';
+                  const path = `${workspaceId}/inbound/${Date.now()}-${mediaId}.${ext}`;
+                  await sb.storage.from('chat-media').upload(path, Buffer.from(buf), {
+                    contentType: metaJson.mime_type || undefined, upsert: false,
+                  });
+                  const { data: pub } = sb.storage.from('chat-media').getPublicUrl(path);
+                  attachments = [{ url: pub.publicUrl, type: mediaKind, mime: metaJson.mime_type }];
+                  body = msg[msg.type]?.caption || (mediaKind === 'image' ? '📷 Photo' : mediaKind === 'video' ? '🎥 Video' : '🎤 Voice message');
+                }
+              } catch (mediaErr) {
+                console.error('WhatsApp media fetch error:', mediaErr);
+              }
+            }
 
             const { data: contact } = await sb.from('contacts')
               .upsert({ workspace_id: workspaceId, channel: 'whatsapp', external_id: from,
@@ -58,6 +89,7 @@ export default async function handler(req, res) {
                 direction: 'inbound', body, channel: 'whatsapp',
                 external_id: msgId, sender_name: contactName, sender_id: from,
                 status: 'delivered', created_at: ts,
+                ...(attachments ? { attachments } : {}),
               }, { onConflict: 'conversation_id,external_id' });
             }
           }
