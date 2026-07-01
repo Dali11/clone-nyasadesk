@@ -4,7 +4,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/u
 import { useNyasaAuth } from '@/lib/NyasaAuth';
 import { createManualConversation } from '@/lib/channels';
 
-const CHANNELS = ['whatsapp', 'messenger', 'email', 'website'];
+const CHANNELS = ['whatsapp', 'messenger', 'instagram', 'telegram', 'email', 'website'];
 
 export default function NewConvModal({ open, onClose, onCreated, workspaceId }) {
   const { user } = useNyasaAuth();
