@@ -1,4 +1,5 @@
 import { createClient } from '@supabase/supabase-js';
+import { PLAN_LIMITS } from '../_lib/adminAuth.js';
 
 const SUPABASE_URL = 'https://pfbaepibelomiutlotkn.supabase.co';
 const SUPABASE_ANON = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InBmYmFlcGliZWxvbWl1dGxvdGtuIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODI4MjMwNjQsImV4cCI6MjA5ODM5OTA2NH0.LKnDu1Qy9WN-sLsulU3Kv12dORfpJXlPhFZBrcvy0JA';
@@ -41,6 +42,25 @@ export default async function handler(req, res) {
     }
     if (!isOwner && !isAdmin) {
       return res.status(403).json({ error: 'Only admins can invite new team members' });
+    }
+
+    // Seat-limit enforcement — the workspace's plan (set by the owner via
+    // billing, or by a platform admin manually today since there's no
+    // automated billing yet) actually caps how many people can be invited,
+    // rather than just being a number shown on a pricing page.
+    const { data: ownerProfile } = await sb.from('profiles').select('plan').eq('id', workspace_id).maybeSingle();
+    const plan = ownerProfile?.plan || 'starter';
+    const limit = PLAN_LIMITS[plan] ?? PLAN_LIMITS.starter;
+    if (limit !== Infinity) {
+      const { count: currentSeats } = await sb
+        .from('profiles')
+        .select('id', { count: 'exact', head: true })
+        .or(`workspace_id.eq.${workspace_id},id.eq.${workspace_id}`);
+      if ((currentSeats || 0) >= limit) {
+        return res.status(403).json({
+          error: `Your ${plan} plan is limited to ${limit} team member${limit === 1 ? '' : 's'}. Upgrade your plan to invite more.`,
+        });
+      }
     }
 
     const { data, error } = await sb.auth.admin.inviteUserByEmail(email, {
