@@ -36,7 +36,7 @@ export default function Rules() {
       const { data: { session } } = await supabase.auth.getSession();
       const [rulesData, teamRes] = await Promise.all([
         getRules(workspaceId),
-        fetch(`/api/team/list?workspace_id=${encodeURIComponent(workspaceId)}`, {
+        fetch(`/api/team?workspace_id=${encodeURIComponent(workspaceId)}`, {
           headers: session?.access_token ? { Authorization: `Bearer ${session.access_token}` } : {},
         }).then(r => r.json()).catch(() => ({ users: [] })),
       ]);
