@@ -167,11 +167,11 @@ export async function uploadChatMedia(workspaceId, file, kind) {
 // Sends a media message (image/video/audio/voice note). Uploads the file to
 // storage first, then goes through the exact same sendMessage() pipeline so
 // status handling / realtime / dedupe logic is identical to text messages.
-export async function sendMediaMessage(workspaceId, conversationId, file, kind, senderName, caption = '') {
+export async function sendMediaMessage(workspaceId, conversationId, file, kind, senderName, caption = '', senderId = null) {
   const url = await uploadChatMedia(workspaceId, file, kind);
   const attachments = [{ url, type: kind, mime: file.type, name: file.name || null }];
   const placeholderBody = caption || (kind === 'image' ? '📷 Photo' : kind === 'video' ? '🎥 Video' : '🎤 Voice message');
-  return sendMessage(workspaceId, conversationId, placeholderBody, senderName, attachments);
+  return sendMessage(workspaceId, conversationId, placeholderBody, senderName, attachments, senderId);
 }
 
 // Internal notes are NEVER dispatched to the external channel — just saved
@@ -198,13 +198,17 @@ export async function addNote(workspaceId, conversationId, body, senderName, sen
   return msg;
 }
 
-export async function sendMessage(workspaceId, conversationId, body, senderName, attachments = null) {
+export async function sendMessage(workspaceId, conversationId, body, senderName, attachments = null, senderId = null) {
   // 1. Insert message record — return as soon as this lands so the caller can
   // reconcile its optimistic bubble immediately. Everything below (steps 2 & 3)
   // used to be awaited before returning, which left a multi-hundred-ms window
   // where the realtime INSERT event for this same row could reach the client
   // and get appended as a second, duplicate bubble before the temp bubble was
   // reconciled. Returning early shrinks that window to near-zero.
+  //
+  // senderId (the replying agent's user id) is what powers auto-assignment:
+  // a DB trigger (auto_assign_on_reply) claims any still-unassigned
+  // conversation for whoever's id shows up here on the first real reply.
   const { data: msg, error } = await supabase
     .from('messages')
     .insert({
@@ -213,6 +217,7 @@ export async function sendMessage(workspaceId, conversationId, body, senderName,
       direction: 'outbound',
       body,
       sender_name: senderName,
+      sender_id: senderId,
       status: 'sending',
       ...(attachments ? { attachments } : {}),
     })
