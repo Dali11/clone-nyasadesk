@@ -370,7 +370,7 @@ export default function MessageThread({ conversation, workspaceId }) {
     }]);
 
     try {
-      const msg = await sendMessage(wId, conversation.id, text, user?.full_name || 'You');
+      const msg = await sendMessage(wId, conversation.id, text, user?.full_name || 'You', null, user?.id || null);
       setMessages(prev => prev.map(m => m.id === tempId ? { ...msg, direction: 'outbound' } : m));
     } catch (e) {
       setMessages(prev => prev.map(m => m.id === tempId ? { ...m, status: 'failed' } : m));
@@ -392,7 +392,7 @@ export default function MessageThread({ conversation, workspaceId }) {
       created_at: new Date().toISOString(), attachments: [{ url: localUrl, type: kind }],
     }]);
     try {
-      const msg = await sendMediaMessage(wId, conversation.id, file, kind, user?.full_name || 'You');
+      const msg = await sendMediaMessage(wId, conversation.id, file, kind, user?.full_name || 'You', '', user?.id || null);
       setMessages(prev => prev.map(m => m.id === tempId ? { ...msg, direction: 'outbound' } : m));
     } catch (e) {
       setMessages(prev => prev.map(m => m.id === tempId ? { ...m, status: 'failed' } : m));
