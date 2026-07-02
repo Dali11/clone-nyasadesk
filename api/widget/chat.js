@@ -28,7 +28,28 @@ export default async function handler(req, res) {
       const color      = cfg?.config?.widget_color || '#25D366';
       const label      = cfg?.config?.label || 'Chat with us';
       const agent_name = cfg?.config?.agent_name || 'Support Team';
-      return res.status(200).json({ session_id: visitorId, greeting, color, label, agent_name });
+      const position    = cfg?.config?.widget_position || 'bottom-right';
+      return res.status(200).json({ session_id: visitorId, greeting, color, label, agent_name, position });
+    }
+
+    // ── HISTORY: returning visitor reopens the widget — replay their full
+    // past conversation (both directions) instead of a fresh empty thread.
+    // Chat history is fully persistent on both ends — nothing here ever
+    // expires or auto-purges; it only goes away if the business explicitly
+    // deletes the conversation/messages.
+    if (action === 'history' && (req.method === 'POST' || req.method === 'GET')) {
+      if (!session_id) return res.status(400).json({ error: 'session_id required' });
+
+      const { data: conv } = await sb.from('conversations').select('id')
+        .eq('workspace_id', workspace_id).eq('channel', 'website').eq('external_id', session_id).single();
+
+      if (!conv) return res.status(200).json({ messages: [] });
+
+      const { data: msgs } = await sb.from('messages').select('id,body,direction,sender_name,created_at')
+        .eq('conversation_id', conv.id).is('deleted_at', null)
+        .order('created_at', { ascending: true }).limit(200);
+
+      return res.status(200).json({ messages: msgs || [] });
     }
 
     // ── SEND: visitor sends a message ────────────────────────────────────────
@@ -84,7 +105,7 @@ export default async function handler(req, res) {
       if (!conv) return res.status(200).json({ messages: [] });
 
       const { data: msgs } = await sb.from('messages').select('id,body,direction,sender_name,created_at')
-        .eq('conversation_id', conv.id).eq('direction', 'outbound')
+        .eq('conversation_id', conv.id).eq('direction', 'outbound').is('deleted_at', null)
         .gt('created_at', since).order('created_at', { ascending: true });
 
       return res.status(200).json({ messages: msgs || [] });
