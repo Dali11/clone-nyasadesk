@@ -1,17 +1,20 @@
 import { useState, useEffect } from 'react';
-import { Plus, Loader2, Mail } from 'lucide-react';
+import { Plus, Loader2, Mail, MoreVertical, Shield, UserMinus } from 'lucide-react';
 import Avatar from '@/components/Avatar';
 import { useNyasaAuth } from '@/lib/NyasaAuth';
 import { supabase } from '@/lib/supabase';
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger, DropdownMenuSeparator } from '@/components/ui/dropdown-menu';
 
 export default function TeamSection() {
-  const { user, profile } = useNyasaAuth();
-  const workspaceId = profile?.workspace_id || user?.id;
+  const { user, profile, workspaceOwnerId } = useNyasaAuth();
+  const workspaceId = workspaceOwnerId || profile?.workspace_id || user?.id;
   // Only the original workspace owner (no external workspace_id set on their
   // own profile) or someone explicitly given the 'admin' role can invite new
-  // members — matches the same check now enforced server-side in
-  // /api/team/invite, so agents don't see a button that will just 403.
-  const canInvite = !profile?.workspace_id || profile?.role === 'admin';
+  // members, change roles, or remove people — matches the same check now
+  // enforced server-side in /api/team/invite and via RLS (profiles_admin_manage),
+  // so agents don't see controls that will just fail.
+  const canManage = !profile?.workspace_id || profile?.role === 'admin';
+  const canInvite = canManage;
 
   const [users, setUsers] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -66,6 +69,34 @@ export default function TeamSection() {
       setError(e?.message || 'Failed to send invite. Please try again.');
     } finally {
       setInviting(false);
+    }
+  };
+
+  const handleChangeRole = async (memberId, newRole) => {
+    setUsers(prev => prev.map(u => u.id === memberId ? { ...u, role: newRole } : u));
+    try {
+      const { error } = await supabase.from('profiles').update({ role: newRole }).eq('id', memberId);
+      if (error) throw error;
+    } catch (e) {
+      console.error('[TeamSection] change role failed:', e);
+      setError('Failed to update role — try again.');
+      await loadUsers();
+    }
+  };
+
+  const handleRemove = async (member) => {
+    if (!window.confirm(`Remove ${member.full_name || member.email} from the team? They'll keep their account but lose access to this shared inbox.`)) return;
+    setUsers(prev => prev.filter(u => u.id !== member.id));
+    try {
+      // "Removing" someone just cuts them loose from this workspace — they
+      // become the owner of their own (empty) workspace again, rather than
+      // deleting their whole account.
+      const { error } = await supabase.from('profiles').update({ workspace_id: null, role: 'admin' }).eq('id', member.id);
+      if (error) throw error;
+    } catch (e) {
+      console.error('[TeamSection] remove member failed:', e);
+      setError('Failed to remove member — try again.');
+      await loadUsers();
     }
   };
 
@@ -138,7 +169,9 @@ export default function TeamSection() {
         </div>
       )}
 
-      {users.map(u => (
+      {users.map(u => {
+        const isOwnerRow = u.id === workspaceId; // the row whose id === the workspace's own id is the original owner
+        return (
         <div key={u.id} className="bg-[#202C33] rounded-2xl border border-white/10 px-4 py-3.5 flex items-center gap-3">
           <Avatar name={u.full_name || u.email || '?'} size="md" />
           <div className="flex-1 min-w-0">
@@ -146,6 +179,9 @@ export default function TeamSection() {
               <p className="font-semibold text-white text-sm truncate">{u.full_name || u.email}</p>
               {u.id === user?.id && (
                 <span className="text-[9px] text-[#25D366] bg-[#25D366]/10 px-1.5 py-0.5 rounded-full shrink-0">You</span>
+              )}
+              {isOwnerRow && (
+                <span className="text-[9px] text-amber-400 bg-amber-900/20 px-1.5 py-0.5 rounded-full shrink-0">Owner</span>
               )}
             </div>
             <p className="text-xs text-gray-500 mt-0.5 truncate">{u.email}</p>
@@ -155,8 +191,33 @@ export default function TeamSection() {
           }`}>
             {u.role === 'admin' ? 'Admin' : 'Agent'}
           </span>
+          {canManage && !isOwnerRow && u.id !== user?.id && (
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <button className="w-7 h-7 rounded-full flex items-center justify-center text-gray-500 hover:bg-white/10 hover:text-gray-300 shrink-0">
+                  <MoreVertical className="w-4 h-4" />
+                </button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end" className="w-44 bg-[#233138] border-white/10 text-gray-200">
+                {u.role === 'admin' ? (
+                  <DropdownMenuItem onClick={() => handleChangeRole(u.id, 'user')} className="text-xs gap-2 hover:bg-white/10 focus:bg-white/10 cursor-pointer">
+                    <Shield className="w-3.5 h-3.5" />Make Agent
+                  </DropdownMenuItem>
+                ) : (
+                  <DropdownMenuItem onClick={() => handleChangeRole(u.id, 'admin')} className="text-xs gap-2 hover:bg-white/10 focus:bg-white/10 cursor-pointer">
+                    <Shield className="w-3.5 h-3.5" />Make Admin
+                  </DropdownMenuItem>
+                )}
+                <DropdownMenuSeparator className="bg-white/10" />
+                <DropdownMenuItem onClick={() => handleRemove(u)} className="text-xs gap-2 text-red-400 hover:bg-red-500/10 focus:bg-red-500/10 cursor-pointer">
+                  <UserMinus className="w-3.5 h-3.5" />Remove from team
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
+          )}
         </div>
-      ))}
+        );
+      })}
 
       {users.length === 0 && (
         <div className="text-center py-12 text-gray-600 text-sm">No team members yet. Invite someone!</div>
