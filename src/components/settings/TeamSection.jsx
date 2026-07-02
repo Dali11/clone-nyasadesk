@@ -148,6 +148,7 @@ export default function TeamSection() {
             className="w-full bg-[#2A3942] text-white text-sm rounded-xl px-4 py-2.5 focus:outline-none border-0"
           >
             <option value="user">Agent</option>
+            <option value="sales_manager">Sales Manager</option>
             <option value="admin">Admin</option>
           </select>
           {error && <p className="text-xs text-red-400">{error}</p>}
@@ -187,9 +188,11 @@ export default function TeamSection() {
             <p className="text-xs text-gray-500 mt-0.5 truncate">{u.email}</p>
           </div>
           <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full capitalize shrink-0 ${
-            u.role === 'admin' ? 'text-blue-400 bg-blue-900/20' : 'text-gray-400 bg-white/5'
+            u.role === 'admin' ? 'text-blue-400 bg-blue-900/20'
+              : u.role === 'sales_manager' ? 'text-purple-400 bg-purple-900/20'
+              : 'text-gray-400 bg-white/5'
           }`}>
-            {u.role === 'admin' ? 'Admin' : 'Agent'}
+            {u.role === 'admin' ? 'Admin' : u.role === 'sales_manager' ? 'Sales Manager' : 'Agent'}
           </span>
           {canManage && !isOwnerRow && u.id !== user?.id && (
             <DropdownMenu>
@@ -199,11 +202,17 @@ export default function TeamSection() {
                 </button>
               </DropdownMenuTrigger>
               <DropdownMenuContent align="end" className="w-44 bg-[#233138] border-white/10 text-gray-200">
-                {u.role === 'admin' ? (
+                {u.role !== 'user' && (
                   <DropdownMenuItem onClick={() => handleChangeRole(u.id, 'user')} className="text-xs gap-2 hover:bg-white/10 focus:bg-white/10 cursor-pointer">
                     <Shield className="w-3.5 h-3.5" />Make Agent
                   </DropdownMenuItem>
-                ) : (
+                )}
+                {u.role !== 'sales_manager' && (
+                  <DropdownMenuItem onClick={() => handleChangeRole(u.id, 'sales_manager')} className="text-xs gap-2 hover:bg-white/10 focus:bg-white/10 cursor-pointer">
+                    <Shield className="w-3.5 h-3.5" />Make Sales Manager
+                  </DropdownMenuItem>
+                )}
+                {u.role !== 'admin' && (
                   <DropdownMenuItem onClick={() => handleChangeRole(u.id, 'admin')} className="text-xs gap-2 hover:bg-white/10 focus:bg-white/10 cursor-pointer">
                     <Shield className="w-3.5 h-3.5" />Make Admin
                   </DropdownMenuItem>
