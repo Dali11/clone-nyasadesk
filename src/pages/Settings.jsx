@@ -14,11 +14,11 @@ const PROD_URL  = 'https://nyasadesk1.vercel.app';
 const FB_APP_ID = import.meta.env.VITE_FACEBOOK_APP_ID || '';
 
 const SECTIONS = [
-  { id: 'profile',   label: 'Profile',   icon: User      },
-  { id: 'workspace', label: 'Workspace', icon: Building2 },
-  { id: 'team',      label: 'Team',      icon: Users     },
-  { id: 'channels',  label: 'Channels',  icon: Globe     },
-  { id: 'sla',       label: 'SLA',       icon: Bell      },
+  { id: 'profile',   label: 'Profile',   icon: User,      adminOnly: false },
+  { id: 'workspace', label: 'Workspace', icon: Building2, adminOnly: true  },
+  { id: 'team',      label: 'Team',      icon: Users,     adminOnly: false },
+  { id: 'channels',  label: 'Channels',  icon: Globe,     adminOnly: true  },
+  { id: 'sla',       label: 'SLA',       icon: Bell,      adminOnly: true  },
 ];
 
 const inputCls = 'w-full bg-[#2A3942] text-white text-sm rounded-xl px-4 py-2.5 focus:outline-none focus:ring-1 focus:ring-[#25D366] border-0 placeholder:text-gray-600';
@@ -665,9 +665,9 @@ function TelegramCard({ saved, workspaceId, onSave, onDelete }) {
 
 export default function Settings() {
   useDocumentTitle('Settings');
-  const { user, profile } = useNyasaAuth();
+  const { user, profile, workspaceOwnerId, isWorkspaceAdmin } = useNyasaAuth();
   const [searchParams]    = useSearchParams();
-  const [section, setSection]       = useState('channels');
+  const [section, setSection]       = useState('profile');
   const [channelConfigs, setChannelConfigs] = useState({});
   const [loadingChannels, setLoadingChannels] = useState(true);
   const [profileForm, setProfileForm] = useState({ full_name: '', email: '' });
@@ -677,6 +677,8 @@ export default function Settings() {
   const [banner, setBanner]   = useState(null);
   const [slaHours, setSlaHours] = useState(4);
   const [slaSaved, setSlaSaved] = useState(false);
+
+  const visibleSections = SECTIONS.filter(s => !s.adminOnly || isWorkspaceAdmin);
 
   useEffect(() => {
     const tab = searchParams.get('tab');
@@ -691,6 +693,13 @@ export default function Settings() {
     }
   }, [searchParams]);
 
+  // Workspace/Channels/SLA are management settings — if a non-admin somehow
+  // lands on one (stale ?tab= link, role changed underneath them), bounce to Profile.
+  useEffect(() => {
+    const current = SECTIONS.find(s => s.id === section);
+    if (current?.adminOnly && !isWorkspaceAdmin) setSection('profile');
+  }, [section, isWorkspaceAdmin]);
+
   useEffect(() => {
     if (user) {
       setProfileForm({ full_name: user.full_name || '', email: user.email || '' });
@@ -700,9 +709,14 @@ export default function Settings() {
   }, [user, profile]);
 
   useEffect(() => {
-    if (!user || !user.id) return;
+    // Must key channel_configs off the WORKSPACE OWNER's id, not the caller's
+    // own id — for an invited admin those differ. This was a real bug: a
+    // second admin connecting WhatsApp/Messenger/etc would silently create a
+    // channel_configs row keyed to THEIR OWN id, completely disconnected from
+    // the shared workspace's inbox — messages would never route anywhere.
+    if (!workspaceOwnerId) return;
     setLoadingChannels(true);
-    getChannelConfigs(user.id)
+    getChannelConfigs(workspaceOwnerId)
       .then(rows => {
         const map = {};
         rows.forEach(r => { map[r.channel] = r; });
@@ -710,15 +724,15 @@ export default function Settings() {
       })
       .catch(() => {})
       .finally(() => setLoadingChannels(false));
-  }, [user && user.id]);
+  }, [workspaceOwnerId]);
 
   const handleSaveChannel = async (channel, fields) => {
-    const row = await saveChannelConfig(user.id, channel, fields, true);
+    const row = await saveChannelConfig(workspaceOwnerId, channel, fields, true);
     setChannelConfigs(prev => ({ ...prev, [channel]: row }));
   };
 
   const handleDeleteChannel = async (channel) => {
-    await deleteChannelConfig(user.id, channel);
+    await deleteChannelConfig(workspaceOwnerId, channel);
     setChannelConfigs(prev => {
       const next = Object.assign({}, prev);
       delete next[channel];
@@ -733,14 +747,18 @@ export default function Settings() {
   };
 
   const saveWorkspace = async () => {
-    await supabase.from('profiles').update({ workspace_name: wsName }).eq('id', user && user.id);
+    // Must target the WORKSPACE OWNER's row, not the caller's own id — for an
+    // invited admin those are different rows. Using user.id directly here was
+    // a real bug: it silently "succeeded" by writing to the admin's own dead
+    // orphan profile instead of the actual shared workspace.
+    await supabase.from('profiles').update({ workspace_name: wsName }).eq('id', workspaceOwnerId);
     setWsSaved(true);
     setTimeout(() => setWsSaved(false), 2000);
   };
 
   const saveSla = async () => {
     const hours = Math.max(1, parseInt(slaHours, 10) || 4);
-    await supabase.from('profiles').update({ sla_hours: hours }).eq('id', user && user.id);
+    await supabase.from('profiles').update({ sla_hours: hours }).eq('id', workspaceOwnerId);
     setSlaHours(hours);
     setSlaSaved(true);
     setTimeout(() => setSlaSaved(false), 2000);
@@ -753,7 +771,7 @@ export default function Settings() {
       {/* Desktop sidebar */}
       <div className="hidden md:flex w-56 bg-[#111B21] border-r border-white/10 flex-col py-4 px-3 shrink-0">
         <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide px-3 mb-3">Settings</p>
-        {SECTIONS.map(({ id, label, icon: Icon }) => (
+        {visibleSections.map(({ id, label, icon: Icon }) => (
           <button key={id} onClick={() => setSection(id)}
             className="flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-all mb-0.5"
             style={{
@@ -768,7 +786,7 @@ export default function Settings() {
       <div className="flex-1 flex flex-col overflow-hidden bg-[#0D1418]">
         {/* Mobile tab bar */}
         <div className="md:hidden flex overflow-x-auto bg-[#111B21] border-b border-white/10 px-2 pt-2 shrink-0 gap-1">
-          {SECTIONS.map(({ id, label, icon: Icon }) => (
+          {visibleSections.map(({ id, label, icon: Icon }) => (
             <button key={id} onClick={() => setSection(id)}
               className="flex flex-col items-center gap-1 px-4 py-2 rounded-t-xl text-[10px] font-semibold whitespace-nowrap transition-all shrink-0"
               style={{
@@ -806,12 +824,12 @@ export default function Settings() {
                   </div>
                 ) : (
                   <>
-                    <WhatsAppCard  saved={channelConfigs.whatsapp}  workspaceId={user && user.id} onSave={handleSaveChannel} onDelete={handleDeleteChannel} />
-                    <MessengerCard saved={channelConfigs.messenger} workspaceId={user && user.id} onSave={handleSaveChannel} onDelete={handleDeleteChannel} />
-                    <InstagramCard saved={channelConfigs.instagram} workspaceId={user && user.id} onSave={handleSaveChannel} onDelete={handleDeleteChannel} />
-                    <TelegramCard  saved={channelConfigs.telegram}  workspaceId={user && user.id} onSave={handleSaveChannel} onDelete={handleDeleteChannel} />
-                    <EmailCard     saved={channelConfigs.email}     workspaceId={user && user.id} onSave={handleSaveChannel} onDelete={handleDeleteChannel} />
-                    <WebsiteCard   saved={channelConfigs.website}   workspaceId={user && user.id} onSave={handleSaveChannel} onDelete={handleDeleteChannel} />
+                    <WhatsAppCard  saved={channelConfigs.whatsapp}  workspaceId={workspaceOwnerId} onSave={handleSaveChannel} onDelete={handleDeleteChannel} />
+                    <MessengerCard saved={channelConfigs.messenger} workspaceId={workspaceOwnerId} onSave={handleSaveChannel} onDelete={handleDeleteChannel} />
+                    <InstagramCard saved={channelConfigs.instagram} workspaceId={workspaceOwnerId} onSave={handleSaveChannel} onDelete={handleDeleteChannel} />
+                    <TelegramCard  saved={channelConfigs.telegram}  workspaceId={workspaceOwnerId} onSave={handleSaveChannel} onDelete={handleDeleteChannel} />
+                    <EmailCard     saved={channelConfigs.email}     workspaceId={workspaceOwnerId} onSave={handleSaveChannel} onDelete={handleDeleteChannel} />
+                    <WebsiteCard   saved={channelConfigs.website}   workspaceId={workspaceOwnerId} onSave={handleSaveChannel} onDelete={handleDeleteChannel} />
                   </>
                 )}
               </>
