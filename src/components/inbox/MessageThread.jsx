@@ -1,9 +1,11 @@
 import { useState, useEffect, useRef } from 'react';
-import { Send, StickyNote, Loader2, Check, CheckCheck, X, Zap, Paperclip, Mic, Square, Play, Pause } from 'lucide-react';
+import { Send, StickyNote, Loader2, Check, CheckCheck, X, Zap, Paperclip, Mic, Square, Play, Pause,
+         ChevronDown, Copy, Share2, Pin, PinOff, Trash2, Ban } from 'lucide-react';
 import { formatDistanceToNow } from 'date-fns';
 import { motion, AnimatePresence } from 'framer-motion';
-import { getMessages, sendMessage, sendMediaMessage, addNote, subscribeToMessages, getCannedResponses } from '@/lib/channels';
+import { getMessages, sendMessage, sendMediaMessage, addNote, deleteMessage, setMessagePinned, subscribeToMessages, getCannedResponses } from '@/lib/channels';
 import { useNyasaAuth } from '@/lib/NyasaAuth';
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger, DropdownMenuSeparator } from '@/components/ui/dropdown-menu';
 
 const CHANNEL_COLOR = {
   whatsapp: '#DCF8C6',
@@ -27,23 +29,92 @@ function StatusIcon({ status }) {
   return null;
 }
 
+// Module-level singleton — WhatsApp-style "only one voice note plays at a
+// time": starting a new one pauses whatever else was playing.
+let currentlyPlayingAudioEl = null;
+
+function formatAudioTime(sec) {
+  if (!isFinite(sec) || sec < 0) return '0:00';
+  const m = Math.floor(sec / 60);
+  const s = Math.floor(sec % 60);
+  return `${m}:${String(s).padStart(2, '0')}`;
+}
+
+const PLAYBACK_RATES = [1, 1.5, 2];
+
 function AudioPlayer({ url }) {
   const audioRef = useRef(null);
   const [playing, setPlaying] = useState(false);
+  const [duration, setDuration] = useState(0);
+  const [currentTime, setCurrentTime] = useState(0);
+  const [rate, setRate] = useState(1);
+  const [dragging, setDragging] = useState(false);
+  const barRef = useRef(null);
+
   const toggle = () => {
-    if (!audioRef.current) return;
-    if (playing) audioRef.current.pause();
-    else audioRef.current.play();
+    const audio = audioRef.current;
+    if (!audio) return;
+    if (playing) {
+      audio.pause();
+    } else {
+      if (currentlyPlayingAudioEl && currentlyPlayingAudioEl !== audio) currentlyPlayingAudioEl.pause();
+      currentlyPlayingAudioEl = audio;
+      audio.play().catch(() => {});
+    }
   };
+
+  const seekToClientX = (clientX) => {
+    const audio = audioRef.current;
+    const bar = barRef.current;
+    if (!audio || !bar || !duration) return;
+    const rect = bar.getBoundingClientRect();
+    const pct = Math.min(1, Math.max(0, (clientX - rect.left) / rect.width));
+    audio.currentTime = pct * duration;
+    setCurrentTime(audio.currentTime);
+  };
+
+  const cycleRate = () => {
+    const next = PLAYBACK_RATES[(PLAYBACK_RATES.indexOf(rate) + 1) % PLAYBACK_RATES.length];
+    setRate(next);
+    if (audioRef.current) audioRef.current.playbackRate = next;
+  };
+
+  const pct = duration ? Math.min(100, (currentTime / duration) * 100) : 0;
+
   return (
-    <div className="flex items-center gap-2 min-w-[180px]">
+    <div className="flex items-center gap-2 min-w-[210px] select-none">
       <button onClick={toggle} className="w-8 h-8 rounded-full bg-black/20 flex items-center justify-center shrink-0">
         {playing ? <Pause className="w-3.5 h-3.5" /> : <Play className="w-3.5 h-3.5 ml-0.5" />}
       </button>
-      <div className="flex-1 h-1 bg-black/20 rounded-full overflow-hidden">
-        <div className="h-full bg-current opacity-50 w-1/3" />
+      <div className="flex-1 flex flex-col gap-1">
+        <div
+          ref={barRef}
+          className="h-1.5 bg-black/20 rounded-full overflow-hidden cursor-pointer relative"
+          onMouseDown={e => { setDragging(true); seekToClientX(e.clientX); }}
+          onMouseMove={e => { if (dragging) seekToClientX(e.clientX); }}
+          onMouseUp={() => setDragging(false)}
+          onMouseLeave={() => setDragging(false)}
+          onTouchStart={e => seekToClientX(e.touches[0].clientX)}
+        >
+          <div className="h-full bg-current opacity-60 rounded-full" style={{ width: pct + '%' }} />
+        </div>
+        <div className="flex items-center justify-between text-[10px] opacity-70 leading-none">
+          <span>{formatAudioTime(currentTime)}</span>
+          <button onClick={cycleRate} className="font-bold px-1 rounded hover:bg-black/10">{rate}x</button>
+          <span>{formatAudioTime(duration)}</span>
+        </div>
       </div>
-      <audio ref={audioRef} src={url} onPlay={() => setPlaying(true)} onPause={() => setPlaying(false)} onEnded={() => setPlaying(false)} />
+      <audio
+        ref={audioRef}
+        src={url}
+        preload="metadata"
+        onPlay={() => setPlaying(true)}
+        onPause={() => setPlaying(false)}
+        onEnded={() => setPlaying(false)}
+        onLoadedMetadata={e => setDuration(e.target.duration || 0)}
+        onDurationChange={e => setDuration(e.target.duration || 0)}
+        onTimeUpdate={e => setCurrentTime(e.target.currentTime)}
+      />
     </div>
   );
 }
@@ -56,13 +127,58 @@ function MediaAttachment({ att }) {
   return null;
 }
 
-function Bubble({ msg }) {
+// WhatsApp-style action menu: a small always-reachable "chevron" button, a
+// long-press (pointer-hold) on the bubble itself, and right-click on desktop
+// all open the same dropdown — Copy / Share / Pin / Delete.
+function MessageActionsMenu({ msg, isOut, open, onOpenChange, onCopy, onShare, onTogglePin, onDelete }) {
+  return (
+    <DropdownMenu open={open} onOpenChange={onOpenChange}>
+      <DropdownMenuTrigger asChild>
+        <button
+          onClick={e => e.stopPropagation()}
+          className={`absolute top-0.5 ${isOut ? 'left-0.5' : 'right-0.5'} w-6 h-6 rounded-full flex items-center justify-center
+            text-gray-600 bg-black/5 hover:bg-black/15 opacity-0 group-hover:opacity-100 focus:opacity-100 transition-opacity`}
+        >
+          <ChevronDown className="w-3.5 h-3.5" />
+        </button>
+      </DropdownMenuTrigger>
+      <DropdownMenuContent align={isOut ? 'end' : 'start'} className="w-40 bg-[#233138] border-white/10 text-gray-200">
+        {msg.body && (
+          <DropdownMenuItem onClick={onCopy} className="text-xs gap-2 hover:bg-white/10 focus:bg-white/10 cursor-pointer">
+            <Copy className="w-3.5 h-3.5" />Copy
+          </DropdownMenuItem>
+        )}
+        <DropdownMenuItem onClick={onShare} className="text-xs gap-2 hover:bg-white/10 focus:bg-white/10 cursor-pointer">
+          <Share2 className="w-3.5 h-3.5" />Share
+        </DropdownMenuItem>
+        <DropdownMenuItem onClick={onTogglePin} className="text-xs gap-2 hover:bg-white/10 focus:bg-white/10 cursor-pointer">
+          {msg.pinned ? <><PinOff className="w-3.5 h-3.5" />Unpin</> : <><Pin className="w-3.5 h-3.5" />Pin</>}
+        </DropdownMenuItem>
+        <DropdownMenuSeparator className="bg-white/10" />
+        <DropdownMenuItem onClick={onDelete} className="text-xs gap-2 text-red-400 hover:bg-red-500/10 focus:bg-red-500/10 cursor-pointer">
+          <Trash2 className="w-3.5 h-3.5" />Delete
+        </DropdownMenuItem>
+      </DropdownMenuContent>
+    </DropdownMenu>
+  );
+}
+
+function Bubble({ msg, menuOpenId, onOpenMenu, onCopy, onShare, onDelete, onTogglePin, bubbleRef }) {
   const isNote     = msg.direction === 'note';
   const isActivity = msg.direction === 'activity';
   const isOut      = msg.direction === 'outbound';
+  const isDeleted  = !!msg.deleted_at;
   const ts         = msg.created_at || msg.created_date;
   const bubbleColor = isOut ? (CHANNEL_COLOR[msg.channel] || '#DCF8C6') : '#FFFFFF';
   const attachment = Array.isArray(msg.attachments) ? msg.attachments[0] : null;
+  const menuOpen = menuOpenId === msg.id;
+
+  // Long-press (pointer-hold, works for touch + mouse) opens the same menu as
+  // the chevron button and right-click — mirrors WhatsApp's "hold on message".
+  const pressTimer = useRef(null);
+  const startPress = () => { pressTimer.current = setTimeout(() => onOpenMenu(msg.id), 450); };
+  const clearPress = () => { if (pressTimer.current) clearTimeout(pressTimer.current); };
+  const handleContextMenu = (e) => { e.preventDefault(); onOpenMenu(msg.id); };
 
   if (isActivity) return (
     <div className="flex justify-center py-1">
@@ -71,19 +187,37 @@ function Bubble({ msg }) {
   );
 
   if (isNote) return (
-    <div className="flex justify-center py-1">
-      <div className="max-w-[78%] bg-yellow-900/30 border border-yellow-700/40 rounded-xl px-4 py-2 text-xs text-yellow-200">
+    <div className="flex justify-center py-1" ref={bubbleRef}>
+      <div
+        className="group relative max-w-[78%] bg-yellow-900/30 border border-yellow-700/40 rounded-xl px-4 py-2 text-xs text-yellow-200"
+        onPointerDown={!isDeleted ? startPress : undefined}
+        onPointerUp={clearPress}
+        onPointerLeave={clearPress}
+        onContextMenu={!isDeleted ? handleContextMenu : undefined}
+      >
         <div className="flex items-center gap-1 mb-1">
           <StickyNote className="w-3 h-3 text-yellow-400" />
           <span className="font-semibold text-yellow-400">Note · {msg.sender_name}</span>
+          {msg.pinned && <Pin className="w-2.5 h-2.5 text-yellow-400 ml-auto" />}
         </div>
-        <p className="whitespace-pre-wrap leading-relaxed">{msg.body}</p>
+        {isDeleted ? (
+          <p className="italic text-yellow-500/60 flex items-center gap-1"><Ban className="w-3 h-3" />This note was deleted</p>
+        ) : (
+          <p className="whitespace-pre-wrap leading-relaxed">{msg.body}</p>
+        )}
+        {!isDeleted && (
+          <MessageActionsMenu msg={msg} isOut={false} open={menuOpen}
+            onOpenChange={v => onOpenMenu(v ? msg.id : null)}
+            onCopy={() => onCopy(msg)} onShare={() => onShare(msg)}
+            onTogglePin={() => onTogglePin(msg)} onDelete={() => onDelete(msg)} />
+        )}
       </div>
     </div>
   );
 
   return (
     <motion.div
+      ref={bubbleRef}
       initial={{ opacity: 0, y: 6 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.15 }}
@@ -95,26 +229,45 @@ function Bubble({ msg }) {
         </div>
       )}
       <div
-        className="max-w-[72%] px-3 py-2 shadow-sm text-sm leading-relaxed"
+        className="group relative max-w-[72%] px-3 py-2 shadow-sm text-sm leading-relaxed"
         style={{
           background: bubbleColor,
           color: '#1a2530',
           borderRadius: isOut ? '12px 2px 12px 12px' : '2px 12px 12px 12px',
         }}
+        onPointerDown={!isDeleted ? startPress : undefined}
+        onPointerUp={clearPress}
+        onPointerLeave={clearPress}
+        onContextMenu={!isDeleted ? handleContextMenu : undefined}
       >
         {!isOut && msg.sender_name && (
           <p className="text-[10px] font-semibold text-[#128C7E] mb-0.5">{msg.sender_name}</p>
         )}
-        {attachment && <MediaAttachment att={attachment} />}
-        {(!attachment || (msg.body && !['📷 Photo','🎥 Video','🎤 Voice message'].includes(msg.body))) && (
-          <p className="whitespace-pre-wrap break-words">{msg.body}</p>
+        {msg.pinned && !isDeleted && (
+          <Pin className={`w-3 h-3 absolute -top-1.5 ${isOut ? '-left-1.5' : '-right-1.5'} text-[#128C7E] fill-[#128C7E]/20`} />
+        )}
+        {isDeleted ? (
+          <p className="italic text-gray-500 flex items-center gap-1.5"><Ban className="w-3.5 h-3.5" />This message was deleted</p>
+        ) : (
+          <>
+            {attachment && <MediaAttachment att={attachment} />}
+            {(!attachment || (msg.body && !['📷 Photo','🎥 Video','🎤 Voice message'].includes(msg.body))) && (
+              <p className="whitespace-pre-wrap break-words">{msg.body}</p>
+            )}
+          </>
         )}
         <div className={`flex items-center gap-1 mt-1 ${isOut ? 'justify-end' : 'justify-start'}`}>
           <p className="text-[10px] text-gray-500">
             {ts ? formatDistanceToNow(new Date(ts), { addSuffix: true }) : ''}
           </p>
-          {isOut && <StatusIcon status={msg.status} />}
+          {isOut && !isDeleted && <StatusIcon status={msg.status} />}
         </div>
+        {!isDeleted && (
+          <MessageActionsMenu msg={msg} isOut={isOut} open={menuOpen}
+            onOpenChange={v => onOpenMenu(v ? msg.id : null)}
+            onCopy={() => onCopy(msg)} onShare={() => onShare(msg)}
+            onTogglePin={() => onTogglePin(msg)} onDelete={() => onDelete(msg)} />
+        )}
       </div>
     </motion.div>
   );
@@ -132,9 +285,11 @@ export default function MessageThread({ conversation, workspaceId }) {
   const [recording, setRecording] = useState(false);
   const [recordSecs, setRecordSecs] = useState(0);
   const [canned, setCanned] = useState([]);
+  const [menuOpenId, setMenuOpenId] = useState(null);
   const bottomRef = useRef(null);
   const inputRef  = useRef(null);
   const fileInputRef = useRef(null);
+  const messageRefs = useRef({}); // for the pinned-messages bar's "jump to" scroll
   const sendingRef = useRef(false); // synchronous lock — `sending` state alone can be bypassed
                                      // if two triggers (e.g. Enter + click) fire before React re-renders
   const mediaRecorderRef = useRef(null);
@@ -289,11 +444,74 @@ export default function MessageThread({ conversation, workspaceId }) {
     if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleSend(); }
   };
 
+  // ── Message actions: copy / share / pin / delete ──────────────────────────
+  const handleCopyMessage = (msg) => {
+    const text = msg.body || msg.attachments?.[0]?.url || '';
+    if (text) navigator.clipboard?.writeText(text).catch(() => {});
+  };
+
+  const handleShareMessage = async (msg) => {
+    const text = msg.body || '';
+    const url = msg.attachments?.[0]?.url;
+    try {
+      if (navigator.share) {
+        await navigator.share(url ? { text: text || undefined, url } : { text });
+      } else {
+        await navigator.clipboard.writeText(url || text);
+      }
+    } catch (e) {
+      // user cancelled the native share sheet, or clipboard denied — no-op
+    }
+  };
+
+  const handleTogglePinMessage = async (msg) => {
+    const next = !msg.pinned;
+    setMessages(prev => prev.map(m => m.id === msg.id ? { ...m, pinned: next } : m));
+    try {
+      await setMessagePinned(msg.id, next);
+    } catch (e) {
+      console.error('[MessageThread] failed to toggle pin:', e);
+      setMessages(prev => prev.map(m => m.id === msg.id ? { ...m, pinned: !next } : m));
+    }
+  };
+
+  const handleDeleteMessage = async (msg) => {
+    if (!window.confirm('Delete this message? This can\'t be undone.')) return;
+    const prevMsg = msg;
+    setMessages(prev => prev.map(m => m.id === msg.id ? { ...m, deleted_at: new Date().toISOString(), body: null, attachments: null } : m));
+    try {
+      await deleteMessage(msg.id);
+    } catch (e) {
+      console.error('[MessageThread] failed to delete message:', e);
+      setMessages(prev => prev.map(m => m.id === msg.id ? prevMsg : m));
+    }
+  };
+
+  const scrollToMessage = (id) => {
+    messageRefs.current[id]?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+  };
+
+  const pinnedMessages = messages.filter(m => m.pinned && !m.deleted_at);
+
   if (!conversation) return null;
 
   return (
     <div className="flex-1 flex flex-col overflow-hidden bg-[#0B141A]"
       style={{ backgroundImage: 'radial-gradient(circle at 1px 1px, rgba(255,255,255,0.03) 1px, transparent 0)', backgroundSize: '20px 20px' }}>
+
+      {/* Pinned messages bar */}
+      {pinnedMessages.length > 0 && (
+        <button
+          onClick={() => scrollToMessage(pinnedMessages[pinnedMessages.length - 1].id)}
+          className="shrink-0 flex items-center gap-2 px-4 py-2 bg-[#1F2C34] border-b border-white/5 text-left hover:bg-[#243139] transition-colors"
+        >
+          <Pin className="w-3.5 h-3.5 text-[#25D366] shrink-0" />
+          <p className="flex-1 min-w-0 text-xs text-gray-300 truncate">
+            <span className="font-semibold text-[#25D366]">{pinnedMessages.length} pinned</span>
+            {' · '}{pinnedMessages[pinnedMessages.length - 1].body || 'Attachment'}
+          </p>
+        </button>
+      )}
 
       {/* Messages */}
       <div className="flex-1 overflow-y-auto scrollbar-thin px-4 py-4 space-y-2">
@@ -307,7 +525,19 @@ export default function MessageThread({ conversation, workspaceId }) {
             <p className="text-xs text-gray-600">Send the first message below</p>
           </div>
         ) : (
-          messages.map(msg => <Bubble key={msg.id} msg={msg} />)
+          messages.map(msg => (
+            <Bubble
+              key={msg.id}
+              msg={msg}
+              bubbleRef={el => { if (el) messageRefs.current[msg.id] = el; }}
+              menuOpenId={menuOpenId}
+              onOpenMenu={setMenuOpenId}
+              onCopy={handleCopyMessage}
+              onShare={handleShareMessage}
+              onTogglePin={handleTogglePinMessage}
+              onDelete={handleDeleteMessage}
+            />
+          ))
         )}
         <div ref={bottomRef} />
       </div>
