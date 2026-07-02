@@ -125,6 +125,21 @@ export async function deleteContact(contactId) {
 
 // ── Messages ─────────────────────────────────────────────────────────────────
 
+// Soft-delete — keeps the row (so pin history / ordering stays sane and a
+// "This message was deleted" placeholder can render) but wipes the actual
+// content, matching WhatsApp's real delete-for-everyone behavior.
+export async function deleteMessage(messageId) {
+  const { error } = await supabase.from('messages')
+    .update({ deleted_at: new Date().toISOString(), body: null, attachments: null })
+    .eq('id', messageId);
+  if (error) throw error;
+}
+
+export async function setMessagePinned(messageId, pinned) {
+  const { error } = await supabase.from('messages').update({ pinned }).eq('id', messageId);
+  if (error) throw error;
+}
+
 export async function getMessages(conversationId) {
   const { data, error } = await supabase
     .from('messages')
