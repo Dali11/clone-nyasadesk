@@ -7,7 +7,7 @@ import MessageThread from '@/components/inbox/MessageThread';
 import ContactPanel from '@/components/inbox/ContactPanel';
 import NewConvModal from '@/components/inbox/NewConvModal';
 import { useNyasaAuth } from '@/lib/NyasaAuth';
-import { getConversations, updateConversation, subscribeToConversations } from '@/lib/channels';
+import { getConversations, updateConversation, deleteConversation, subscribeToConversations } from '@/lib/channels';
 import { supabase } from '@/lib/supabase';
 import { useDocumentTitle } from '@/hooks/useDocumentTitle';
 
@@ -23,7 +23,7 @@ const CHANNELS_FILTER = ['all', 'whatsapp', 'messenger', 'instagram', 'telegram'
 
 export default function Inbox() {
   useDocumentTitle('Inbox');
-  const { user, workspaceOwnerId } = useNyasaAuth();
+  const { user, workspaceOwnerId, canViewAllChats } = useNyasaAuth();
   const [conversations, setConversations] = useState([]);
   const [loading, setLoading] = useState(true);
   const [activeConv, setActiveConv] = useState(null);
@@ -115,6 +115,17 @@ export default function Inbox() {
     }
   };
 
+  const handleDelete = async (id) => {
+    try {
+      await deleteConversation(id);
+      setConversations(prev => prev.filter(c => c.id !== id));
+      setActiveConv(prev => (prev?.id === id ? null : prev));
+    } catch (e) {
+      console.error('[Inbox] failed to delete conversation:', e);
+      window.alert('Could not delete this conversation. You may not have permission.');
+    }
+  };
+
   const showChat = !!activeConv;
 
   return (
@@ -202,6 +213,8 @@ export default function Inbox() {
               onBack={() => setActiveConv(null)}
               onUpdate={handleConvUpdate}
               onOpenContact={() => setContactOpen(true)}
+              onDelete={handleDelete}
+              canDelete={canViewAllChats}
             />
             <div className="flex-1 flex overflow-hidden relative">
               <MessageThread conversation={activeConv} workspaceId={user?.id} />

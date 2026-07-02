@@ -74,27 +74,19 @@ export async function getConversations(workspaceId, filters = {}) {
   return (data || []).map(normalizeConversation);
 }
 
+export async function deleteConversation(id) {
+  const { error } = await supabase.from('conversations').delete().eq('id', id);
+  if (error) throw error;
+}
+
 export async function updateConversation(id, updates) {
-  const payload = { ...updates, updated_at: new Date().toISOString() };
   const { data, error } = await supabase
     .from('conversations')
-    .update(payload)
+    .update({ ...updates, updated_at: new Date().toISOString() })
     .eq('id', id)
     .select('*, contact:contacts(id,full_name,phone,email,company,avatar_url,deal_stage,tags,notes)')
     .single();
-  if (error) {
-    // Handing a chat off to someone else (e.g. an agent reassigning to a
-    // colleague) is a legitimate write that RLS allows — but PostgREST's
-    // implicit RETURNING re-checks the *new* row against the SELECT policy,
-    // which correctly hides it from you once it's no longer yours. That
-    // makes the write LOOK like it failed even though it went through, which
-    // was silently swallowed upstream and looked exactly like "assignment
-    // isn't saving". Retry as a write-only update (no .select()) so a
-    // legitimate handoff doesn't get treated as an error.
-    const { error: writeError } = await supabase.from('conversations').update(payload).eq('id', id);
-    if (writeError) throw writeError;
-    return { id, ...updates };
-  }
+  if (error) throw error;
   return normalizeConversation(data);
 }
 

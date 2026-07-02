@@ -1,4 +1,4 @@
-import { ChevronDown, MoreVertical, ArrowLeft } from 'lucide-react';
+import { ChevronDown, MoreVertical, ArrowLeft, Trash2 } from 'lucide-react';
 import Avatar from '@/components/Avatar';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger, DropdownMenuSeparator } from '@/components/ui/dropdown-menu';
 
@@ -6,7 +6,7 @@ const PRIORITIES = ['low', 'normal', 'high', 'urgent'];
 const STATUSES = ['open', 'snoozed', 'closed'];
 const STATUS_COLOR = { open: 'bg-green-500', snoozed: 'bg-yellow-500', closed: 'bg-gray-500', unassigned: 'bg-orange-400' };
 
-export default function ChatHeader({ conversation, users = [], onUpdate, onBack, onOpenContact }) {
+export default function ChatHeader({ conversation, users = [], onUpdate, onBack, onOpenContact, onDelete, canDelete }) {
   if (!conversation) return null;
 
   const assign = (userId, userName) => onUpdate({ ...conversation, assigned_to: userId, assigned_to_name: userName, status: 'open' });
@@ -67,6 +67,20 @@ export default function ChatHeader({ conversation, users = [], onUpdate, onBack,
             {PRIORITIES.map(p => (
               <DropdownMenuItem key={p} onClick={() => updatePriority(p)} className="text-xs capitalize hover:bg-white/10 focus:bg-white/10 cursor-pointer">{p}</DropdownMenuItem>
             ))}
+            {canDelete && onDelete && (
+              <>
+                <DropdownMenuSeparator className="bg-white/10" />
+                <DropdownMenuItem
+                  onClick={() => {
+                    if (window.confirm('Delete this conversation? This removes it and all its messages permanently — this cannot be undone.')) {
+                      onDelete(conversation.id);
+                    }
+                  }}
+                  className="text-xs hover:bg-red-500/10 focus:bg-red-500/10 cursor-pointer gap-2 text-red-400">
+                  <Trash2 className="w-3.5 h-3.5" />Delete conversation
+                </DropdownMenuItem>
+              </>
+            )}
           </DropdownMenuContent>
         </DropdownMenu>
       </div>
