@@ -66,7 +66,7 @@ export default function Onboarding() {
         try {
           const { data: { session } } = await supabase.auth.getSession();
           await Promise.all(emailsToInvite.map(email =>
-            fetch('/api/team/invite', {
+            fetch('/api/team', {
               method: 'POST',
               headers: {
                 'Content-Type': 'application/json',
