@@ -160,20 +160,28 @@
     #nyasa-close { background: none; border: none; cursor: pointer; color: rgba(255,255,255,0.8); font-size: 20px; padding: 4px; }
     #nyasa-msgs {
       flex: 1; overflow-y: auto; padding: 16px; background: var(--nyasa-page-bg);
-      display: flex; flex-direction: column; gap: 10px;
+      display: flex; flex-direction: column; gap: 6px;
     }
     #nyasa-msgs::-webkit-scrollbar { width: 4px; }
     #nyasa-msgs::-webkit-scrollbar-thumb { background: rgba(128,128,128,0.25); border-radius: 2px; }
-    .nyasa-bubble { display: flex; flex-direction: column; max-width: 78%; }
+    .nyasa-bubble { display: flex; flex-direction: column; max-width: 78%; margin: 3px 0; }
     .nyasa-bubble.out { align-self: flex-end; align-items: flex-end; }
     .nyasa-bubble.in  { align-self: flex-start; align-items: flex-start; }
+    /* WhatsApp-style bubble: generous padding, and the timestamp sits tucked
+       inline at the bottom-right of the last line (via the float trick)
+       instead of floating as a separate row below the bubble. */
     .nyasa-bubble .text {
-      padding: 10px 14px 11px; font-size: 14px; line-height: 1.45; word-break: break-word;
+      position: relative; overflow: hidden; /* creates a block-formatting context so the bubble's height wraps the floated meta */
+      padding: 8px 13px 9px 12px;
+      font-size: 14.3px; line-height: 19px; word-break: break-word;
       box-shadow: 0 1px 0.5px rgba(0,0,0,0.13); color: var(--nyasa-text);
     }
     .nyasa-bubble.out .text { background: var(--nyasa-out-bubble); border-radius: 12px 3px 12px 12px; }
     .nyasa-bubble.in  .text { background: var(--nyasa-in-bubble);  border-radius: 3px 12px 12px 12px; }
-    .nyasa-bubble .meta { font-size: 10px; color: var(--nyasa-muted); margin-top: 3px; padding: 0 4px; }
+    .nyasa-bubble .meta {
+      float: right; margin: 5px -3px -3px 10px;
+      font-size: 11px; line-height: 15px; color: var(--nyasa-muted); white-space: nowrap;
+    }
     .nyasa-system { text-align: center; font-size: 11px; color: var(--nyasa-muted); padding: 4px 0; }
     #nyasa-name-gate { background: var(--nyasa-panel-bg); padding: 16px; border-top: 1px solid var(--nyasa-border); flex-shrink: 0; }
     #nyasa-name-gate p { font-size: 12px; color: var(--nyasa-muted); margin-bottom: 8px; }
@@ -382,7 +390,10 @@
   const addMsg = (dir, text, ts) => {
     const b = document.createElement('div');
     b.className = `nyasa-bubble ${dir}`;
-    b.innerHTML = `<div class="text">${esc(text)}</div><div class="meta">${fmt(ts)}</div>`;
+    // Timestamp lives INSIDE the bubble, floated to the bottom-right of the
+    // last line — same layout WhatsApp uses — instead of sitting as a
+    // separate row underneath it.
+    b.innerHTML = `<div class="text">${esc(text)}<span class="meta">${fmt(ts)}</span></div>`;
     msgs.appendChild(b);
     msgs.scrollTop = msgs.scrollHeight;
   };
