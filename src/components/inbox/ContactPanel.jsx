@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Mail, Phone, Edit3, Check, X, Plus, Bell, ArrowLeft } from 'lucide-react';
+import { Mail, Phone, Edit3, Check, X, Plus, Bell, ArrowLeft, Megaphone } from 'lucide-react';
 import Avatar from '@/components/Avatar';
 import { updateContact as updateContactRemote } from '@/lib/channels';
 
@@ -109,6 +109,25 @@ export default function ContactPanel({ conversation, onUpdate = () => {}, onClos
           </div>
         )}
       </div>
+
+      {/* Ad attribution — only shows for contacts whose first message came from a Click-to-WhatsApp ad */}
+      {contact?.ad_attribution && (
+        <div className="px-4 py-3 border-b border-white/10 bg-[#25D366]/5">
+          <div className="flex items-center gap-1.5 mb-1.5">
+            <Megaphone className="w-3 h-3 text-[#25D366]" />
+            <p className="text-[10px] font-semibold text-[#25D366] uppercase tracking-wide">From an ad</p>
+          </div>
+          {contact.ad_attribution.headline && (
+            <p className="text-xs text-white font-medium truncate">{contact.ad_attribution.headline}</p>
+          )}
+          {contact.ad_attribution.body && (
+            <p className="text-xs text-gray-500 mt-0.5 line-clamp-2">{contact.ad_attribution.body}</p>
+          )}
+          <p className="text-[10px] text-gray-600 mt-1">
+            {contact.ad_attribution.captured_at ? new Date(contact.ad_attribution.captured_at).toLocaleDateString() : ''}
+          </p>
+        </div>
+      )}
 
       {/* Deal Stage */}
       <div className="px-4 py-3 border-b border-white/10">
