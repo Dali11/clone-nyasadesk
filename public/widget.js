@@ -18,6 +18,7 @@
   const WID    = script?.getAttribute('data-workspace-id');
   const MODE   = (script?.getAttribute('data-mode') || 'popup').toLowerCase(); // 'popup' | 'inline'
   const THEME  = (script?.getAttribute('data-theme') || 'auto').toLowerCase(); // 'auto' | 'light' | 'dark'
+  let POSITION = (script?.getAttribute('data-position') || 'bottom-right').toLowerCase(); // 'bottom-right' | 'bottom-left' — set from Settings > Channels > Website, baked into the copied embed snippet
   // Whether to sniff the REAL host page's background/text/font (for genuine
   // 3rd-party site embeds). Our own hosted Support Page already declares an
   // explicit theme and correct contrast on its own — it opts out of this
@@ -31,6 +32,7 @@
   // ── State ─────────────────────────────────────────────────────────────────
   let sessionId    = localStorage.getItem('nyasa_session_' + WID) || null;
   let visitorName  = localStorage.getItem('nyasa_name_' + WID)  || null;
+  const isReturningVisitor = !!sessionId; // has a real prior session — replay their history instead of a fresh greeting
   let color        = '#25D366';
   let lastPollAt   = new Date().toISOString();
   let open         = INLINE ? true : false;
@@ -204,6 +206,13 @@
       #nyasa-window { bottom: 84px; right: 12px; width: calc(100vw - 24px); }
       #nyasa-fab { bottom: 16px; right: 16px; }
     }
+    /* Widget position — configurable in Settings > Channels > Website, baked into the embed snippet */
+    #nyasa-widget.nyasa-pos-left #nyasa-fab { left: 24px; right: auto; }
+    #nyasa-widget.nyasa-pos-left #nyasa-window { left: 24px; right: auto; transform-origin: bottom left; }
+    @media (max-width: 420px) {
+      #nyasa-widget.nyasa-pos-left #nyasa-window { left: 12px; right: auto; }
+      #nyasa-widget.nyasa-pos-left #nyasa-fab { left: 16px; right: auto; }
+    }
   `;
   document.head.appendChild(style);
 
@@ -213,6 +222,7 @@
   // this covers explicit dark/light AND 'auto', so there's no separate CSS
   // media-query path to fall out of sync with what we just calculated.
   if (isDark) root.classList.add('nyasa-theme-dark');
+  if (POSITION === 'bottom-left') root.classList.add('nyasa-pos-left');
   if (INLINE) {
     root.classList.add('nyasa-inline');
     // In inline mode, mount into a target container if present, else right where the script tag is
@@ -290,17 +300,44 @@
   };
 
   // ── Init ──────────────────────────────────────────────────────────────────
-  api({ action: 'start', session_id: sessionId }).then(data => {
+  // Returning visitors (their browser already has a stored session_id for
+  // this workspace) get their real past conversation replayed instead of a
+  // fresh canned greeting every time — chat history is fully persistent on
+  // both ends and only ever goes away if the business explicitly deletes it.
+  const loadHistory = async () => {
+    try {
+      const data = await api({ action: 'history', session_id: sessionId });
+      const history = data.messages || [];
+      if (history.length === 0) return false;
+      for (const m of history) {
+        addMsg(m.direction === 'outbound' ? 'in' : 'out', m.body, m.created_at);
+        lastPollAt = m.created_at;
+      }
+      return true;
+    } catch { return false; }
+  };
+
+  api({ action: 'start', session_id: sessionId }).then(async (data) => {
     color = data.color || '#25D366';
     root.style.setProperty('--nyasa-color', color);
     if (data.session_id) { sessionId = data.session_id; localStorage.setItem('nyasa_session_' + WID, sessionId); }
+    // Self-heal position if this site's copied snippet is stale vs. what's
+    // now saved in Settings (the data-position attribute already applied it
+    // instantly with zero flash for anyone on the latest snippet).
+    const wantsLeft = (data.position || 'bottom-right') === 'bottom-left';
+    root.classList.toggle('nyasa-pos-left', wantsLeft);
     const label = data.label || 'Chat with us';
     if (fab) fab.title = label;
     if (headerName) headerName.textContent = data.agent_name || 'Support Team';
-    addMsg('in', data.greeting || 'Hi! How can we help?', new Date().toISOString());
+
+    const hadHistory = isReturningVisitor ? await loadHistory() : false;
+    if (!hadHistory) addMsg('in', data.greeting || 'Hi! How can we help?', new Date().toISOString());
+
     if (!INLINE) {
-      badge.style.display = 'flex';
-      badge.textContent = '1';
+      // Don't nag returning visitors with a fake "1 new message" badge for
+      // history they've already seen — only genuinely new replies (via poll)
+      // should badge from here on.
+      if (!hadHistory) { badge.style.display = 'flex'; badge.textContent = '1'; }
     } else {
       showComposerOrGate();
       startPolling();
