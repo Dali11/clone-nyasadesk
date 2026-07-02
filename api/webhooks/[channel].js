@@ -77,9 +77,40 @@ async function whatsappHandler(req, res, sb) {
             }
           }
 
+          // Click-to-WhatsApp ads: Meta attaches a `referral` object to the FIRST
+          // inbound message when the chat originated from an ad tap (source_type
+          // 'ad', headline/body of the ad, and a ctwa_clid click id used to
+          // correlate with Ads Manager). We do a first-touch capture: once a
+          // contact is tagged whatsapp_ad with attribution, later ordinary
+          // messages (which won't carry a referral) must NOT downgrade it back
+          // to plain 'whatsapp' — hence the existing-row lookup below instead of
+          // blindly overwriting lead_source/ad_attribution on every message.
+          const { data: existingContact } = await sb.from('contacts')
+            .select('lead_source, ad_attribution')
+            .eq('workspace_id', workspaceId).eq('channel', 'whatsapp').eq('external_id', from)
+            .maybeSingle();
+
+          const adReferral = msg.referral || null;
+          const leadSource = existingContact?.lead_source === 'whatsapp_ad'
+            ? 'whatsapp_ad' : (adReferral ? 'whatsapp_ad' : 'whatsapp');
+          let adAttribution = existingContact?.ad_attribution || null;
+          if (adReferral && !adAttribution) {
+            adAttribution = {
+              source_type: adReferral.source_type || 'ad',
+              source_id: adReferral.source_id || null,
+              source_url: adReferral.source_url || null,
+              headline: adReferral.headline || null,
+              body: adReferral.body || null,
+              media_type: adReferral.media_type || null,
+              ctwa_clid: adReferral.ctwa_clid || null,
+              captured_at: ts,
+            };
+          }
+
           const { data: contact } = await sb.from('contacts')
             .upsert({ workspace_id: workspaceId, channel: 'whatsapp', external_id: from,
-              full_name: contactName, phone: '+' + from, lead_source: 'whatsapp' },
+              full_name: contactName, phone: '+' + from, lead_source: leadSource,
+              ...(adAttribution ? { ad_attribution: adAttribution } : {}) },
               { onConflict: 'workspace_id,channel,external_id' }).select('*').single();
 
           const { data: conv } = await sb.from('conversations')
