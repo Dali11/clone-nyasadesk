@@ -1,11 +1,12 @@
 import { useState, useEffect } from 'react';
-import { Plus, Trash2, Edit3, Zap, ToggleLeft, ToggleRight, Loader2 } from 'lucide-react';
+import { Plus, Trash2, Edit3, Zap, ToggleLeft, ToggleRight, Loader2, Lock } from 'lucide-react';
 import Sidebar from '@/components/Sidebar';
 import ChannelBadge, { CHANNELS } from '@/components/ChannelBadge';
 import Avatar from '@/components/Avatar';
 import { useNyasaAuth } from '@/lib/NyasaAuth';
 import { getRules, createRule, updateRule, deleteRule } from '@/lib/channels';
 import { useDocumentTitle } from '@/hooks/useDocumentTitle';
+import { supabase } from '@/lib/supabase';
 
 const RULE_TYPES = [
   { value: 'round_robin', label: 'Round Robin', desc: 'Rotate conversations evenly across selected agents in order' },
@@ -16,8 +17,8 @@ const CHANNELS_ALL = ['all', ...CHANNELS];
 
 export default function Rules() {
   useDocumentTitle('Assignment Rules');
-  const { user, profile } = useNyasaAuth();
-  const workspaceId = profile?.workspace_id || user?.id;
+  const { user, profile, workspaceOwnerId, isWorkspaceAdmin } = useNyasaAuth();
+  const workspaceId = workspaceOwnerId || profile?.workspace_id || user?.id;
 
   const [rules, setRules] = useState([]);
   const [users, setUsers] = useState([]);
@@ -29,9 +30,15 @@ export default function Rules() {
   const load = async () => {
     if (!workspaceId) { setLoading(false); return; }
     try {
+      // This fetch was missing its Authorization header — /api/team/list
+      // requires one (added in an earlier security fix) and was silently
+      // 401ing here, so the "Assign to" picker always rendered empty.
+      const { data: { session } } = await supabase.auth.getSession();
       const [rulesData, teamRes] = await Promise.all([
         getRules(workspaceId),
-        fetch(`/api/team/list?workspace_id=${encodeURIComponent(workspaceId)}`).then(r => r.json()).catch(() => ({ users: [] })),
+        fetch(`/api/team/list?workspace_id=${encodeURIComponent(workspaceId)}`, {
+          headers: session?.access_token ? { Authorization: `Bearer ${session.access_token}` } : {},
+        }).then(r => r.json()).catch(() => ({ users: [] })),
       ]);
       setRules(rulesData);
       setUsers(teamRes.users || []);
@@ -94,11 +101,20 @@ export default function Rules() {
               <h1 className="text-xl md:text-2xl font-bold text-white">Assignment Rules</h1>
               <p className="text-xs md:text-sm text-gray-400 mt-1">Auto-assign incoming conversations to your team</p>
             </div>
-            <button onClick={startNew}
-              className="flex items-center gap-2 px-3 md:px-4 py-2 bg-[#25D366] text-white text-sm font-semibold rounded-xl hover:bg-[#20BA5A] transition-colors shrink-0">
-              <Plus className="w-4 h-4" /> New Rule
-            </button>
+            {isWorkspaceAdmin && (
+              <button onClick={startNew}
+                className="flex items-center gap-2 px-3 md:px-4 py-2 bg-[#25D366] text-white text-sm font-semibold rounded-xl hover:bg-[#20BA5A] transition-colors shrink-0">
+                <Plus className="w-4 h-4" /> New Rule
+              </button>
+            )}
           </div>
+
+          {!isWorkspaceAdmin && (
+            <div className="flex items-center gap-2 bg-white/5 border border-white/10 rounded-xl px-4 py-3 mb-4 text-xs text-gray-400">
+              <Lock className="w-3.5 h-3.5 shrink-0" />
+              You can view assignment rules, but only workspace admins can create, edit, or delete them.
+            </div>
+          )}
 
           <div className="bg-[#202C33] rounded-2xl border border-white/10 p-4 mb-6 space-y-3">
             <p className="text-xs font-bold text-gray-300 uppercase tracking-wide">How assignment works</p>
@@ -188,15 +204,21 @@ export default function Rules() {
                       </div>
                     </div>
                     <div className="flex items-center gap-2 shrink-0">
-                      <button onClick={() => toggle(r.id, !r.is_active)} className="text-gray-500 hover:text-white transition-colors">
-                        {r.is_active ? <ToggleRight className="w-5 h-5 text-[#25D366]" /> : <ToggleLeft className="w-5 h-5" />}
-                      </button>
-                      <button onClick={() => startEdit(r)} className="p-1.5 hover:bg-white/10 rounded-lg text-gray-600 hover:text-white transition-colors opacity-0 group-hover:opacity-100">
-                        <Edit3 className="w-4 h-4" />
-                      </button>
-                      <button onClick={() => del(r.id)} className="p-1.5 hover:bg-red-900/30 rounded-lg text-gray-600 hover:text-red-400 transition-colors opacity-0 group-hover:opacity-100">
-                        <Trash2 className="w-4 h-4" />
-                      </button>
+                      {isWorkspaceAdmin ? (
+                        <>
+                          <button onClick={() => toggle(r.id, !r.is_active)} className="text-gray-500 hover:text-white transition-colors">
+                            {r.is_active ? <ToggleRight className="w-5 h-5 text-[#25D366]" /> : <ToggleLeft className="w-5 h-5" />}
+                          </button>
+                          <button onClick={() => startEdit(r)} className="p-1.5 hover:bg-white/10 rounded-lg text-gray-600 hover:text-white transition-colors opacity-0 group-hover:opacity-100">
+                            <Edit3 className="w-4 h-4" />
+                          </button>
+                          <button onClick={() => del(r.id)} className="p-1.5 hover:bg-red-900/30 rounded-lg text-gray-600 hover:text-red-400 transition-colors opacity-0 group-hover:opacity-100">
+                            <Trash2 className="w-4 h-4" />
+                          </button>
+                        </>
+                      ) : (
+                        r.is_active ? <ToggleRight className="w-5 h-5 text-[#25D366]/50" /> : <ToggleLeft className="w-5 h-5 text-gray-700" />
+                      )}
                     </div>
                   </div>
                 </div>
