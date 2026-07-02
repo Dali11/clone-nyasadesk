@@ -73,21 +73,21 @@ function dayOverDay(todayCount, yesterdayCount) {
 
 export default function Dashboard() {
   useDocumentTitle('Dashboard');
-  const { user } = useNyasaAuth();
+  const { user, workspaceOwnerId, canViewAllChats } = useNyasaAuth();
   const [conversations, setConversations] = useState([]);
   const [loading, setLoading] = useState(true);
 
   const load = useCallback(async () => {
-    if (!user?.id) return;
+    if (!workspaceOwnerId) return;
     try {
-      const data = await getConversations(user.id);
+      const data = await getConversations(workspaceOwnerId);
       setConversations(data);
     } catch (e) {
       console.error('Failed to load dashboard data:', e);
     } finally {
       setLoading(false);
     }
-  }, [user?.id]);
+  }, [workspaceOwnerId]);
 
   useEffect(() => { load(); }, [load]);
 
@@ -98,14 +98,34 @@ export default function Dashboard() {
   const isToday = (d) => d && new Date(d) >= today;
   const isYesterday = (d) => d && new Date(d) >= yesterdayStart && new Date(d) < today;
 
-  const totalOpen = conversations.filter(c => c.status !== 'closed').length;
-  const unassigned = conversations.filter(c => !c.assigned_to && c.status !== 'closed').length;
-  const urgent = conversations.filter(c => c.priority === 'urgent' && c.status !== 'closed').length;
-  const closedToday = conversations.filter(c => c.status === 'closed' && isToday(c.updated_at)).length;
-  const closedYesterday = conversations.filter(c => c.status === 'closed' && isYesterday(c.updated_at)).length;
+  // canViewAllChats (admin/sales_manager/owner) get the team-wide view — for
+  // plain agents, RLS already only ever hands us their own conversations plus
+  // unassigned ones, but the STAT CARDS still need to mean "mine" not "the
+  // team's" — a bare "Open: 12" is meaningless to an agent who can't act on
+  // most of it. So the two views compute different numbers from the same
+  // (already correctly scoped) conversations array.
+  const isAgentView = !canViewAllChats;
 
-  const newToday = conversations.filter(c => isToday(c.created_at)).length;
-  const newYesterday = conversations.filter(c => isYesterday(c.created_at)).length;
+  const totalOpen = isAgentView
+    ? conversations.filter(c => c.assigned_to === user?.id && c.status !== 'closed').length
+    : conversations.filter(c => c.status !== 'closed').length;
+  const unassigned = conversations.filter(c => !c.assigned_to && c.status !== 'closed').length;
+  const urgent = isAgentView
+    ? conversations.filter(c => c.assigned_to === user?.id && c.priority === 'urgent' && c.status !== 'closed').length
+    : conversations.filter(c => c.priority === 'urgent' && c.status !== 'closed').length;
+  const closedToday = isAgentView
+    ? conversations.filter(c => c.assigned_to === user?.id && c.status === 'closed' && isToday(c.updated_at)).length
+    : conversations.filter(c => c.status === 'closed' && isToday(c.updated_at)).length;
+  const closedYesterday = isAgentView
+    ? conversations.filter(c => c.assigned_to === user?.id && c.status === 'closed' && isYesterday(c.updated_at)).length
+    : conversations.filter(c => c.status === 'closed' && isYesterday(c.updated_at)).length;
+
+  const newToday = isAgentView
+    ? conversations.filter(c => c.assigned_to === user?.id && isToday(c.created_at)).length
+    : conversations.filter(c => isToday(c.created_at)).length;
+  const newYesterday = isAgentView
+    ? conversations.filter(c => c.assigned_to === user?.id && isYesterday(c.created_at)).length
+    : conversations.filter(c => isYesterday(c.created_at)).length;
   const newUnassignedToday = conversations.filter(c => !c.assigned_to && isToday(c.created_at)).length;
   const newUnassignedYesterday = conversations.filter(c => !c.assigned_to && isYesterday(c.created_at)).length;
 
@@ -140,8 +160,8 @@ export default function Dashboard() {
 
           {/* Header */}
           <div className="mb-6">
-            <h1 className="text-xl md:text-2xl font-black text-white">Dashboard</h1>
-            <p className="text-xs md:text-sm text-gray-400 mt-0.5">Team performance & pipeline</p>
+            <h1 className="text-xl md:text-2xl font-black text-white">{isAgentView ? 'My Dashboard' : 'Dashboard'}</h1>
+            <p className="text-xs md:text-sm text-gray-400 mt-0.5">{isAgentView ? 'Your chats & activity' : 'Team performance & pipeline'}</p>
           </div>
 
           {loading ? (
@@ -153,9 +173,9 @@ export default function Dashboard() {
           {/* Stat Cards */}
           <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 mb-6">
             <StatCard
-              label="Open"
+              label={isAgentView ? 'My Open' : 'Open'}
               value={totalOpen}
-              sub="Active conversations"
+              sub={isAgentView ? 'Assigned to you' : 'Active conversations'}
               icon={MessageSquare}
               color="#25D366"
               trend={openTrend.trend}
@@ -164,14 +184,14 @@ export default function Dashboard() {
             <StatCard
               label="Unassigned"
               value={unassigned}
-              sub="Need assignment"
+              sub={isAgentView ? 'Ready to pick up' : 'Need assignment'}
               icon={Clock}
               color="#F59E0B"
               trend={unassignedTrend.trend}
               trendLabel={unassignedTrend.label}
             />
             <StatCard
-              label="Urgent"
+              label={isAgentView ? 'My Urgent' : 'Urgent'}
               value={urgent}
               sub="High priority"
               icon={AlertCircle}
@@ -180,9 +200,9 @@ export default function Dashboard() {
               trendLabel={urgent > 0 ? "Action needed" : "All clear"}
             />
             <StatCard
-              label="Closed Today"
+              label={isAgentView ? 'Closed by Me' : 'Closed Today'}
               value={closedToday}
-              sub="Resolved"
+              sub="Resolved today"
               icon={CheckCircle}
               color="#6366F1"
               trend={closedTrend.trend}
@@ -193,7 +213,7 @@ export default function Dashboard() {
           {/* Charts */}
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 mb-6">
             <div className="bg-[#202C33] rounded-2xl p-4 md:p-5 border border-white/10">
-              <h3 className="text-xs font-bold text-gray-300 uppercase tracking-wide mb-4">By Channel</h3>
+              <h3 className="text-xs font-bold text-gray-300 uppercase tracking-wide mb-4">{isAgentView ? "My Chats by Channel" : "By Channel"}</h3>
               {hasChannelData ? (
                 <>
                   <ResponsiveContainer width="100%" height={160}>
@@ -219,7 +239,7 @@ export default function Dashboard() {
             </div>
 
             <div className="bg-[#202C33] rounded-2xl p-4 md:p-5 border border-white/10">
-              <h3 className="text-xs font-bold text-gray-300 uppercase tracking-wide mb-4">Pipeline</h3>
+              <h3 className="text-xs font-bold text-gray-300 uppercase tracking-wide mb-4">{isAgentView ? "My Pipeline" : "Pipeline"}</h3>
               <ResponsiveContainer width="100%" height={180}>
                 <BarChart data={stageData} barSize={14}>
                   <XAxis dataKey="name" tick={{ fontSize: 9, fill: '#6B7280' }} axisLine={false} tickLine={false} />
@@ -236,7 +256,7 @@ export default function Dashboard() {
           {/* SLA Breaches */}
           {slaData.length > 0 && (
             <div className="bg-[#202C33] rounded-2xl p-4 md:p-5 border border-white/10 mb-6">
-              <h3 className="text-xs font-bold text-gray-300 uppercase tracking-wide mb-4">SLA At Risk</h3>
+              <h3 className="text-xs font-bold text-gray-300 uppercase tracking-wide mb-4">{isAgentView ? "My SLA Watch" : "SLA At Risk"}</h3>
               <div className="space-y-2">
                 {slaData.map(c => (
                   <div key={c.id} className="flex items-center justify-between py-2 border-b border-white/5 last:border-0">
