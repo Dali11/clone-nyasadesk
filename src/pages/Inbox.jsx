@@ -103,14 +103,14 @@ export default function Inbox() {
   const handleConvUpdate = (updates) => {
     setActiveConv(prev => ({ ...prev, ...updates }));
     setConversations(prev => prev.map(c => c.id === updates.id ? { ...c, ...updates } : c));
-    updateConversation(updates.id, updates).catch(() => {});
+    updateConversation(updates.id, updates).catch(e => console.error('[Inbox] failed to update conversation:', e));
   };
 
   const handleSelect = async (conv) => {
     setActiveConv(conv);
     setContactOpen(false); // reset the contact-info overlay whenever a different chat is opened
     if (conv.unread_count > 0) {
-      await updateConversation(conv.id, { unread_count: 0 }).catch(() => {});
+      await updateConversation(conv.id, { unread_count: 0 }).catch(e => console.error('[Inbox] failed to clear unread count:', e));
       setConversations(prev => prev.map(c => c.id === conv.id ? { ...c, unread_count: 0 } : c));
     }
   };

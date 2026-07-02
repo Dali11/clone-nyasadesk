@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
-import { useSearchParams } from 'react-router-dom';
+import { useSearchParams, useNavigate } from 'react-router-dom';
 import { User, Users, Globe, Bell, Building2, Check, Loader2,
-         Trash2, Copy, ExternalLink, ChevronDown, AlertCircle, Code2 } from 'lucide-react';
+         Trash2, Copy, ExternalLink, ChevronDown, AlertCircle, Code2, ShieldCheck } from 'lucide-react';
 import Sidebar from '@/components/Sidebar';
 import Avatar from '@/components/Avatar';
 import TeamSection from '@/components/settings/TeamSection';
@@ -687,7 +687,8 @@ function TelegramCard({ saved, workspaceId, onSave, onDelete }) {
 
 export default function Settings() {
   useDocumentTitle('Settings');
-  const { user, profile, workspaceOwnerId, isWorkspaceAdmin } = useNyasaAuth();
+  const { user, profile, workspaceOwnerId, isWorkspaceAdmin, isPlatformAdmin } = useNyasaAuth();
+  const navigate = useNavigate();
   const [searchParams]    = useSearchParams();
   const [section, setSection]       = useState('profile');
   const [channelConfigs, setChannelConfigs] = useState({});
@@ -885,6 +886,14 @@ export default function Settings() {
                   style={{ background: '#25D366' }}>
                   {profileSaved ? <><Check className="w-4 h-4" />Saved!</> : 'Save Profile'}
                 </button>
+
+                {isPlatformAdmin && (
+                  <button onClick={() => navigate('/admin')}
+                    className="w-full flex items-center justify-center gap-2 py-3 rounded-xl text-sm font-bold border border-white/10 text-white hover:bg-white/5 transition-colors">
+                    <ShieldCheck className="w-4 h-4" style={{ color: '#25D366' }} />
+                    Open Admin Panel
+                  </button>
+                )}
               </div>
             )}
 
