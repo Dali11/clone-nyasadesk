@@ -49,7 +49,23 @@ export function NyasaAuthProvider({ children }) {
         setIsPlatformAdmin(!!adminCheck?.data);
 
         if (data) {
-          setProfile(data);
+          // If this is an invited teammate (not the workspace owner), the
+          // shared workspace-level fields — workspace_name, sla_hours, plan —
+          // live on the OWNER's profile row, not this one. Reading data.* directly
+          // was a real bug: every teammate saw a blank workspace name in the
+          // header, and Settings > Workspace/SLA saves were silently writing to
+          // their own dead orphan profile row instead of the real workspace.
+          let merged = data;
+          if (data.workspace_id && data.workspace_id !== user.id) {
+            const { data: ownerProfile } = await supabase.from('profiles')
+              .select('workspace_name, sla_hours, plan')
+              .eq('id', data.workspace_id)
+              .maybeSingle();
+            if (ownerProfile) {
+              merged = { ...data, workspace_name: ownerProfile.workspace_name, sla_hours: ownerProfile.sla_hours, plan: ownerProfile.plan };
+            }
+          }
+          setProfile(merged);
           setOnboardingComplete(!!data.onboarding_complete);
         } else {
           setProfile(null);
@@ -78,8 +94,15 @@ export function NyasaAuthProvider({ children }) {
     status:       'online',
   } : null;
 
+  // The actual workspace/owner id — this row's own id if they own the
+  // workspace, or profile.workspace_id if they're an invited teammate. Any
+  // write that touches shared workspace-level data (workspace_name, sla_hours,
+  // channel_configs, rules) must target THIS id, never user.id directly.
+  const workspaceOwnerId = profile?.workspace_id || user?.id || null;
+  const isWorkspaceAdmin = !profile?.workspace_id || profile?.role === 'admin';
+
   return (
-    <NyasaAuthContext.Provider value={{ user: nyasaUser, profile, onboardingComplete, setOnboardingComplete, loadingProfile, isPlatformAdmin }}>
+    <NyasaAuthContext.Provider value={{ user: nyasaUser, profile, onboardingComplete, setOnboardingComplete, loadingProfile, isPlatformAdmin, workspaceOwnerId, isWorkspaceAdmin }}>
       {children}
     </NyasaAuthContext.Provider>
   );
