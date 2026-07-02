@@ -100,9 +100,15 @@ export function NyasaAuthProvider({ children }) {
   // channel_configs, rules) must target THIS id, never user.id directly.
   const workspaceOwnerId = profile?.workspace_id || user?.id || null;
   const isWorkspaceAdmin = !profile?.workspace_id || profile?.role === 'admin';
+  // Chat visibility (separate from isWorkspaceAdmin, which gates
+  // Settings/Channels/Rules management): owner, admin, or sales_manager see
+  // every conversation in the workspace. Plain agents only see unassigned
+  // chats plus whatever's assigned to them — enforced for real via RLS
+  // (conversations_select/messages_select), this flag just drives the UI.
+  const canViewAllChats = !profile?.workspace_id || profile?.role === 'admin' || profile?.role === 'sales_manager';
 
   return (
-    <NyasaAuthContext.Provider value={{ user: nyasaUser, profile, onboardingComplete, setOnboardingComplete, loadingProfile, isPlatformAdmin, workspaceOwnerId, isWorkspaceAdmin }}>
+    <NyasaAuthContext.Provider value={{ user: nyasaUser, profile, onboardingComplete, setOnboardingComplete, loadingProfile, isPlatformAdmin, workspaceOwnerId, isWorkspaceAdmin, canViewAllChats }}>
       {children}
     </NyasaAuthContext.Provider>
   );
