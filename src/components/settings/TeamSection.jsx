@@ -28,7 +28,7 @@ export default function TeamSection() {
     if (!workspaceId) { setLoading(false); return; }
     try {
       const { data: { session } } = await supabase.auth.getSession();
-      const res = await fetch(`/api/team/list?workspace_id=${encodeURIComponent(workspaceId)}`, {
+      const res = await fetch(`/api/team?workspace_id=${encodeURIComponent(workspaceId)}`, {
         headers: session?.access_token ? { Authorization: `Bearer ${session.access_token}` } : {},
       });
       const data = await res.json();
@@ -51,7 +51,7 @@ export default function TeamSection() {
     setSuccessMsg('');
     try {
       const { data: { session } } = await supabase.auth.getSession();
-      const res = await fetch('/api/team/invite', {
+      const res = await fetch('/api/team', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
