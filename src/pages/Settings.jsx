@@ -425,8 +425,10 @@ function WebsiteCard({ saved, workspaceId, onSave, onDelete }) {
   const [status, setStatus] = useState('');
   const [embedTab, setEmbedTab] = useState('popup'); // 'popup' | 'inline' | 'page'
   const isLive = !!(saved && saved.enabled);
-  const popupSnippet  = '<script src="' + PROD_URL + '/widget.js" data-workspace-id="' + workspaceId + '"></script>';
-  const inlineSnippet = '<div id="nyasa-inline-target"></div>\n<script src="' + PROD_URL + '/widget.js" data-workspace-id="' + workspaceId + '" data-mode="inline"></script>';
+  const position = fields.widget_position || 'bottom-right';
+  const positionAttr = position !== 'bottom-right' ? ' data-position="' + position + '"' : '';
+  const popupSnippet  = '<script src="' + PROD_URL + '/widget.js" data-workspace-id="' + workspaceId + '"' + positionAttr + '></script>';
+  const inlineSnippet = '<div id="nyasa-inline-target"></div>\n<script src="' + PROD_URL + '/widget.js" data-workspace-id="' + workspaceId + '" data-mode="inline"' + positionAttr + '></script>';
   const supportPageUrl = PROD_URL + '/support/' + workspaceId;
   const iframeSnippet  = '<iframe src="' + supportPageUrl + '" style="width:100%;height:600px;border:0;border-radius:12px"></iframe>';
 
@@ -506,6 +508,26 @@ function WebsiteCard({ saved, workspaceId, onSave, onDelete }) {
               </div>
             </>
           )}
+        </div>
+        <div>
+          <label className="text-[11px] font-medium text-gray-400 mb-1.5 block">Widget Position on Your Site</label>
+          <div className="flex gap-2">
+            {[
+              { id: 'bottom-right', label: 'Bottom Right' },
+              { id: 'bottom-left',  label: 'Bottom Left' },
+            ].map(p => (
+              <button key={p.id} type="button"
+                onClick={() => setFields(f => ({ ...f, widget_position: p.id }))}
+                className="flex-1 py-2 rounded-lg text-xs font-bold transition-all"
+                style={{
+                  background: position === p.id ? '#06B6D4' : 'rgba(255,255,255,0.05)',
+                  color: position === p.id ? '#fff' : '#9ca3af',
+                }}>
+                {p.label}
+              </button>
+            ))}
+          </div>
+          <p className="text-[10px] text-gray-500 mt-1.5">Applies to the floating bubble and inline panel. Save, then re-copy the snippet below if you've already embedded it.</p>
         </div>
         <ManualFields fields={fields} setFields={setFields} fieldDefs={[
           { key: 'agent_name',   label: 'Header Display Name', placeholder: 'Support Team' },
