@@ -23,7 +23,7 @@ const CHANNELS_FILTER = ['all', 'whatsapp', 'messenger', 'instagram', 'telegram'
 
 export default function Inbox() {
   useDocumentTitle('Inbox');
-  const { user } = useNyasaAuth();
+  const { user, workspaceOwnerId } = useNyasaAuth();
   const [conversations, setConversations] = useState([]);
   const [loading, setLoading] = useState(true);
   const [activeConv, setActiveConv] = useState(null);
@@ -38,16 +38,16 @@ export default function Inbox() {
   const [teamUsers, setTeamUsers] = useState([]);
 
   const loadConversations = useCallback(async () => {
-    if (!user?.id) return;
+    if (!workspaceOwnerId) return;
     try {
-      const data = await getConversations(user.id);
+      const data = await getConversations(workspaceOwnerId);
       setConversations(data);
     } catch (e) {
       console.error('Failed to load conversations:', e);
     } finally {
       setLoading(false);
     }
-  }, [user?.id]);
+  }, [workspaceOwnerId]);
 
   // Initial load
   useEffect(() => { loadConversations(); }, [loadConversations]);
@@ -73,10 +73,10 @@ export default function Inbox() {
 
   // Realtime subscription
   useEffect(() => {
-    if (!user?.id) return;
-    const sub = subscribeToConversations(user.id, () => loadConversations());
+    if (!workspaceOwnerId) return;
+    const sub = subscribeToConversations(workspaceOwnerId, () => loadConversations());
     return () => sub?.unsubscribe?.();
-  }, [user?.id, loadConversations]);
+  }, [workspaceOwnerId, loadConversations]);
 
   const filtered = conversations.filter(c => {
     if (filter === 'unassigned' && c.assigned_to) return false;
