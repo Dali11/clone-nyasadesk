@@ -58,7 +58,7 @@ export default function Inbox() {
     (async () => {
       try {
         const { data: { session } } = await supabase.auth.getSession();
-        const res = await fetch(`/api/team/list?workspace_id=${encodeURIComponent(user.workspace_id || user.id)}`, {
+        const res = await fetch(`/api/team?workspace_id=${encodeURIComponent(user.workspace_id || user.id)}`, {
           headers: session?.access_token ? { Authorization: `Bearer ${session.access_token}` } : {},
         });
         const data = await res.json();
