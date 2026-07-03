@@ -20,7 +20,10 @@ import Broadcasts      from "./pages/Broadcasts";
 import Rules           from "./pages/Rules";
 import CannedResponses from "./pages/CannedResponses";
 import Settings        from "./pages/Settings";
-import AdminPanel      from "./pages/AdminPanel";
+import AdminLayout     from "./pages/admin/AdminLayout";
+import AdminOverview   from "./pages/admin/AdminOverview";
+import AdminWorkspaces from "./pages/admin/AdminWorkspaces";
+import AdminAdmins     from "./pages/admin/AdminAdmins";
 import PrivacyPolicy   from './pages/PrivacyPolicy';
 import DataDeletion    from './pages/DataDeletion';
 import SupportPage     from './pages/SupportPage';
@@ -93,7 +96,12 @@ function AppRoutes() {
       <Route path="/data-deletion"   element={<DataDeletion />} />
       <Route path="/settings"   element={<Settings />} />
       <Route path="/pricing"    element={<Pricing />} />
-      <Route path="/admin"      element={<AdminPanel />} />
+      {/* Dedicated admin section — own shell/menu, see AdminLayout */}
+      <Route path="/admin" element={<AdminLayout />}>
+        <Route index             element={<AdminOverview />} />
+        <Route path="workspaces" element={<AdminWorkspaces />} />
+        <Route path="admins"     element={<AdminAdmins />} />
+      </Route>
       {/* Redirect /login and /register back to inbox when already logged in */}
       <Route path="/login"      element={<Navigate to="/" replace />} />
       <Route path="/register"   element={<Navigate to="/" replace />} />

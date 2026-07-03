@@ -31,3 +31,7 @@ export async function requirePlatformAdmin(req, sbServiceRole) {
 // Single source of truth for plan → seat limit, shared between the admin
 // panel (display) and /api/team/invite (actual enforcement).
 export const PLAN_LIMITS = { starter: 2, growth: 5, scale: Infinity };
+
+// Single source of truth for plan → monthly price (USD), used by
+// /api/admin/overview.js to compute estimated MRR.
+export const PLAN_PRICING = { starter: 10, growth: 20, scale: 99 };
