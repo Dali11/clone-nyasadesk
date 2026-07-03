@@ -26,7 +26,7 @@ export default function AdminOverview() {
     (async () => {
       try {
         const { data: { session } } = await supabase.auth.getSession();
-        const res = await fetch('/api/admin/overview', {
+        const res = await fetch('/api/admin/workspaces?resource=overview', {
           headers: session?.access_token ? { Authorization: `Bearer ${session.access_token}` } : {},
         });
         const json = await res.json();

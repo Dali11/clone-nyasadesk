@@ -33,7 +33,7 @@ export default function AdminAdmins() {
     try {
       const { data: { user } } = await supabase.auth.getUser();
       setMyEmail(user?.email || '');
-      const res = await authedFetch('/api/admin/admins');
+      const res = await authedFetch('/api/admin/workspaces?resource=admins');
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || 'Failed to load admins');
       setAdmins(data.admins || []);
@@ -53,7 +53,7 @@ export default function AdminAdmins() {
     setSaving(true);
     setError('');
     try {
-      const res = await authedFetch('/api/admin/admins', {
+      const res = await authedFetch('/api/admin/workspaces?resource=admins', {
         method: 'POST',
         body: JSON.stringify({ email: newEmail.trim().toLowerCase() }),
       });
@@ -72,7 +72,7 @@ export default function AdminAdmins() {
   const removeAdmin = async (email) => {
     setRemoving(email);
     try {
-      const res = await authedFetch('/api/admin/admins', {
+      const res = await authedFetch('/api/admin/workspaces?resource=admins', {
         method: 'DELETE',
         body: JSON.stringify({ email }),
       });
