@@ -167,7 +167,7 @@
       flex: 1; overflow-y: auto; padding: 10px 16px; background: var(--nyasa-page-bg);
       background-image: radial-gradient(circle at 1px 1px, rgba(255,255,255,0.03) 1px, transparent 0);
       background-size: 20px 20px;
-      display: flex; flex-direction: column; gap: 2px;
+      display: flex; flex-direction: column; gap: 8px;
     }
     #nyasa-widget:not(.nyasa-theme-dark) #nyasa-msgs { background-image: none; }
     #nyasa-msgs::-webkit-scrollbar { width: 4px; }
@@ -181,12 +181,12 @@
        trick broke on media/captions where the last line's width didn't
        match the image's width, cutting off caption text or overlapping it. */
     .nyasa-bubble .text {
-      padding: 8px 12px 6px 12px;
+      padding: 8px 12px 8px 12px;
       font-size: 14px; line-height: 19px; word-break: break-word; white-space: pre-wrap;
       box-shadow: 0 1px 0.5px rgba(0,0,0,0.13); color: var(--nyasa-text);
     }
-    .nyasa-bubble.out .text { background: var(--nyasa-out-bubble); border-radius: 10px 2px 10px 10px; }
-    .nyasa-bubble.in  .text { background: var(--nyasa-in-bubble);  border-radius: 2px 10px 10px 10px; color: var(--nyasa-text); }
+    .nyasa-bubble.out .text { background: var(--nyasa-out-bubble); border-radius: 12px 2px 12px 12px; }
+    .nyasa-bubble.in  .text { background: var(--nyasa-in-bubble);  border-radius: 2px 12px 12px 12px; color: var(--nyasa-text); }
     .nyasa-bubble .meta-row {
       display: flex; align-items: center; justify-content: flex-end; gap: 3px;
       margin-top: 3px; font-size: 10.5px; line-height: 1; color: var(--nyasa-muted); opacity: 0.85;
@@ -235,8 +235,8 @@
     .nyasa-bubble .ticks.sent svg { fill: none; stroke: rgba(255,255,255,0.7); }
     #nyasa-widget:not(.nyasa-theme-dark) .nyasa-bubble .ticks.sent svg { stroke: rgba(0,0,0,0.45); }
     .nyasa-bubble .ticks.read svg { fill: none; stroke: #53BDEB; }
-    .nyasa-bubble .attach-img { display: block; max-width: 220px; max-height: 220px; border-radius: 10px; margin-bottom: 4px; object-fit: cover; }
-    .nyasa-bubble .attach-video { display: block; max-width: 220px; max-height: 220px; border-radius: 10px; margin-bottom: 4px; }
+    .nyasa-bubble .attach-img { display: block; max-width: 240px; max-height: 240px; border-radius: 8px; margin-bottom: 4px; object-fit: cover; }
+    .nyasa-bubble .attach-video { display: block; max-width: 240px; max-height: 240px; border-radius: 8px; margin-bottom: 4px; }
     #nyasa-powered { background: var(--nyasa-panel-bg); text-align: center; font-size: 10px; color: var(--nyasa-muted); padding: 4px 0 6px; flex-shrink: 0; }
     #nyasa-powered a { color: var(--nyasa-muted); text-decoration: none; }
     @media (max-width: 420px) {
