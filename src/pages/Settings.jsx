@@ -9,6 +9,7 @@ import { useNyasaAuth } from '@/lib/NyasaAuth';
 import { getChannelConfigs, saveChannelConfig, deleteChannelConfig } from '@/lib/channels';
 import { supabase } from '@/lib/supabase';
 import { useDocumentTitle } from '@/hooks/useDocumentTitle';
+import { useFacebookSDK } from '@/hooks/useFacebookSDK';
 
 const PROD_URL  = 'https://nyasadesk1.vercel.app';
 const FB_APP_ID = import.meta.env.VITE_FACEBOOK_APP_ID || '';
@@ -100,46 +101,74 @@ function WhatsAppCard({ saved, workspaceId, onSave, onDelete }) {
   const [fields, setFields]   = useState(saved ? saved.config || {} : {});
   const [saving, setSaving]   = useState(false);
   const [status, setStatus]   = useState('');
+  const fbReady = useFacebookSDK(FB_APP_ID);
   const isLive = !!(saved && saved.enabled && saved.config);
 
   const launchEmbeddedSignup = () => {
     if (!FB_APP_ID) { setMode('manual'); return; }
-    if (window.FB) {
-      window.FB.login(async (response) => {
-        if (response.authResponse && response.authResponse.code) {
-          setSaving(true);
-          try {
-            const res = await fetch('/api/auth/whatsapp-embedded', {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({ code: response.authResponse.code, workspace_id: workspaceId }),
-            });
-            const data = await res.json();
-            if (data.ok) {
-              await onSave('whatsapp', { connected_via: 'embedded_signup' });
-              setStatus('saved');
-            } else {
-              setStatus('error: ' + (data.error || 'Failed'));
-            }
-          } catch (e) {
-            setStatus('error: ' + e.message);
-          } finally {
-            setSaving(false);
-          }
-        }
-      }, {
-        config_id: import.meta.env.VITE_WA_CONFIG_ID || '',
-        response_type: 'code',
-        override_default_response_type: true,
-      });
+    if (!fbReady || !window.FB) {
+      setStatus('error: Facebook SDK still loading — try again in a moment');
+      setTimeout(() => setStatus(''), 3000);
+      return;
     }
+    window.FB.login(async (response) => {
+      if (response.authResponse) {
+        setSaving(true);
+        try {
+          const { code, accessToken } = response.authResponse;
+          const res = await fetch('/api/auth/whatsapp-embedded', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              ...(code ? { code } : {}),
+              ...(accessToken ? { access_token: accessToken } : {}),
+              workspace_id: workspaceId,
+            }),
+          });
+          const data = await res.json();
+          if (data.ok) {
+            await onSave('whatsapp', { connected_via: 'embedded_signup' });
+            setStatus('saved');
+            setTimeout(() => setStatus(''), 3000);
+          } else {
+            setStatus('error: ' + (data.error || 'Failed to connect'));
+            setTimeout(() => setStatus(''), 5000);
+          }
+        } catch (e) {
+          setStatus('error: ' + e.message);
+          setTimeout(() => setStatus(''), 5000);
+        } finally {
+          setSaving(false);
+        }
+      }
+    }, {
+      scope: 'whatsapp_business_management,whatsapp_business_messaging',
+      response_type: 'code',
+      override_default_response_type: true,
+    });
   };
 
   const handleManualSave = async () => {
     setSaving(true);
     try {
-      await onSave('whatsapp', fields);
-      setStatus('saved');
+      // Route through the provider abstraction
+      const res = await fetch('/api/channels?action=connect', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          channel: 'whatsapp',
+          workspace_id: workspaceId,
+          mode: 'manual',
+          ...fields,
+        }),
+      });
+      const data = await res.json();
+      if (data.ok) {
+        await onSave('whatsapp', { connected_via: 'manual' });
+        setStatus('saved');
+      } else {
+        setStatus('error: ' + (data.error || 'Failed to save'));
+      }
     } catch (e) {
       setStatus('error: ' + e.message);
     } finally {
@@ -634,10 +663,10 @@ function TelegramCard({ saved, workspaceId, onSave, onDelete }) {
     setSaving(true);
     setStatus('');
     try {
-      const res = await fetch('/api/channels?action=telegram-setup', {
+      const res = await fetch('/api/channels?action=connect', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ bot_token: fields.bot_token, workspace_id: workspaceId, action: 'telegram-setup' }),
+        body: JSON.stringify({ channel: 'telegram', bot_token: fields.bot_token, workspace_id: workspaceId }),
       });
       const data = await res.json();
       if (!data.ok) throw new Error(data.error || 'Failed to activate webhook');
