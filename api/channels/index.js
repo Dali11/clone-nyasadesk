@@ -64,7 +64,8 @@ async function handleDisconnect(req, res) {
 
     if (cfg) {
       const providerKey = channel === 'whatsapp'
-        ? (cfg.config?.d360_api_key ? 'whatsapp:360dialog' : 'whatsapp:cloud')
+        ? (cfg.config?.bird_workspace_id ? 'whatsapp:bird'
+           : cfg.config?.d360_api_key ? 'whatsapp:360dialog' : 'whatsapp:cloud')
         : channel;
       const provider = getProvider(providerKey);
       await provider.disconnect(cfg.config);
@@ -92,6 +93,18 @@ async function handleSend(req, res) {
 
     const sb = createClient(SUPABASE_URL, SUPABASE_KEY);
 
+    // ── Website channel: no external API needed, just mark as sent ──────
+    if (channel === 'website') {
+      if (message_id) {
+        await sb.from('messages').update({ status: 'sent' }).eq('id', message_id);
+      }
+      await sb.from('conversations').update({
+        last_message: text || (media ? `[${media.type}]` : ''),
+        last_message_at: new Date().toISOString(),
+      }).eq('id', conversation_id);
+      return res.status(200).json({ ok: true });
+    }
+
     // 1. Get the channel config
     const { data: cfg } = await sb.from('channel_configs').select('*')
       .eq('workspace_id', workspace_id).eq('channel', channel).single();
@@ -104,7 +117,8 @@ async function handleSend(req, res) {
     // 3. Send through the provider abstraction
     // Detect which WhatsApp provider to use based on the stored config
     const providerKey = channel === 'whatsapp'
-      ? (cfg.config?.d360_api_key ? 'whatsapp:360dialog' : 'whatsapp:cloud')
+      ? (cfg.config?.bird_workspace_id ? 'whatsapp:bird'
+         : cfg.config?.d360_api_key ? 'whatsapp:360dialog' : 'whatsapp:cloud')
       : channel;
     const provider = getProvider(providerKey);
     const result = await provider.sendMessage(cfg.config, {
