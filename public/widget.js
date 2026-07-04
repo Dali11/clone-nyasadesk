@@ -175,28 +175,24 @@
     .nyasa-bubble { display: flex; flex-direction: column; max-width: 80%; margin: 1px 0; }
     .nyasa-bubble.out { align-self: flex-end; align-items: flex-end; }
     .nyasa-bubble.in  { align-self: flex-start; align-items: flex-start; }
-    /* WhatsApp-style bubble: generous padding, and the timestamp sits tucked
-       inline at the bottom-right of the last line (via the float trick)
-       instead of floating as a separate row below the bubble. */
+    /* WhatsApp-style bubble. Timestamp is a SEPARATE row below the content
+       (matching the real Nyasadesk team inbox's Bubble component exactly)
+       rather than absolutely-positioned over the last line — the absolute
+       trick broke on media/captions where the last line's width didn't
+       match the image's width, cutting off caption text or overlapping it. */
     .nyasa-bubble .text {
-      position: relative;
-      padding: 8px 12px 9px 12px;
+      padding: 8px 12px 6px 12px;
       font-size: 14px; line-height: 19px; word-break: break-word; white-space: pre-wrap;
       box-shadow: 0 1px 0.5px rgba(0,0,0,0.13); color: var(--nyasa-text);
     }
     .nyasa-bubble.out .text { background: var(--nyasa-out-bubble); border-radius: 10px 2px 10px 10px; }
     .nyasa-bubble.in  .text { background: var(--nyasa-in-bubble);  border-radius: 2px 10px 10px 10px; color: var(--nyasa-text); }
-    /* Invisible inline copy of the timestamp reserves trailing space at the
-       end of the last line, so the real (absolutely-positioned) timestamp
-       never overlaps the message text — this is the fix for the bug where
-       the time sat on top of the last word instead of tucked beside it. */
-    .nyasa-bubble .meta-spacer { visibility: hidden; font-size: 11px; padding-left: 32px; }
-    .nyasa-bubble .meta {
-      position: absolute; right: 11px; bottom: 6px;
-      font-size: 10.5px; line-height: 1; color: var(--nyasa-muted); white-space: nowrap; opacity: 0.85;
+    .nyasa-bubble .meta-row {
+      display: flex; align-items: center; justify-content: flex-end; gap: 3px;
+      margin-top: 3px; font-size: 10.5px; line-height: 1; color: var(--nyasa-muted); opacity: 0.85;
     }
-    .nyasa-bubble.out .meta { color: rgba(255,255,255,0.75); }
-    #nyasa-widget.nyasa-theme-dark .nyasa-bubble.out .meta { color: rgba(255,255,255,0.65); }
+    .nyasa-bubble.out .meta-row { color: rgba(255,255,255,0.75); }
+    #nyasa-widget.nyasa-theme-dark .nyasa-bubble.out .meta-row { color: rgba(255,255,255,0.65); }
     #nyasa-widget.nyasa-theme-dark .nyasa-bubble.out .text { color: #E9FBF3; }
     .nyasa-system { text-align: center; font-size: 11px; color: var(--nyasa-muted); padding: 4px 0; }
     #nyasa-name-gate { background: var(--nyasa-panel-bg); padding: 16px; border-top: 1px solid var(--nyasa-border); flex-shrink: 0; }
@@ -234,7 +230,7 @@
     /* WhatsApp-style read receipts on the visitor's own sent messages —
        single grey check = sent/stored, double blue check = an agent has
        opened the conversation. Mirrors StatusIcon in the real team inbox. */
-    .nyasa-bubble .ticks { display: inline-flex; margin-left: 3px; vertical-align: -1px; }
+    .nyasa-bubble .ticks { display: inline-flex; vertical-align: -1px; }
     .nyasa-bubble .ticks svg { width: 14px; height: 14px; }
     .nyasa-bubble .ticks.sent svg { fill: none; stroke: rgba(255,255,255,0.7); }
     #nyasa-widget:not(.nyasa-theme-dark) .nyasa-bubble .ticks.sent svg { stroke: rgba(0,0,0,0.45); }
@@ -569,6 +565,12 @@
   const TICK_SENT = '<svg viewBox="0 0 16 16"><path d="M2 8.5l3.2 3.5L14 3" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>';
   const TICK_READ = '<svg viewBox="0 0 20 16"><path d="M1 8.5l3.2 3.5L11 4" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/><path d="M7 8.5l3.2 3.5L19 4" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>';
 
+  // Placeholder caption texts to hide when a real media element is already
+  // rendered — must match EXACTLY what both the widget itself and the main
+  // team inbox (src/lib/channels.js / MessageThread.jsx) use as fallback
+  // body text, since a message can originate from either side.
+  const MEDIA_PLACEHOLDERS = ['📷 Photo', '🎥 Video', '🎤 Voice message', '🎤 Voice note'];
+
   const addMsg = (dir, text, ts, attachment, status) => {
     const b = document.createElement('div');
     b.className = `nyasa-bubble ${dir}`;
@@ -591,13 +593,13 @@
     }
     // Skip rendering placeholder caption text like "📷 Photo" twice when there's
     // already a real media element — same rule the team inbox uses.
-    const showText = text && !(att && ['📷 Photo','🎥 Video','🎤 Voice note'].includes(text));
+    const showText = text && !(att && MEDIA_PLACEHOLDERS.includes(text));
     const ticksHtml = dir === 'out' ? `<span class="ticks ${status === 'read' ? 'read' : 'sent'}">${status === 'read' ? TICK_READ : TICK_SENT}</span>` : '';
-    // Timestamp sits absolutely-positioned at the bottom-right of the bubble;
-    // an invisible inline copy right after the text reserves the matching
-    // trailing space on the last line so the real timestamp never overlaps
-    // the message itself — same trick WhatsApp Web uses.
-    b.innerHTML = `<div class="text">${mediaHtml}${showText ? esc(text) : ''}<span class="meta-spacer">${time}</span><span class="meta">${time}${ticksHtml}</span></div>`;
+    // Timestamp + ticks render as a separate row below the content — same
+    // pattern as the real team inbox's Bubble component. This is robust for
+    // any content type (text, image, video, audio, or image+caption) since
+    // it never depends on the width of the last line of text.
+    b.innerHTML = `<div class="text">${mediaHtml}${showText ? esc(text) : ''}<div class="meta-row"><span>${time}</span>${ticksHtml}</div></div>`;
     msgs.appendChild(b);
     msgs.scrollTop = msgs.scrollHeight;
     // Wire up audio player if this bubble has one
