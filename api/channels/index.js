@@ -33,8 +33,10 @@ async function handleConnect(req, res) {
       return res.status(400).json({ ok: false, error: 'channel and workspace_id are required' });
     }
 
-    // Telegram setup comes through action=telegram-setup for backward compat
-    const channelType = channel === 'telegram' ? 'telegram' : channel;
+    // For WhatsApp, route to the selected provider (360dialog default, cloud API optional)
+    const channelType = authData.provider_key
+      ? `whatsapp:${authData.provider_key}`
+      : (channel === 'telegram' ? 'telegram' : channel);
 
     const provider = getProvider(channelType);
     const sb = createClient(SUPABASE_URL, SUPABASE_KEY);
@@ -61,7 +63,10 @@ async function handleDisconnect(req, res) {
       .select('*').eq('workspace_id', workspace_id).eq('channel', channel).single();
 
     if (cfg) {
-      const provider = getProvider(channel);
+      const providerKey = channel === 'whatsapp'
+        ? (cfg.config?.d360_api_key ? 'whatsapp:360dialog' : 'whatsapp:cloud')
+        : channel;
+      const provider = getProvider(providerKey);
       await provider.disconnect(cfg.config);
       await sb.from('channel_configs')
         .update({ enabled: false, updated_at: new Date().toISOString() })
@@ -97,7 +102,11 @@ async function handleSend(req, res) {
     if (!conv) return res.status(404).json({ error: 'Conversation not found' });
 
     // 3. Send through the provider abstraction
-    const provider = getProvider(channel);
+    // Detect which WhatsApp provider to use based on the stored config
+    const providerKey = channel === 'whatsapp'
+      ? (cfg.config?.d360_api_key ? 'whatsapp:360dialog' : 'whatsapp:cloud')
+      : channel;
+    const provider = getProvider(providerKey);
     const result = await provider.sendMessage(cfg.config, {
       to: conv.external_id, text, media, message_id, conversation_id, workspace_id,
     }, { sb });
