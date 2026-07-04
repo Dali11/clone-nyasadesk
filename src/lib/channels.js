@@ -79,10 +79,25 @@ export async function deleteConversation(id) {
   if (error) throw error;
 }
 
+// Whitelist of real conversations columns — prevents UI-only/normalized
+// fields (contact, unread, contact_name, contact_email, last_message_preview,
+// etc.) from being sent to Supabase, which would reject the whole update
+// and silently break manual assignment / deal-stage / tag / snooze saves.
+const CONVERSATION_COLUMNS = new Set([
+  'workspace_id','contact_id','channel','external_id','status','priority',
+  'assigned_to','assigned_to_name','subject','last_message','last_message_at',
+  'unread_count','sla_breach_at','deal_stage','tags','updated_at',
+  'is_reminder_active','reminder_at','last_read_at',
+]);
+
 export async function updateConversation(id, updates) {
+  const clean = {};
+  for (const [k, v] of Object.entries(updates)) {
+    if (CONVERSATION_COLUMNS.has(k)) clean[k] = v;
+  }
   const { data, error } = await supabase
     .from('conversations')
-    .update({ ...updates, updated_at: new Date().toISOString() })
+    .update({ ...clean, updated_at: new Date().toISOString() })
     .eq('id', id)
     .select('*, contact:contacts(id,full_name,phone,email,company,avatar_url,deal_stage,tags,notes)')
     .single();
