@@ -131,8 +131,8 @@
     }
     #nyasa-window {
       position: fixed; bottom: 86px; right: 22px; z-index: 2147483639;
-      width: 320px; max-width: calc(100vw - 28px);
-      height: 460px; max-height: calc(100vh - 110px);
+      width: 360px; max-width: calc(100vw - 28px);
+      height: 500px; max-height: calc(100vh - 110px);
       border-radius: var(--nyasa-radius); overflow: hidden;
       box-shadow: 0 8px 40px rgba(0,0,0,0.4);
       border: 1px solid var(--nyasa-border);
@@ -164,7 +164,7 @@
     #nyasa-header .dot { width: 6px; height: 6px; border-radius: 50%; background: #fff; display: inline-block; }
     #nyasa-close { background: none; border: none; cursor: pointer; color: rgba(255,255,255,0.8); font-size: 20px; padding: 4px; }
     #nyasa-msgs {
-      flex: 1; overflow-y: auto; padding: 16px 16px; background: var(--nyasa-page-bg);
+      flex: 1; overflow-y: auto; padding: 16px 20px; background: var(--nyasa-page-bg);
       background-image: radial-gradient(circle at 1px 1px, rgba(255,255,255,0.03) 1px, transparent 0);
       background-size: 20px 20px;
       display: flex; flex-direction: column; gap: 8px;
@@ -181,7 +181,7 @@
        trick broke on media/captions where the last line's width didn't
        match the image's width, cutting off caption text or overlapping it. */
     .nyasa-bubble .text {
-      padding: 8px 12px 8px 12px;
+      padding: 10px 16px 10px 16px;
       font-size: 14px; line-height: 1.625; word-break: break-word; white-space: pre-wrap;
       box-shadow: 0 1px 2px rgba(0,0,0,0.06); color: var(--nyasa-text);
     }
