@@ -164,15 +164,15 @@
     #nyasa-header .dot { width: 6px; height: 6px; border-radius: 50%; background: #fff; display: inline-block; }
     #nyasa-close { background: none; border: none; cursor: pointer; color: rgba(255,255,255,0.8); font-size: 20px; padding: 4px; }
     #nyasa-msgs {
-      flex: 1; overflow-y: auto; padding: 14px; background: var(--nyasa-page-bg);
+      flex: 1; overflow-y: auto; padding: 10px 16px; background: var(--nyasa-page-bg);
       background-image: radial-gradient(circle at 1px 1px, rgba(255,255,255,0.03) 1px, transparent 0);
       background-size: 20px 20px;
-      display: flex; flex-direction: column; gap: 6px;
+      display: flex; flex-direction: column; gap: 2px;
     }
     #nyasa-widget:not(.nyasa-theme-dark) #nyasa-msgs { background-image: none; }
     #nyasa-msgs::-webkit-scrollbar { width: 4px; }
     #nyasa-msgs::-webkit-scrollbar-thumb { background: rgba(128,128,128,0.25); border-radius: 2px; }
-    .nyasa-bubble { display: flex; flex-direction: column; max-width: 78%; margin: 3px 0; }
+    .nyasa-bubble { display: flex; flex-direction: column; max-width: 80%; margin: 1px 0; }
     .nyasa-bubble.out { align-self: flex-end; align-items: flex-end; }
     .nyasa-bubble.in  { align-self: flex-start; align-items: flex-start; }
     /* WhatsApp-style bubble: generous padding, and the timestamp sits tucked
@@ -180,17 +180,17 @@
        instead of floating as a separate row below the bubble. */
     .nyasa-bubble .text {
       position: relative;
-      padding: 7px 12px 8px 11px;
+      padding: 8px 12px 9px 12px;
       font-size: 14px; line-height: 19px; word-break: break-word; white-space: pre-wrap;
       box-shadow: 0 1px 0.5px rgba(0,0,0,0.13); color: var(--nyasa-text);
     }
-    .nyasa-bubble.out .text { background: var(--nyasa-out-bubble); border-radius: 12px 2px 12px 12px; }
-    .nyasa-bubble.in  .text { background: var(--nyasa-in-bubble);  border-radius: 2px 12px 12px 12px; color: var(--nyasa-text); }
+    .nyasa-bubble.out .text { background: var(--nyasa-out-bubble); border-radius: 10px 2px 10px 10px; }
+    .nyasa-bubble.in  .text { background: var(--nyasa-in-bubble);  border-radius: 2px 10px 10px 10px; color: var(--nyasa-text); }
     /* Invisible inline copy of the timestamp reserves trailing space at the
        end of the last line, so the real (absolutely-positioned) timestamp
        never overlaps the message text — this is the fix for the bug where
        the time sat on top of the last word instead of tucked beside it. */
-    .nyasa-bubble .meta-spacer { visibility: hidden; font-size: 11px; padding-left: 8px; }
+    .nyasa-bubble .meta-spacer { visibility: hidden; font-size: 11px; padding-left: 32px; }
     .nyasa-bubble .meta {
       position: absolute; right: 11px; bottom: 6px;
       font-size: 10.5px; line-height: 1; color: var(--nyasa-muted); white-space: nowrap; opacity: 0.85;
@@ -210,7 +210,7 @@
       width: 100%; padding: 9px; border: none; border-radius: 10px;
       background: var(--nyasa-color); color: #fff; font-size: 13px; font-weight: 600; cursor: pointer;
     }
-    #nyasa-composer { background: var(--nyasa-panel-bg); padding: 10px 12px; display: flex; gap: 6px; align-items: flex-end; flex-shrink: 0; border-top: 1px solid var(--nyasa-border); }
+    #nyasa-composer { background: var(--nyasa-panel-bg); padding: 8px 12px; display: flex; gap: 6px; align-items: flex-end; flex-shrink: 0; border-top: 1px solid var(--nyasa-border); }
     #nyasa-attach {
       width: 36px; height: 36px; border-radius: 50%; border: none; background: transparent;
       color: var(--nyasa-muted); cursor: pointer; display: flex; align-items: center; justify-content: center;
@@ -303,6 +303,48 @@
     .nyasa-audio .dur { font-size: 11px; color: var(--nyasa-muted); font-variant-numeric: tabular-nums; white-space: nowrap; }
     #nyasa-widget.nyasa-theme-dark .nyasa-bubble.out .nyasa-audio .dur { color: rgba(255,255,255,0.6); }
 
+        /* ── Media preview / caption overlay (WhatsApp-style) ─────────────────── */
+    #nyasa-preview {
+      position: absolute; inset: 0; z-index: 10; background: #000;
+      display: none; flex-direction: column; border-radius: var(--nyasa-radius); overflow: hidden;
+    }
+    #nyasa-preview.active { display: flex; }
+    #nyasa-preview .preview-header {
+      display: flex; align-items: center; gap: 12px; padding: 14px 16px;
+      background: rgba(0,0,0,0.85); flex-shrink: 0;
+    }
+    #nyasa-preview .preview-header .pv-title { color: #fff; font-size: 14px; font-weight: 600; flex: 1; }
+    #nyasa-preview .preview-close {
+      background: none; border: none; cursor: pointer; color: #fff; font-size: 22px; padding: 4px;
+    }
+    #nyasa-preview .preview-media {
+      flex: 1; display: flex; align-items: center; justify-content: center; overflow: hidden;
+      background: #0a0a0a; min-height: 0;
+    }
+    #nyasa-preview .preview-media img {
+      max-width: 100%; max-height: 100%; object-fit: contain;
+    }
+    #nyasa-preview .preview-media video {
+      max-width: 100%; max-height: 100%; object-fit: contain;
+    }
+    #nyasa-preview .preview-caption-bar {
+      display: flex; gap: 8px; align-items: flex-end; padding: 10px 12px;
+      background: rgba(0,0,0,0.85); flex-shrink: 0;
+    }
+    #nyasa-preview .preview-caption {
+      flex: 1; border: 1px solid rgba(255,255,255,0.2); background: rgba(255,255,255,0.1);
+      color: #fff; border-radius: 22px; padding: 10px 16px; font-size: 14px;
+      outline: none; resize: none; max-height: 80px; line-height: 1.4;
+      font-family: inherit;
+    }
+    #nyasa-preview .preview-caption::placeholder { color: rgba(255,255,255,0.5); }
+    #nyasa-preview .preview-send {
+      width: 42px; height: 42px; border-radius: 50%; border: none;
+      background: var(--nyasa-color); color: #fff; cursor: pointer;
+      display: flex; align-items: center; justify-content: center; flex-shrink: 0;
+    }
+    #nyasa-preview .preview-send svg { width: 20px; height: 20px; fill: #fff; }
+
         /* Widget position — configurable in Settings > Channels > Website, baked into the embed snippet */
     #nyasa-widget.nyasa-pos-left #nyasa-fab { left: 24px; right: auto; }
     #nyasa-widget.nyasa-pos-left #nyasa-window { left: 24px; right: auto; transform-origin: bottom left; }
@@ -387,6 +429,19 @@
           <svg viewBox="0 0 24 24"><path d="M2.01 21L23 12 2.01 3 2 10l15 2-15 2z"/></svg>
         </button>
       </div>
+      <div id="nyasa-preview">
+        <div class="preview-header">
+          <button class="preview-close" id="nyasa-pv-close">✕</button>
+          <span class="pv-title">Send media</span>
+        </div>
+        <div class="preview-media" id="nyasa-pv-media"></div>
+        <div class="preview-caption-bar">
+          <textarea class="preview-caption" id="nyasa-pv-caption" placeholder="Add caption…" rows="1"></textarea>
+          <button class="preview-send" id="nyasa-pv-send">
+            <svg viewBox="0 0 24 24"><path d="M2.01 21L23 12 2.01 3 2 10l15 2-15 2z"/></svg>
+          </button>
+        </div>
+      </div>
       <div id="nyasa-powered"><a href="https://nyasadesk1.vercel.app" target="_blank">Powered by Nyasadesk</a></div>
     </div>
   `;
@@ -411,6 +466,12 @@
   const recWave     = document.getElementById('nyasa-rec-wave');
   const recCancel   = document.getElementById('nyasa-rec-cancel');
   const recTimer    = recBar.querySelector('.rec-timer');
+  const preview     = document.getElementById('nyasa-preview');
+  const pvMedia     = document.getElementById('nyasa-pv-media');
+  const pvCaption   = document.getElementById('nyasa-pv-caption');
+  const pvSend      = document.getElementById('nyasa-pv-send');
+  const pvClose     = document.getElementById('nyasa-pv-close');
+  let pendingFile   = null;  // file waiting in the preview overlay
   const closeBtn    = document.getElementById('nyasa-close');
   const headerName  = document.getElementById('nyasa-header-name');
   let lastReadAt    = null; // ISO string — an agent has read everything up to this point
@@ -660,8 +721,12 @@
   });
 
   // ── Attachments (image/video) ────────────────────────────────────────────
+  // ── Media preview + caption (WhatsApp-style) ─────────────────────────────
+  // Instead of sending immediately, picking a file opens a full-screen
+  // preview overlay where the user can add a caption before sending.
   attachBtn.addEventListener('click', () => fileInput.click());
-  fileInput.addEventListener('change', async () => {
+
+  fileInput.addEventListener('change', () => {
     const file = fileInput.files?.[0];
     fileInput.value = '';
     if (!file || !visitorName) return;
@@ -670,12 +735,52 @@
       errBubble.className = 'nyasa-system';
       errBubble.textContent = '⚠ File too large (max 6MB)';
       msgs.appendChild(errBubble);
+      msgs.scrollTop = msgs.scrollHeight;
       return;
     }
+    // Show the preview overlay
+    pendingFile = file;
     const kind = file.type.startsWith('video') ? 'video' : 'image';
+    const localUrl = URL.createObjectURL(file);
+    pvMedia.innerHTML = kind === 'video'
+      ? `<video src="${localUrl}" controls autoplay></video>`
+      : `<img src="${localUrl}" alt="preview" />`;
+    pvCaption.value = '';
+    preview.classList.add('active');
+    pvCaption.focus();
+  });
+
+  // Cancel preview
+  pvClose.addEventListener('click', () => {
+    preview.classList.remove('active');
+    pvMedia.innerHTML = '';
+    pendingFile = null;
+  });
+
+  // Auto-grow caption textarea
+  pvCaption.addEventListener('input', () => {
+    pvCaption.style.height = 'auto';
+    pvCaption.style.height = Math.min(pvCaption.scrollHeight, 80) + 'px';
+  });
+  pvCaption.addEventListener('keydown', e => {
+    if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); pvSend.click(); }
+  });
+
+  // Send media + caption
+  pvSend.addEventListener('click', async () => {
+    if (!pendingFile) return;
+    const file = pendingFile;
+    const caption = pvCaption.value.trim();
+    const kind = file.type.startsWith('video') ? 'video' : 'image';
+    pendingFile = null;
+    preview.classList.remove('active');
+    pvMedia.innerHTML = '';
+
     const now = new Date().toISOString();
     const localUrl = URL.createObjectURL(file);
-    addMsg('out', '', now, [{ url: localUrl, type: kind }], 'sent');
+    // If there's a caption, show it as the bubble text alongside the media
+    addMsg('out', caption, now, [{ url: localUrl, type: kind }], 'sent');
+
     try {
       const file_base64 = await new Promise((resolve, reject) => {
         const reader = new FileReader();
@@ -687,13 +792,14 @@
         action: 'upload', session_id: sessionId,
         name: visitorName, email: emailInput?.value || null,
         file_base64, file_name: file.name, file_type: file.type, kind,
-        page_url: window.location.href,
+        body: caption || null, page_url: window.location.href,
       });
     } catch {
       const errBubble = document.createElement('div');
       errBubble.className = 'nyasa-system';
       errBubble.textContent = '⚠ Upload failed';
       msgs.appendChild(errBubble);
+      msgs.scrollTop = msgs.scrollHeight;
     }
   });
 
