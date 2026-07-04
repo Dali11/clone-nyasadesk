@@ -109,10 +109,13 @@ export default function Inbox() {
   const handleSelect = async (conv) => {
     setActiveConv(conv);
     setContactOpen(false); // reset the contact-info overlay whenever a different chat is opened
-    if (conv.unread_count > 0) {
-      await updateConversation(conv.id, { unread_count: 0 }).catch(e => console.error('[Inbox] failed to clear unread count:', e));
-      setConversations(prev => prev.map(c => c.id === conv.id ? { ...c, unread_count: 0 } : c));
-    }
+    // Always stamp last_read_at on open — this is what flips a website
+    // visitor's own sent-message ticks from single-grey ("sent") to
+    // double-blue ("read") in the widget, mirroring real WhatsApp semantics.
+    const now = new Date().toISOString();
+    const patch = conv.unread_count > 0 ? { unread_count: 0, last_read_at: now } : { last_read_at: now };
+    await updateConversation(conv.id, patch).catch(e => console.error('[Inbox] failed to mark conversation read:', e));
+    setConversations(prev => prev.map(c => c.id === conv.id ? { ...c, ...patch } : c));
   };
 
   const handleDelete = async (id) => {
