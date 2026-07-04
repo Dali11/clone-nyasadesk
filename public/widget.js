@@ -210,7 +210,14 @@
       width: 100%; padding: 9px; border: none; border-radius: 10px;
       background: var(--nyasa-color); color: #fff; font-size: 13px; font-weight: 600; cursor: pointer;
     }
-    #nyasa-composer { background: var(--nyasa-panel-bg); padding: 10px 12px; display: flex; gap: 8px; align-items: flex-end; flex-shrink: 0; border-top: 1px solid var(--nyasa-border); }
+    #nyasa-composer { background: var(--nyasa-panel-bg); padding: 10px 12px; display: flex; gap: 6px; align-items: flex-end; flex-shrink: 0; border-top: 1px solid var(--nyasa-border); }
+    #nyasa-attach {
+      width: 36px; height: 36px; border-radius: 50%; border: none; background: transparent;
+      color: var(--nyasa-muted); cursor: pointer; display: flex; align-items: center; justify-content: center;
+      flex-shrink: 0; transition: background .15s;
+    }
+    #nyasa-attach:hover { background: rgba(128,128,128,0.12); }
+    #nyasa-attach svg { width: 19px; height: 19px; fill: currentColor; }
     #nyasa-input {
       flex: 1; border: none; background: var(--nyasa-page-bg); color: var(--nyasa-text); border-radius: 22px;
       padding: 9px 14px; font-size: 13px; resize: none; outline: none;
@@ -224,6 +231,16 @@
     }
     #nyasa-send:disabled { background: #ccc; cursor: default; }
     #nyasa-send svg { width: 18px; height: 18px; fill: #fff; }
+    /* WhatsApp-style read receipts on the visitor's own sent messages —
+       single grey check = sent/stored, double blue check = an agent has
+       opened the conversation. Mirrors StatusIcon in the real team inbox. */
+    .nyasa-bubble .ticks { display: inline-flex; margin-left: 3px; vertical-align: -1px; }
+    .nyasa-bubble .ticks svg { width: 14px; height: 14px; }
+    .nyasa-bubble .ticks.sent svg { fill: none; stroke: rgba(255,255,255,0.7); }
+    #nyasa-widget:not(.nyasa-theme-dark) .nyasa-bubble .ticks.sent svg { stroke: rgba(0,0,0,0.45); }
+    .nyasa-bubble .ticks.read svg { fill: none; stroke: #53BDEB; }
+    .nyasa-bubble .attach-img { display: block; max-width: 220px; max-height: 220px; border-radius: 10px; margin-bottom: 4px; object-fit: cover; }
+    .nyasa-bubble .attach-video { display: block; max-width: 220px; max-height: 220px; border-radius: 10px; margin-bottom: 4px; }
     #nyasa-powered { background: var(--nyasa-panel-bg); text-align: center; font-size: 10px; color: var(--nyasa-muted); padding: 4px 0 6px; flex-shrink: 0; }
     #nyasa-powered a { color: var(--nyasa-muted); text-decoration: none; }
     @media (max-width: 420px) {
@@ -294,6 +311,10 @@
         <button id="nyasa-name-btn">Start Chat</button>
       </div>
       <div id="nyasa-composer" style="display:none">
+        <button id="nyasa-attach" title="Attach image or video">
+          <svg viewBox="0 0 24 24"><path d="M16.5 6v11.5c0 2.21-1.79 4-4 4s-4-1.79-4-4V5a2.5 2.5 0 0 1 5 0v10.5a1 1 0 0 1-2 0V6H10v9.5a2.5 2.5 0 0 0 5 0V5a4 4 0 0 0-8 0v12.5a5.5 5.5 0 0 0 11 0V6h-1.5z"/></svg>
+        </button>
+        <input type="file" id="nyasa-file" accept="image/*,video/*" style="display:none" />
         <textarea id="nyasa-input" placeholder="Type a message…" rows="1"></textarea>
         <button id="nyasa-send" disabled>
           <svg viewBox="0 0 24 24"><path d="M2.01 21L23 12 2.01 3 2 10l15 2-15 2z"/></svg>
@@ -315,8 +336,11 @@
   const nameBtn     = document.getElementById('nyasa-name-btn');
   const input       = document.getElementById('nyasa-input');
   const sendBtn     = document.getElementById('nyasa-send');
+  const attachBtn   = document.getElementById('nyasa-attach');
+  const fileInput   = document.getElementById('nyasa-file');
   const closeBtn    = document.getElementById('nyasa-close');
   const headerName  = document.getElementById('nyasa-header-name');
+  let lastReadAt    = null; // ISO string — an agent has read everything up to this point
 
   const showComposerOrGate = () => {
     if (!visitorName) { nameGate.style.display = 'block'; composer.style.display = 'none'; }
@@ -331,12 +355,14 @@
   const loadHistory = async () => {
     try {
       const data = await api({ action: 'history', session_id: sessionId });
+      lastReadAt = data.last_read_at || null;
       const history = data.messages || [];
       if (history.length === 0) return false;
       for (const m of history) {
-        addMsg(m.direction === 'outbound' ? 'in' : 'out', m.body, m.created_at);
+        addMsg(m.direction === 'outbound' ? 'in' : 'out', m.body, m.created_at, m.attachments, m.status);
         lastPollAt = m.created_at;
       }
+      refreshTicks();
       return true;
     } catch { return false; }
   };
@@ -344,6 +370,7 @@
   api({ action: 'start', session_id: sessionId }).then(async (data) => {
     color = data.color || '#25D366';
     root.style.setProperty('--nyasa-color', color);
+    if (data.last_read_at) lastReadAt = data.last_read_at;
     if (data.session_id) { sessionId = data.session_id; localStorage.setItem('nyasa_session_' + WID, sessionId); }
     // Self-heal position if this site's copied snippet is stale vs. what's
     // now saved in Settings (the data-position attribute already applied it
@@ -403,17 +430,52 @@
   nameInput.addEventListener('keydown', e => { if (e.key === 'Enter') nameBtn.click(); });
 
   // ── Messaging ─────────────────────────────────────────────────────────────
-  const addMsg = (dir, text, ts) => {
+  // Two small inline SVG tick sets — single check (sent) / double check
+  // (read) — same shapes the real inbox uses, just sized for the widget.
+  const TICK_SENT = '<svg viewBox="0 0 16 16"><path d="M2 8.5l3.2 3.5L14 3" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>';
+  const TICK_READ = '<svg viewBox="0 0 20 16"><path d="M1 8.5l3.2 3.5L11 4" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/><path d="M7 8.5l3.2 3.5L19 4" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>';
+
+  const addMsg = (dir, text, ts, attachment, status) => {
     const b = document.createElement('div');
     b.className = `nyasa-bubble ${dir}`;
+    b.dataset.ts = ts;
     const time = fmt(ts);
+    const att = Array.isArray(attachment) ? attachment[0] : attachment;
+    let mediaHtml = '';
+    if (att?.url) {
+      mediaHtml = att.type === 'video'
+        ? `<video class="attach-video" src="${att.url}" controls></video>`
+        : `<img class="attach-img" src="${att.url}" alt="attachment" />`;
+    }
+    // Skip rendering placeholder caption text like "📷 Photo" twice when there's
+    // already a real media element — same rule the team inbox uses.
+    const showText = text && !(att && ['📷 Photo','🎥 Video'].includes(text));
+    const ticksHtml = dir === 'out' ? `<span class="ticks ${status === 'read' ? 'read' : 'sent'}">${status === 'read' ? TICK_READ : TICK_SENT}</span>` : '';
     // Timestamp sits absolutely-positioned at the bottom-right of the bubble;
     // an invisible inline copy right after the text reserves the matching
     // trailing space on the last line so the real timestamp never overlaps
     // the message itself — same trick WhatsApp Web uses.
-    b.innerHTML = `<div class="text">${esc(text)}<span class="meta-spacer">${time}</span><span class="meta">${time}</span></div>`;
+    b.innerHTML = `<div class="text">${mediaHtml}${showText ? esc(text) : ''}<span class="meta-spacer">${time}</span><span class="meta">${time}${ticksHtml}</span></div>`;
     msgs.appendChild(b);
     msgs.scrollTop = msgs.scrollHeight;
+  };
+
+  // Re-evaluates every one of the visitor's own bubbles against the latest
+  // lastReadAt — flips single-grey ticks to double-blue the moment an agent
+  // opens the conversation (checked on every poll tick, so it updates live
+  // without the visitor needing to do anything).
+  const refreshTicks = () => {
+    if (!lastReadAt) return;
+    const readCutoff = new Date(lastReadAt).getTime();
+    msgs.querySelectorAll('.nyasa-bubble.out').forEach(b => {
+      const ts = new Date(b.dataset.ts).getTime();
+      const tickEl = b.querySelector('.ticks');
+      if (tickEl && ts <= readCutoff && !tickEl.classList.contains('read')) {
+        tickEl.classList.remove('sent');
+        tickEl.classList.add('read');
+        tickEl.innerHTML = TICK_READ;
+      }
+    });
   };
 
   input.addEventListener('input', () => {
@@ -432,7 +494,7 @@
     input.style.height = 'auto';
     sendBtn.disabled = true;
     const now = new Date().toISOString();
-    addMsg('out', text, now);
+    addMsg('out', text, now, null, 'sent');
     api({
       action: 'send', session_id: sessionId,
       name: visitorName, email: emailInput?.value || null,
@@ -445,13 +507,52 @@
     });
   });
 
+  // ── Attachments (image/video) ────────────────────────────────────────────
+  attachBtn.addEventListener('click', () => fileInput.click());
+  fileInput.addEventListener('change', async () => {
+    const file = fileInput.files?.[0];
+    fileInput.value = '';
+    if (!file || !visitorName) return;
+    if (file.size > 6 * 1024 * 1024) {
+      const errBubble = document.createElement('div');
+      errBubble.className = 'nyasa-system';
+      errBubble.textContent = '⚠ File too large (max 6MB)';
+      msgs.appendChild(errBubble);
+      return;
+    }
+    const kind = file.type.startsWith('video') ? 'video' : 'image';
+    const now = new Date().toISOString();
+    const localUrl = URL.createObjectURL(file);
+    addMsg('out', '', now, [{ url: localUrl, type: kind }], 'sent');
+    try {
+      const file_base64 = await new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = () => resolve(reader.result.split(',')[1]);
+        reader.onerror = reject;
+        reader.readAsDataURL(file);
+      });
+      await api({
+        action: 'upload', session_id: sessionId,
+        name: visitorName, email: emailInput?.value || null,
+        file_base64, file_name: file.name, file_type: file.type, kind,
+        page_url: window.location.href,
+      });
+    } catch {
+      const errBubble = document.createElement('div');
+      errBubble.className = 'nyasa-system';
+      errBubble.textContent = '⚠ Upload failed';
+      msgs.appendChild(errBubble);
+    }
+  });
+
   // ── Polling for agent replies ─────────────────────────────────────────────
   const poll = async () => {
     if (!sessionId || !visitorName) return;
     try {
       const data = await api({ action: 'poll', session_id: sessionId, since: lastPollAt });
+      if (data.last_read_at) lastReadAt = data.last_read_at;
       for (const m of data.messages || []) {
-        addMsg('in', m.body, m.created_at);
+        addMsg('in', m.body, m.created_at, m.attachments);
         lastPollAt = m.created_at;
         if (!open) {
           const n = parseInt(badge.textContent || '0') + 1;
@@ -459,6 +560,7 @@
           badge.style.display = 'flex';
         }
       }
+      refreshTicks();
     } catch {}
   };
 
