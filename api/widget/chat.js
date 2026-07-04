@@ -93,7 +93,7 @@ export default async function handler(req, res) {
 
       // Use caption (passed as body) if provided, otherwise fall back to a
       // placeholder emoji string — same pattern the team inbox uses.
-      const fallbackBody = kind === 'video' ? '🎥 Video' : kind === 'audio' ? '🎤 Voice note' : '📷 Photo';
+      const fallbackBody = kind === 'video' ? '🎥 Video' : kind === 'audio' ? '🎤 Voice message' : '📷 Photo';
       const msgBody = (body && body.trim()) ? body.trim() : fallbackBody;
       const { conv, error } = await upsertVisitorThread(sb, { workspace_id, session_id, name, email, page_url, lastMessage: msgBody });
       if (error || !conv?.id) return res.status(500).json({ error: 'Failed to create conversation' });
