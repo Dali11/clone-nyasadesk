@@ -247,7 +247,63 @@
       #nyasa-window { bottom: 84px; right: 12px; width: calc(100vw - 24px); }
       #nyasa-fab { bottom: 16px; right: 16px; }
     }
-    /* Widget position — configurable in Settings > Channels > Website, baked into the embed snippet */
+    /* ── Voice notes (WhatsApp-style) ────────────────────────────────────── */
+    #nyasa-mic {
+      width: 40px; height: 40px; border-radius: 50%; border: none;
+      background: var(--nyasa-color); color: #fff; cursor: pointer;
+      display: flex; align-items: center; justify-content: center; flex-shrink: 0;
+      transition: background .15s, opacity .15s;
+    }
+    #nyasa-mic:hover { opacity: 0.88; }
+    #nyasa-mic svg { width: 20px; height: 20px; fill: #fff; }
+    #nyasa-mic.recording { background: #EF4444; animation: nyasa-pulse 1.2s ease-in-out infinite; }
+    @keyframes nyasa-pulse { 0%,100% { transform: scale(1); } 50% { transform: scale(1.08); } }
+    /* Recording slide-over replaces the text input row */
+    #nyasa-recording-bar {
+      display: none; flex: 1; align-items: center; gap: 8px;
+      padding: 0 4px; height: 40px;
+    }
+    #nyasa-recording-bar.active { display: flex; }
+    #nyasa-recording-bar .rec-dot {
+      width: 10px; height: 10px; border-radius: 50%; background: #EF4444; flex-shrink: 0;
+      animation: nyasa-blink 1s ease-in-out infinite;
+    }
+    @keyframes nyasa-blink { 0%,100% { opacity: 1; } 50% { opacity: 0.3; } }
+    #nyasa-recording-bar .rec-timer {
+      font-size: 13px; font-weight: 600; color: var(--nyasa-text); font-variant-numeric: tabular-nums;
+    }
+    #nyasa-recording-bar .rec-wave {
+      flex: 1; height: 24px; display: flex; align-items: center; gap: 2px; overflow: hidden;
+    }
+    #nyasa-recording-bar .rec-wave span {
+      flex: 1; background: var(--nyasa-muted); border-radius: 2px; min-height: 4px;
+      transition: height .08s ease;
+    }
+    #nyasa-rec-cancel {
+      width: 32px; height: 32px; border-radius: 50%; border: none; background: transparent;
+      color: #EF4444; cursor: pointer; display: flex; align-items: center; justify-content: center; flex-shrink: 0;
+    }
+    #nyasa-rec-cancel svg { width: 18px; height: 18px; fill: currentColor; }
+    /* Audio player inside bubbles — compact, WhatsApp-style */
+    .nyasa-audio { display: flex; align-items: center; gap: 8px; padding: 6px 4px; min-width: 180px; }
+    .nyasa-audio .play-btn {
+      width: 32px; height: 32px; border-radius: 50%; border: none; cursor: pointer;
+      background: var(--nyasa-color); color: #fff; display: flex; align-items: center; justify-content: center; flex-shrink: 0;
+    }
+    #nyasa-widget.nyasa-theme-dark .nyasa-audio .play-btn { background: #25D366; }
+    #nyasa-widget:not(.nyasa-theme-dark) .nyasa-bubble.in .nyasa-audio .play-btn { background: #075E54; }
+    .nyasa-audio .play-btn svg { width: 15px; height: 15px; fill: #fff; }
+    .nyasa-audio .play-btn.pause svg { fill: #fff; }
+    .nyasa-audio .track {
+      flex: 1; height: 4px; border-radius: 2px; background: rgba(128,128,128,0.25); position: relative; cursor: pointer;
+    }
+    .nyasa-audio .track-fill { height: 100%; border-radius: 2px; background: var(--nyasa-color); width: 0%; transition: width .1s linear; }
+    #nyasa-widget.nyasa-theme-dark .nyasa-audio .track-fill { background: #25D366; }
+    #nyasa-widget:not(.nyasa-theme-dark) .nyasa-bubble.in .nyasa-audio .track-fill { background: #075E54; }
+    .nyasa-audio .dur { font-size: 11px; color: var(--nyasa-muted); font-variant-numeric: tabular-nums; white-space: nowrap; }
+    #nyasa-widget.nyasa-theme-dark .nyasa-bubble.out .nyasa-audio .dur { color: rgba(255,255,255,0.6); }
+
+        /* Widget position — configurable in Settings > Channels > Website, baked into the embed snippet */
     #nyasa-widget.nyasa-pos-left #nyasa-fab { left: 24px; right: auto; }
     #nyasa-widget.nyasa-pos-left #nyasa-window { left: 24px; right: auto; transform-origin: bottom left; }
     @media (max-width: 420px) {
@@ -315,8 +371,19 @@
           <svg viewBox="0 0 24 24"><path d="M16.5 6v11.5c0 2.21-1.79 4-4 4s-4-1.79-4-4V5a2.5 2.5 0 0 1 5 0v10.5a1 1 0 0 1-2 0V6H10v9.5a2.5 2.5 0 0 0 5 0V5a4 4 0 0 0-8 0v12.5a5.5 5.5 0 0 0 11 0V6h-1.5z"/></svg>
         </button>
         <input type="file" id="nyasa-file" accept="image/*,video/*" style="display:none" />
+        <div id="nyasa-recording-bar">
+          <span class="rec-dot"></span>
+          <span class="rec-timer">0:00</span>
+          <div class="rec-wave" id="nyasa-rec-wave"></div>
+          <button id="nyasa-rec-cancel" title="Cancel">
+            <svg viewBox="0 0 24 24"><path d="M6 6l12 12M18 6L6 18" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round"/></svg>
+          </button>
+        </div>
         <textarea id="nyasa-input" placeholder="Type a message…" rows="1"></textarea>
-        <button id="nyasa-send" disabled>
+        <button id="nyasa-mic" title="Record voice note">
+          <svg viewBox="0 0 24 24"><path d="M12 14a3 3 0 0 0 3-3V6a3 3 0 0 0-6 0v5a3 3 0 0 0 3 3zm5-3a5 5 0 0 1-10 0H5a7 7 0 0 0 6 6.92V21h2v-3.08A7 7 0 0 0 19 11h-2z"/></svg>
+        </button>
+        <button id="nyasa-send" disabled style="display:none">
           <svg viewBox="0 0 24 24"><path d="M2.01 21L23 12 2.01 3 2 10l15 2-15 2z"/></svg>
         </button>
       </div>
@@ -338,6 +405,12 @@
   const sendBtn     = document.getElementById('nyasa-send');
   const attachBtn   = document.getElementById('nyasa-attach');
   const fileInput   = document.getElementById('nyasa-file');
+  const micBtn      = document.getElementById('nyasa-mic');
+  const sendBtn2    = document.getElementById('nyasa-send');
+  const recBar      = document.getElementById('nyasa-recording-bar');
+  const recWave     = document.getElementById('nyasa-rec-wave');
+  const recCancel   = document.getElementById('nyasa-rec-cancel');
+  const recTimer    = recBar.querySelector('.rec-timer');
   const closeBtn    = document.getElementById('nyasa-close');
   const headerName  = document.getElementById('nyasa-header-name');
   let lastReadAt    = null; // ISO string — an agent has read everything up to this point
@@ -443,13 +516,21 @@
     const att = Array.isArray(attachment) ? attachment[0] : attachment;
     let mediaHtml = '';
     if (att?.url) {
-      mediaHtml = att.type === 'video'
-        ? `<video class="attach-video" src="${att.url}" controls></video>`
-        : `<img class="attach-img" src="${att.url}" alt="attachment" />`;
+      if (att.type === 'audio') {
+        mediaHtml = `<div class="nyasa-audio" data-url="${att.url}">
+          <button class="play-btn"><svg viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg></button>
+          <div class="track"><div class="track-fill"></div></div>
+          <span class="dur">0:00</span>
+        </div>`;
+      } else if (att.type === 'video') {
+        mediaHtml = `<video class="attach-video" src="${att.url}" controls></video>`;
+      } else {
+        mediaHtml = `<img class="attach-img" src="${att.url}" alt="attachment" />`;
+      }
     }
     // Skip rendering placeholder caption text like "📷 Photo" twice when there's
     // already a real media element — same rule the team inbox uses.
-    const showText = text && !(att && ['📷 Photo','🎥 Video'].includes(text));
+    const showText = text && !(att && ['📷 Photo','🎥 Video','🎤 Voice note'].includes(text));
     const ticksHtml = dir === 'out' ? `<span class="ticks ${status === 'read' ? 'read' : 'sent'}">${status === 'read' ? TICK_READ : TICK_SENT}</span>` : '';
     // Timestamp sits absolutely-positioned at the bottom-right of the bubble;
     // an invisible inline copy right after the text reserves the matching
@@ -458,7 +539,75 @@
     b.innerHTML = `<div class="text">${mediaHtml}${showText ? esc(text) : ''}<span class="meta-spacer">${time}</span><span class="meta">${time}${ticksHtml}</span></div>`;
     msgs.appendChild(b);
     msgs.scrollTop = msgs.scrollHeight;
+    // Wire up audio player if this bubble has one
+    const audioEl = b.querySelector('.nyasa-audio');
+    if (audioEl) wireAudioPlayer(audioEl);
   };
+
+  // ── Audio player logic ────────────────────────────────────────────────────
+  // Mini WhatsApp-style player: play/pause toggle, clickable seek bar,
+  // duration display, and a singleton lock so starting one voice note
+  // auto-pauses any other one currently playing.
+  let currentAudio = null;
+  function wireAudioPlayer(container) {
+    const url = container.dataset.url;
+    const btn = container.querySelector('.play-btn');
+    const track = container.querySelector('.track');
+    const fill = container.querySelector('.track-fill');
+    const durEl = container.querySelector('.dur');
+    let audio = new Audio(url);
+    let isPlaying = false;
+
+    const fmtDur = s => `${Math.floor(s/60)}:${String(Math.floor(s%60)).padStart(2,'0')}`;
+
+    const setPlaying = (playing) => {
+      isPlaying = playing;
+      btn.classList.toggle('pause', playing);
+      btn.innerHTML = playing
+        ? '<svg viewBox="0 0 24 24"><path d="M6 4h4v16H6zm8 0h4v16h-4z"/></svg>'
+        : '<svg viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg>';
+    };
+
+    btn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      if (isPlaying) { audio.pause(); return; }
+      // Singleton: pause any other audio currently playing
+      if (currentAudio && currentAudio !== audio) {
+        currentAudio.pause();
+      }
+      currentAudio = audio;
+      audio.play();
+      setPlaying(true);
+    });
+
+    audio.addEventListener('timeupdate', () => {
+      if (audio.duration) {
+        fill.style.width = (audio.currentTime / audio.duration * 100) + '%';
+        durEl.textContent = fmtDur(audio.currentTime) + ' / ' + fmtDur(audio.duration);
+      }
+    });
+
+    audio.addEventListener('loadedmetadata', () => {
+      durEl.textContent = '0:00 / ' + fmtDur(audio.duration);
+    });
+
+    audio.addEventListener('ended', () => {
+      setPlaying(false);
+      fill.style.width = '0%';
+      durEl.textContent = '0:00 / ' + fmtDur(audio.duration);
+    });
+
+    audio.addEventListener('pause', () => {
+      setPlaying(false);
+      if (currentAudio === audio) currentAudio = null;
+    });
+
+    track.addEventListener('click', (e) => {
+      if (!audio.duration) return;
+      const rect = track.getBoundingClientRect();
+      audio.currentTime = ((e.clientX - rect.left) / rect.width) * audio.duration;
+    });
+  }
 
   // Re-evaluates every one of the visitor's own bubbles against the latest
   // lastReadAt — flips single-grey ticks to double-blue the moment an agent
@@ -479,7 +628,10 @@
   };
 
   input.addEventListener('input', () => {
-    sendBtn.disabled = !input.value.trim();
+    const hasText = !!input.value.trim();
+    sendBtn.disabled = !hasText;
+    sendBtn.style.display = hasText ? 'flex' : 'none';
+    micBtn.style.display = hasText ? 'none' : 'flex';
     input.style.height = 'auto';
     input.style.height = Math.min(input.scrollHeight, 100) + 'px';
   });
@@ -542,6 +694,153 @@
       errBubble.className = 'nyasa-system';
       errBubble.textContent = '⚠ Upload failed';
       msgs.appendChild(errBubble);
+    }
+  });
+
+  // ── Voice notes (MediaRecorder) ───────────────────────────────────────────
+  // WhatsApp-style: mic button replaces send when input is empty. Tap to
+  // start recording, tap again (or the send/checkmark) to stop+send, or
+  // tap the cancel (trash) button to discard. Shows a live timer + a
+  // pseudo-waveform of volume levels while recording.
+  let mediaRecorder = null;
+  let audioChunks = [];
+  let recStartTime = 0;
+  let recTimerInt = null;
+  let recAnalyser = null;
+  let recStream = null;
+  let waveBars = [];
+
+  const fmtRec = ms => {
+    const s = Math.floor(ms / 1000);
+    return `${Math.floor(s/60)}:${String(s%60).padStart(2,'0')}`;
+  };
+
+  const stopRecordingUI = () => {
+    clearInterval(recTimerInt);
+    micBtn.classList.remove('recording');
+    recBar.classList.remove('active');
+    input.style.display = '';
+    attachBtn.style.display = '';
+    // Reset wave bars
+    waveBars.forEach(b => b.style.height = '4px');
+  };
+
+  micBtn.addEventListener('click', async () => {
+    // If already recording, stop and send
+    if (mediaRecorder && mediaRecorder.state === 'recording') {
+      mediaRecorder.stop();
+      return;
+    }
+    // Start recording
+    try {
+      recStream = await navigator.mediaDevices.getUserMedia({ audio: true });
+    } catch (e) {
+      const errBubble = document.createElement('div');
+      errBubble.className = 'nyasa-system';
+      errBubble.textContent = '⚠ Microphone permission denied';
+      msgs.appendChild(errBubble);
+      msgs.scrollTop = msgs.scrollHeight;
+      return;
+    }
+
+    // Build wave bars (24 bars)
+    recWave.innerHTML = '';
+    waveBars = [];
+    for (let i = 0; i < 24; i++) {
+      const bar = document.createElement('span');
+      bar.style.height = '4px';
+      recWave.appendChild(bar);
+      waveBars.push(bar);
+    }
+
+    audioChunks = [];
+    mediaRecorder = new MediaRecorder(recStream);
+    mediaRecorder.ondataavailable = e => { if (e.data.size > 0) audioChunks.push(e.data); };
+    mediaRecorder.onstop = async () => {
+      const duration = Date.now() - recStartTime;
+      stopRecordingUI();
+      // Stop all tracks to release the mic
+      recStream.getTracks().forEach(t => t.stop());
+
+      if (audioChunks.length === 0) return;
+      const blob = new Blob(audioChunks, { type: 'audio/webm' });
+      // Discard if too short (< 1 second)
+      if (duration < 1000) {
+        const errBubble = document.createElement('div');
+        errBubble.className = 'nyasa-system';
+        errBubble.textContent = '⚠ Recording too short';
+        msgs.appendChild(errBubble);
+        msgs.scrollTop = msgs.scrollHeight;
+        return;
+      }
+
+      const localUrl = URL.createObjectURL(blob);
+      const now = new Date().toISOString();
+      addMsg('out', '', now, [{ url: localUrl, type: 'audio' }], 'sent');
+
+      // Upload
+      try {
+        const file_base64 = await new Promise((resolve, reject) => {
+          const reader = new FileReader();
+          reader.onload = () => resolve(reader.result.split(',')[1]);
+          reader.onerror = reject;
+          reader.readAsDataURL(blob);
+        });
+        await api({
+          action: 'upload', session_id: sessionId,
+          name: visitorName, email: emailInput?.value || null,
+          file_base64, file_name: 'voice.webm', file_type: 'audio/webm',
+          kind: 'audio', page_url: window.location.href,
+        });
+      } catch {
+        const errBubble = document.createElement('div');
+        errBubble.className = 'nyasa-system';
+        errBubble.textContent = '⚠ Voice note failed to send';
+        msgs.appendChild(errBubble);
+        msgs.scrollTop = msgs.scrollHeight;
+      }
+    };
+
+    mediaRecorder.start();
+    recStartTime = Date.now();
+    micBtn.classList.add('recording');
+    recBar.classList.add('active');
+    input.style.display = 'none';
+    attachBtn.style.display = 'none';
+
+    // Timer + volume meter
+    const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+    const source = audioCtx.createMediaStreamSource(recStream);
+    recAnalyser = audioCtx.createAnalyser();
+    recAnalyser.fftSize = 64;
+    source.connect(recAnalyser);
+    const dataArr = new Uint8Array(recAnalyser.frequencyBinCount);
+
+    recTimerInt = setInterval(() => {
+      const elapsed = Date.now() - recStartTime;
+      recTimer.textContent = fmtRec(elapsed);
+      // Update wave bars from volume data
+      if (recAnalyser) {
+        recAnalyser.getByteFrequencyData(dataArr);
+        for (let i = 0; i < waveBars.length; i++) {
+          const idx = Math.floor(i * dataArr.length / waveBars.length);
+          const vol = dataArr[idx] || 0;
+          waveBars[i].style.height = Math.max(4, (vol / 255) * 24) + 'px';
+        }
+      }
+    }, 100);
+  });
+
+  // Cancel recording (discard)
+  recCancel.addEventListener('click', (e) => {
+    e.stopPropagation();
+    if (mediaRecorder && mediaRecorder.state === 'recording') {
+      // Set onstop to do nothing (discard)
+      mediaRecorder.onstop = () => {
+        stopRecordingUI();
+        recStream.getTracks().forEach(t => t.stop());
+      };
+      mediaRecorder.stop();
     }
   });
 
