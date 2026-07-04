@@ -968,11 +968,23 @@ export default function Settings() {
             {section === 'sla' && (
               <div className="bg-[#202C33] rounded-2xl border border-white/10 p-5 space-y-4">
                 <div>
-                  <p className="text-sm font-bold text-white mb-1">SLA Configuration</p>
-                  <p className="text-xs text-gray-500 leading-relaxed">
-                    New conversations get a live countdown badge and show up as "at risk" on the dashboard once they've
-                    been open longer than this response-time target.
-                  </p>
+                  <p className="text-sm font-bold text-white mb-1">SLA — Response Time Target</p>
+                  <div className="text-xs text-gray-400 leading-relaxed space-y-2 mt-2">
+                    <p>
+                      <span className="text-gray-300 font-semibold">SLA</span> (Service Level Agreement) is your team's
+                      response-time promise to customers. When a new message comes in, a countdown timer starts. If no
+                      one replies within the hours you set here, the conversation gets a red <span className="text-orange-400 font-semibold">"BREACHED"</span> badge
+                      so you can instantly see which customers have been waiting too long.
+                    </p>
+                    <p>
+                      <span className="text-gray-300 font-semibold">Example:</span> Set 4 hours, and every new conversation
+                      gets a 4-hour countdown. The dashboard highlights conversations that are close to breaching so your
+                      team can prioritize the oldest unanswered messages first.
+                    </p>
+                    <p className="text-gray-500">
+                      This applies to new conversations going forward — existing ones keep their original deadline.
+                    </p>
+                  </div>
                 </div>
                 <div>
                   <label className="text-[11px] font-medium text-gray-400 mb-1.5 block">Response time target (hours)</label>
@@ -984,7 +996,6 @@ export default function Settings() {
                   style={{ background: '#25D366' }}>
                   {slaSaved ? <><Check className="w-4 h-4" />Saved!</> : 'Save SLA Setting'}
                 </button>
-                <p className="text-[11px] text-gray-600">Applies to new conversations going forward — existing ones keep their original deadline.</p>
               </div>
             )}
 
