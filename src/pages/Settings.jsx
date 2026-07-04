@@ -186,8 +186,8 @@ function WhatsAppCard({ saved, workspaceId, onSave, onDelete }) {
   };
 
   const subtitle = isLive
-    ? ('Connected' + (saved.config?.phone_number ? ' \u00b7 ' + saved.config.phone_number : '')
-       + (isBird ? ' \u00b7 via Bird' : isCloud ? ' \u00b7 Cloud API' : is360 ? ' \u00b7 360dialog' : ''))
+    ? ('Connected' + (saved.config?.phone_number ? ' · ' + saved.config.phone_number : '')
+       + (isBird ? ' · via Bird' : isCloud ? ' · Cloud API' : is360 ? ' · 360dialog' : ''))
     : 'Receive & reply to WhatsApp messages';
 
   return (
@@ -200,21 +200,21 @@ function WhatsAppCard({ saved, workspaceId, onSave, onDelete }) {
             <div className="bg-[#111B21] rounded-xl p-4 space-y-2">
               <p className="text-sm font-bold text-white">Connect in one click</p>
               <p className="text-xs text-gray-400 leading-relaxed">
-                Log in with Facebook and pick your WhatsApp Business number. We handle the rest \u2014
+                Log in with Facebook and pick your WhatsApp Business number. We handle the rest —
                 no technical setup, no API keys, no Meta Business Verification needed.
               </p>
               <ul className="text-[11px] text-gray-500 space-y-1 pt-1">
-                <li>\u2705 One-click connection</li>
-                <li>\u2705 No technical knowledge required</li>
-                <li>\u2705 Under 2 minutes</li>
-                <li>\u2705 Official Meta BSP partner</li>
+                <li>✅ One-click connection</li>
+                <li>✅ No technical knowledge required</li>
+                <li>✅ Under 2 minutes</li>
+                <li>✅ Official Meta BSP partner</li>
               </ul>
             </div>
             <button onClick={launchConnect} disabled={saving}
               className="w-full flex items-center justify-center gap-2 py-3 rounded-xl text-sm font-bold text-white"
               style={{ background: '#25D366', opacity: saving ? 0.7 : 1 }}>
-              {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : '\U0001f4ac'}
-              {saving ? 'Connecting\u2026' : 'Connect WhatsApp Business'}
+              {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : '💬'}
+              {saving ? 'Connecting…' : 'Connect WhatsApp Business'}
             </button>
             {status === 'saved' && (
               <p className="text-xs text-[#25D366] flex items-center gap-1.5">
