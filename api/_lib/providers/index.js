@@ -1,31 +1,26 @@
 // api/_lib/providers/index.js
 // Provider registry — maps channel types to their provider implementations.
-// The rest of the app calls getProvider(channelType) and never needs to know
-// which specific BSP or API is behind it.
 //
-// WhatsApp is routed through 360dialog (BSP) by default — this means customers
-// do NOT need Meta App Review or Business Verification. 360dialog is already
-// Meta-approved as a BSP. The direct WhatsApp Cloud API provider is kept as
-// a fallback for Nyasadesk admins who want to use their own Meta app.
-//
-// To add a new provider:
-//   1. Create api/_lib/providers/{channel}-{provider}.js implementing MessagingProvider
-//   2. Register it here: providers.set('{channel}:{provider}', new Provider())
-//   3. That's it — the inbox, CRM, automations, and reporting don't change at all.
+// WhatsApp routes through Bird (BSP) by default. Customers click "Connect
+// WhatsApp" and go through Meta's Embedded Signup — Bird handles the backend.
+// No Meta App Review, no Business Verification needed for customers.
+// The direct WhatsApp Cloud API provider is kept as a fallback.
 
 import { WhatsAppCloudProvider } from './whatsapp.js';
+import { WhatsAppBirdProvider } from './whatsapp-bird.js';
 import { WhatsApp360DialogProvider } from './whatsapp-360dialog.js';
 import { MessengerProvider } from './messenger.js';
 import { TelegramProvider } from './telegram.js';
 import { InstagramProvider } from './instagram.js';
 
-// Registry: channelType → provider instance
 const providers = new Map();
 
-// ── WhatsApp: 360dialog BSP is the DEFAULT (no Meta App Review needed) ──
-providers.set('whatsapp', new WhatsApp360DialogProvider());
+// ── WhatsApp: Bird BSP is the DEFAULT (seamless, white-labeled) ──────────
+providers.set('whatsapp', new WhatsAppBirdProvider());
+providers.set('whatsapp:bird', new WhatsAppBirdProvider());
+// 360dialog kept as an alternative BSP option
 providers.set('whatsapp:360dialog', new WhatsApp360DialogProvider());
-// Direct Cloud API kept for admins who want to use their own Meta app
+// Direct Cloud API kept for admins who want their own Meta app
 providers.set('whatsapp:cloud', new WhatsAppCloudProvider());
 
 // ── Other channels ──────────────────────────────────────────────────────
@@ -34,7 +29,6 @@ providers.set('telegram', new TelegramProvider());
 providers.set('instagram', new InstagramProvider());
 
 export function getProvider(channelType) {
-  // Support "channel:provider" format (e.g. "whatsapp:360dialog")
   const [type, providerName] = channelType.split(':');
   const key = providerName ? `${type}:${providerName}` : type;
   const provider = providers.get(key) || providers.get(type);
