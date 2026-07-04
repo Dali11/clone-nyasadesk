@@ -91,8 +91,11 @@ export default async function handler(req, res) {
     if (action === 'upload' && req.method === 'POST') {
       if (!session_id || !file_base64) return res.status(400).json({ error: 'session_id and file_base64 required' });
 
-      const lastMsg = kind === 'video' ? '🎥 Video' : kind === 'audio' ? '🎤 Voice note' : '📷 Photo';
-      const { conv, error } = await upsertVisitorThread(sb, { workspace_id, session_id, name, email, page_url, lastMessage: lastMsg });
+      // Use caption (passed as body) if provided, otherwise fall back to a
+      // placeholder emoji string — same pattern the team inbox uses.
+      const fallbackBody = kind === 'video' ? '🎥 Video' : kind === 'audio' ? '🎤 Voice note' : '📷 Photo';
+      const msgBody = (body && body.trim()) ? body.trim() : fallbackBody;
+      const { conv, error } = await upsertVisitorThread(sb, { workspace_id, session_id, name, email, page_url, lastMessage: msgBody });
       if (error || !conv?.id) return res.status(500).json({ error: 'Failed to create conversation' });
 
       const buffer = Buffer.from(file_base64, 'base64');
@@ -109,7 +112,7 @@ export default async function handler(req, res) {
       const attType = kind === 'video' ? 'video' : kind === 'audio' ? 'audio' : 'image';
       const { data: msg } = await sb.from('messages').insert({
         conversation_id: conv.id, workspace_id,
-        direction: 'inbound', body: lastMsg, channel: 'website',
+        direction: 'inbound', body: msgBody, channel: 'website',
         external_id: `widget-${Date.now()}`,
         sender_name: name || 'Website Visitor', sender_id: session_id, status: 'sent',
         attachments: [{ url: pub.publicUrl, type: attType }],
