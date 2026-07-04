@@ -103,7 +103,7 @@
       --nyasa-color: #25D366;
       --nyasa-header-grad: linear-gradient(135deg, #075E54 0%, #128C7E 100%);
       --nyasa-page-bg: #ECE5DD; --nyasa-panel-bg: #ffffff; --nyasa-in-bubble: #ffffff;
-      --nyasa-out-bubble: #DCF8C6; --nyasa-text: #1a1a1a; --nyasa-muted: #888888;
+      --nyasa-out-bubble: #DCF8C6; --nyasa-text: #1a2530; --nyasa-muted: #888888;
       --nyasa-border: #eeeeee; --nyasa-radius: 16px;
     }
     /* Dark theme mirrors the real Nyasadesk inbox exactly: #0B141A message
@@ -164,7 +164,7 @@
     #nyasa-header .dot { width: 6px; height: 6px; border-radius: 50%; background: #fff; display: inline-block; }
     #nyasa-close { background: none; border: none; cursor: pointer; color: rgba(255,255,255,0.8); font-size: 20px; padding: 4px; }
     #nyasa-msgs {
-      flex: 1; overflow-y: auto; padding: 10px 16px; background: var(--nyasa-page-bg);
+      flex: 1; overflow-y: auto; padding: 16px 16px; background: var(--nyasa-page-bg);
       background-image: radial-gradient(circle at 1px 1px, rgba(255,255,255,0.03) 1px, transparent 0);
       background-size: 20px 20px;
       display: flex; flex-direction: column; gap: 8px;
@@ -172,7 +172,7 @@
     #nyasa-widget:not(.nyasa-theme-dark) #nyasa-msgs { background-image: none; }
     #nyasa-msgs::-webkit-scrollbar { width: 4px; }
     #nyasa-msgs::-webkit-scrollbar-thumb { background: rgba(128,128,128,0.25); border-radius: 2px; }
-    .nyasa-bubble { display: flex; flex-direction: column; max-width: 80%; margin: 1px 0; }
+    .nyasa-bubble { display: flex; flex-direction: column; max-width: 72%; margin: 1px 0; }
     .nyasa-bubble.out { align-self: flex-end; align-items: flex-end; }
     .nyasa-bubble.in  { align-self: flex-start; align-items: flex-start; }
     /* WhatsApp-style bubble. Timestamp is a SEPARATE row below the content
@@ -182,16 +182,17 @@
        match the image's width, cutting off caption text or overlapping it. */
     .nyasa-bubble .text {
       padding: 8px 12px 8px 12px;
-      font-size: 14px; line-height: 19px; word-break: break-word; white-space: pre-wrap;
-      box-shadow: 0 1px 0.5px rgba(0,0,0,0.13); color: var(--nyasa-text);
+      font-size: 14px; line-height: 1.625; word-break: break-word; white-space: pre-wrap;
+      box-shadow: 0 1px 2px rgba(0,0,0,0.06); color: var(--nyasa-text);
     }
     .nyasa-bubble.out .text { background: var(--nyasa-out-bubble); border-radius: 12px 2px 12px 12px; }
     .nyasa-bubble.in  .text { background: var(--nyasa-in-bubble);  border-radius: 2px 12px 12px 12px; color: var(--nyasa-text); }
     .nyasa-bubble .meta-row {
-      display: flex; align-items: center; justify-content: flex-end; gap: 3px;
-      margin-top: 3px; font-size: 10.5px; line-height: 1; color: var(--nyasa-muted); opacity: 0.85;
+      display: flex; align-items: center; justify-content: flex-end; gap: 4px;
+      margin-top: 4px; font-size: 10px; line-height: 1; color: var(--nyasa-muted); opacity: 0.85;
     }
-    .nyasa-bubble.out .meta-row { color: rgba(255,255,255,0.75); }
+    .nyasa-bubble.out .meta-row { color: #667781; }
+    .nyasa-bubble.in .meta-row { justify-content: flex-start; }
     #nyasa-widget.nyasa-theme-dark .nyasa-bubble.out .meta-row { color: rgba(255,255,255,0.65); }
     #nyasa-widget.nyasa-theme-dark .nyasa-bubble.out .text { color: #E9FBF3; }
     .nyasa-system { text-align: center; font-size: 11px; color: var(--nyasa-muted); padding: 4px 0; }
@@ -206,18 +207,18 @@
       width: 100%; padding: 9px; border: none; border-radius: 10px;
       background: var(--nyasa-color); color: #fff; font-size: 13px; font-weight: 600; cursor: pointer;
     }
-    #nyasa-composer { background: var(--nyasa-panel-bg); padding: 8px 12px; display: flex; gap: 6px; align-items: flex-end; flex-shrink: 0; border-top: 1px solid var(--nyasa-border); }
+    #nyasa-composer { background: var(--nyasa-panel-bg); padding: 8px 12px; display: flex; gap: 8px; align-items: flex-end; flex-shrink: 0; border-top: 1px solid var(--nyasa-border); }
     #nyasa-attach {
-      width: 36px; height: 36px; border-radius: 50%; border: none; background: transparent;
+      width: 40px; height: 40px; border-radius: 50%; border: none; background: transparent;
       color: var(--nyasa-muted); cursor: pointer; display: flex; align-items: center; justify-content: center;
       flex-shrink: 0; transition: background .15s;
     }
     #nyasa-attach:hover { background: rgba(128,128,128,0.12); }
-    #nyasa-attach svg { width: 19px; height: 19px; fill: currentColor; }
+    #nyasa-attach svg { width: 18px; height: 18px; fill: currentColor; }
     #nyasa-input {
-      flex: 1; border: none; background: var(--nyasa-page-bg); color: var(--nyasa-text); border-radius: 22px;
-      padding: 9px 14px; font-size: 13px; resize: none; outline: none;
-      max-height: 100px; line-height: 1.4;
+      flex: 1; border: none; background: var(--nyasa-page-bg); color: var(--nyasa-text); border-radius: 12px;
+      padding: 10px 16px; font-size: 14px; resize: none; outline: none;
+      max-height: 128px; line-height: 1.625;
     }
     #nyasa-send {
       width: 40px; height: 40px; border-radius: 50%; border: none;
@@ -227,6 +228,7 @@
     }
     #nyasa-send:disabled { background: #ccc; cursor: default; }
     #nyasa-send svg { width: 18px; height: 18px; fill: #fff; }
+    #nyasa-widget.nyasa-theme-dark #nyasa-input { background: #2A3942; color: #fff; }
     /* WhatsApp-style read receipts on the visitor's own sent messages —
        single grey check = sent/stored, double blue check = an agent has
        opened the conversation. Mirrors StatusIcon in the real team inbox. */
@@ -250,6 +252,9 @@
       display: flex; align-items: center; justify-content: center; flex-shrink: 0;
       transition: background .15s, opacity .15s;
     }
+    /* Inbox mic button uses a dark grey bg, not green — match that */
+    #nyasa-widget.nyasa-theme-dark #nyasa-mic { background: #2A3942; }
+    #nyasa-widget.nyasa-theme-dark #nyasa-mic svg { fill: #8696A0; }
     #nyasa-mic:hover { opacity: 0.88; }
     #nyasa-mic svg { width: 20px; height: 20px; fill: #fff; }
     #nyasa-mic.recording { background: #EF4444; animation: nyasa-pulse 1.2s ease-in-out infinite; }
