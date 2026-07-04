@@ -3,13 +3,18 @@
 // The rest of the app calls getProvider(channelType) and never needs to know
 // which specific BSP or API is behind it.
 //
-// To add a new provider (e.g. 360dialog for WhatsApp):
-//   1. Create api/_lib/providers/whatsapp-360dialog.js implementing MessagingProvider
-//   2. Register it here: providers.set('whatsapp:360dialog', new WhatsApp360DialogProvider())
-//   3. Add a UI option in Settings to pick the provider — that's it.
-//   The inbox, CRM, automations, AI, reporting, and team inbox don't change at all.
+// WhatsApp is routed through 360dialog (BSP) by default — this means customers
+// do NOT need Meta App Review or Business Verification. 360dialog is already
+// Meta-approved as a BSP. The direct WhatsApp Cloud API provider is kept as
+// a fallback for Nyasadesk admins who want to use their own Meta app.
+//
+// To add a new provider:
+//   1. Create api/_lib/providers/{channel}-{provider}.js implementing MessagingProvider
+//   2. Register it here: providers.set('{channel}:{provider}', new Provider())
+//   3. That's it — the inbox, CRM, automations, and reporting don't change at all.
 
 import { WhatsAppCloudProvider } from './whatsapp.js';
+import { WhatsApp360DialogProvider } from './whatsapp-360dialog.js';
 import { MessengerProvider } from './messenger.js';
 import { TelegramProvider } from './telegram.js';
 import { InstagramProvider } from './instagram.js';
@@ -17,14 +22,16 @@ import { InstagramProvider } from './instagram.js';
 // Registry: channelType → provider instance
 const providers = new Map();
 
-// Default providers (one per channel type for now)
-providers.set('whatsapp', new WhatsAppCloudProvider());
+// ── WhatsApp: 360dialog BSP is the DEFAULT (no Meta App Review needed) ──
+providers.set('whatsapp', new WhatsApp360DialogProvider());
+providers.set('whatsapp:360dialog', new WhatsApp360DialogProvider());
+// Direct Cloud API kept for admins who want to use their own Meta app
+providers.set('whatsapp:cloud', new WhatsAppCloudProvider());
+
+// ── Other channels ──────────────────────────────────────────────────────
 providers.set('messenger', new MessengerProvider());
 providers.set('telegram', new TelegramProvider());
 providers.set('instagram', new InstagramProvider());
-
-// Future: providers.set('whatsapp:360dialog', new WhatsApp360DialogProvider());
-// Future: providers.set('whatsapp:twilio', new TwilioWhatsAppProvider());
 
 export function getProvider(channelType) {
   // Support "channel:provider" format (e.g. "whatsapp:360dialog")
