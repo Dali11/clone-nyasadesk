@@ -101,23 +101,27 @@
     }
     #nyasa-widget {
       --nyasa-color: #25D366;
+      --nyasa-header-grad: linear-gradient(135deg, #075E54 0%, #128C7E 100%);
       --nyasa-page-bg: #ECE5DD; --nyasa-panel-bg: #ffffff; --nyasa-in-bubble: #ffffff;
       --nyasa-out-bubble: #DCF8C6; --nyasa-text: #1a1a1a; --nyasa-muted: #888888;
-      --nyasa-border: #eeeeee; --nyasa-radius: 12px;
+      --nyasa-border: #eeeeee; --nyasa-radius: 16px;
     }
+    /* Dark theme mirrors the real Nyasadesk inbox exactly: #0B141A message
+       canvas, #202C33 header/composer bars, WhatsApp-green outbound bubbles —
+       so the widget reads as the same product, not a bolted-on extra. */
     #nyasa-widget.nyasa-theme-dark {
-      --nyasa-page-bg: #17181A; --nyasa-panel-bg: #1F2023; --nyasa-in-bubble: #2A2B2E;
-      --nyasa-out-bubble: #1F6E4A; --nyasa-text: #EDEDED; --nyasa-muted: #9A9A9A; --nyasa-border: #2E2F33;
+      --nyasa-page-bg: #0B141A; --nyasa-panel-bg: #202C33; --nyasa-in-bubble: #202C33;
+      --nyasa-out-bubble: #005C4B; --nyasa-text: #EDEDED; --nyasa-muted: #8696A0; --nyasa-border: rgba(255,255,255,0.08);
     }
     #nyasa-fab {
-      position: fixed; bottom: 24px; right: 24px; z-index: 2147483640;
-      width: 58px; height: 58px; border-radius: 50%;
-      background: var(--nyasa-color); border: none; cursor: pointer;
+      position: fixed; bottom: 22px; right: 22px; z-index: 2147483640;
+      width: 52px; height: 52px; border-radius: 50%;
+      background: var(--nyasa-header-grad); border: none; cursor: pointer;
       display: flex; align-items: center; justify-content: center;
-      box-shadow: 0 4px 24px rgba(0,0,0,0.25); transition: transform .2s, box-shadow .2s;
+      box-shadow: 0 4px 20px rgba(0,0,0,0.28); transition: transform .2s, box-shadow .2s;
     }
-    #nyasa-fab:hover { transform: scale(1.08); box-shadow: 0 6px 32px rgba(0,0,0,0.3); }
-    #nyasa-fab svg { width: 26px; height: 26px; fill: #fff; }
+    #nyasa-fab:hover { transform: scale(1.08); box-shadow: 0 6px 28px rgba(0,0,0,0.32); }
+    #nyasa-fab svg { width: 23px; height: 23px; fill: #fff; }
     #nyasa-badge {
       position: absolute; top: -3px; right: -3px;
       background: #EF4444; color: #fff; font-size: 10px; font-weight: 700;
@@ -126,11 +130,12 @@
       border: 2px solid #fff;
     }
     #nyasa-window {
-      position: fixed; bottom: 96px; right: 24px; z-index: 2147483639;
-      width: 360px; max-width: calc(100vw - 32px);
-      height: 520px; max-height: calc(100vh - 120px);
+      position: fixed; bottom: 86px; right: 22px; z-index: 2147483639;
+      width: 320px; max-width: calc(100vw - 28px);
+      height: 460px; max-height: calc(100vh - 110px);
       border-radius: var(--nyasa-radius); overflow: hidden;
-      box-shadow: 0 8px 48px rgba(0,0,0,0.35);
+      box-shadow: 0 8px 40px rgba(0,0,0,0.4);
+      border: 1px solid var(--nyasa-border);
       display: flex; flex-direction: column;
       background: var(--nyasa-panel-bg);
       transform-origin: bottom right;
@@ -145,7 +150,7 @@
     }
     #nyasa-widget.nyasa-inline { display: block; width: 100%; height: 100%; background: var(--nyasa-page-bg); border-radius: var(--nyasa-radius); }
     #nyasa-header {
-      background: var(--nyasa-color); padding: 14px 16px;
+      background: var(--nyasa-header-grad); padding: 12px 14px;
       display: flex; align-items: center; gap: 10px; flex-shrink: 0;
     }
     #nyasa-header .avatar {
@@ -159,9 +164,12 @@
     #nyasa-header .dot { width: 6px; height: 6px; border-radius: 50%; background: #fff; display: inline-block; }
     #nyasa-close { background: none; border: none; cursor: pointer; color: rgba(255,255,255,0.8); font-size: 20px; padding: 4px; }
     #nyasa-msgs {
-      flex: 1; overflow-y: auto; padding: 16px; background: var(--nyasa-page-bg);
+      flex: 1; overflow-y: auto; padding: 14px; background: var(--nyasa-page-bg);
+      background-image: radial-gradient(circle at 1px 1px, rgba(255,255,255,0.03) 1px, transparent 0);
+      background-size: 20px 20px;
       display: flex; flex-direction: column; gap: 6px;
     }
+    #nyasa-widget:not(.nyasa-theme-dark) #nyasa-msgs { background-image: none; }
     #nyasa-msgs::-webkit-scrollbar { width: 4px; }
     #nyasa-msgs::-webkit-scrollbar-thumb { background: rgba(128,128,128,0.25); border-radius: 2px; }
     .nyasa-bubble { display: flex; flex-direction: column; max-width: 78%; margin: 3px 0; }
@@ -171,17 +179,25 @@
        inline at the bottom-right of the last line (via the float trick)
        instead of floating as a separate row below the bubble. */
     .nyasa-bubble .text {
-      position: relative; overflow: hidden; /* creates a block-formatting context so the bubble's height wraps the floated meta */
-      padding: 8px 13px 9px 12px;
-      font-size: 14.3px; line-height: 19px; word-break: break-word;
+      position: relative;
+      padding: 7px 12px 8px 11px;
+      font-size: 14px; line-height: 19px; word-break: break-word; white-space: pre-wrap;
       box-shadow: 0 1px 0.5px rgba(0,0,0,0.13); color: var(--nyasa-text);
     }
-    .nyasa-bubble.out .text { background: var(--nyasa-out-bubble); border-radius: 12px 3px 12px 12px; }
-    .nyasa-bubble.in  .text { background: var(--nyasa-in-bubble);  border-radius: 3px 12px 12px 12px; }
+    .nyasa-bubble.out .text { background: var(--nyasa-out-bubble); border-radius: 12px 2px 12px 12px; }
+    .nyasa-bubble.in  .text { background: var(--nyasa-in-bubble);  border-radius: 2px 12px 12px 12px; color: var(--nyasa-text); }
+    /* Invisible inline copy of the timestamp reserves trailing space at the
+       end of the last line, so the real (absolutely-positioned) timestamp
+       never overlaps the message text — this is the fix for the bug where
+       the time sat on top of the last word instead of tucked beside it. */
+    .nyasa-bubble .meta-spacer { visibility: hidden; font-size: 11px; padding-left: 8px; }
     .nyasa-bubble .meta {
-      float: right; margin: 5px -3px -3px 10px;
-      font-size: 11px; line-height: 15px; color: var(--nyasa-muted); white-space: nowrap;
+      position: absolute; right: 11px; bottom: 6px;
+      font-size: 10.5px; line-height: 1; color: var(--nyasa-muted); white-space: nowrap; opacity: 0.85;
     }
+    .nyasa-bubble.out .meta { color: rgba(255,255,255,0.75); }
+    #nyasa-widget.nyasa-theme-dark .nyasa-bubble.out .meta { color: rgba(255,255,255,0.65); }
+    #nyasa-widget.nyasa-theme-dark .nyasa-bubble.out .text { color: #E9FBF3; }
     .nyasa-system { text-align: center; font-size: 11px; color: var(--nyasa-muted); padding: 4px 0; }
     #nyasa-name-gate { background: var(--nyasa-panel-bg); padding: 16px; border-top: 1px solid var(--nyasa-border); flex-shrink: 0; }
     #nyasa-name-gate p { font-size: 12px; color: var(--nyasa-muted); margin-bottom: 8px; }
@@ -390,10 +406,12 @@
   const addMsg = (dir, text, ts) => {
     const b = document.createElement('div');
     b.className = `nyasa-bubble ${dir}`;
-    // Timestamp lives INSIDE the bubble, floated to the bottom-right of the
-    // last line — same layout WhatsApp uses — instead of sitting as a
-    // separate row underneath it.
-    b.innerHTML = `<div class="text">${esc(text)}<span class="meta">${fmt(ts)}</span></div>`;
+    const time = fmt(ts);
+    // Timestamp sits absolutely-positioned at the bottom-right of the bubble;
+    // an invisible inline copy right after the text reserves the matching
+    // trailing space on the last line so the real timestamp never overlaps
+    // the message itself — same trick WhatsApp Web uses.
+    b.innerHTML = `<div class="text">${esc(text)}<span class="meta-spacer">${time}</span><span class="meta">${time}</span></div>`;
     msgs.appendChild(b);
     msgs.scrollTop = msgs.scrollHeight;
   };
