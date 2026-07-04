@@ -1,53 +1,81 @@
+// api/channels/index.js
+// Unified channel API — routes by ?action=:
+//   'send' (default)           — Send outbound message via provider
+//   'telegram-setup'           — Set up Telegram bot (legacy, kept for backward compat)
+//   'connect'                  — Connect a channel via provider abstraction
+//   'disconnect'               — Disconnect a channel via provider abstraction
+//
+// All messaging operations go through NyasaDesk's provider abstraction layer
+// (api/_lib/providers/), keeping the app independent of the underlying BSP.
+
 import { createClient } from '@supabase/supabase-js';
+import { getProvider } from '../_lib/providers/index.js';
 
 const SUPABASE_URL = 'https://pfbaepibelomiutlotkn.supabase.co';
 const SUPABASE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY;
 const PROD_URL = 'https://nyasadesk1.vercel.app';
 
-const WA_TYPE = { image: 'image', video: 'video', audio: 'audio' };
-
-// Merged from api/channels/send.js + api/channels/telegram-setup.js to free
-// up a serverless function slot for api/billing.js (Vercel Hobby caps at 12).
-// Routed by ?action= — 'send' (default) or 'telegram-setup'.
 export default async function handler(req, res) {
   if (req.method !== 'POST') return res.status(405).json({ error: 'Method Not Allowed' });
   const action = req.query.action || 'send';
 
-  if (action === 'telegram-setup') return handleTelegramSetup(req, res);
+  if (action === 'telegram-setup') return handleConnect(req, res);
+  if (action === 'connect')        return handleConnect(req, res);
+  if (action === 'disconnect')     return handleDisconnect(req, res);
   return handleSend(req, res);
 }
 
-async function handleTelegramSetup(req, res) {
+// ── Connect a channel via provider abstraction ───────────────────────────
+async function handleConnect(req, res) {
   try {
-    const { bot_token, workspace_id } = req.body || {};
-    if (!bot_token || !workspace_id) {
-      return res.status(400).json({ ok: false, error: 'bot_token and workspace_id are required' });
+    const { channel, workspace_id, ...authData } = req.body || {};
+    if (!channel || !workspace_id) {
+      return res.status(400).json({ ok: false, error: 'channel and workspace_id are required' });
     }
 
-    const meRes = await fetch(`https://api.telegram.org/bot${bot_token}/getMe`);
-    const meJson = await meRes.json();
-    if (!meJson.ok) {
-      return res.status(400).json({ ok: false, error: 'Invalid bot token — double check it was copied correctly from @BotFather' });
-    }
+    // Telegram setup comes through action=telegram-setup for backward compat
+    const channelType = channel === 'telegram' ? 'telegram' : channel;
 
-    const webhookUrl = `${PROD_URL}/api/webhooks/telegram?workspace_id=${encodeURIComponent(workspace_id)}`;
-    const hookRes = await fetch(`https://api.telegram.org/bot${bot_token}/setWebhook`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ url: webhookUrl, allowed_updates: ['message', 'edited_message'] }),
-    });
-    const hookJson = await hookRes.json();
-    if (!hookJson.ok) {
-      return res.status(400).json({ ok: false, error: hookJson.description || 'Telegram rejected the webhook registration' });
-    }
+    const provider = getProvider(channelType);
+    const sb = createClient(SUPABASE_URL, SUPABASE_KEY);
 
-    return res.status(200).json({ ok: true, bot_username: meJson.result?.username || null });
+    const result = await provider.connect(workspace_id, { ...authData, workspace_id }, { sb });
+
+    return res.status(200).json({ ok: true, ...result });
   } catch (e) {
-    console.error('[channels/telegram-setup] error:', e);
+    console.error('[channels/connect] error:', e);
     return res.status(500).json({ ok: false, error: e.message || 'Internal server error' });
   }
 }
 
+// ── Disconnect a channel ──────────────────────────────────────────────────
+async function handleDisconnect(req, res) {
+  try {
+    const { channel, workspace_id } = req.body || {};
+    if (!channel || !workspace_id) {
+      return res.status(400).json({ ok: false, error: 'channel and workspace_id are required' });
+    }
+
+    const sb = createClient(SUPABASE_URL, SUPABASE_KEY);
+    const { data: cfg } = await sb.from('channel_configs')
+      .select('*').eq('workspace_id', workspace_id).eq('channel', channel).single();
+
+    if (cfg) {
+      const provider = getProvider(channel);
+      await provider.disconnect(cfg.config);
+      await sb.from('channel_configs')
+        .update({ enabled: false, updated_at: new Date().toISOString() })
+        .eq('workspace_id', workspace_id).eq('channel', channel);
+    }
+
+    return res.status(200).json({ ok: true });
+  } catch (e) {
+    console.error('[channels/disconnect] error:', e);
+    return res.status(500).json({ ok: false, error: e.message });
+  }
+}
+
+// ── Send an outbound message via provider abstraction ────────────────────
 async function handleSend(req, res) {
   try {
     const { message_id, conversation_id, workspace_id, channel, body: text, attachments } = req.body || {};
@@ -58,89 +86,34 @@ async function handleSend(req, res) {
     if (!text && !media) return res.status(400).json({ error: 'Message must have text or an attachment' });
 
     const sb = createClient(SUPABASE_URL, SUPABASE_KEY);
+
+    // 1. Get the channel config
     const { data: cfg } = await sb.from('channel_configs').select('*')
       .eq('workspace_id', workspace_id).eq('channel', channel).single();
     if (!cfg?.enabled) return res.status(400).json({ error: 'Channel not configured' });
 
+    // 2. Get the conversation's external_id (recipient)
     const { data: conv } = await sb.from('conversations').select('external_id').eq('id', conversation_id).single();
     if (!conv) return res.status(404).json({ error: 'Conversation not found' });
 
-    if (channel === 'whatsapp') {
-      const { phone_number_id, access_token } = cfg.config;
-      let payload;
-      if (media && WA_TYPE[media.type]) {
-        const waType = WA_TYPE[media.type];
-        payload = {
-          messaging_product: 'whatsapp', to: conv.external_id, type: waType,
-          [waType]: { link: media.url, ...(waType !== 'audio' && text ? { caption: text } : {}) },
-        };
-      } else {
-        payload = { messaging_product: 'whatsapp', to: conv.external_id, type: 'text', text: { body: text } };
-      }
-      const r = await fetch(`https://graph.facebook.com/v19.0/${phone_number_id}/messages`, {
-        method: 'POST',
-        headers: { Authorization: `Bearer ${access_token}`, 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload),
-      });
-      const json = await r.json();
-      if (!r.ok) throw new Error(json.error?.message || 'WhatsApp API error');
-      if (message_id) await sb.from('messages').update({ external_id: json.messages?.[0]?.id, status: 'sent' }).eq('id', message_id);
+    // 3. Send through the provider abstraction
+    const provider = getProvider(channel);
+    const result = await provider.sendMessage(cfg.config, {
+      to: conv.external_id, text, media, message_id, conversation_id, workspace_id,
+    }, { sb });
 
-    } else if (channel === 'messenger') {
-      const { page_token } = cfg.config;
-      let messagePayload;
-      if (media && ['image', 'video', 'audio'].includes(media.type)) {
-        messagePayload = { attachment: { type: media.type, payload: { url: media.url, is_reusable: true } } };
-      } else {
-        messagePayload = { text };
-      }
-      const r = await fetch(`https://graph.facebook.com/v19.0/me/messages?access_token=${page_token}`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ recipient: { id: conv.external_id }, message: messagePayload }),
-      });
-      if (!r.ok) throw new Error('Messenger send failed');
-      if (message_id) await sb.from('messages').update({ status: 'sent' }).eq('id', message_id);
-
-    } else if (channel === 'instagram') {
-      const { ig_user_id, page_access_token } = cfg.config;
-      let messagePayload;
-      if (media && ['image', 'video', 'audio'].includes(media.type)) {
-        messagePayload = { attachment: { type: media.type, payload: { url: media.url, is_reusable: true } } };
-      } else {
-        messagePayload = { text };
-      }
-      const r = await fetch(`https://graph.facebook.com/v19.0/${ig_user_id}/messages?access_token=${page_access_token}`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ recipient: { id: conv.external_id }, message: messagePayload }),
-      });
-      const json = await r.json().catch(() => ({}));
-      if (!r.ok) throw new Error(json.error?.message || 'Instagram send failed');
-      if (message_id) await sb.from('messages').update({ status: 'sent' }).eq('id', message_id);
-
-    } else if (channel === 'telegram') {
-      const { bot_token } = cfg.config;
-      let tgMethod = 'sendMessage';
-      let tgBody = { chat_id: conv.external_id, text };
-      if (media?.type === 'image') { tgMethod = 'sendPhoto'; tgBody = { chat_id: conv.external_id, photo: media.url, ...(text ? { caption: text } : {}) }; }
-      else if (media?.type === 'video') { tgMethod = 'sendVideo'; tgBody = { chat_id: conv.external_id, video: media.url, ...(text ? { caption: text } : {}) }; }
-      else if (media?.type === 'audio') { tgMethod = 'sendVoice'; tgBody = { chat_id: conv.external_id, voice: media.url }; }
-      const r = await fetch(`https://api.telegram.org/bot${bot_token}/${tgMethod}`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(tgBody),
-      });
-      const json = await r.json().catch(() => ({}));
-      if (!r.ok || !json.ok) throw new Error(json.description || 'Telegram send failed');
-      if (message_id) await sb.from('messages').update({ external_id: String(json.result?.message_id || ''), status: 'sent' }).eq('id', message_id);
-
-    } else {
-      if (message_id) await sb.from('messages').update({ status: 'sent' }).eq('id', message_id);
+    // 4. Update message status
+    if (message_id) {
+      await sb.from('messages').update({
+        ...(result.external_id ? { external_id: result.external_id } : {}),
+        status: 'sent',
+      }).eq('id', message_id);
     }
 
+    // 5. Update conversation
     await sb.from('conversations').update({
-      last_message: text || (media ? `[${media.type}]` : ''), last_message_at: new Date().toISOString()
+      last_message: text || (media ? `[${media.type}]` : ''),
+      last_message_at: new Date().toISOString(),
     }).eq('id', conversation_id);
 
     return res.status(200).json({ ok: true });
