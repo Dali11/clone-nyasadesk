@@ -27,7 +27,7 @@ export default function AdminOverview() {
       try {
         const { data: { session } } = await supabase.auth.getSession();
         const res = await fetch('/api/admin/workspaces?resource=overview', {
-          headers: session?.access_token ? { Authorization: `Bearer K {session.access_token}` } : {},
+          headers: session?.access_token ? { Authorization: `Bearer ${session.access_token}` } : {},
         });
         const json = await res.json();
         if (!res.ok) throw new Error(json.error || 'Failed to load overview');
@@ -60,8 +60,8 @@ export default function AdminOverview() {
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-8">
         <StatCard icon={Building2} label="Workspaces" value={totals.workspaces} />
         <StatCard icon={Users} label="Users" value={totals.users} />
-        <StatCard icon={MessageSquare} label="Conversations" value={totals.conversations} sub={`K {totals.messages} messages`} />
-        <StatCard icon={DollarSign} label="Est. MRR (MWK)" value={`K K {totals.mrr.toLocaleString()}`} />
+        <StatCard icon={MessageSquare} label="Conversations" value={totals.conversations} sub={`${totals.messages} messages`} />
+        <StatCard icon={DollarSign} label="Est. MRR (MWK)" value={`K${totals.mrr.toLocaleString()}`} />
       </div>
 
       <div className="bg-[#202C33] rounded-2xl border border-white/10 p-5 mb-8">
@@ -73,12 +73,12 @@ export default function AdminOverview() {
             <div key={plan}>
               <div className="flex justify-between text-xs text-gray-400 mb-1">
                 <span>{PLAN_LABEL[plan] || plan} · {info.count} workspace{info.count === 1 ? '' : 's'}</span>
-                <span>K {info.mrr}/mo</span>
+                <span>K{info.mrr.toLocaleString()}/mo</span>
               </div>
               <div className="h-2 rounded-full bg-white/5 overflow-hidden">
                 <div
                   className="h-full bg-indigo-500"
-                  style={{ width: `K {totals.workspaces ? (info.count / totals.workspaces) * 100 : 0}%` }}
+                  style={{ width: `${totals.workspaces ? (info.count / totals.workspaces) * 100 : 0}%` }}
                 />
               </div>
             </div>
