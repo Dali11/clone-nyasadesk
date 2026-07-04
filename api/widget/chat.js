@@ -4,6 +4,8 @@ const SUPABASE_URL = 'https://pfbaepibelomiutlotkn.supabase.co';
 const SUPABASE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY;
 const PROD = 'https://nyasadesk1.vercel.app';
 
+export const config = { api: { bodyParser: { sizeLimit: '8mb' } } }; // allow base64 image uploads
+
 export default async function handler(req, res) {
   // Allow widget to call from any domain
   res.setHeader('Access-Control-Allow-Origin', '*');
@@ -13,7 +15,8 @@ export default async function handler(req, res) {
 
   try {
     const sb = createClient(SUPABASE_URL, SUPABASE_KEY);
-    const { action, workspace_id, session_id, name, email, body, page_url } = req.body || req.query || {};
+    const { action, workspace_id, session_id, name, email, body, page_url,
+             file_base64, file_name, file_type, kind } = req.body || req.query || {};
 
     if (!workspace_id) return res.status(400).json({ error: 'workspace_id required' });
 
@@ -29,7 +32,18 @@ export default async function handler(req, res) {
       const label      = cfg?.config?.label || 'Chat with us';
       const agent_name = cfg?.config?.agent_name || 'Support Team';
       const position    = cfg?.config?.widget_position || 'bottom-right';
-      return res.status(200).json({ session_id: visitorId, greeting, color, label, agent_name, position });
+
+      // Look up any existing conversation so we can hand back last_read_at
+      // right away — lets the widget render correct tick marks on first paint
+      // for a returning visitor, before the first poll cycle even runs.
+      let last_read_at = null;
+      if (session_id) {
+        const { data: conv } = await sb.from('conversations').select('last_read_at')
+          .eq('workspace_id', workspace_id).eq('channel', 'website').eq('external_id', session_id).maybeSingle();
+        last_read_at = conv?.last_read_at || null;
+      }
+
+      return res.status(200).json({ session_id: visitorId, greeting, color, label, agent_name, position, last_read_at });
     }
 
     // ── HISTORY: returning visitor reopens the widget — replay their full
@@ -40,75 +54,87 @@ export default async function handler(req, res) {
     if (action === 'history' && (req.method === 'POST' || req.method === 'GET')) {
       if (!session_id) return res.status(400).json({ error: 'session_id required' });
 
-      const { data: conv } = await sb.from('conversations').select('id')
+      const { data: conv } = await sb.from('conversations').select('id,last_read_at')
         .eq('workspace_id', workspace_id).eq('channel', 'website').eq('external_id', session_id).single();
 
-      if (!conv) return res.status(200).json({ messages: [] });
+      if (!conv) return res.status(200).json({ messages: [], last_read_at: null });
 
-      const { data: msgs } = await sb.from('messages').select('id,body,direction,sender_name,created_at')
+      const { data: msgs } = await sb.from('messages').select('id,body,direction,sender_name,created_at,status,attachments')
         .eq('conversation_id', conv.id).is('deleted_at', null)
         .order('created_at', { ascending: true }).limit(200);
 
-      return res.status(200).json({ messages: msgs || [] });
+      return res.status(200).json({ messages: msgs || [], last_read_at: conv.last_read_at || null });
     }
 
     // ── SEND: visitor sends a message ────────────────────────────────────────
     if (action === 'send' && req.method === 'POST') {
       if (!session_id || !body?.trim()) return res.status(400).json({ error: 'session_id and body required' });
 
-      const visitorName  = name || 'Website Visitor';
-      const visitorEmail = email || null;
-      const externalId   = session_id;
+      const { conv, error } = await upsertVisitorThread(sb, { workspace_id, session_id, name, email, page_url, lastMessage: body.trim() });
+      if (error || !conv?.id) return res.status(500).json({ error: 'Failed to create conversation' });
 
-      // Upsert contact
-      const { data: contact } = await sb.from('contacts').upsert({
-        workspace_id, channel: 'website', external_id: externalId,
-        full_name: visitorName, email: visitorEmail, lead_source: 'website',
-      }, { onConflict: 'workspace_id,channel,external_id' }).select('id').single();
+      // Real tick semantics: 'sent' the moment we've durably stored it — there's
+      // no separate "delivered to device" concept for a website chat (unlike
+      // WhatsApp/Messenger), so we go straight to 'sent' and only flip to
+      // 'read' once an agent actually opens the conversation (see Inbox.jsx).
+      const { data: msg } = await sb.from('messages').insert({
+        conversation_id: conv.id, workspace_id,
+        direction: 'inbound', body: body.trim(), channel: 'website',
+        external_id: `widget-${Date.now()}`,
+        sender_name: name || 'Website Visitor', sender_id: session_id, status: 'sent',
+      }).select('id').single();
 
-      // Upsert conversation
-      const { data: conv } = await sb.from('conversations').upsert({
-        workspace_id, channel: 'website', external_id: externalId,
-        contact_id: contact?.id, status: 'open',
-        subject: visitorName + (page_url ? ' — ' + page_url : ''),
-        last_message: body.trim(), last_message_at: new Date().toISOString(),
-      }, { onConflict: 'workspace_id,channel,external_id' }).select('id,unread_count').single();
-
-      if (conv?.id) {
-        // Increment unread for the agent
-        await sb.from('conversations').update({
-          unread_count: (conv.unread_count || 0) + 1,
-          last_message: body.trim(), last_message_at: new Date().toISOString(),
-        }).eq('id', conv.id);
-
-        // Insert visitor message
-        const { data: msg } = await sb.from('messages').insert({
-          conversation_id: conv.id, workspace_id,
-          direction: 'inbound', body: body.trim(), channel: 'website',
-          external_id: `widget-${Date.now()}`,
-          sender_name: visitorName, sender_id: externalId, status: 'delivered',
-        }).select('id').single();
-
-        return res.status(200).json({ ok: true, message_id: msg?.id, conversation_id: conv.id });
-      }
-      return res.status(500).json({ error: 'Failed to create conversation' });
+      return res.status(200).json({ ok: true, message_id: msg?.id, conversation_id: conv.id });
     }
 
-    // ── POLL: visitor polls for agent replies ────────────────────────────────
+    // ── UPLOAD: visitor sends an image/video attachment ──────────────────────
+    if (action === 'upload' && req.method === 'POST') {
+      if (!session_id || !file_base64) return res.status(400).json({ error: 'session_id and file_base64 required' });
+
+      const { conv, error } = await upsertVisitorThread(sb, { workspace_id, session_id, name, email, page_url, lastMessage: kind === 'video' ? '🎥 Video' : '📷 Photo' });
+      if (error || !conv?.id) return res.status(500).json({ error: 'Failed to create conversation' });
+
+      const buffer = Buffer.from(file_base64, 'base64');
+      if (buffer.length > 6 * 1024 * 1024) return res.status(413).json({ error: 'File too large (max 6MB)' });
+
+      const ext = (file_name?.split('.').pop() || 'bin').toLowerCase();
+      const path = `${workspace_id}/${kind || 'image'}/${Date.now()}-${Math.random().toString(36).slice(2, 8)}.${ext}`;
+      const { error: upErr } = await sb.storage.from('chat-media').upload(path, buffer, {
+        contentType: file_type || 'application/octet-stream', upsert: false,
+      });
+      if (upErr) return res.status(500).json({ error: upErr.message });
+      const { data: pub } = sb.storage.from('chat-media').getPublicUrl(path);
+
+      const { data: msg } = await sb.from('messages').insert({
+        conversation_id: conv.id, workspace_id,
+        direction: 'inbound', body: kind === 'video' ? '🎥 Video' : '📷 Photo', channel: 'website',
+        external_id: `widget-${Date.now()}`,
+        sender_name: name || 'Website Visitor', sender_id: session_id, status: 'sent',
+        attachments: [{ url: pub.publicUrl, type: kind === 'video' ? 'video' : 'image' }],
+      }).select('id').single();
+
+      return res.status(200).json({ ok: true, message_id: msg?.id, conversation_id: conv.id, url: pub.publicUrl });
+    }
+
+    // ── POLL: visitor polls for agent replies + read-receipt updates ─────────
     if (action === 'poll' && (req.method === 'POST' || req.method === 'GET')) {
       if (!session_id) return res.status(400).json({ error: 'session_id required' });
       const since = req.body?.since || req.query?.since || new Date(Date.now() - 60000).toISOString();
 
-      const { data: conv } = await sb.from('conversations').select('id')
+      const { data: conv } = await sb.from('conversations').select('id,last_read_at')
         .eq('workspace_id', workspace_id).eq('channel', 'website').eq('external_id', session_id).single();
 
-      if (!conv) return res.status(200).json({ messages: [] });
+      if (!conv) return res.status(200).json({ messages: [], last_read_at: null });
 
-      const { data: msgs } = await sb.from('messages').select('id,body,direction,sender_name,created_at')
+      const { data: msgs } = await sb.from('messages').select('id,body,direction,sender_name,created_at,status,attachments')
         .eq('conversation_id', conv.id).eq('direction', 'outbound').is('deleted_at', null)
         .gt('created_at', since).order('created_at', { ascending: true });
 
-      return res.status(200).json({ messages: msgs || [] });
+      // last_read_at rides along on every poll tick so the widget can keep
+      // flipping the visitor's own sent-message ticks from single-grey
+      // ("sent") to double-blue ("read") the moment an agent opens the chat —
+      // same semantics as the real inbox's StatusIcon.
+      return res.status(200).json({ messages: msgs || [], last_read_at: conv.last_read_at || null });
     }
 
     return res.status(400).json({ error: 'Unknown action' });
@@ -116,4 +142,32 @@ export default async function handler(req, res) {
     console.error('Widget API error:', err);
     return res.status(500).json({ error: err.message });
   }
+}
+
+// Shared upsert-contact + upsert-conversation logic for both text sends and
+// media uploads, so both paths create/attach to the exact same thread.
+async function upsertVisitorThread(sb, { workspace_id, session_id, name, email, page_url, lastMessage }) {
+  const visitorName  = name || 'Website Visitor';
+  const visitorEmail = email || null;
+
+  const { data: contact } = await sb.from('contacts').upsert({
+    workspace_id, channel: 'website', external_id: session_id,
+    full_name: visitorName, email: visitorEmail, lead_source: 'website',
+  }, { onConflict: 'workspace_id,channel,external_id' }).select('id').single();
+
+  const { data: conv } = await sb.from('conversations').upsert({
+    workspace_id, channel: 'website', external_id: session_id,
+    contact_id: contact?.id, status: 'open',
+    subject: visitorName + (page_url ? ' — ' + page_url : ''),
+    last_message: lastMessage, last_message_at: new Date().toISOString(),
+  }, { onConflict: 'workspace_id,channel,external_id' }).select('id,unread_count').single();
+
+  if (conv?.id) {
+    await sb.from('conversations').update({
+      unread_count: (conv.unread_count || 0) + 1,
+      last_message: lastMessage, last_message_at: new Date().toISOString(),
+    }).eq('id', conv.id);
+  }
+
+  return { conv, error: !conv?.id };
 }
