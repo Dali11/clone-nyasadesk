@@ -9,9 +9,14 @@ const STATUS_COLOR = { open: 'bg-green-500', snoozed: 'bg-yellow-500', closed: '
 export default function ChatHeader({ conversation, users = [], onUpdate, onBack, onOpenContact, onDelete, canDelete }) {
   if (!conversation) return null;
 
-  const assign = (userId, userName) => onUpdate({ ...conversation, assigned_to: userId, assigned_to_name: userName, status: 'open' });
-  const updateStatus = (status) => onUpdate({ ...conversation, status });
-  const updatePriority = (priority) => onUpdate({ ...conversation, priority });
+  const assign = (userId, userName) => onUpdate({
+    id: conversation.id,
+    assigned_to: userId,
+    assigned_to_name: userName,
+    status: 'open',
+  });
+  const updateStatus = (status) => onUpdate({ id: conversation.id, status });
+  const updatePriority = (priority) => onUpdate({ id: conversation.id, priority });
 
   return (
     <div className="bg-[#202C33] border-b border-white/10 px-4 py-2.5 flex items-center gap-3 shrink-0">
