@@ -2,13 +2,54 @@ import { createClient } from '@supabase/supabase-js';
 
 const SUPABASE_URL = 'https://pfbaepibelomiutlotkn.supabase.co';
 const SUPABASE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY;
+const PROD_URL = 'https://nyasadesk1.vercel.app';
 
-// Maps our internal media kind to the WhatsApp Cloud API message "type" field
 const WA_TYPE = { image: 'image', video: 'video', audio: 'audio' };
 
+// Merged from api/channels/send.js + api/channels/telegram-setup.js to free
+// up a serverless function slot for api/billing.js (Vercel Hobby caps at 12).
+// Routed by ?action= — 'send' (default) or 'telegram-setup'.
 export default async function handler(req, res) {
+  if (req.method !== 'POST') return res.status(405).json({ error: 'Method Not Allowed' });
+  const action = req.query.action || 'send';
+
+  if (action === 'telegram-setup') return handleTelegramSetup(req, res);
+  return handleSend(req, res);
+}
+
+async function handleTelegramSetup(req, res) {
   try {
-    if (req.method !== 'POST') return res.status(405).send('Method Not Allowed');
+    const { bot_token, workspace_id } = req.body || {};
+    if (!bot_token || !workspace_id) {
+      return res.status(400).json({ ok: false, error: 'bot_token and workspace_id are required' });
+    }
+
+    const meRes = await fetch(`https://api.telegram.org/bot${bot_token}/getMe`);
+    const meJson = await meRes.json();
+    if (!meJson.ok) {
+      return res.status(400).json({ ok: false, error: 'Invalid bot token — double check it was copied correctly from @BotFather' });
+    }
+
+    const webhookUrl = `${PROD_URL}/api/webhooks/telegram?workspace_id=${encodeURIComponent(workspace_id)}`;
+    const hookRes = await fetch(`https://api.telegram.org/bot${bot_token}/setWebhook`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ url: webhookUrl, allowed_updates: ['message', 'edited_message'] }),
+    });
+    const hookJson = await hookRes.json();
+    if (!hookJson.ok) {
+      return res.status(400).json({ ok: false, error: hookJson.description || 'Telegram rejected the webhook registration' });
+    }
+
+    return res.status(200).json({ ok: true, bot_username: meJson.result?.username || null });
+  } catch (e) {
+    console.error('[channels/telegram-setup] error:', e);
+    return res.status(500).json({ ok: false, error: e.message || 'Internal server error' });
+  }
+}
+
+async function handleSend(req, res) {
+  try {
     const { message_id, conversation_id, workspace_id, channel, body: text, attachments } = req.body || {};
     if (!conversation_id || !workspace_id || !channel) {
       return res.status(400).json({ error: 'Missing fields: conversation_id, workspace_id, channel' });

@@ -58,11 +58,11 @@ export function NyasaAuthProvider({ children }) {
           let merged = data;
           if (data.workspace_id && data.workspace_id !== user.id) {
             const { data: ownerProfile } = await supabase.from('profiles')
-              .select('workspace_name, sla_hours, plan')
+              .select('workspace_name, sla_hours, plan, subscription_status, trial_ends_at, current_period_end, billing_currency')
               .eq('id', data.workspace_id)
               .maybeSingle();
             if (ownerProfile) {
-              merged = { ...data, workspace_name: ownerProfile.workspace_name, sla_hours: ownerProfile.sla_hours, plan: ownerProfile.plan };
+              merged = { ...data, workspace_name: ownerProfile.workspace_name, sla_hours: ownerProfile.sla_hours, plan: ownerProfile.plan, subscription_status: ownerProfile.subscription_status, trial_ends_at: ownerProfile.trial_ends_at, current_period_end: ownerProfile.current_period_end, billing_currency: ownerProfile.billing_currency };
             }
           }
           setProfile(merged);

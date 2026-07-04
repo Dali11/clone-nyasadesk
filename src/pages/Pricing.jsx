@@ -13,17 +13,17 @@ const MUTED         = '#8696A0';
 
 const PLANS = [
   {
-    key: 'starter', name: 'Starter', price: '$10', period: '/mo', seats: '2 team members',
+    key: 'starter', name: 'Starter', price: 'K15,000', period: '/mo', seats: '2 team members',
     features: ['All channels — WhatsApp, Messenger, email, website chat', 'Shared team inbox', 'Contact CRM & deal stages', 'Canned responses', 'Basic assignment rules'],
     cta: 'Get started',
   },
   {
-    key: 'growth', name: 'Growth', price: '$20', period: '/mo', seats: '5 team members', highlight: true,
+    key: 'growth', name: 'Growth', price: 'K30,000', period: '/mo', seats: '5 team members', highlight: true,
     features: ['Everything in Starter', 'Broadcast campaigns', 'SLA tracking & alerts', 'Round-robin & smart assignment rules', 'Priority email support'],
     cta: 'Get started',
   },
   {
-    key: 'scale', name: 'Scale', price: '$99', period: '/mo', seats: 'Unlimited team members',
+    key: 'scale', name: 'Scale', price: 'K120,000', period: '/mo', seats: 'Unlimited team members',
     features: ['Everything in Growth', 'Unlimited team members', 'Unlimited channels', 'Priority support', 'Onboarding assistance'],
     cta: 'Get started',
   },

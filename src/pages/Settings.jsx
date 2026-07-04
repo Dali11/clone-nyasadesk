@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useSearchParams, useNavigate } from 'react-router-dom';
 import { User, Users, Globe, Bell, Building2, Check, Loader2,
-         Trash2, Copy, ExternalLink, ChevronDown, AlertCircle, Code2, ShieldCheck } from 'lucide-react';
+         Trash2, Copy, ExternalLink, ChevronDown, AlertCircle, Code2, ShieldCheck, CreditCard, Crown, Clock } from 'lucide-react';
 import Sidebar from '@/components/Sidebar';
 import Avatar from '@/components/Avatar';
 import TeamSection from '@/components/settings/TeamSection';
@@ -19,6 +19,7 @@ const SECTIONS = [
   { id: 'team',      label: 'Team',      icon: Users,     adminOnly: false },
   { id: 'channels',  label: 'Channels',  icon: Globe,     adminOnly: true  },
   { id: 'sla',       label: 'SLA',       icon: Bell,      adminOnly: true  },
+  { id: 'subscription', label: 'Subscription', icon: CreditCard, adminOnly: true  },
 ];
 
 const inputCls = 'w-full bg-[#2A3942] text-white text-sm rounded-xl px-4 py-2.5 focus:outline-none focus:ring-1 focus:ring-[#25D366] border-0 placeholder:text-gray-600';
@@ -632,10 +633,10 @@ function TelegramCard({ saved, workspaceId, onSave, onDelete }) {
     setSaving(true);
     setStatus('');
     try {
-      const res = await fetch('/api/channels/telegram-setup', {
+      const res = await fetch('/api/channels?action=telegram-setup', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ bot_token: fields.bot_token, workspace_id: workspaceId }),
+        body: JSON.stringify({ bot_token: fields.bot_token, workspace_id: workspaceId, action: 'telegram-setup' }),
       });
       const data = await res.json();
       if (!data.ok) throw new Error(data.error || 'Failed to activate webhook');
@@ -701,6 +702,55 @@ export default function Settings() {
   const [slaHours, setSlaHours] = useState(4);
   const [slaSaved, setSlaSaved] = useState(false);
 
+  // ── Subscription state ────────────────────────────────────────────────
+  const [subStatus, setSubStatus] = useState(null);
+  const [subLoading, setSubLoading] = useState(false);
+  const [checkoutLoading, setCheckoutLoading] = useState(null);
+
+  const loadSubStatus = async () => {
+    setSubLoading(true);
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      const res = await fetch('/api/billing?action=status', {
+        headers: session?.access_token ? { Authorization: `Bearer ${session.access_token}` } : {},
+      });
+      if (!res.ok) throw new Error('Failed to load subscription status');
+      const data = await res.json();
+      setSubStatus(data);
+    } catch (e) {
+      console.error('[Settings] subscription status error:', e);
+    } finally {
+      setSubLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    if (section === 'subscription' && isWorkspaceAdmin) loadSubStatus();
+  }, [section, isWorkspaceAdmin]);
+
+  const handleCheckout = async (plan) => {
+    setCheckoutLoading(plan);
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      const res = await fetch('/api/billing?action=checkout', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          ...(session?.access_token ? { Authorization: `Bearer ${session.access_token}` } : {}),
+        },
+        body: JSON.stringify({ plan }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Checkout failed');
+      if (data.checkout_url) window.location.href = data.checkout_url;
+    } catch (e) {
+      console.error('[Settings] checkout error:', e);
+      window.alert(e.message || 'Could not start checkout');
+    } finally {
+      setCheckoutLoading(null);
+    }
+  };
+
   const visibleSections = SECTIONS.filter(s => !s.adminOnly || isWorkspaceAdmin);
 
   useEffect(() => {
@@ -745,7 +795,7 @@ export default function Settings() {
         rows.forEach(r => { map[r.channel] = r; });
         setChannelConfigs(map);
       })
-      .catch(() => {})
+      .catch(e => console.error('[Settings] failed to load channel configs:', e))
       .finally(() => setLoadingChannels(false));
   }, [workspaceOwnerId]);
 
@@ -934,6 +984,101 @@ export default function Settings() {
                   {slaSaved ? <><Check className="w-4 h-4" />Saved!</> : 'Save SLA Setting'}
                 </button>
                 <p className="text-[11px] text-gray-600">Applies to new conversations going forward — existing ones keep their original deadline.</p>
+              </div>
+            )}
+
+            {/* Subscription */}
+            {section === 'subscription' && isWorkspaceAdmin && (
+              <div className="space-y-6">
+                <div>
+                  <h2 className="text-lg font-bold text-white mb-1">Subscription & Billing</h2>
+                  <p className="text-sm text-gray-400">Manage your plan — billed in Malawi Kwacha via PayChangu</p>
+                </div>
+
+                {subLoading ? (
+                  <div className="flex items-center justify-center py-12"><Loader2 className="w-5 h-5 text-[#25D366] animate-spin" /></div>
+                ) : subStatus ? (
+                  <>
+                    <div className="rounded-2xl border border-white/10 p-5 bg-[#202C33]">
+                      <div className="flex items-center gap-3 mb-3">
+                        {subStatus.subscription_status === 'trialing' && <Clock className="w-5 h-5 text-yellow-400" />}
+                        {subStatus.subscription_status === 'active' && <Crown className="w-5 h-5 text-[#25D366]" />}
+                        {subStatus.subscription_status === 'past_due' && <AlertCircle className="w-5 h-5 text-red-400" />}
+                        {subStatus.subscription_status === 'canceled' && <AlertCircle className="w-5 h-5 text-gray-500" />}
+                        <div>
+                          <p className="text-sm font-semibold text-white capitalize">
+                            {subStatus.subscription_status === 'trialing' ? 'Free Trial' : subStatus.subscription_status}
+                          </p>
+                          <p className="text-xs text-gray-400">Current plan: {subStatus.plan || 'starter'}</p>
+                        </div>
+                      </div>
+                      {subStatus.subscription_status === 'trialing' && subStatus.trial_ends_at && (
+                        <div className="bg-yellow-500/10 border border-yellow-500/20 rounded-xl px-4 py-3">
+                          <p className="text-sm text-yellow-400 font-medium">
+                            Trial ends in {Math.max(0, Math.ceil((new Date(subStatus.trial_ends_at) - new Date()) / 86400000))} days
+                          </p>
+                          <p className="text-xs text-yellow-400/70 mt-1">
+                            {new Date(subStatus.trial_ends_at).toLocaleDateString('en-MW', { day: 'numeric', month: 'long', year: 'numeric' })}
+                          </p>
+                        </div>
+                      )}
+                      {subStatus.subscription_status === 'active' && subStatus.current_period_end && (
+                        <p className="text-xs text-gray-400">
+                          Next renewal: {new Date(subStatus.current_period_end).toLocaleDateString('en-MW', { day: 'numeric', month: 'long', year: 'numeric' })}
+                        </p>
+                      )}
+                    </div>
+
+                    <div className="grid gap-3 sm:grid-cols-3">
+                      {Object.entries(subStatus.pricing || {}).map(([key, price]) => {
+                        const isCurrent = subStatus.plan === key;
+                        const labels = subStatus.plan_labels || {};
+                        return (
+                          <div key={key} className={`rounded-2xl border p-5 ${isCurrent ? 'border-[#25D366] bg-[#25D366]/5' : 'border-white/10 bg-[#202C33]'}`}>
+                            <p className="text-sm font-bold text-white">{labels[key] || key}</p>
+                            <p className="text-2xl font-black text-white mt-2">K{price.toLocaleString()}<span className="text-xs font-normal text-gray-400">/mo</span></p>
+                            <div className="mt-4">
+                              {isCurrent ? (
+                                <span className="block text-center py-2.5 rounded-xl text-xs font-bold text-[#25D366] bg-[#25D366]/10">Current Plan</span>
+                              ) : (
+                                <button
+                                  onClick={() => handleCheckout(key)}
+                                  disabled={checkoutLoading === key}
+                                  className="w-full py-2.5 rounded-xl text-xs font-bold text-white bg-[#25D366] hover:bg-[#20BA5A] transition-colors disabled:opacity-50 flex items-center justify-center gap-2"
+                                >
+                                  {checkoutLoading === key ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : `Switch to ${labels[key] || key}`}
+                                </button>
+                              )}
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+
+                    {subStatus.transactions && subStatus.transactions.length > 0 && (
+                      <div>
+                        <h3 className="text-sm font-semibold text-white mb-3">Payment History</h3>
+                        <div className="space-y-2">
+                          {subStatus.transactions.map(t => (
+                            <div key={t.tx_ref} className="flex items-center justify-between bg-[#202C33] rounded-xl px-4 py-3 border border-white/5">
+                              <div>
+                                <p className="text-xs font-medium text-white">K{(t.amount || 0).toLocaleString()} {t.currency}</p>
+                                <p className="text-[10px] text-gray-500">{new Date(t.created_at).toLocaleDateString('en-MW')}</p>
+                              </div>
+                              <span className={`text-[10px] font-bold px-2 py-1 rounded-full ${
+                                t.status === 'success' ? 'bg-[#25D366]/15 text-[#25D366]' :
+                                t.status === 'pending' ? 'bg-yellow-500/15 text-yellow-400' :
+                                'bg-red-500/15 text-red-400'
+                              }`}>{t.status}</span>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                  </>
+                ) : (
+                  <p className="text-sm text-gray-500">Could not load subscription info.</p>
+                )}
               </div>
             )}
 

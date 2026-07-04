@@ -32,6 +32,9 @@ export async function requirePlatformAdmin(req, sbServiceRole) {
 // panel (display) and /api/team/invite (actual enforcement).
 export const PLAN_LIMITS = { starter: 2, growth: 5, scale: Infinity };
 
-// Single source of truth for plan → monthly price (USD), used by
-// /api/admin/overview.js to compute estimated MRR.
-export const PLAN_PRICING = { starter: 10, growth: 20, scale: 99 };
+// Single source of truth for plan → monthly price in MWK (Malawi Kwacha).
+// Nyasadesk targets Malawi first, billed via PayChangu (Airtel Money / TNM Mpamba / cards).
+export const PLAN_PRICING_MWK = { starter: 15000, growth: 30000, scale: 120000 };
+export const PLAN_LABEL = { starter: 'Starter', growth: 'Growth', scale: 'Scale' };
+// Legacy alias kept for any older imports that haven't been updated yet.
+export const PLAN_PRICING = PLAN_PRICING_MWK;

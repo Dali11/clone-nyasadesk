@@ -253,7 +253,7 @@ export async function sendMessage(workspaceId, conversationId, body, senderName,
 
       // Dispatch via edge function
       const { data: conv } = await supabase.from('conversations').select('channel,external_id,workspace_id').eq('id', conversationId).single();
-      const res = await fetch('/api/channels/send', {
+      const res = await fetch('/api/channels?action=send', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
