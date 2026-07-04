@@ -95,11 +95,11 @@
   // ── DOM Build ─────────────────────────────────────────────────────────────
   const style = document.createElement('style');
   style.textContent = `
-    #nyasa-widget, #nyasa-widget * {
+    :host, :host * {
       box-sizing: border-box; margin: 0; padding: 0;
       font-family: var(--nyasa-font, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif);
     }
-    #nyasa-widget {
+    :host {
       --nyasa-color: #25D366;
       --nyasa-header-grad: linear-gradient(135deg, #075E54 0%, #128C7E 100%);
       --nyasa-page-bg: #ECE5DD; --nyasa-panel-bg: #ffffff; --nyasa-in-bubble: #ffffff;
@@ -109,7 +109,7 @@
     /* Dark theme mirrors the real Nyasadesk inbox exactly: #0B141A message
        canvas, #202C33 header/composer bars, WhatsApp-green outbound bubbles —
        so the widget reads as the same product, not a bolted-on extra. */
-    #nyasa-widget.nyasa-theme-dark {
+    :host(.nyasa-theme-dark) {
       --nyasa-page-bg: #0B141A; --nyasa-panel-bg: #202C33; --nyasa-in-bubble: #202C33;
       --nyasa-out-bubble: #005C4B; --nyasa-text: #EDEDED; --nyasa-muted: #8696A0; --nyasa-border: rgba(255,255,255,0.08);
     }
@@ -143,12 +143,12 @@
     }
     #nyasa-window.closed { transform: scale(0.7) translateY(20px); opacity: 0; pointer-events: none; }
     /* ── Inline / support-page mode: fill the container instead of floating ── */
-    #nyasa-widget.nyasa-inline #nyasa-window {
+    :host(.nyasa-inline) #nyasa-window {
       position: static; width: 100%; height: 100%; max-width: none; max-height: none;
       border-radius: var(--nyasa-radius); box-shadow: none; transform: none !important; opacity: 1 !important;
       pointer-events: auto !important; min-height: 480px;
     }
-    #nyasa-widget.nyasa-inline { display: block; width: 100%; height: 100%; background: var(--nyasa-page-bg); border-radius: var(--nyasa-radius); }
+    :host(.nyasa-inline) { display: block; width: 100%; height: 100%; background: var(--nyasa-page-bg); border-radius: var(--nyasa-radius); }
     #nyasa-header {
       background: var(--nyasa-header-grad); padding: 12px 14px;
       display: flex; align-items: center; gap: 10px; flex-shrink: 0;
@@ -169,7 +169,7 @@
       background-size: 20px 20px;
       display: flex; flex-direction: column; gap: 8px;
     }
-    #nyasa-widget:not(.nyasa-theme-dark) #nyasa-msgs { background-image: none; }
+    :host(:not(.nyasa-theme-dark)) #nyasa-msgs { background-image: none; }
     #nyasa-msgs::-webkit-scrollbar { width: 4px; }
     #nyasa-msgs::-webkit-scrollbar-thumb { background: rgba(128,128,128,0.25); border-radius: 2px; }
     .nyasa-bubble { display: flex; flex-direction: column; max-width: 72%; margin: 1px 0; }
@@ -193,8 +193,8 @@
     }
     .nyasa-bubble.out .meta-row { color: #667781; }
     .nyasa-bubble.in .meta-row { justify-content: flex-start; }
-    #nyasa-widget.nyasa-theme-dark .nyasa-bubble.out .meta-row { color: rgba(255,255,255,0.65); }
-    #nyasa-widget.nyasa-theme-dark .nyasa-bubble.out .text { color: #E9FBF3; }
+    :host(.nyasa-theme-dark) .nyasa-bubble.out .meta-row { color: rgba(255,255,255,0.65); }
+    :host(.nyasa-theme-dark) .nyasa-bubble.out .text { color: #E9FBF3; }
     .nyasa-system { text-align: center; font-size: 11px; color: var(--nyasa-muted); padding: 4px 0; }
     #nyasa-name-gate { background: var(--nyasa-panel-bg); padding: 16px; border-top: 1px solid var(--nyasa-border); flex-shrink: 0; }
     #nyasa-name-gate p { font-size: 12px; color: var(--nyasa-muted); margin-bottom: 8px; }
@@ -228,14 +228,14 @@
     }
     #nyasa-send:disabled { background: #ccc; cursor: default; }
     #nyasa-send svg { width: 18px; height: 18px; fill: #fff; }
-    #nyasa-widget.nyasa-theme-dark #nyasa-input { background: #2A3942; color: #fff; }
+    :host(.nyasa-theme-dark) #nyasa-input { background: #2A3942; color: #fff; }
     /* WhatsApp-style read receipts on the visitor's own sent messages —
        single grey check = sent/stored, double blue check = an agent has
        opened the conversation. Mirrors StatusIcon in the real team inbox. */
     .nyasa-bubble .ticks { display: inline-flex; vertical-align: -1px; }
     .nyasa-bubble .ticks svg { width: 14px; height: 14px; }
     .nyasa-bubble .ticks.sent svg { fill: none; stroke: rgba(255,255,255,0.7); }
-    #nyasa-widget:not(.nyasa-theme-dark) .nyasa-bubble .ticks.sent svg { stroke: rgba(0,0,0,0.45); }
+    :host(:not(.nyasa-theme-dark)) .nyasa-bubble .ticks.sent svg { stroke: rgba(0,0,0,0.45); }
     .nyasa-bubble .ticks.read svg { fill: none; stroke: #53BDEB; }
     .nyasa-bubble .attach-img { display: block; max-width: 240px; max-height: 240px; border-radius: 8px; margin-bottom: 4px; object-fit: cover; }
     .nyasa-bubble .attach-video { display: block; max-width: 240px; max-height: 240px; border-radius: 8px; margin-bottom: 4px; }
@@ -253,8 +253,8 @@
       transition: background .15s, opacity .15s;
     }
     /* Inbox mic button uses a dark grey bg, not green — match that */
-    #nyasa-widget.nyasa-theme-dark #nyasa-mic { background: #2A3942; }
-    #nyasa-widget.nyasa-theme-dark #nyasa-mic svg { fill: #8696A0; }
+    :host(.nyasa-theme-dark) #nyasa-mic { background: #2A3942; }
+    :host(.nyasa-theme-dark) #nyasa-mic svg { fill: #8696A0; }
     #nyasa-mic:hover { opacity: 0.88; }
     #nyasa-mic svg { width: 20px; height: 20px; fill: #fff; }
     #nyasa-mic.recording { background: #EF4444; animation: nyasa-pulse 1.2s ease-in-out infinite; }
@@ -291,18 +291,18 @@
       width: 32px; height: 32px; border-radius: 50%; border: none; cursor: pointer;
       background: var(--nyasa-color); color: #fff; display: flex; align-items: center; justify-content: center; flex-shrink: 0;
     }
-    #nyasa-widget.nyasa-theme-dark .nyasa-audio .play-btn { background: #25D366; }
-    #nyasa-widget:not(.nyasa-theme-dark) .nyasa-bubble.in .nyasa-audio .play-btn { background: #075E54; }
+    :host(.nyasa-theme-dark) .nyasa-audio .play-btn { background: #25D366; }
+    :host(:not(.nyasa-theme-dark)) .nyasa-bubble.in .nyasa-audio .play-btn { background: #075E54; }
     .nyasa-audio .play-btn svg { width: 15px; height: 15px; fill: #fff; }
     .nyasa-audio .play-btn.pause svg { fill: #fff; }
     .nyasa-audio .track {
       flex: 1; height: 4px; border-radius: 2px; background: rgba(128,128,128,0.25); position: relative; cursor: pointer;
     }
     .nyasa-audio .track-fill { height: 100%; border-radius: 2px; background: var(--nyasa-color); width: 0%; transition: width .1s linear; }
-    #nyasa-widget.nyasa-theme-dark .nyasa-audio .track-fill { background: #25D366; }
-    #nyasa-widget:not(.nyasa-theme-dark) .nyasa-bubble.in .nyasa-audio .track-fill { background: #075E54; }
+    :host(.nyasa-theme-dark) .nyasa-audio .track-fill { background: #25D366; }
+    :host(:not(.nyasa-theme-dark)) .nyasa-bubble.in .nyasa-audio .track-fill { background: #075E54; }
     .nyasa-audio .dur { font-size: 11px; color: var(--nyasa-muted); font-variant-numeric: tabular-nums; white-space: nowrap; }
-    #nyasa-widget.nyasa-theme-dark .nyasa-bubble.out .nyasa-audio .dur { color: rgba(255,255,255,0.6); }
+    :host(.nyasa-theme-dark) .nyasa-bubble.out .nyasa-audio .dur { color: rgba(255,255,255,0.6); }
 
         /* ── Media preview / caption overlay (WhatsApp-style) ─────────────────── */
     #nyasa-preview {
@@ -354,7 +354,7 @@
       #nyasa-widget.nyasa-pos-left #nyasa-fab { left: 16px; right: auto; }
     }
   `;
-  document.head.appendChild(style);
+  // (style will be injected into the shadow root below)
 
   const root = document.createElement('div');
   root.id = 'nyasa-widget';
@@ -372,6 +372,11 @@
     document.body.appendChild(root);
   }
 
+  // ── Shadow DOM ────────────────────────────────────────────────────────────
+  // Attach a shadow root so host-page CSS (Tailwind preflight, resets, etc.)
+  // can NEVER override the widget's internal styles.
+  const shadow = root.attachShadow({ mode: 'open' });
+
   // Apply host-detected theme values (inline mode only) as inline CSS vars —
   // these override the auto light/dark defaults with the page's real colors.
   if (hostFont) root.style.setProperty('--nyasa-font', hostFont);
@@ -387,7 +392,7 @@
     root.style.setProperty('--nyasa-border', isDark ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.08)');
   }
 
-  root.innerHTML = `
+  shadow.innerHTML = `<style>\n` + style.textContent + `\n</style>\n  ` + `
     ${INLINE ? '' : `
     <button id="nyasa-fab" title="Chat with us">
       <span id="nyasa-badge"></span>
@@ -448,33 +453,33 @@
   `;
 
   // ── Refs ──────────────────────────────────────────────────────────────────
-  const fab        = document.getElementById('nyasa-fab');
-  const win         = document.getElementById('nyasa-window');
-  const badge       = document.getElementById('nyasa-badge');
-  const msgs        = document.getElementById('nyasa-msgs');
-  const nameGate    = document.getElementById('nyasa-name-gate');
-  const composer    = document.getElementById('nyasa-composer');
-  const nameInput   = document.getElementById('nyasa-name-input');
-  const emailInput  = document.getElementById('nyasa-email-input');
-  const nameBtn     = document.getElementById('nyasa-name-btn');
-  const input       = document.getElementById('nyasa-input');
-  const sendBtn     = document.getElementById('nyasa-send');
-  const attachBtn   = document.getElementById('nyasa-attach');
-  const fileInput   = document.getElementById('nyasa-file');
-  const micBtn      = document.getElementById('nyasa-mic');
-  const sendBtn2    = document.getElementById('nyasa-send');
-  const recBar      = document.getElementById('nyasa-recording-bar');
-  const recWave     = document.getElementById('nyasa-rec-wave');
-  const recCancel   = document.getElementById('nyasa-rec-cancel');
+  const fab        = shadow.getElementById('nyasa-fab');
+  const win         = shadow.getElementById('nyasa-window');
+  const badge       = shadow.getElementById('nyasa-badge');
+  const msgs        = shadow.getElementById('nyasa-msgs');
+  const nameGate    = shadow.getElementById('nyasa-name-gate');
+  const composer    = shadow.getElementById('nyasa-composer');
+  const nameInput   = shadow.getElementById('nyasa-name-input');
+  const emailInput  = shadow.getElementById('nyasa-email-input');
+  const nameBtn     = shadow.getElementById('nyasa-name-btn');
+  const input       = shadow.getElementById('nyasa-input');
+  const sendBtn     = shadow.getElementById('nyasa-send');
+  const attachBtn   = shadow.getElementById('nyasa-attach');
+  const fileInput   = shadow.getElementById('nyasa-file');
+  const micBtn      = shadow.getElementById('nyasa-mic');
+  const sendBtn2    = shadow.getElementById('nyasa-send');
+  const recBar      = shadow.getElementById('nyasa-recording-bar');
+  const recWave     = shadow.getElementById('nyasa-rec-wave');
+  const recCancel   = shadow.getElementById('nyasa-rec-cancel');
   const recTimer    = recBar.querySelector('.rec-timer');
-  const preview     = document.getElementById('nyasa-preview');
-  const pvMedia     = document.getElementById('nyasa-pv-media');
-  const pvCaption   = document.getElementById('nyasa-pv-caption');
-  const pvSend      = document.getElementById('nyasa-pv-send');
-  const pvClose     = document.getElementById('nyasa-pv-close');
+  const preview     = shadow.getElementById('nyasa-preview');
+  const pvMedia     = shadow.getElementById('nyasa-pv-media');
+  const pvCaption   = shadow.getElementById('nyasa-pv-caption');
+  const pvSend      = shadow.getElementById('nyasa-pv-send');
+  const pvClose     = shadow.getElementById('nyasa-pv-close');
   let pendingFile   = null;  // file waiting in the preview overlay
-  const closeBtn    = document.getElementById('nyasa-close');
-  const headerName  = document.getElementById('nyasa-header-name');
+  const closeBtn    = shadow.getElementById('nyasa-close');
+  const headerName  = shadow.getElementById('nyasa-header-name');
   let lastReadAt    = null; // ISO string — an agent has read everything up to this point
 
   const showComposerOrGate = () => {
