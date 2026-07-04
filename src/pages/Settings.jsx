@@ -36,7 +36,7 @@ function CopyBtn({ text }) {
   );
 }
 
-function ChannelCard({ emoji, title, subtitle, accentColor, isLive, children }) {
+function ChannelCard({ emoji, iconUrl, title, subtitle, accentColor, isLive, children }) {
   const [open, setOpen] = useState(false);
   return (
     <div
@@ -44,9 +44,10 @@ function ChannelCard({ emoji, title, subtitle, accentColor, isLive, children }) 
       style={{ borderColor: isLive ? accentColor + '44' : 'rgba(255,255,255,0.08)', background: '#1a2530' }}
     >
       <button className="w-full flex items-center gap-3 p-4 text-left" onClick={() => setOpen(o => !o)}>
-        <div className="w-10 h-10 rounded-xl flex items-center justify-center text-xl shrink-0"
-          style={{ background: accentColor + '20' }}>
-          {emoji}
+        <div className="w-10 h-10 rounded-xl flex items-center justify-center shrink-0 bg-white p-1.5 overflow-hidden">
+          {iconUrl
+            ? <img src={iconUrl} alt={title} className="w-full h-full object-contain" />
+            : <span className="text-xl">{emoji}</span>}
         </div>
         <div className="flex-1 min-w-0">
           <p className="text-sm font-semibold text-white">{title}</p>
@@ -152,7 +153,7 @@ function WhatsAppCard({ saved, workspaceId, onSave, onDelete }) {
     : 'Receive & reply to WhatsApp messages';
 
   return (
-    <ChannelCard emoji="💬" title="WhatsApp Business" subtitle={subtitle}
+    <ChannelCard iconUrl="https://upload.wikimedia.org/wikipedia/commons/6/6b/WhatsApp.svg" title="WhatsApp Business" subtitle={subtitle}
       accentColor="#25D366" isLive={isLive}>
       <div className="space-y-4">
         <div className="flex gap-2">
@@ -268,7 +269,7 @@ function MessengerCard({ saved, workspaceId, onSave, onDelete }) {
     : 'Handle Facebook Page messages in your inbox';
 
   return (
-    <ChannelCard emoji="📘" title="Facebook Messenger" subtitle={subtitle}
+    <ChannelCard iconUrl="https://upload.wikimedia.org/wikipedia/commons/b/be/Facebook_Messenger_logo_2020.svg" title="Facebook Messenger" subtitle={subtitle}
       accentColor="#0084FF" isLive={isLive}>
       <div className="space-y-4">
         {isLive && saved.config && saved.config.connected_via === 'oauth' ? (
@@ -577,7 +578,7 @@ function InstagramCard({ saved, workspaceId, onSave, onDelete }) {
   const subtitle = isLive ? 'Connected · Instagram Direct' : 'Reply to Instagram DMs in your inbox';
 
   return (
-    <ChannelCard emoji="📸" title="Instagram" subtitle={subtitle} accentColor="#E1306C" isLive={isLive}>
+    <ChannelCard iconUrl="https://upload.wikimedia.org/wikipedia/commons/e/e7/Instagram_logo_2016.svg" title="Instagram" subtitle={subtitle} accentColor="#E1306C" isLive={isLive}>
       <div className="space-y-3">
         <div className="bg-[#111B21] rounded-xl p-3">
           <p className="text-[10px] font-bold text-gray-500 uppercase tracking-wide mb-1.5">Webhook URL</p>
@@ -653,7 +654,7 @@ function TelegramCard({ saved, workspaceId, onSave, onDelete }) {
   const subtitle = isLive ? `Connected · @${(saved.config && saved.config.bot_username) || 'bot'}` : 'Reply to Telegram messages in your inbox';
 
   return (
-    <ChannelCard emoji="✈️" title="Telegram" subtitle={subtitle} accentColor="#26A5E4" isLive={isLive}>
+    <ChannelCard iconUrl="https://upload.wikimedia.org/wikipedia/commons/8/82/Telegram_logo.svg" title="Telegram" subtitle={subtitle} accentColor="#26A5E4" isLive={isLive}>
       <div className="space-y-3">
         <div className="bg-[#111B21] rounded-xl p-3 space-y-1.5">
           <p className="text-sm font-bold text-white">Create a bot in 2 minutes</p>
