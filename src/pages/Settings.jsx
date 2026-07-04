@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useSearchParams, useNavigate } from 'react-router-dom';
 import { User, Users, Globe, Bell, Building2, Check, Loader2,
-         Trash2, Copy, ExternalLink, ChevronDown, AlertCircle, Code2, ShieldCheck, CreditCard, Crown, Clock } from 'lucide-react';
+         Trash2, Copy, ExternalLink, ChevronDown, AlertCircle, Code2, ShieldCheck, CreditCard, Crown, Clock, CheckCircle2 } from 'lucide-react';
 import Sidebar from '@/components/Sidebar';
 import Avatar from '@/components/Avatar';
 import TeamSection from '@/components/settings/TeamSection';
@@ -9,7 +9,6 @@ import { useNyasaAuth } from '@/lib/NyasaAuth';
 import { getChannelConfigs, saveChannelConfig, deleteChannelConfig } from '@/lib/channels';
 import { supabase } from '@/lib/supabase';
 import { useDocumentTitle } from '@/hooks/useDocumentTitle';
-import { useFacebookSDK } from '@/hooks/useFacebookSDK';
 
 const PROD_URL  = 'https://nyasadesk1.vercel.app';
 const FB_APP_ID = import.meta.env.VITE_FACEBOOK_APP_ID || '';
@@ -101,57 +100,14 @@ function WhatsAppCard({ saved, workspaceId, onSave, onDelete }) {
   const [fields, setFields]   = useState(saved ? saved.config || {} : {});
   const [saving, setSaving]   = useState(false);
   const [status, setStatus]   = useState('');
-  const fbReady = useFacebookSDK(FB_APP_ID);
   const isLive = !!(saved && saved.enabled && saved.config);
+  const is360 = isLive && saved.config?.d360_api_key;
+  const isCloud = isLive && saved.config?.access_token && !saved.config?.d360_api_key;
 
-  const launchEmbeddedSignup = () => {
-    if (!FB_APP_ID) { setMode('manual'); return; }
-    if (!fbReady || !window.FB) {
-      setStatus('error: Facebook SDK still loading — try again in a moment');
-      setTimeout(() => setStatus(''), 3000);
-      return;
-    }
-    window.FB.login(async (response) => {
-      if (response.authResponse) {
-        setSaving(true);
-        try {
-          const { code, accessToken } = response.authResponse;
-          const res = await fetch('/api/auth/whatsapp-embedded', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              ...(code ? { code } : {}),
-              ...(accessToken ? { access_token: accessToken } : {}),
-              workspace_id: workspaceId,
-            }),
-          });
-          const data = await res.json();
-          if (data.ok) {
-            await onSave('whatsapp', { connected_via: 'embedded_signup' });
-            setStatus('saved');
-            setTimeout(() => setStatus(''), 3000);
-          } else {
-            setStatus('error: ' + (data.error || 'Failed to connect'));
-            setTimeout(() => setStatus(''), 5000);
-          }
-        } catch (e) {
-          setStatus('error: ' + e.message);
-          setTimeout(() => setStatus(''), 5000);
-        } finally {
-          setSaving(false);
-        }
-      }
-    }, {
-      scope: 'whatsapp_business_management,whatsapp_business_messaging',
-      response_type: 'code',
-      override_default_response_type: true,
-    });
-  };
-
-  const handleManualSave = async () => {
+  // ── 360dialog connection (primary — no Meta App Review needed) ────────
+  const handle360Connect = async () => {
     setSaving(true);
     try {
-      // Route through the provider abstraction
       const res = await fetch('/api/channels?action=connect', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -159,12 +115,51 @@ function WhatsAppCard({ saved, workspaceId, onSave, onDelete }) {
           channel: 'whatsapp',
           workspace_id: workspaceId,
           mode: 'manual',
-          ...fields,
+          provider_key: '360dialog',
+          d360_api_key: fields.d360_api_key,
+          phone_number: fields.phone_number || undefined,
         }),
       });
       const data = await res.json();
       if (data.ok) {
-        await onSave('whatsapp', { connected_via: 'manual' });
+        await onSave('whatsapp', { connected_via: 'manual', provider: '360dialog' });
+        setStatus('saved');
+        if (data.webhook_url) {
+          setShowWebhookNotice(true);
+          setWebhookUrl(data.webhook_url);
+        }
+      } else {
+        setStatus('error: ' + (data.error || 'Failed to connect'));
+      }
+    } catch (e) {
+      setStatus('error: ' + e.message);
+    } finally {
+      setSaving(false);
+      setTimeout(() => setStatus(''), 5000);
+    }
+  };
+
+  // ── Direct Meta Cloud API (advanced — requires Meta App Review) ───────
+  const handleCloudConnect = async () => {
+    setSaving(true);
+    try {
+      const res = await fetch('/api/channels?action=connect', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          channel: 'whatsapp',
+          workspace_id: workspaceId,
+          mode: 'manual',
+          provider_key: 'cloud',
+          access_token: fields.access_token,
+          phone_number_id: fields.phone_number_id,
+          waba_id: fields.waba_id || undefined,
+          verify_token: fields.verify_token || 'nyasadesk_verify',
+        }),
+      });
+      const data = await res.json();
+      if (data.ok) {
+        await onSave('whatsapp', { connected_via: 'manual', provider: 'cloud' });
         setStatus('saved');
       } else {
         setStatus('error: ' + (data.error || 'Failed to save'));
@@ -178,7 +173,8 @@ function WhatsAppCard({ saved, workspaceId, onSave, onDelete }) {
   };
 
   const subtitle = isLive
-    ? ('Connected' + (saved.config && saved.config.phone_number ? ' · ' + saved.config.phone_number : ''))
+    ? ('Connected' + (saved.config?.phone_number ? ' \u00b7 ' + saved.config.phone_number : '')
+       + (is360 ? ' \u00b7 360dialog' : isCloud ? ' \u00b7 Cloud API' : ''))
     : 'Receive & reply to WhatsApp messages';
 
   return (
@@ -186,7 +182,7 @@ function WhatsAppCard({ saved, workspaceId, onSave, onDelete }) {
       accentColor="#25D366" isLive={isLive}>
       <div className="space-y-4">
         <div className="flex gap-2">
-          {[{ id: 'easy', label: '🚀 Easy setup' }, { id: 'manual', label: '⚙️ Manual' }].map(m => (
+          {[{ id: 'easy', label: '\U0001f680 360dialog (Recommended)' }, { id: 'manual', label: '\u2699\ufe0f Meta Cloud API' }].map(m => (
             <button key={m.id} onClick={() => setMode(m.id)}
               className="flex-1 py-2 rounded-xl text-xs font-bold transition-all"
               style={{
@@ -198,30 +194,78 @@ function WhatsAppCard({ saved, workspaceId, onSave, onDelete }) {
           ))}
         </div>
 
+        {/* ── 360dialog Easy Setup ── */}
         {mode === 'easy' && (
           <div className="space-y-3">
             <div className="bg-[#111B21] rounded-xl p-4 space-y-2">
-              <p className="text-sm font-bold text-white">Connect in one click</p>
+              <p className="text-sm font-bold text-white">Connect via 360dialog (BSP)</p>
               <p className="text-xs text-gray-400 leading-relaxed">
-                Log in with Facebook and pick your WhatsApp number. No tokens needed.
+                360dialog is an official Meta WhatsApp Partner. No Meta App Review or Business
+                Verification needed \u2014 360dialog handles all of that for you.
               </p>
               <ul className="text-[11px] text-gray-500 space-y-1 pt-1">
-                <li>✅ No technical knowledge required</li>
-                <li>✅ Under 2 minutes</li>
-                <li>✅ Official Meta integration</li>
+                <li>\u2705 No Meta App Review required</li>
+                <li>\u2705 No technical knowledge needed</li>
+                <li>\u2705 Works in under 5 minutes</li>
+                <li>\u2705 Official Meta BSP partner</li>
               </ul>
             </div>
-            <button onClick={launchEmbeddedSignup} disabled={saving}
+
+            <div className="bg-[#111B21] rounded-xl p-3 space-y-2">
+              <p className="text-[10px] font-bold text-gray-500 uppercase tracking-wide">Step 1: Create a 360dialog account</p>
+              <a href="https://hub.360dialog.com/register" target="_blank" rel="noreferrer"
+                className="inline-flex items-center gap-1.5 text-xs text-[#25D366] hover:text-[#1da851]">
+                <ExternalLink className="w-3 h-3" />Create free 360dialog account
+              </a>
+              <p className="text-[11px] text-gray-500">After registering, add your WhatsApp number via their Embedded Signup. Then copy your API key from the Hub.</p>
+            </div>
+
+            <div className="bg-[#111B21] rounded-xl p-3 space-y-2">
+              <p className="text-[10px] font-bold text-gray-500 uppercase tracking-wide">Step 2: Paste your API key</p>
+              <ManualFields fields={fields} setFields={setFields} fieldDefs={[
+                { key: 'd360_api_key',  label: '360dialog API Key',  placeholder: 'd360_xxx... from Hub \u2192 API Keys', secret: true },
+                { key: 'phone_number',  label: 'Phone Number (optional)', placeholder: '265991234567' },
+              ]} />
+            </div>
+
+            <div className="bg-[#111B21] rounded-xl p-3">
+              <p className="text-[10px] font-bold text-gray-500 uppercase tracking-wide mb-1.5">Step 3: Set webhook URL in 360dialog Hub</p>
+              <div className="flex items-center gap-2">
+                <p className="text-xs text-[#25D366] font-mono truncate flex-1">{PROD_URL}/api/webhooks/whatsapp?workspace_id={workspaceId}</p>
+                <CopyBtn text={PROD_URL + '/api/webhooks/whatsapp?workspace_id=' + workspaceId} />
+              </div>
+              <p className="text-[11px] text-gray-500 mt-1.5">Go to 360dialog Hub \u2192 Webhook URL, paste the URL above.</p>
+            </div>
+
+            <button onClick={handle360Connect} disabled={saving || !fields.d360_api_key}
               className="w-full flex items-center justify-center gap-2 py-3 rounded-xl text-sm font-bold text-white"
-              style={{ background: '#25D366', opacity: saving ? 0.7 : 1 }}>
-              {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : '💬'}
-              {saving ? 'Connecting…' : 'Connect WhatsApp Business'}
+              style={{ background: '#25D366', opacity: (saving || !fields.d360_api_key) ? 0.5 : 1 }}>
+              {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : '\U0001f4ac'}
+              {saving ? 'Connecting\u2026' : 'Connect WhatsApp via 360dialog'}
             </button>
+
+            {status === 'saved' && (
+              <p className="text-xs text-[#25D366] flex items-center gap-1.5">
+                <CheckCircle2 className="w-3.5 h-3.5" />Connected! Make sure your webhook URL is set in 360dialog Hub.
+              </p>
+            )}
+            {status.startsWith('error:') && (
+              <p className="text-xs text-red-400 flex items-center gap-1.5">
+                <AlertCircle className="w-3.5 h-3.5" />{status.slice(6)}
+              </p>
+            )}
           </div>
         )}
 
+        {/* ── Meta Cloud API (Advanced) ── */}
         {mode === 'manual' && (
           <div className="space-y-3">
+            <div className="bg-yellow-500/5 border border-yellow-500/20 rounded-xl p-3">
+              <p className="text-[11px] text-yellow-400/80 leading-relaxed">
+                \u26a0\ufe0f Direct Meta Cloud API requires App Review and Business Verification before
+                external users can connect. Use 360dialog (recommended) to skip this.
+              </p>
+            </div>
             <div className="bg-[#111B21] rounded-xl p-3">
               <p className="text-[10px] font-bold text-gray-500 uppercase tracking-wide mb-1.5">Webhook URL</p>
               <div className="flex items-center gap-2">
@@ -232,7 +276,7 @@ function WhatsAppCard({ saved, workspaceId, onSave, onDelete }) {
             <ManualFields fields={fields} setFields={setFields} fieldDefs={[
               { key: 'phone_number_id', label: 'Phone Number ID', placeholder: '123456789012345' },
               { key: 'waba_id',         label: 'WABA ID',         placeholder: '987654321098765' },
-              { key: 'access_token',    label: 'Access Token',    placeholder: 'EAAxxxxx…', secret: true },
+              { key: 'access_token',    label: 'Access Token',    placeholder: 'EAAxxxxx\u2026', secret: true },
               { key: 'verify_token',    label: 'Verify Token',    placeholder: 'nyasadesk_verify' },
             ]} />
             <a href="https://developers.facebook.com/docs/whatsapp/cloud-api/get-started"
@@ -241,10 +285,10 @@ function WhatsAppCard({ saved, workspaceId, onSave, onDelete }) {
               <ExternalLink className="w-3 h-3" />Setup guide
             </a>
             <div className="flex gap-2 pt-1">
-              <button onClick={handleManualSave} disabled={saving}
+              <button onClick={handleCloudConnect} disabled={saving}
                 className="flex-1 py-2.5 rounded-xl text-sm font-bold text-white"
                 style={{ background: '#25D366', opacity: saving ? 0.7 : 1 }}>
-                {saving ? 'Saving…' : status === 'saved' ? '✅ Saved!' : 'Save'}
+                {saving ? 'Saving\u2026' : status === 'saved' ? '\u2705 Saved!' : 'Save'}
               </button>
               {saved && (
                 <button onClick={() => onDelete('whatsapp')}
@@ -258,6 +302,15 @@ function WhatsAppCard({ saved, workspaceId, onSave, onDelete }) {
                 <AlertCircle className="w-3.5 h-3.5" />{status.slice(6)}
               </p>
             )}
+          </div>
+        )}
+
+        {isLive && (
+          <div className="pt-2 border-t border-white/5">
+            <button onClick={() => onDelete('whatsapp')}
+              className="text-xs text-red-400 hover:text-red-300 flex items-center gap-1.5">
+              <Trash2 className="w-3.5 h-3.5" />Disconnect WhatsApp
+            </button>
           </div>
         )}
       </div>
