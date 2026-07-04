@@ -91,13 +91,14 @@ export default async function handler(req, res) {
     if (action === 'upload' && req.method === 'POST') {
       if (!session_id || !file_base64) return res.status(400).json({ error: 'session_id and file_base64 required' });
 
-      const { conv, error } = await upsertVisitorThread(sb, { workspace_id, session_id, name, email, page_url, lastMessage: kind === 'video' ? '🎥 Video' : '📷 Photo' });
+      const lastMsg = kind === 'video' ? '🎥 Video' : kind === 'audio' ? '🎤 Voice note' : '📷 Photo';
+      const { conv, error } = await upsertVisitorThread(sb, { workspace_id, session_id, name, email, page_url, lastMessage: lastMsg });
       if (error || !conv?.id) return res.status(500).json({ error: 'Failed to create conversation' });
 
       const buffer = Buffer.from(file_base64, 'base64');
       if (buffer.length > 6 * 1024 * 1024) return res.status(413).json({ error: 'File too large (max 6MB)' });
 
-      const ext = (file_name?.split('.').pop() || 'bin').toLowerCase();
+      const ext = (file_name?.split('.').pop() || (kind === 'audio' ? 'webm' : 'bin')).toLowerCase();
       const path = `${workspace_id}/${kind || 'image'}/${Date.now()}-${Math.random().toString(36).slice(2, 8)}.${ext}`;
       const { error: upErr } = await sb.storage.from('chat-media').upload(path, buffer, {
         contentType: file_type || 'application/octet-stream', upsert: false,
@@ -105,12 +106,13 @@ export default async function handler(req, res) {
       if (upErr) return res.status(500).json({ error: upErr.message });
       const { data: pub } = sb.storage.from('chat-media').getPublicUrl(path);
 
+      const attType = kind === 'video' ? 'video' : kind === 'audio' ? 'audio' : 'image';
       const { data: msg } = await sb.from('messages').insert({
         conversation_id: conv.id, workspace_id,
-        direction: 'inbound', body: kind === 'video' ? '🎥 Video' : '📷 Photo', channel: 'website',
+        direction: 'inbound', body: lastMsg, channel: 'website',
         external_id: `widget-${Date.now()}`,
         sender_name: name || 'Website Visitor', sender_id: session_id, status: 'sent',
-        attachments: [{ url: pub.publicUrl, type: kind === 'video' ? 'video' : 'image' }],
+        attachments: [{ url: pub.publicUrl, type: attType }],
       }).select('id').single();
 
       return res.status(200).json({ ok: true, message_id: msg?.id, conversation_id: conv.id, url: pub.publicUrl });
