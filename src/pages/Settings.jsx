@@ -931,7 +931,7 @@ export default function Settings() {
                     <MessengerCard saved={channelConfigs.messenger} workspaceId={workspaceOwnerId} onSave={handleSaveChannel} onDelete={handleDeleteChannel} />
                     <InstagramCard saved={channelConfigs.instagram} workspaceId={workspaceOwnerId} onSave={handleSaveChannel} onDelete={handleDeleteChannel} />
                     <TelegramCard  saved={channelConfigs.telegram}  workspaceId={workspaceOwnerId} onSave={handleSaveChannel} onDelete={handleDeleteChannel} />
-                    <EmailCard     saved={channelConfigs.email}     workspaceId={workspaceOwnerId} onSave={handleSaveChannel} onDelete={handleDeleteChannel} />
+                    {/* Email channel — hidden until IMAP polling or proper Mailgun/SendGrid setup is built */}
                     <WebsiteCard   saved={channelConfigs.website}   workspaceId={workspaceOwnerId} onSave={handleSaveChannel} onDelete={handleDeleteChannel} />
                   </>
                 )}
