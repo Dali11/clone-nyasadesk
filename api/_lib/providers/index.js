@@ -1,12 +1,13 @@
 // api/_lib/providers/index.js
 // Provider registry — maps channel types to their provider implementations.
 //
-// WhatsApp uses the direct Meta Cloud API by default.
-// Once Nyasadesk registers as a Meta Tech Provider and sets up Embedded Signup,
-// customers click "Connect WhatsApp" → FB.login → pick number → done.
-// No BSP, no per-message markup, no third-party accounts.
+// WhatsApp uses WasapFlow Bridge (BSP) as the DEFAULT — no Meta App Review,
+// no Business Verification needed. Customers click "Connect WhatsApp" →
+// WasapFlow's Embedded Signup → pick number → done.
+// Direct Cloud API and 360dialog kept as optional fallbacks.
 
 import { WhatsAppCloudProvider } from './whatsapp.js';
+import { WhatsAppWasapFlowProvider } from './whatsapp-wasapflow.js';
 import { WhatsAppBirdProvider } from './whatsapp-bird.js';
 import { WhatsApp360DialogProvider } from './whatsapp-360dialog.js';
 import { MessengerProvider } from './messenger.js';
@@ -15,10 +16,12 @@ import { InstagramProvider } from './instagram.js';
 
 const providers = new Map();
 
-// ── WhatsApp: Direct Cloud API is the DEFAULT (no BSP, no markup) ────────
-providers.set('whatsapp', new WhatsAppCloudProvider());
+// ── WhatsApp: WasapFlow Bridge is the DEFAULT (BSP, no Meta vetting) ────
+providers.set('whatsapp', new WhatsAppWasapFlowProvider());
+providers.set('whatsapp:wasapflow', new WhatsAppWasapFlowProvider());
+// Direct Cloud API kept as fallback for power users with their own Meta app
 providers.set('whatsapp:cloud', new WhatsAppCloudProvider());
-// Bird BSP kept as optional fallback
+// Bird BSP kept as optional alternative
 providers.set('whatsapp:bird', new WhatsAppBirdProvider());
 // 360dialog kept as optional alternative
 providers.set('whatsapp:360dialog', new WhatsApp360DialogProvider());
@@ -45,3 +48,4 @@ export function listProviders() {
 }
 
 export { MessagingProvider } from './base.js';
+export { WhatsAppWasapFlowProvider } from './whatsapp-wasapflow.js';

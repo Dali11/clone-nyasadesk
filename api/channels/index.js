@@ -22,6 +22,7 @@ export default async function handler(req, res) {
   if (action === 'telegram-setup') return handleConnect(req, res);
   if (action === 'connect')        return handleConnect(req, res);
   if (action === 'disconnect')     return handleDisconnect(req, res);
+  if (action === 'signup-config')  return handleSignupConfig(req, res);
   return handleSend(req, res);
 }
 
@@ -33,10 +34,11 @@ async function handleConnect(req, res) {
       return res.status(400).json({ ok: false, error: 'channel and workspace_id are required' });
     }
 
-    // For WhatsApp, route to the selected provider (360dialog default, cloud API optional)
+    // For WhatsApp, default to WasapFlow Bridge (BSP), unless a specific provider is requested
     const channelType = authData.provider_key
       ? `whatsapp:${authData.provider_key}`
-      : (channel === 'telegram' ? 'telegram' : channel);
+      : (channel === 'whatsapp' ? 'whatsapp:wasapflow'
+         : channel === 'telegram' ? 'telegram' : channel);
 
     const provider = getProvider(channelType);
     const sb = createClient(SUPABASE_URL, SUPABASE_KEY);
@@ -64,7 +66,8 @@ async function handleDisconnect(req, res) {
 
     if (cfg) {
       const providerKey = channel === 'whatsapp'
-        ? (cfg.config?.bird_workspace_id ? 'whatsapp:bird'
+        ? (cfg.config?.provider === 'wasapflow' ? 'whatsapp:wasapflow'
+           : cfg.config?.bird_workspace_id ? 'whatsapp:bird'
            : cfg.config?.d360_api_key ? 'whatsapp:360dialog' : 'whatsapp:cloud')
         : channel;
       const provider = getProvider(providerKey);
@@ -77,6 +80,18 @@ async function handleDisconnect(req, res) {
     return res.status(200).json({ ok: true });
   } catch (e) {
     console.error('[channels/disconnect] error:', e);
+    return res.status(500).json({ ok: false, error: e.message });
+  }
+}
+
+// ── Get WasapFlow Embedded Signup config (for frontend FB.login) ─────────
+async function handleSignupConfig(req, res) {
+  try {
+    const { WhatsAppWasapFlowProvider } = await import('../_lib/providers/whatsapp-wasapflow.js');
+    const config = await WhatsAppWasapFlowProvider.getEmbeddedSignupConfig();
+    return res.status(200).json({ ok: true, ...config });
+  } catch (e) {
+    console.error('[channels/signup-config] error:', e);
     return res.status(500).json({ ok: false, error: e.message });
   }
 }
@@ -117,7 +132,8 @@ async function handleSend(req, res) {
     // 3. Send through the provider abstraction
     // Detect which WhatsApp provider to use based on the stored config
     const providerKey = channel === 'whatsapp'
-      ? (cfg.config?.bird_workspace_id ? 'whatsapp:bird'
+      ? (cfg.config?.provider === 'wasapflow' ? 'whatsapp:wasapflow'
+         : cfg.config?.bird_workspace_id ? 'whatsapp:bird'
          : cfg.config?.d360_api_key ? 'whatsapp:360dialog' : 'whatsapp:cloud')
       : channel;
     const provider = getProvider(providerKey);
