@@ -141,16 +141,14 @@ function WhatsAppCard({ saved, workspaceId, onSave, onDelete }) {
       setTimeout(() => setStatus(""), 3000);
       return;
     }
-    const redirectUri = encodeURIComponent(PROD_URL + "/api/auth/whatsapp-embedded");
-    const state = workspaceId;
-    const url = `https://www.facebook.com/v19.0/dialog/oauth`
-      + `?client_id=${signup.app_id}`
-      + `&redirect_uri=${redirectUri}`
-      + `&state=${state}`
-      + `&scope=whatsapp_business_management,whatsapp_business_messaging`
-      + `&response_type=code`
-      + `&config_id=${signup.config_id}`;
-    window.location.href = url;
+    // Redirect to the intermediate page that loads the FB JS SDK and calls
+    // FB.login() with config_id + extras. This is required because:
+    // 1. WhatsApp Embedded Signup UI only renders through FB.login() (not a
+    //    plain OAuth redirect — that just shows a generic login dialog)
+    // 2. FB.login() popup breaks in PWA/standalone mode — the intermediate
+    //    page is a full page load where the SDK can use redirect mode on
+    //    mobile (no popup needed)
+    window.location.href = `/wa-connect.html?workspace_id=${workspaceId}`;
   };
 
   // ── Manual save (advanced / fallback path — hidden by default) ─────────

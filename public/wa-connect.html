@@ -1,0 +1,230 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Connecting WhatsApp · Nyasadesk</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      background: #0B141A;
+      color: #e9edef;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      min-height: 100vh;
+    }
+    .card {
+      background: #202C33;
+      border-radius: 16px;
+      padding: 40px 32px;
+      max-width: 380px;
+      width: calc(100% - 32px);
+      text-align: center;
+    }
+    .logo {
+      width: 56px; height: 56px;
+      margin: 0 auto 20px;
+      background: linear-gradient(135deg, #075E54, #128C7E);
+      border-radius: 14px;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 28px; font-weight: 800; color: white;
+    }
+    h1 { font-size: 18px; font-weight: 700; margin-bottom: 8px; }
+    p  { font-size: 14px; color: #8696a0; line-height: 1.5; }
+    .spinner {
+      width: 28px; height: 28px;
+      border: 3px solid #2a3942;
+      border-top-color: #25D366;
+      border-radius: 50%;
+      animation: spin 0.8s linear infinite;
+      margin: 20px auto 0;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+    .error { color: #ff6b6b; }
+    .hidden { display: none; }
+    a.btn {
+      display: inline-block;
+      margin-top: 20px;
+      padding: 12px 28px;
+      background: #25D366;
+      color: #0B141A;
+      text-decoration: none;
+      border-radius: 10px;
+      font-weight: 600;
+      font-size: 14px;
+    }
+  </style>
+</head>
+<body>
+  <div class="card">
+    <div class="logo">N</div>
+    <h1 id="title">Connecting to WhatsApp</h1>
+    <p id="status">Opening Facebook's secure signup flow…</p>
+    <div id="spinner" class="spinner"></div>
+    <a id="retry" class="btn hidden" href="/settings?tab=channels">Back to Settings</a>
+  </div>
+
+  <script>
+    // ──────────────────────────────────────────────────────────────────────
+    // WhatsApp Embedded Signup — intermediate page
+    //
+    // WasapFlow's Embedded Signup requires Facebook's FB.login() JS SDK with
+    // config_id + extras. A plain redirect to facebook.com/dialog/oauth does
+    // NOT trigger the WhatsApp-specific signup UI (WBA selection, number
+    // picker). FB.login() opens a popup on desktop and auto-falls-back to
+    // redirect mode on mobile (no popup needed — works in PWA).
+    //
+    // Flow:
+    //   1. User clicks "Connect WhatsApp" in Settings → redirected here
+    //   2. This page fetches signup config, loads FB SDK, calls FB.login()
+    //   3a. Desktop: popup opens → user completes → callback fires
+    //   3b. Mobile: page redirects to Facebook → user completes → page
+    //       reloads with auth response → SDK calls stored callback
+    //   4. Callback sends code to /api/auth/whatsapp-embedded (POST)
+    //   5. Backend sends code to WasapFlow → WABA registered → redirect to
+    //      /settings?tab=channels&wa=connected
+    // ──────────────────────────────────────────────────────────────────────
+
+    var workspaceId = new URLSearchParams(window.location.search).get('workspace_id');
+    var params      = new URLSearchParams(window.location.search);
+    var statusEl    = document.getElementById('status');
+    var titleEl     = document.getElementById('title');
+    var spinnerEl   = document.getElementById('spinner');
+    var retryEl     = document.getElementById('retry');
+
+    function redirectToSettings(extra) {
+      var url = '/settings?tab=channels' + (extra || '');
+      window.location.href = url;
+    }
+
+    function showError(msg) {
+      titleEl.textContent = 'Connection failed';
+      titleEl.classList.add('error');
+      statusEl.textContent = msg;
+      spinnerEl.classList.add('hidden');
+      retryEl.classList.remove('hidden');
+    }
+
+    function sendCodeToBackend(code) {
+      titleEl.textContent = 'Registering your WhatsApp number';
+      statusEl.textContent = 'Exchanging authorization with WasapFlow…';
+
+      fetch('/api/auth/whatsapp-embedded', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          code: code,
+          workspace_id: workspaceId,
+          provider: 'wasapflow'
+        })
+      })
+      .then(function(r) { return r.json(); })
+      .then(function(d) {
+        if (d.ok) {
+          redirectToSettings('&wa=connected');
+        } else {
+          redirectToSettings('&wa_error=' + encodeURIComponent(d.error || 'Registration failed'));
+        }
+      })
+      .catch(function(e) {
+        redirectToSettings('&wa_error=' + encodeURIComponent(e.message || 'Network error'));
+      });
+    }
+
+    // ── Check if we're returning from a Facebook redirect (mobile flow) ──
+    // When FB.login() uses redirect mode, Facebook redirects back to this
+    // page with the auth response in the URL hash: #access_token=...&code=...
+    // OR in some SDK versions, the SDK auto-processes the hash via FB.init().
+    // We handle both: check the hash manually AND let the SDK handle it.
+    function checkRedirectReturn() {
+      var hash = window.location.hash.substring(1);
+      var hashParams = new URLSearchParams(hash);
+      var codeFromHash = hashParams.get('code');
+      if (codeFromHash) {
+        sendCodeToBackend(codeFromHash);
+        return true;
+      }
+      // Also check query params (some FB redirect modes use ?code=)
+      var codeFromQuery = params.get('code');
+      // But NOT if this is just our own page URL with workspace_id only
+      if (codeFromQuery && params.get('state')) {
+        sendCodeToBackend(codeFromQuery);
+        return true;
+      }
+      return false;
+    }
+
+    if (!workspaceId) {
+      showError('Missing workspace ID. Please go back to Settings and try again.');
+    } else if (checkRedirectReturn()) {
+      // We're returning from Facebook redirect — code is being processed
+    } else {
+      // ── First load: fetch signup config and launch FB.login() ──────────
+      fetch('/api/channels?action=signup-config', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: '{}'
+      })
+      .then(function(r) { return r.json(); })
+      .then(function(cfg) {
+        if (!cfg.ok || !cfg.app_id || !cfg.config_id) {
+          throw new Error(cfg.error || 'Could not load WhatsApp signup configuration');
+        }
+
+        // Set up FB SDK callback BEFORE loading the SDK
+        window.fbAsyncInit = function() {
+          FB.init({
+            appId:      cfg.app_id,
+            cookie:     true,
+            xfbml:      true,
+            version:    'v19.0'
+          });
+
+          statusEl.textContent = 'Click below to open Facebook and pick your WhatsApp number.';
+
+          FB.login(function(response) {
+            var code = response && response.authResponse && response.authResponse.code;
+            if (!code) {
+              var errMsg = (response && response.status === 'connected')
+                ? 'Facebook did not return an authorization code'
+                : 'Connection cancelled';
+              redirectToSettings('&wa_error=' + encodeURIComponent(errMsg));
+              return;
+            }
+            sendCodeToBackend(code);
+          }, {
+            config_id:                      cfg.config_id,
+            response_type:                  'code',
+            override_default_response_type: true,
+            extras: cfg.extras || {
+              setup: {},
+              featureType: 'whatsapp_business_app_onboarding',
+              sessionInfoVersion: '3',
+              version: 'v4'
+            }
+          });
+        };
+
+        // Load FB SDK
+        var script = document.createElement('script');
+        script.src = 'https://connect.facebook.net/en_US/sdk.js';
+        script.async = true;
+        script.defer = true;
+        document.head.appendChild(script);
+
+        // Timeout: if SDK doesn't load in 10s, show error
+        setTimeout(function() {
+          if (!window.FB) {
+            showError('Facebook SDK failed to load. Check your internet connection and try again.');
+          }
+        }, 10000);
+      })
+      .catch(function(e) {
+        showError(e.message || 'Failed to initialize WhatsApp connection');
+      });
+    }
+  </script>
+</body>
+</html>
