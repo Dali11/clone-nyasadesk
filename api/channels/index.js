@@ -24,6 +24,7 @@ export default async function handler(req, res) {
   if (action === 'disconnect')     return handleDisconnect(req, res);
   if (action === 'signup-config')  return handleSignupConfig(req, res);
   if (action === 'hosted-connect') return handleHostedConnect(req, res);
+  if (action === 'save-waba')     return handleSaveWaba(req, res);
   return handleSend(req, res);
 }
 
@@ -93,6 +94,49 @@ async function handleSignupConfig(req, res) {
     return res.status(200).json({ ok: true, ...config });
   } catch (e) {
     console.error('[channels/signup-config] error:', e);
+    return res.status(500).json({ ok: false, error: e.message });
+  }
+}
+
+// ── Save WABA config (called after WasapFlow hosted connect success) ────
+async function handleSaveWaba(req, res) {
+  try {
+    const { workspace_id, waba_id, phone_number_id, display_name, quality_rating, connection_mode } = req.body || {};
+    if (!workspace_id || !waba_id || !phone_number_id) {
+      return res.status(400).json({ ok: false, error: 'workspace_id, waba_id, and phone_number_id are required' });
+    }
+
+    const sb = createClient(SUPABASE_URL, SUPABASE_KEY);
+
+    // Save the WhatsApp channel config — the WABA is already registered on
+    // WasapFlow's side (the hosted page did that). We just store the config
+    // so our app knows which WABA/phone to use for this workspace.
+    const config = {
+      provider: 'wasapflow',
+      waba_id,
+      phone_number_id,
+      phone_number: null,
+      business_name: display_name || null,
+      connected_via: 'embedded_signup_hosted',
+      connected_at: new Date().toISOString(),
+      quality_rating: quality_rating || null,
+      connection_mode: connection_mode || 'coexistence',
+      wasapflow_client_id: waba_id,
+    };
+
+    const { error } = await sb.from('channel_configs').upsert({
+      workspace_id,
+      channel: 'whatsapp',
+      enabled: true,
+      config,
+      updated_at: new Date().toISOString(),
+    }, { onConflict: 'workspace_id,channel' });
+
+    if (error) throw error;
+
+    return res.status(200).json({ ok: true, config });
+  } catch (e) {
+    console.error('[channels/save-waba] error:', e);
     return res.status(500).json({ ok: false, error: e.message });
   }
 }

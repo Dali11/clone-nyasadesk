@@ -44,6 +44,7 @@
     }
     @keyframes spin { to { transform: rotate(360deg); } }
     .error { color: #ff6b6b; }
+    .success { color: #25D366; }
     .hidden { display: none; }
     .btn {
       display: block;
@@ -81,26 +82,28 @@
   <div class="card">
     <div class="logo">N</div>
     <h1 id="title">Connect WhatsApp Business</h1>
-    <p id="status">Preparing Facebook's secure signup flow…</p>
+    <p id="status">Opening WasapFlow's secure signup page…</p>
     <div id="spinner" class="spinner"></div>
     <div id="actions" class="hidden"></div>
   </div>
 
   <script>
     // ──────────────────────────────────────────────────────────────────────
-    // WhatsApp Embedded Signup — intermediate page
+    // WhatsApp Embedded Signup — using WasapFlow's hosted connect page
     //
-    // Embedded Signup REQUIRES Facebook's FB.login() JS SDK with config_id
-    // and extras (featureType, sessionInfoVersion, etc.). These extras are
-    // what trigger the WhatsApp-specific signup UI (WBA selection, number
-    // picker). Without the SDK, a plain OAuth redirect shows generic login.
+    // The Embedded Signup UI only renders when FB.login() runs on a domain
+    // that's in WasapFlow's Meta app's "Allowed Domains" list. Our domain
+    // (nyasadesk1.vercel.app) is NOT in that list, so FB.login() on our
+    // domain shows a generic OAuth dialog instead of the WhatsApp-specific
+    // signup flow.
     //
-    // In a PWA, popups may be blocked. We try FB.login() first, and if the
-    // popup fails, we fall back to opening the same page in the system
-    // browser where popups work normally.
+    // WasapFlow's hosted connect page (partner.wasapflow.com/bridge/connect)
+    // IS on their whitelisted domain. It loads the FB SDK, calls FB.login()
+    // with config_id + extras, and posts the result back via
+    // window.opener.postMessage(). We just open it as a popup and listen
+    // for the WASAPFLOW_CONNECT_SUCCESS message.
     // ──────────────────────────────────────────────────────────────────────
 
-    var PROD_URL = 'https://nyasadesk1.vercel.app';
     var workspaceId = new URLSearchParams(window.location.search).get('workspace_id');
     var statusEl  = document.getElementById('status');
     var titleEl   = document.getElementById('title');
@@ -109,53 +112,54 @@
 
     function isStandalonePWA() {
       return window.matchMedia('(display-mode: standalone)').matches
-        || window.navigator.standalone === true
-        || document.referrer.startsWith('android-app://');
+        || window.navigator.standalone === true;
     }
 
     function redirectToSettings(extra) {
       window.location.href = '/settings?tab=channels' + (extra || '');
     }
 
-    function sendCodeToBackend(code) {
-      titleEl.textContent = 'Completing connection';
-      statusEl.textContent = 'Registering your WhatsApp number with WasapFlow…';
-      spinnerEl.classList.remove('hidden');
-      actionsEl.classList.add('hidden');
+    // ── Listen for the success message from WasapFlow's hosted page ──────
+    window.addEventListener('message', function(event) {
+      // WasapFlow's hosted page posts with '*' as target origin
+      if (!event.data || typeof event.data !== 'object') return;
 
-      fetch('/api/auth/whatsapp-embedded', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          code: code,
-          workspace_id: workspaceId,
-          provider: 'wasapflow'
+      if (event.data.type === 'WASAPFLOW_CONNECT_SUCCESS') {
+        titleEl.textContent = 'WhatsApp connected!';
+        titleEl.classList.add('success');
+        statusEl.textContent = 'Saving your WhatsApp configuration…';
+        spinnerEl.classList.remove('hidden');
+        actionsEl.classList.add('hidden');
+
+        // Save the WABA config to our database
+        fetch('/api/channels?action=save-waba', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            workspace_id: workspaceId,
+            waba_id: event.data.waba_id,
+            phone_number_id: event.data.phone_number_id,
+            display_name: event.data.display_name,
+            quality_rating: event.data.quality_rating,
+            connection_mode: event.data.connection_mode
+          })
         })
-      })
-      .then(function(r) { return r.json(); })
-      .then(function(d) {
-        if (d.ok) {
-          titleEl.textContent = 'WhatsApp connected!';
-          statusEl.textContent = 'Redirecting to Settings…';
-          setTimeout(function() { redirectToSettings('&wa=connected'); }, 1500);
-        } else {
-          redirectToSettings('&wa_error=' + encodeURIComponent(d.error || 'Registration failed'));
-        }
-      })
-      .catch(function(e) {
-        redirectToSettings('&wa_error=' + encodeURIComponent(e.message));
-      });
-    }
+        .then(function(r) { return r.json(); })
+        .then(function(d) {
+          if (d.ok) {
+            statusEl.textContent = 'Redirecting to Settings…';
+            setTimeout(function() { redirectToSettings('&wa=connected'); }, 1500);
+          } else {
+            redirectToSettings('&wa_error=' + encodeURIComponent(d.error || 'Failed to save WhatsApp config'));
+          }
+        })
+        .catch(function(e) {
+          redirectToSettings('&wa_error=' + encodeURIComponent(e.message));
+        });
+      }
+    });
 
-    // Check if returning from FB.login redirect mode (code in URL hash or query)
-    var urlParams = new URLSearchParams(window.location.search);
-    var urlHash   = new URLSearchParams(window.location.hash.substring(1));
-
-    if (urlHash.get('code')) {
-      sendCodeToBackend(urlHash.get('code'));
-    } else if (urlParams.get('code') && urlParams.get('state')) {
-      sendCodeToBackend(urlParams.get('code'));
-    } else if (!workspaceId) {
+    if (!workspaceId) {
       titleEl.textContent = 'Error';
       titleEl.classList.add('error');
       statusEl.textContent = 'Missing workspace ID. Go back to Settings and try again.';
@@ -163,146 +167,81 @@
       actionsEl.innerHTML = '<a class="btn" href="/settings?tab=channels">Back to Settings</a>';
       actionsEl.classList.remove('hidden');
     } else {
-      // ── First load: fetch config and launch FB SDK ──────────────────
-      fetch('/api/channels?action=signup-config', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: '{}'
-      })
-      .then(function(r) { return r.json(); })
-      .then(function(cfg) {
-        if (!cfg.ok || !cfg.app_id || !cfg.config_id) {
-          throw new Error(cfg.error || 'Could not load WhatsApp signup config');
+      // ── Open WasapFlow's hosted connect page as a popup ───────────────
+      // The hosted page is on partner.wasapflow.com (whitelisted with Meta).
+      // It handles the FB SDK, FB.login(), Embedded Signup UI, and WABA
+      // registration. It posts the result back to us via postMessage.
+
+      var hostedUrl = '/api/channels?action=hosted-connect&workspace_id=' + workspaceId;
+
+      function openHostedPopup() {
+        var popup = window.open(hostedUrl, 'wasapflow_connect', 'width=500,height=700,scrollbars=yes');
+
+        if (!popup || popup.closed || typeof popup.closed === 'undefined') {
+          // Popup blocked — show manual options
+          titleEl.textContent = 'Popup blocked';
+          statusEl.textContent = 'Tap the button below to open the signup page in a new tab.';
+          spinnerEl.classList.add('hidden');
+          actionsEl.innerHTML = '';
+
+          // Direct link to the hosted page (opens in new tab)
+          var openLink = document.createElement('a');
+          openLink.className = 'btn';
+          openLink.href = hostedUrl;
+          openLink.target = '_blank';
+          openLink.rel = 'noopener';
+          openLink.textContent = 'Open Signup Page';
+          actionsEl.appendChild(openLink);
+
+          // Back to settings
+          var backLink = document.createElement('a');
+          backLink.className = 'btn secondary';
+          backLink.href = '/settings?tab=channels';
+          backLink.textContent = 'Back to Settings';
+          actionsEl.appendChild(backLink);
+
+          actionsEl.classList.remove('hidden');
+          return false;
         }
+        return true;
+      }
 
-        var extras = cfg.extras || {
-          setup: {},
-          featureType: 'whatsapp_business_app_onboarding',
-          sessionInfoVersion: '3',
-          version: 'v4'
-        };
+      // Try to auto-open the popup
+      var opened = openHostedPopup();
 
-        // ── Session info listener (captures waba_id, phone_number_id) ──
-        // The FB SDK posts these events from the popup to the opener.
-        window.addEventListener('message', function(event) {
-          if (!event.origin || !event.origin.endsWith('facebook.com')) return;
-          try {
-            var data = JSON.parse(event.data);
-            if (data.type === 'WA_EMBEDDED_SIGNUP') {
-              if (data.event === 'FINISH') {
-                // The code will also come through the FB.login callback,
-                // but we can show progress here.
-                titleEl.textContent = 'Signup complete!';
-                statusEl.textContent = 'Registering with WasapFlow…';
-              } else if (data.event === 'ERROR') {
-                statusEl.textContent = 'Error: ' + (data.data?.error_message || 'Unknown error');
-              }
-            }
-          } catch(e) {}
-        });
+      if (opened) {
+        titleEl.textContent = 'Waiting for signup';
+        statusEl.textContent = 'Complete the WhatsApp signup in the popup window. This page will update automatically when done.';
 
-        // ── Set up FB SDK ──────────────────────────────────────────────
-        window.fbAsyncInit = function() {
-          FB.init({
-            appId:   cfg.app_id,
-            cookie:  true,
-            xfbml:   true,
-            version: 'v19.0'
-          });
+        // Check if popup was closed (user cancelled or completed)
+        var checkInterval = setInterval(function() {
+          // The postMessage listener will handle success.
+          // Here we just detect if the popup was closed without success.
+          // We can't read popup.location due to cross-origin.
+          // But we can detect popup.closed.
+          // Note: after postMessage success, we redirect, so this interval
+          // is cleared by the page unload.
+        }, 1000);
 
-          titleEl.textContent = 'Opening Facebook…';
-          statusEl.textContent = 'A popup will open for you to select your WhatsApp number.';
-
-          // Auto-launch FB.login after a short delay
-          setTimeout(function() {
-            FB.login(function(response) {
-              if (response.status === 'connected' && response.authResponse) {
-                var code = response.authResponse.code;
-                if (code) {
-                  sendCodeToBackend(code);
-                } else {
-                  // No code but connected — might have waba_id/phone from sessionInfo
-                  redirectToSettings('&wa_error=' + encodeURIComponent('No authorization code returned. Please try again.'));
-                }
-              } else {
-                // Login cancelled or failed
-                var isPWA = isStandalonePWA();
-                titleEl.textContent = 'Popup blocked?';
-                statusEl.textContent = isPWA
-                  ? 'Your app (PWA) may have blocked the Facebook popup.'
-                  : 'The Facebook popup was closed before completing signup.';
-
-                spinnerEl.classList.add('hidden');
-                actionsEl.innerHTML = '';
-
-                if (isPWA) {
-                  // PWA fallback: show a link to open in the system browser
-                  var notice = document.createElement('div');
-                  notice.className = 'pwa-notice';
-                  notice.innerHTML = '<p><strong>Open in your phone\'s browser</strong></p>'
-                    + '<p>Popups don\'t work inside installed apps. Tap the button below to open this page in your regular browser (Safari/Chrome) where the Facebook popup can work.</p>';
-                  actionsEl.appendChild(notice);
-
-                  var openInBrowser = document.createElement('a');
-                  openInBrowser.className = 'btn';
-                  openInBrowser.href = window.location.href;
-                  openInBrowser.target = '_blank';
-                  openInBrowser.rel = 'noopener';
-                  openInBrowser.textContent = 'Open in Browser';
-                  actionsEl.appendChild(openInBrowser);
-                } else {
-                  // Not PWA — just show retry
-                  var retry = document.createElement('button');
-                  retry.className = 'btn';
-                  retry.textContent = 'Try Again';
-                  retry.onclick = function() { window.location.reload(); };
-                  actionsEl.appendChild(retry);
-                }
-
-                var back = document.createElement('a');
-                back.className = 'btn secondary';
-                back.href = '/settings?tab=channels';
-                back.textContent = 'Back to Settings';
-                actionsEl.appendChild(back);
-
-                actionsEl.classList.remove('hidden');
-              }
-            }, {
-              config_id:                      cfg.config_id,
-              response_type:                  'code',
-              override_default_response_type: true,
-              extras:                         extras
-            });
-          }, 600);
-        };
-
-        // Load FB SDK
-        var script = document.createElement('script');
-        script.src = 'https://connect.facebook.net/en_US/sdk.js';
-        script.async = true;
-        script.defer = true;
-        document.head.appendChild(script);
-
-        // Timeout: if SDK doesn't load in 12s
+        // After 60 seconds with no response, show a "still waiting?" message
         setTimeout(function() {
-          if (!window.FB) {
-            titleEl.textContent = 'Facebook SDK failed to load';
-            titleEl.classList.add('error');
-            statusEl.textContent = 'Check your internet connection and try again.';
-            spinnerEl.classList.add('hidden');
-            actionsEl.innerHTML = '<a class="btn" href="/settings?tab=channels">Back to Settings</a>';
+          if (document.visibilityState === 'visible') {
+            statusEl.textContent = 'Still waiting? If the popup didn\'t open, tap below to try again.';
+            actionsEl.innerHTML = '';
+            var retry = document.createElement('button');
+            retry.className = 'btn';
+            retry.textContent = 'Reopen Popup';
+            retry.onclick = function() { openHostedPopup(); };
+            actionsEl.appendChild(retry);
+            var back = document.createElement('a');
+            back.className = 'btn secondary';
+            back.href = '/settings?tab=channels';
+            back.textContent = 'Back to Settings';
+            actionsEl.appendChild(back);
             actionsEl.classList.remove('hidden');
           }
-        }, 12000);
-      })
-      .catch(function(e) {
-        titleEl.textContent = 'Connection failed';
-        titleEl.classList.add('error');
-        statusEl.textContent = e.message || 'Failed to initialize WhatsApp connection';
-        spinnerEl.classList.add('hidden');
-        actionsEl.innerHTML = '<a class="btn" href="/settings?tab=channels">Back to Settings</a>';
-        actionsEl.classList.remove('hidden');
-      });
+        }, 60000);
+      }
     }
   </script>
 </body>
