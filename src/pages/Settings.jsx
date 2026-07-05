@@ -151,6 +151,36 @@ function WhatsAppCard({ saved, workspaceId, onSave, onDelete }) {
     window.location.href = `/wa-connect.html?workspace_id=${workspaceId}`;
   };
 
+  // ── Sync WABA from WasapFlow (after returning from hosted connect) ────
+  const [syncing, setSyncing] = useState(false);
+  const syncWaba = async () => {
+    setSyncing(true);
+    setStatus('');
+    try {
+      const res = await fetch('/api/channels?action=sync-waba&workspace_id=' + workspaceId, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: '{}'
+      });
+      const data = await res.json();
+      if (data.ok) {
+        setStatus('saved');
+        setBanner({ type: "success", msg: "WhatsApp connected successfully!" });
+        setTimeout(() => setBanner(null), 5000);
+        // Reload channel configs
+        if (onReload) onReload();
+      } else {
+        setStatus('error: ' + (data.error || 'No new WhatsApp connection found. Make sure you completed all steps on the signup page.'));
+        setTimeout(() => setStatus(''), 6000);
+      }
+    } catch (e) {
+      setStatus('error: ' + e.message);
+      setTimeout(() => setStatus(''), 6000);
+    } finally {
+      setSyncing(false);
+    }
+  };
+
   // ── Manual save (advanced / fallback path — hidden by default) ─────────
   const handleManualSave = async () => {
     if (!fields.access_token || !fields.phone_number_id) {
@@ -251,6 +281,18 @@ function WhatsAppCard({ saved, workspaceId, onSave, onDelete }) {
               {signupError && !signup?.config_id && (
                 <p className="text-[11px] text-amber-400">Could not load one-click setup: {signupError}. Use Advanced below or retry.</p>
               )}
+              {/* Check Connection button — shown after returning from WasapFlow hosted page */}
+              <div className="border-t border-white/10 pt-3 mt-3">
+                <p className="text-[11px] text-gray-500 mb-2">
+                  Already completed the signup on WasapFlow's page? Click below to sync your connection.
+                </p>
+                <button
+                  onClick={syncWaba}
+                  disabled={syncing}
+                  className="w-full py-2.5 rounded-xl text-xs font-bold text-[#25D366] bg-[#25D366]/10 hover:bg-[#25D366]/20 disabled:opacity-50 flex items-center justify-center gap-2">
+                  {syncing ? (<><Loader2 className="w-3.5 h-3.5 animate-spin" /> Checking…</>) : "Check WhatsApp Connection"}
+                </button>
+              </div>
             </div>
 
             {/* ── Advanced: manual credentials (collapsed, for power users only) ── */}
@@ -865,6 +907,10 @@ export default function Settings() {
     if (searchParams.get("wa") === "connected") {
       setBanner({ type: "success", msg: "WhatsApp connected successfully!" });
       setTimeout(() => setBanner(null), 5000);
+    }
+    if (searchParams.get("wa") === "check") {
+      // Returning from WasapFlow hosted page — auto-trigger sync
+      syncWaba();
     }
     if (searchParams.get("wa_error")) {
       setBanner({ type: "error", msg: "WhatsApp connection failed: " + decodeURIComponent(searchParams.get("wa_error")) });

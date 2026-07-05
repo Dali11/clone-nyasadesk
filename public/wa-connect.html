@@ -10,259 +10,60 @@
       font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
       background: #0B141A;
       color: #e9edef;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      min-height: 100vh;
-      padding: 16px;
-    }
-    .card {
-      background: #202C33;
-      border-radius: 16px;
-      padding: 40px 32px;
-      max-width: 380px;
-      width: 100%;
-      text-align: center;
-    }
-    .logo {
-      width: 56px; height: 56px;
-      margin: 0 auto 20px;
-      background: linear-gradient(135deg, #075E54, #128C7E);
-      border-radius: 14px;
       display: flex; align-items: center; justify-content: center;
-      font-size: 28px; font-weight: 800; color: white;
+      min-height: 100vh; padding: 16px;
     }
+    .card { background: #202C33; border-radius: 16px; padding: 40px 32px; max-width: 380px; width: 100%; text-align: center; }
+    .logo { width: 56px; height: 56px; margin: 0 auto 20px; background: linear-gradient(135deg, #075E54, #128C7E); border-radius: 14px; display: flex; align-items: center; justify-content: center; font-size: 28px; font-weight: 800; color: white; }
     h1 { font-size: 18px; font-weight: 700; margin-bottom: 8px; }
     p  { font-size: 14px; color: #8696a0; line-height: 1.5; }
-    .spinner {
-      width: 28px; height: 28px;
-      border: 3px solid #2a3942;
-      border-top-color: #25D366;
-      border-radius: 50%;
-      animation: spin 0.8s linear infinite;
-      margin: 20px auto 0;
-    }
+    .spinner { width: 28px; height: 28px; border: 3px solid #2a3942; border-top-color: #25D366; border-radius: 50%; animation: spin 0.8s linear infinite; margin: 20px auto 0; }
     @keyframes spin { to { transform: rotate(360deg); } }
-    .error { color: #ff6b6b; }
-    .success { color: #25D366; }
-    .hidden { display: none; }
-    .btn {
-      display: block;
-      margin-top: 20px;
-      padding: 14px 32px;
-      background: #25D366;
-      color: #0B141A;
-      text-decoration: none;
-      border-radius: 10px;
-      font-weight: 700;
-      font-size: 15px;
-      border: none;
-      cursor: pointer;
-      width: 100%;
-      text-align: center;
-    }
-    .btn.secondary {
-      background: #2a3942;
-      color: #e9edef;
-      margin-top: 12px;
-    }
-    .pwa-notice {
-      margin-top: 20px;
-      padding: 16px;
-      background: #2a3942;
-      border-radius: 10px;
-      text-align: left;
-    }
-    .pwa-notice p { color: #e9edef; font-size: 13px; margin-bottom: 8px; }
-    .pwa-notice p:last-child { margin-bottom: 0; }
-    .pwa-notice strong { color: #25D366; }
+    .btn { display: block; margin-top: 20px; padding: 14px 32px; background: #25D366; color: #0B141A; text-decoration: none; border-radius: 10px; font-weight: 700; font-size: 15px; border: none; cursor: pointer; width: 100%; text-align: center; }
+    .btn.secondary { background: #2a3942; color: #e9edef; margin-top: 12px; }
   </style>
 </head>
 <body>
   <div class="card">
     <div class="logo">N</div>
-    <h1 id="title">Connect WhatsApp Business</h1>
-    <p id="status">Opening the secure WhatsApp signup page…</p>
-    <div id="spinner" class="spinner"></div>
-    <div id="actions" class="hidden"></div>
+    <h1>Connecting WhatsApp…</h1>
+    <p>Taking you to the secure WhatsApp signup page.</p>
+    <div class="spinner"></div>
+    <noscript>
+      <p style="color:#ff6b6b;margin-top:12px">JavaScript is required. Please enable it and try again.</p>
+      <a class="btn" href="/settings?tab=channels">Back to Settings</a>
+    </noscript>
   </div>
 
   <script>
     // ──────────────────────────────────────────────────────────────────────
-    // WhatsApp Embedded Signup — using WasapFlow's hosted connect page
+    // FULL PAGE REDIRECT to WasapFlow's hosted connect page.
     //
-    // CRITICAL: The hosted page runs window.resizeTo(1,1) to shrink itself
-    // before opening FB.login's popup. If we open it as a popup window with
-    // specific width/height, that resize SUCCEEDS → the window becomes 1x1
-    // invisible → browser blocks FB.login's popup → instant "cancelled".
+    // Previous approaches (popup, new tab) failed because the hosted page
+    // runs window.resizeTo(1,1) which can succeed on popup-opened windows
+    // (even tabs opened via window.open on some mobile browsers), making
+    // the window 1x1 invisible → browser blocks FB.login's popup → instant
+    // "Authorization cancelled".
     //
-    // FIX: Open as a new tab (no width/height) → resizeTo fails silently
-    // (tabs can't be resized) → window stays full-size → FB.login popup
-    // opens normally → Embedded Signup UI renders.
+    // A full page redirect makes the hosted page the MAIN page. Browsers
+    // don't allow window.resizeTo on main pages → the resize fails silently
+    // → the page stays full-size → FB.login's popup opens normally.
     //
-    // The hosted page posts the result back via window.opener.postMessage().
+    // Downside: no window.opener for postMessage. After completing the
+    // signup, the user navigates back to Settings and clicks "Check
+    // Connection" to sync the WABA from WasapFlow's API.
     // ──────────────────────────────────────────────────────────────────────
 
     var workspaceId = new URLSearchParams(window.location.search).get('workspace_id');
-    var statusEl  = document.getElementById('status');
-    var titleEl   = document.getElementById('title');
-    var spinnerEl = document.getElementById('spinner');
-    var actionsEl = document.getElementById('actions');
-
-    function redirectToSettings(extra) {
-      window.location.href = '/settings?tab=channels' + (extra || '');
-    }
-
-    // ── Listen for the success message from WasapFlow's hosted page ──────
-    window.addEventListener('message', function(event) {
-      if (!event.data || typeof event.data !== 'object') return;
-
-      if (event.data.type === 'WASAPFLOW_CONNECT_SUCCESS') {
-        titleEl.textContent = 'WhatsApp connected!';
-        titleEl.classList.add('success');
-        statusEl.textContent = 'Saving your WhatsApp configuration…';
-        spinnerEl.classList.remove('hidden');
-        actionsEl.classList.add('hidden');
-
-        fetch('/api/channels?action=save-waba', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            workspace_id: workspaceId,
-            waba_id: event.data.waba_id,
-            phone_number_id: event.data.phone_number_id,
-            display_name: event.data.display_name,
-            quality_rating: event.data.quality_rating,
-            connection_mode: event.data.connection_mode
-          })
-        })
-        .then(function(r) { return r.json(); })
-        .then(function(d) {
-          if (d.ok) {
-            statusEl.textContent = 'Redirecting to Settings…';
-            setTimeout(function() { redirectToSettings('&wa=connected'); }, 1500);
-          } else {
-            redirectToSettings('&wa_error=' + encodeURIComponent(d.error || 'Failed to save WhatsApp config'));
-          }
-        })
-        .catch(function(e) {
-          redirectToSettings('&wa_error=' + encodeURIComponent(e.message));
-        });
-      }
-    });
 
     if (!workspaceId) {
-      titleEl.textContent = 'Error';
-      titleEl.classList.add('error');
-      statusEl.textContent = 'Missing workspace ID. Go back to Settings and try again.';
-      spinnerEl.classList.add('hidden');
-      actionsEl.innerHTML = '<a class="btn" href="/settings?tab=channels">Back to Settings</a>';
-      actionsEl.classList.remove('hidden');
+      document.querySelector('h1').textContent = 'Error';
+      document.querySelector('p').textContent = 'Missing workspace ID. Go back to Settings and try again.';
+      document.querySelector('.spinner').style.display = 'none';
+      document.body.innerHTML += '<div style="text-align:center;margin-top:20px"><a class="btn" href="/settings?tab=channels" style="display:inline-block;padding:14px 32px;background:#25D366;color:#0B141A;text-decoration:none;border-radius:10px;font-weight:700">Back to Settings</a></div>';
     } else {
-      // The backend redirect URL to WasapFlow's hosted connect page
-      var hostedUrl = '/api/channels?action=hosted-connect&workspace_id=' + workspaceId;
-
-      // ── Open as a NEW TAB (not a popup window) ────────────────────────
-      // No width/height → browser opens a tab → window.resizeTo(1,1) in
-      // the hosted page fails silently → FB.login popup works normally.
-      function openHostedTab() {
-        // Using '_blank' without window features opens a new tab
-        var tab = window.open(hostedUrl, '_blank');
-
-        if (!tab) {
-          // Popup/tab blocked — show manual link
-          titleEl.textContent = 'Open the signup page';
-          statusEl.textContent = 'Tap below to open the WhatsApp signup page in a new tab.';
-          spinnerEl.classList.add('hidden');
-          actionsEl.innerHTML = '';
-
-          var openLink = document.createElement('a');
-          openLink.className = 'btn';
-          openLink.href = hostedUrl;
-          openLink.target = '_blank';
-          openLink.rel = 'noopener';
-          openLink.textContent = 'Open WhatsApp Signup';
-          actionsEl.appendChild(openLink);
-
-          var backLink = document.createElement('a');
-          backLink.className = 'btn secondary';
-          backLink.href = '/settings?tab=channels';
-          backLink.textContent = 'Back to Settings';
-          actionsEl.appendChild(backLink);
-
-          actionsEl.classList.remove('hidden');
-          return false;
-        }
-        return true;
-      }
-
-      // Auto-open the tab (triggered by the user's click on "Connect" in
-      // Settings, which navigated here — this counts as a user gesture)
-      var opened = openHostedTab();
-
-      if (opened) {
-        titleEl.textContent = 'Waiting for signup';
-        statusEl.textContent = 'A new tab opened with the WhatsApp signup. Complete the steps there — this page will update automatically when done.';
-
-        // After 90 seconds, show a "check connection" fallback
-        setTimeout(function() {
-          // Check if we're still on this page (not redirected by postMessage)
-          if (document.visibilityState !== undefined) {
-            titleEl.textContent = 'Already connected?';
-            statusEl.textContent = 'If you completed the signup in the other tab, tap below to check and save your connection.';
-            spinnerEl.classList.add('hidden');
-            actionsEl.innerHTML = '';
-
-            var checkBtn = document.createElement('button');
-            checkBtn.className = 'btn';
-            checkBtn.textContent = 'Check Connection';
-            checkBtn.onclick = function() {
-              // Poll WasapFlow for registered clients
-              statusEl.textContent = 'Checking for new WhatsApp connections…';
-              spinnerEl.classList.remove('hidden');
-              actionsEl.classList.add('hidden');
-
-              fetch('/api/channels?action=sync-waba&workspace_id=' + workspaceId, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: '{}'
-              })
-              .then(function(r) { return r.json(); })
-              .then(function(d) {
-                if (d.ok) {
-                  titleEl.textContent = 'WhatsApp connected!';
-                  titleEl.classList.add('success');
-                  statusEl.textContent = 'Found and saved your WhatsApp connection.';
-                  setTimeout(function() { redirectToSettings('&wa=connected'); }, 1500);
-                } else {
-                  titleEl.textContent = 'No connection found';
-                  statusEl.textContent = d.error || 'Could not find a new WhatsApp connection. Make sure you completed all steps in the signup tab.';
-                  spinnerEl.classList.add('hidden');
-                  actionsEl.innerHTML = '';
-                  var retry = document.createElement('button');
-                  retry.className = 'btn';
-                  retry.textContent = 'Try Again';
-                  retry.onclick = function() { window.location.reload(); };
-                  actionsEl.appendChild(retry);
-                  actionsEl.classList.remove('hidden');
-                }
-              })
-              .catch(function(e) {
-                redirectToSettings('&wa_error=' + encodeURIComponent(e.message));
-              });
-            };
-            actionsEl.appendChild(checkBtn);
-
-            var back = document.createElement('a');
-            back.className = 'btn secondary';
-            back.href = '/settings?tab=channels';
-            back.textContent = 'Back to Settings';
-            actionsEl.appendChild(back);
-
-            actionsEl.classList.remove('hidden');
-          }
-        }, 90000);
-      }
+      // Full redirect to the backend endpoint which redirects to WasapFlow
+      window.location.href = '/api/channels?action=hosted-connect&workspace_id=' + workspaceId;
     }
   </script>
 </body>
