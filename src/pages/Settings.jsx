@@ -223,10 +223,10 @@ function WhatsAppCard({ saved, workspaceId, onSave, onDelete }) {
                 </p>
               )}
               {status.startsWith('error') && (
+                <p className="text-[11px] text-red-400">{status.replace('error: ', '')}</p>
+              )}
               {signupError && !signup?.config_id && (
                 <p className="text-[11px] text-amber-400">Could not load one-click setup: {signupError}. Use Advanced below or retry.</p>
-              )}
-                <p className="text-[11px] text-red-400">{status.replace('error: ', '')}</p>
               )}
             </div>
 
