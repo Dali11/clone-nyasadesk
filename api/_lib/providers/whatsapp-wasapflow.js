@@ -54,21 +54,28 @@ export class WhatsAppWasapFlowProvider extends MessagingProvider {
     const partnerKey = process.env.WASAPFLOW_PARTNER_KEY;
     if (!partnerKey) throw new Error('WASAPFLOW_PARTNER_KEY not configured');
 
-    // 1. Send the OAuth code to WasapFlow for server-side exchange + WABA registration
+    // 1. Send the OAuth code (from FB.login's JS SDK callback — see Settings.jsx)
+    //    to WasapFlow for server-side exchange + WABA registration.
+    //    connection_mode: 'coexistence' matches the Embedded Signup config we
+    //    request in /api/channels?action=signup-config — must match or WasapFlow
+    //    rejects the code exchange.
     const regRes = await fetch(`${BRIDGE_API}/clients/register-from-code`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', 'x-partner-key': partnerKey },
-      body: JSON.stringify({ code, workspace_id: workspaceId }),
+      body: JSON.stringify({ code, connection_mode: 'coexistence', display_name: 'Nyasadesk' }),
     });
     const regData = await regRes.json();
     if (!regRes.ok || !regData.success) {
-      throw new Error(regData.message || regData.error?.message || regData.error || 'WasapFlow registration failed');
+      throw new Error(regData.error?.message || regData.message || regData.error || 'WasapFlow registration failed');
     }
 
-    const wabaId = regData.waba_id;
-    const phoneNumberId = phone_number_id || regData.phone_number_id;
-    const phoneNumber = regData.phone_number || null;
-    const businessName = regData.business_name || null;
+    // Real response shape is { success, client: { waba_id, phone_number_id, display_name, ... } }
+    // (previously read regData.waba_id directly — always undefined, silently saved a broken config)
+    const client = regData.client || {};
+    const wabaId = client.waba_id;
+    const phoneNumberId = phone_number_id || client.phone_number_id;
+    const phoneNumber = client.phone_number || null;
+    const businessName = client.display_name || null;
 
     // 2. Fetch phone numbers if not auto-selected
     let finalPhoneId = phoneNumberId;
@@ -98,7 +105,7 @@ export class WhatsAppWasapFlowProvider extends MessagingProvider {
       business_name: finalBusinessName,
       connected_via: 'embedded_signup',
       connected_at: new Date().toISOString(),
-      wasapflow_client_id: regData.client_id || null,
+      wasapflow_client_id: wabaId || null,
     };
 
     const { data, error } = await sb.from('channel_configs').upsert({
@@ -125,11 +132,11 @@ export class WhatsAppWasapFlowProvider extends MessagingProvider {
     const regRes = await fetch(`${BRIDGE_API}/clients/register`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', 'x-partner-key': partnerKey },
-      body: JSON.stringify({ waba_id, workspace_id: workspaceId }),
+      body: JSON.stringify({ waba_id, phone_number_id, access_token: authData.access_token, display_name: 'Nyasadesk' }),
     });
     const regData = await regRes.json();
     if (!regRes.ok || !regData.success) {
-      throw new Error(regData.message || regData.error?.message || regData.error || 'WasapFlow registration failed');
+      throw new Error(regData.error?.message || regData.message || regData.error || 'WasapFlow registration failed');
     }
 
     // Fetch phone number details
@@ -156,7 +163,7 @@ export class WhatsAppWasapFlowProvider extends MessagingProvider {
       business_name: businessName,
       connected_via: 'manual',
       connected_at: new Date().toISOString(),
-      wasapflow_client_id: regData.client_id || null,
+      wasapflow_client_id: waba_id || null,
     };
 
     const { data, error } = await sb.from('channel_configs').upsert({
