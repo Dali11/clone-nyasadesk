@@ -9,7 +9,6 @@ import { useNyasaAuth } from '@/lib/NyasaAuth';
 import { getChannelConfigs, saveChannelConfig, deleteChannelConfig } from '@/lib/channels';
 import { supabase } from '@/lib/supabase';
 import { useDocumentTitle } from '@/hooks/useDocumentTitle';
-import { useFacebookSDK } from '@/hooks/useFacebookSDK';
 
 const PROD_URL  = 'https://nyasadesk1.vercel.app';
 const FB_APP_ID = import.meta.env.VITE_FACEBOOK_APP_ID || '';
@@ -103,7 +102,6 @@ function WhatsAppCard({ saved, workspaceId, onSave, onDelete }) {
   const [status, setStatus]   = useState('');
   const [signup, setSignup]   = useState(null); // { app_id, config_id } from WasapFlow
   const [signupError, setSignupError] = useState('');
-  const fbReady = useFacebookSDK(signup?.app_id || '');
   const isLive = !!(saved && saved.enabled && saved.config && (saved.config.waba_id || saved.config.access_token || saved.config.d360_api_key || saved.config.bird_workspace_id));
 
   // ── Fetch WasapFlow's Embedded Signup config (our Meta app, invisible to customer) ─
@@ -120,60 +118,16 @@ function WhatsAppCard({ saved, workspaceId, onSave, onDelete }) {
       .catch(e => setSignupError(e.message));
   }, []);
 
-  // ── One-click connect: FB.login using WasapFlow's Meta app/config ──────
+  // ── One-click connect: redirect to Facebook OAuth (no popup, no SDK) ──
   const launchConnect = () => {
-    if (!signup?.config_id) {
-      setStatus('error: Connect is still loading — try again in a moment');
-      setTimeout(() => setStatus(''), 3000);
+    if (!signup?.config_id || !signup?.app_id) {
+      setStatus("error: Connect is still loading — try again in a moment");
+      setTimeout(() => setStatus(""), 3000);
       return;
     }
-    if (!fbReady || !window.FB) {
-      setStatus('error: Loading, try again in a moment');
-      setTimeout(() => setStatus(''), 3000);
-      return;
-    }
-    window.FB.login(async (response) => {
-      if (!response.authResponse || !response.authResponse.code) {
-        setStatus('error: WhatsApp connection cancelled');
-        setTimeout(() => setStatus(''), 3000);
-        return;
-      }
-      setSaving(true);
-      try {
-        const { code } = response.authResponse;
-        const res = await fetch('/api/channels?action=connect', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            channel: 'whatsapp',
-            workspace_id: workspaceId,
-            provider_key: 'wasapflow',
-            mode: 'embedded_signup',
-            code,
-          }),
-        });
-        const data = await res.json();
-        if (data.ok) {
-          await onSave('whatsapp', data.config?.config || {});
-          setStatus('saved');
-          setTimeout(() => setStatus(''), 4000);
-        } else {
-          setStatus('error: ' + (data.error || 'Failed to connect'));
-          setTimeout(() => setStatus(''), 6000);
-        }
-      } catch (e) {
-        setStatus('error: ' + e.message);
-        setTimeout(() => setStatus(''), 6000);
-      } finally {
-        setSaving(false);
-      }
-    }, {
-      config_id: signup.config_id,
-      response_type: 'code',
-      override_default_response_type: true,
-      scope: 'whatsapp_business_management,whatsapp_business_messaging',
-      ...(signup.extras ? { extras: signup.extras } : {}),
-    });
+    const redirectUri = encodeURIComponent(PROD_URL + "/api/auth/whatsapp-embedded");
+    const url = `https://www.facebook.com/v19.0/dialog/oauth?client_id=${signup.app_id}&redirect_uri=${redirectUri}&state=${workspaceId}&scope=whatsapp_business_management,whatsapp_business_messaging&response_type=code&config_id=${signup.config_id}`;
+    window.location.href = url;
   };
 
   // ── Manual save (advanced / fallback path — hidden by default) ─────────
@@ -259,10 +213,9 @@ function WhatsAppCard({ saved, workspaceId, onSave, onDelete }) {
               </p>
               <button
                 onClick={launchConnect}
-                disabled={saving || !signup?.config_id}
+                disabled={!signup?.config_id}
                 className="w-full py-3 rounded-xl text-sm font-bold text-white bg-[#25D366] hover:bg-[#20BD5A] disabled:opacity-50 flex items-center justify-center gap-2">
-                {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : null}
-                {saving ? 'Connecting…' : !signup?.config_id ? 'Loading…' : 'Connect WhatsApp Business'}
+                {!signup?.config_id ? "Loading…" : "Connect WhatsApp Business"}
               </button>
               {status === 'saved' && (
                 <p className="text-[11px] text-[#25D366] flex items-center justify-center gap-1">
@@ -270,6 +223,9 @@ function WhatsAppCard({ saved, workspaceId, onSave, onDelete }) {
                 </p>
               )}
               {status.startsWith('error') && (
+              {signupError && !signup?.config_id && (
+                <p className="text-[11px] text-amber-400">Could not load one-click setup: {signupError}. Use Advanced below or retry.</p>
+              )}
                 <p className="text-[11px] text-red-400">{status.replace('error: ', '')}</p>
               )}
             </div>
@@ -868,8 +824,16 @@ export default function Settings() {
       setBanner({ type: 'success', msg: 'Facebook Messenger connected!' });
       setTimeout(() => setBanner(null), 5000);
     }
-    if (searchParams.get('error')) {
-      setBanner({ type: 'error', msg: 'Connection failed: ' + (searchParams.get('msg') || searchParams.get('error')) });
+    if (searchParams.get("error")) {
+      setBanner({ type: "error", msg: "Connection failed: " + (searchParams.get("msg") || searchParams.get("error")) });
+      setTimeout(() => setBanner(null), 6000);
+    }
+    if (searchParams.get("wa") === "connected") {
+      setBanner({ type: "success", msg: "WhatsApp connected successfully!" });
+      setTimeout(() => setBanner(null), 5000);
+    }
+    if (searchParams.get("wa_error")) {
+      setBanner({ type: "error", msg: "WhatsApp connection failed: " + decodeURIComponent(searchParams.get("wa_error")) });
       setTimeout(() => setBanner(null), 6000);
     }
   }, [searchParams]);

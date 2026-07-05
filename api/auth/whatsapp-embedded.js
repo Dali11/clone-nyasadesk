@@ -1,16 +1,54 @@
 // api/auth/whatsapp-embedded.js
-// Receives the code + session info from WhatsApp Embedded Signup (Meta's FB.login).
-// Delegates to the WhatsApp provider via the provider abstraction layer.
-// For Bird: creates workspace, installs connector, subscribes webhooks — all automated.
+// WhatsApp Embedded Signup callback handler.
+//
+// Two modes:
+//   GET  — OAuth redirect callback from Facebook.  Facebook redirects here
+//          with ?code=...&state=WORKSPACE_ID after the user completes the
+//          Embedded Signup flow.  We exchange the code via WasapFlow, persist
+//          the channel config, then redirect back to /settings?tab=channels.
+//   POST — Programmatic API used by the frontend (legacy / advanced paths).
 
 import { createClient } from '@supabase/supabase-js';
 import { getProvider } from '../_lib/providers/index.js';
 
 const SUPABASE_URL = 'https://pfbaepibelomiutlotkn.supabase.co';
 const SUPABASE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY;
+const PROD_URL = 'https://nyasadesk1.vercel.app';
 
 export default async function handler(req, res) {
-  res.setHeader('Access-Control-Allow-Origin', 'https://nyasadesk1.vercel.app');
+  // ── GET: OAuth redirect callback from Facebook ───────────────────────
+  if (req.method === 'GET') {
+    const { code, state, error, error_reason } = req.query;
+    const workspaceId = state;
+
+    // User cancelled or Facebook returned an error
+    if (error) {
+      const msg = encodeURIComponent(error_reason || error || 'Facebook authorization failed');
+      return res.redirect(302, `${PROD_URL}/settings?tab=channels&wa_error=${msg}`);
+    }
+    if (!code || !workspaceId) {
+      return res.redirect(302, `${PROD_URL}/settings?tab=channels&wa_error=${encodeURIComponent('Missing authorization code')}`);
+    }
+
+    try {
+      const sb = createClient(SUPABASE_URL, SUPABASE_KEY);
+      const provider = getProvider('whatsapp:wasapflow');
+      const result = await provider.connect(workspaceId, {
+        mode: 'embedded_signup',
+        code,
+        workspace_id: workspaceId,
+      }, { sb });
+
+      return res.redirect(302, `${PROD_URL}/settings?tab=channels&wa=connected`);
+    } catch (e) {
+      console.error('[wa-embedded/callback]', e);
+      const msg = encodeURIComponent(e.message || 'Connection failed');
+      return res.redirect(302, `${PROD_URL}/settings?tab=channels&wa_error=${msg}`);
+    }
+  }
+
+  // ── POST: programmatic API (legacy / advanced) ───────────────────────
+  res.setHeader('Access-Control-Allow-Origin', PROD_URL);
   res.setHeader('Access-Control-Allow-Methods', 'POST,OPTIONS');
   res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
   if (req.method === 'OPTIONS') return res.status(200).end();
@@ -32,12 +70,9 @@ export default async function handler(req, res) {
 
   try {
     const sb = createClient(SUPABASE_URL, SUPABASE_KEY);
-
-    // If a specific provider is requested, use it; otherwise use the default (Bird)
-    const providerKey = providerHint ? `whatsapp:${providerHint}` : 'whatsapp';
+    const providerKey = providerHint ? `whatsapp:${providerHint}` : 'whatsapp:wasapflow';
     const provider = getProvider(providerKey);
 
-    // Build auth data with all available fields
     const authData = {
       mode: 'embedded_signup',
       code: code || null,
