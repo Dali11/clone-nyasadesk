@@ -100,7 +100,14 @@ function WhatsAppCard({ saved, workspaceId, onSave, onDelete }) {
   const [fields, setFields]   = useState(saved ? saved.config || {} : {});
   const [saving, setSaving]   = useState(false);
   const [status, setStatus]   = useState('');
-  const [signup, setSignup]   = useState(null); // { app_id, config_id } from WasapFlow
+  const [signup, setSignup]   = useState(() => {
+    // Instant-load from cache so the button is ready without waiting
+    try {
+      const cached = JSON.parse(localStorage.getItem('wa_signup_config') || 'null');
+      if (cached && cached.app_id && cached.config_id) return cached;
+    } catch {}
+    return null;
+  }); // { app_id, config_id } from WasapFlow
   const [signupError, setSignupError] = useState('');
   const isLive = !!(saved && saved.enabled && saved.config && (saved.config.waba_id || saved.config.access_token || saved.config.d360_api_key || saved.config.bird_workspace_id));
 
@@ -111,6 +118,7 @@ function WhatsAppCard({ saved, workspaceId, onSave, onDelete }) {
       .then(d => {
         if (d.ok && d.app_id && d.config_id) {
           setSignup(d);
+          try { localStorage.setItem('wa_signup_config', JSON.stringify(d)); } catch {}
         } else {
           setSignupError(d.error || 'Embedded signup unavailable');
         }
@@ -215,7 +223,7 @@ function WhatsAppCard({ saved, workspaceId, onSave, onDelete }) {
                 onClick={launchConnect}
                 disabled={!signup?.config_id}
                 className="w-full py-3 rounded-xl text-sm font-bold text-white bg-[#25D366] hover:bg-[#20BD5A] disabled:opacity-50 flex items-center justify-center gap-2">
-                {!signup?.config_id ? "Loading…" : "Connect WhatsApp Business"}
+                {!signup?.config_id ? (<><Loader2 className="w-4 h-4 animate-spin" /> Loading…</>) : "Connect WhatsApp Business"}
               </button>
               {status === 'saved' && (
                 <p className="text-[11px] text-[#25D366] flex items-center justify-center gap-1">
