@@ -42,7 +42,7 @@ export default async function handler(req, res) {
       return res.redirect(302, `${PROD_URL}/settings?tab=channels&wa=connected`);
     } catch (e) {
       console.error('[wa-embedded/callback]', e);
-      const msg = encodeURIComponent(e.message || 'Connection failed');
+      const msg = encodeURIComponent(typeof e === 'string' ? e : (e?.message || e?.error || JSON.stringify(e?.message || e) || 'Connection failed'));
       return res.redirect(302, `${PROD_URL}/settings?tab=channels&wa_error=${msg}`);
     }
   }
