@@ -97,65 +97,64 @@ function ManualFields({ fields, setFields, fieldDefs }) {
 }
 
 function WhatsAppCard({ saved, workspaceId, onSave, onDelete }) {
-  const [mode, setMode]       = useState('manual');
+  const [mode, setMode]       = useState('embedded'); // one-click is the default, primary flow
   const [fields, setFields]   = useState(saved ? saved.config || {} : {});
   const [saving, setSaving]   = useState(false);
   const [status, setStatus]   = useState('');
-  const [setupInfo, setSetupInfo] = useState(null);
-  const fbReady = useFacebookSDK(FB_APP_ID);
-  const isLive = !!(saved && saved.enabled && saved.config && (saved.config.access_token || saved.config.d360_api_key || saved.config.bird_workspace_id));
+  const [signup, setSignup]   = useState(null); // { app_id, config_id } from WasapFlow
+  const [signupError, setSignupError] = useState('');
+  const fbReady = useFacebookSDK(signup?.app_id || '');
+  const isLive = !!(saved && saved.enabled && saved.config && (saved.config.waba_id || saved.config.access_token || saved.config.d360_api_key || saved.config.bird_workspace_id));
 
-  // ── Fetch Embedded Signup config (optional — only if Tech Provider registered) ─
+  // ── Fetch WasapFlow's Embedded Signup config (our Meta app, invisible to customer) ─
   useEffect(() => {
-    fetch('/api/auth/whatsapp-embedded', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ workspace_id: workspaceId, _action: 'get_config' }),
-    }).then(r => r.json()).then(d => {
-      if (d.config_id) {
-        setSetupInfo(d);
-        setMode('embedded'); // switch to one-click if available
-      }
-    }).catch(() => {});
-  }, [workspaceId]);
+    fetch('/api/channels?action=signup-config', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{}' })
+      .then(r => r.json())
+      .then(d => {
+        if (d.ok && d.app_id && d.config_id) {
+          setSignup(d);
+        } else {
+          setSignupError(d.error || 'Embedded signup unavailable');
+        }
+      })
+      .catch(e => setSignupError(e.message));
+  }, []);
 
-  // ── Launch Meta Embedded Signup (only if Tech Provider registered) ─────
+  // ── One-click connect: FB.login using WasapFlow's Meta app/config ──────
   const launchConnect = () => {
-    if (!fbReady || !window.FB) {
-      setStatus('error: Facebook SDK still loading — try again in a moment');
+    if (!signup?.config_id) {
+      setStatus('error: Connect is still loading — try again in a moment');
       setTimeout(() => setStatus(''), 3000);
       return;
     }
-    const configId = setupInfo?.config_id;
-    if (!configId) {
-      setStatus('error: Embedded Signup not configured. Use Manual mode below.');
-      setTimeout(() => setStatus(''), 5000);
+    if (!fbReady || !window.FB) {
+      setStatus('error: Loading, try again in a moment');
+      setTimeout(() => setStatus(''), 3000);
       return;
     }
     window.FB.login(async (response) => {
-      if (!response.authResponse) {
+      if (!response.authResponse || !response.authResponse.code) {
         setStatus('error: WhatsApp connection cancelled');
         setTimeout(() => setStatus(''), 3000);
         return;
       }
       setSaving(true);
       try {
-        const { code, accessToken } = response.authResponse;
-        const sessionInfo = response.authResponse.sessionInfo || {};
-        const res = await fetch('/api/auth/whatsapp-embedded', {
+        const { code } = response.authResponse;
+        const res = await fetch('/api/channels?action=connect', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
-            ...(code ? { code } : {}),
-            ...(accessToken ? { access_token: accessToken } : {}),
-            phone_number_id: sessionInfo.phone_number_id || null,
-            waba_id: sessionInfo.waba_id || null,
+            channel: 'whatsapp',
             workspace_id: workspaceId,
+            provider_key: 'wasapflow',
+            mode: 'embedded_signup',
+            code,
           }),
         });
         const data = await res.json();
         if (data.ok) {
-          await onSave('whatsapp', { ...data.config?.config, connected_via: 'embedded_signup' });
+          await onSave('whatsapp', data.config?.config || {});
           setStatus('saved');
           setTimeout(() => setStatus(''), 4000);
         } else {
@@ -169,15 +168,15 @@ function WhatsAppCard({ saved, workspaceId, onSave, onDelete }) {
         setSaving(false);
       }
     }, {
-      config_id: configId,
+      config_id: signup.config_id,
       response_type: 'code',
       override_default_response_type: true,
       scope: 'whatsapp_business_management,whatsapp_business_messaging',
-      ...(setupInfo?.solution_id ? { extras: { setup: { solutionID: setupInfo.solution_id } } } : {}),
+      ...(signup.extras ? { extras: signup.extras } : {}),
     });
   };
 
-  // ── Manual save ─────────────────────────────────────────────────────────
+  // ── Manual save (advanced / fallback path — hidden by default) ─────────
   const handleManualSave = async () => {
     if (!fields.access_token || !fields.phone_number_id) {
       setStatus('error: Access Token and Phone Number ID are required');
@@ -192,6 +191,7 @@ function WhatsAppCard({ saved, workspaceId, onSave, onDelete }) {
         body: JSON.stringify({
           channel: 'whatsapp',
           workspace_id: workspaceId,
+          provider_key: 'cloud',
           mode: 'manual',
           access_token: fields.access_token,
           phone_number_id: fields.phone_number_id,
@@ -239,13 +239,8 @@ function WhatsAppCard({ saved, workspaceId, onSave, onDelete }) {
                 <p className="text-xs text-gray-400">Business: {saved.config.business_name}</p>
               )}
               <p className="text-[11px] text-gray-500 pt-1">
-                Messages and webhooks are automatically routed via the WhatsApp Cloud API.
-                Make sure your webhook URL is set in the Meta developer console:
+                Messages route automatically — nothing else to configure.
               </p>
-              <code className="block text-[11px] text-teal-400 bg-[#0B141A] rounded p-2 mt-1 break-all">
-                {PROD_URL}/api/webhooks/whatsapp
-              </code>
-              <p className="text-[11px] text-gray-500 mt-1">Verify token: <span className="text-gray-300 font-mono">{saved.config?.verify_token || 'nyasadesk_verify'}</span></p>
             </div>
             <button onClick={() => onDelete('whatsapp')}
               className="w-full py-2.5 rounded-xl text-sm font-medium text-red-400 bg-red-500/10 hover:bg-red-500/20">
@@ -254,108 +249,93 @@ function WhatsAppCard({ saved, workspaceId, onSave, onDelete }) {
           </div>
         )}
 
-        {/* ── Not connected: show mode tabs ──────────────────────────────── */}
+        {/* ── Not connected: one-click connect is front and center ───────── */}
         {!isLive && (
           <div className="space-y-3">
-            {/* Mode tabs */}
-            <div className="flex gap-2">
-              <button onClick={() => setMode('manual')}
-                className={`flex-1 py-2 rounded-lg text-xs font-medium ${mode === 'manual' ? 'bg-[#25D366] text-white' : 'bg-[#111B21] text-gray-400'}`}>
-                Manual Setup
+            <div className="bg-[#111B21] rounded-xl p-4 space-y-3 text-center">
+              <p className="text-xs text-gray-400 leading-relaxed">
+                Click below, log in with Facebook, and pick your WhatsApp number.
+                No account to create, no keys to paste — we handle everything behind the scenes.
+              </p>
+              <button
+                onClick={launchConnect}
+                disabled={saving || !signup?.config_id}
+                className="w-full py-3 rounded-xl text-sm font-bold text-white bg-[#25D366] hover:bg-[#20BD5A] disabled:opacity-50 flex items-center justify-center gap-2">
+                {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : null}
+                {saving ? 'Connecting…' : !signup?.config_id ? 'Loading…' : 'Connect WhatsApp Business'}
               </button>
-              {setupInfo?.config_id && (
-                <button onClick={() => setMode('embedded')}
-                  className={`flex-1 py-2 rounded-lg text-xs font-medium ${mode === 'embedded' ? 'bg-[#25D366] text-white' : 'bg-[#111B21] text-gray-400'}`}>
-                  One-Click Connect
-                </button>
+              {status === 'saved' && (
+                <p className="text-[11px] text-[#25D366] flex items-center justify-center gap-1">
+                  <CheckCircle2 className="w-3.5 h-3.5" />WhatsApp connected successfully!
+                </p>
+              )}
+              {status.startsWith('error') && (
+                <p className="text-[11px] text-red-400">{status.replace('error: ', '')}</p>
               )}
             </div>
 
-            {/* ── Manual mode ─────────────────────────────────────────────── */}
-            {mode === 'manual' && (
-              <div className="space-y-3">
-                <div className="bg-[#111B21] rounded-xl p-4 space-y-3">
-                  <p className="text-xs text-gray-400 leading-relaxed">
-                    Paste your WhatsApp Cloud API credentials from the Meta developer console.
-                    You need a permanent System User access token (not a temporary one).
-                  </p>
+            {/* ── Advanced: manual credentials (collapsed, for power users only) ── */}
+            <details className="group">
+              <summary className="text-[11px] text-gray-500 cursor-pointer select-none hover:text-gray-400 list-none flex items-center gap-1">
+                <ChevronDown className="w-3 h-3 group-open:rotate-180 transition-transform" />
+                Advanced: use your own Meta developer credentials instead
+              </summary>
+              <div className="mt-3 bg-[#111B21] rounded-xl p-4 space-y-3">
+                <p className="text-xs text-gray-400 leading-relaxed">
+                  Paste your WhatsApp Cloud API credentials from the Meta developer console.
+                  You need a permanent System User access token (not a temporary one).
+                </p>
+                <div className="space-y-2">
+                  <label className="text-[11px] text-gray-500">Access Token (permanent System User token)</label>
+                  <input
+                    type="password"
+                    value={fields.access_token || ''}
+                    onChange={e => setFields({...fields, access_token: e.target.value})}
+                    placeholder="EAAG..."
+                    className="w-full bg-[#0B141A] text-white text-xs rounded-lg p-2.5 border border-white/10" />
+                </div>
+                <div className="grid grid-cols-2 gap-2">
                   <div className="space-y-2">
-                    <label className="text-[11px] text-gray-500">Access Token (permanent System User token)</label>
+                    <label className="text-[11px] text-gray-500">Phone Number ID</label>
                     <input
-                      type="password"
-                      value={fields.access_token || ''}
-                      onChange={e => setFields({...fields, access_token: e.target.value})}
-                      placeholder="EAAG..."
+                      value={fields.phone_number_id || ''}
+                      onChange={e => setFields({...fields, phone_number_id: e.target.value})}
+                      placeholder="123456789"
                       className="w-full bg-[#0B141A] text-white text-xs rounded-lg p-2.5 border border-white/10" />
                   </div>
-                  <div className="grid grid-cols-2 gap-2">
-                    <div className="space-y-2">
-                      <label className="text-[11px] text-gray-500">Phone Number ID</label>
-                      <input
-                        value={fields.phone_number_id || ''}
-                        onChange={e => setFields({...fields, phone_number_id: e.target.value})}
-                        placeholder="123456789"
-                        className="w-full bg-[#0B141A] text-white text-xs rounded-lg p-2.5 border border-white/10" />
-                    </div>
-                    <div className="space-y-2">
-                      <label className="text-[11px] text-gray-500">WABA ID (optional)</label>
-                      <input
-                        value={fields.waba_id || ''}
-                        onChange={e => setFields({...fields, waba_id: e.target.value})}
-                        placeholder="123456789"
-                        className="w-full bg-[#0B141A] text-white text-xs rounded-lg p-2.5 border border-white/10" />
-                    </div>
-                  </div>
                   <div className="space-y-2">
-                    <label className="text-[11px] text-gray-500">Verify Token (for webhook setup)</label>
+                    <label className="text-[11px] text-gray-500">WABA ID (optional)</label>
                     <input
-                      value={fields.verify_token || 'nyasadesk_verify'}
-                      onChange={e => setFields({...fields, verify_token: e.target.value})}
+                      value={fields.waba_id || ''}
+                      onChange={e => setFields({...fields, waba_id: e.target.value})}
+                      placeholder="123456789"
                       className="w-full bg-[#0B141A] text-white text-xs rounded-lg p-2.5 border border-white/10" />
                   </div>
-                  <div className="bg-[#0B141A] rounded-lg p-2.5 space-y-1">
-                    <p className="text-[11px] text-gray-500 font-medium">Webhook URL (paste in Meta console):</p>
-                    <code className="block text-[11px] text-teal-400 break-all">{PROD_URL}/api/webhooks/whatsapp</code>
-                  </div>
-                  <button onClick={handleManualSave} disabled={saving}
-                    className="w-full flex items-center justify-center gap-2 py-2.5 rounded-xl text-sm font-bold text-white"
-                    style={{ background: '#25D366', opacity: saving ? 0.7 : 1 }}>
-                    {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : null}
-                    {saving ? 'Saving…' : 'Save & Connect'}
-                  </button>
                 </div>
-              </div>
-            )}
-
-            {/* ── One-click mode (only if META_CONFIG_ID is set) ──────────── */}
-            {mode === 'embedded' && setupInfo?.config_id && (
-              <div className="space-y-3">
-                <div className="bg-[#111B21] rounded-xl p-4 space-y-2">
-                  <p className="text-sm font-bold text-white">Connect in one click</p>
-                  <p className="text-xs text-gray-400 leading-relaxed">
-                    Log in with Facebook and pick your WhatsApp Business number. We handle the rest.
-                  </p>
+                <div className="space-y-2">
+                  <label className="text-[11px] text-gray-500">Verify Token (for webhook setup)</label>
+                  <input
+                    value={fields.verify_token || 'nyasadesk_verify'}
+                    onChange={e => setFields({...fields, verify_token: e.target.value})}
+                    className="w-full bg-[#0B141A] text-white text-xs rounded-lg p-2.5 border border-white/10" />
                 </div>
-                <button onClick={launchConnect} disabled={saving}
-                  className="w-full flex items-center justify-center gap-2 py-3 rounded-xl text-sm font-bold text-white"
-                  style={{ background: '#25D366', opacity: saving ? 0.7 : 1 }}>
-                  {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : null}
-                  {saving ? 'Connecting…' : 'Connect WhatsApp Business'}
+                <div className="space-y-1">
+                  <label className="text-[11px] text-gray-500">Webhook URL (paste in Meta console):</label>
+                  <code className="block text-[11px] text-teal-400 bg-[#0B141A] rounded p-2 break-all">
+                    {PROD_URL}/api/webhooks/whatsapp
+                  </code>
+                </div>
+                <button
+                  onClick={handleManualSave}
+                  disabled={saving}
+                  className="w-full py-2.5 rounded-xl text-sm font-medium text-white bg-[#25D366] hover:bg-[#20BD5A] disabled:opacity-50">
+                  {saving ? 'Saving…' : 'Save Credentials'}
                 </button>
+                {status.startsWith('error') && (
+                  <p className="text-[11px] text-red-400">{status.replace('error: ', '')}</p>
+                )}
               </div>
-            )}
-
-            {/* Status messages */}
-            {status === 'saved' && (
-              <p className="text-xs text-[#25D366] flex items-center gap-1.5">
-                <CheckCircle2 className="w-3.5 h-3.5" />WhatsApp connected successfully!
-              </p>
-            )}
-            {status.startsWith('error:') && (
-              <p className="text-xs text-red-400 flex items-center gap-1.5">
-                <AlertCircle className="w-3.5 h-3.5" />{status.slice(6)}
-              </p>
-            )}
+            </details>
           </div>
         )}
       </div>
