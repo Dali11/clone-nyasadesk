@@ -14,6 +14,7 @@ import { getProvider } from '../_lib/providers/index.js';
 const SUPABASE_URL = 'https://pfbaepibelomiutlotkn.supabase.co';
 const SUPABASE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY;
 const PROD_URL = 'https://nyasadesk1.vercel.app';
+const BRIDGE_API = 'https://officialapi.wasapflow.com/bridge/v1';
 
 export default async function handler(req, res) {
   if (req.method !== 'POST' && req.query.action !== 'hosted-connect') return res.status(405).json({ error: 'Method Not Allowed' });
@@ -25,6 +26,7 @@ export default async function handler(req, res) {
   if (action === 'signup-config')  return handleSignupConfig(req, res);
   if (action === 'hosted-connect') return handleHostedConnect(req, res);
   if (action === 'save-waba')     return handleSaveWaba(req, res);
+  if (action === 'sync-waba')     return handleSyncWaba(req, res);
   return handleSend(req, res);
 }
 
@@ -137,6 +139,85 @@ async function handleSaveWaba(req, res) {
     return res.status(200).json({ ok: true, config });
   } catch (e) {
     console.error('[channels/save-waba] error:', e);
+    return res.status(500).json({ ok: false, error: e.message });
+  }
+}
+
+// ── Sync WABA from WasapFlow (poll for registered clients) ──────────────
+async function handleSyncWaba(req, res) {
+  try {
+    const { workspace_id } = req.body || {};
+    const wsId = workspace_id || req.query.workspace_id;
+    if (!wsId) return res.status(400).json({ ok: false, error: 'workspace_id is required' });
+
+    const partnerKey = process.env.WASAPFLOW_PARTNER_KEY;
+    if (!partnerKey) return res.status(500).json({ ok: false, error: 'WASAPFLOW_PARTNER_KEY not configured' });
+
+    // List all registered clients from WasapFlow
+    const listRes = await fetch(`${BRIDGE_API}/clients`, {
+      headers: { 'x-partner-key': partnerKey },
+    });
+    const listData = await listRes.json();
+    if (!listRes.ok || !listData.success) {
+      return res.status(500).json({ ok: false, error: listData.message || 'Failed to list WasapFlow clients' });
+    }
+
+    const sb = createClient(SUPABASE_URL, SUPABASE_KEY);
+
+    // Check if we already have a WhatsApp config for this workspace
+    const { data: existing } = await sb.from('channel_configs')
+      .select('*').eq('workspace_id', wsId).eq('channel', 'whatsapp').single();
+
+    const clients = listData.clients || listData.data || [];
+    if (!clients.length) {
+      return res.status(200).json({ ok: false, error: 'No WhatsApp accounts found. Complete the signup first.' });
+    }
+
+    // If we already have a config, try to find a matching client or a new one
+    let client = null;
+    if (existing?.config?.waba_id) {
+      // Find the client that matches our existing WABA
+      client = clients.find(c => c.waba_id === existing.config.waba_id);
+    }
+
+    // If no match, take the most recently created client
+    if (!client) {
+      // Sort by created_at descending and take the first one
+      clients.sort((a, b) => new Date(b.created_at || 0) - new Date(a.created_at || 0));
+      client = clients[0];
+    }
+
+    if (!client) {
+      return res.status(200).json({ ok: false, error: 'No WhatsApp account found.' });
+    }
+
+    // Save/update the config
+    const config = {
+      provider: 'wasapflow',
+      waba_id: client.waba_id,
+      phone_number_id: client.phone_number_id,
+      phone_number: client.phone_number || null,
+      business_name: client.display_name || client.business_name || null,
+      connected_via: 'embedded_signup_hosted',
+      connected_at: new Date().toISOString(),
+      quality_rating: client.quality_rating || null,
+      connection_mode: client.connection_mode || 'coexistence',
+      wasapflow_client_id: client.id || client.waba_id,
+    };
+
+    const { error } = await sb.from('channel_configs').upsert({
+      workspace_id: wsId,
+      channel: 'whatsapp',
+      enabled: true,
+      config,
+      updated_at: new Date().toISOString(),
+    }, { onConflict: 'workspace_id,channel' });
+
+    if (error) throw error;
+
+    return res.status(200).json({ ok: true, config });
+  } catch (e) {
+    console.error('[channels/sync-waba] error:', e);
     return res.status(500).json({ ok: false, error: e.message });
   }
 }

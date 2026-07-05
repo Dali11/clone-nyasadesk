@@ -82,7 +82,7 @@
   <div class="card">
     <div class="logo">N</div>
     <h1 id="title">Connect WhatsApp Business</h1>
-    <p id="status">Opening WasapFlow's secure signup page…</p>
+    <p id="status">Opening the secure WhatsApp signup page…</p>
     <div id="spinner" class="spinner"></div>
     <div id="actions" class="hidden"></div>
   </div>
@@ -91,17 +91,16 @@
     // ──────────────────────────────────────────────────────────────────────
     // WhatsApp Embedded Signup — using WasapFlow's hosted connect page
     //
-    // The Embedded Signup UI only renders when FB.login() runs on a domain
-    // that's in WasapFlow's Meta app's "Allowed Domains" list. Our domain
-    // (nyasadesk1.vercel.app) is NOT in that list, so FB.login() on our
-    // domain shows a generic OAuth dialog instead of the WhatsApp-specific
-    // signup flow.
+    // CRITICAL: The hosted page runs window.resizeTo(1,1) to shrink itself
+    // before opening FB.login's popup. If we open it as a popup window with
+    // specific width/height, that resize SUCCEEDS → the window becomes 1x1
+    // invisible → browser blocks FB.login's popup → instant "cancelled".
     //
-    // WasapFlow's hosted connect page (partner.wasapflow.com/bridge/connect)
-    // IS on their whitelisted domain. It loads the FB SDK, calls FB.login()
-    // with config_id + extras, and posts the result back via
-    // window.opener.postMessage(). We just open it as a popup and listen
-    // for the WASAPFLOW_CONNECT_SUCCESS message.
+    // FIX: Open as a new tab (no width/height) → resizeTo fails silently
+    // (tabs can't be resized) → window stays full-size → FB.login popup
+    // opens normally → Embedded Signup UI renders.
+    //
+    // The hosted page posts the result back via window.opener.postMessage().
     // ──────────────────────────────────────────────────────────────────────
 
     var workspaceId = new URLSearchParams(window.location.search).get('workspace_id');
@@ -110,18 +109,12 @@
     var spinnerEl = document.getElementById('spinner');
     var actionsEl = document.getElementById('actions');
 
-    function isStandalonePWA() {
-      return window.matchMedia('(display-mode: standalone)').matches
-        || window.navigator.standalone === true;
-    }
-
     function redirectToSettings(extra) {
       window.location.href = '/settings?tab=channels' + (extra || '');
     }
 
     // ── Listen for the success message from WasapFlow's hosted page ──────
     window.addEventListener('message', function(event) {
-      // WasapFlow's hosted page posts with '*' as target origin
       if (!event.data || typeof event.data !== 'object') return;
 
       if (event.data.type === 'WASAPFLOW_CONNECT_SUCCESS') {
@@ -131,7 +124,6 @@
         spinnerEl.classList.remove('hidden');
         actionsEl.classList.add('hidden');
 
-        // Save the WABA config to our database
         fetch('/api/channels?action=save-waba', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -167,33 +159,31 @@
       actionsEl.innerHTML = '<a class="btn" href="/settings?tab=channels">Back to Settings</a>';
       actionsEl.classList.remove('hidden');
     } else {
-      // ── Open WasapFlow's hosted connect page as a popup ───────────────
-      // The hosted page is on partner.wasapflow.com (whitelisted with Meta).
-      // It handles the FB SDK, FB.login(), Embedded Signup UI, and WABA
-      // registration. It posts the result back to us via postMessage.
-
+      // The backend redirect URL to WasapFlow's hosted connect page
       var hostedUrl = '/api/channels?action=hosted-connect&workspace_id=' + workspaceId;
 
-      function openHostedPopup() {
-        var popup = window.open(hostedUrl, 'wasapflow_connect', 'width=500,height=700,scrollbars=yes');
+      // ── Open as a NEW TAB (not a popup window) ────────────────────────
+      // No width/height → browser opens a tab → window.resizeTo(1,1) in
+      // the hosted page fails silently → FB.login popup works normally.
+      function openHostedTab() {
+        // Using '_blank' without window features opens a new tab
+        var tab = window.open(hostedUrl, '_blank');
 
-        if (!popup || popup.closed || typeof popup.closed === 'undefined') {
-          // Popup blocked — show manual options
-          titleEl.textContent = 'Popup blocked';
-          statusEl.textContent = 'Tap the button below to open the signup page in a new tab.';
+        if (!tab) {
+          // Popup/tab blocked — show manual link
+          titleEl.textContent = 'Open the signup page';
+          statusEl.textContent = 'Tap below to open the WhatsApp signup page in a new tab.';
           spinnerEl.classList.add('hidden');
           actionsEl.innerHTML = '';
 
-          // Direct link to the hosted page (opens in new tab)
           var openLink = document.createElement('a');
           openLink.className = 'btn';
           openLink.href = hostedUrl;
           openLink.target = '_blank';
           openLink.rel = 'noopener';
-          openLink.textContent = 'Open Signup Page';
+          openLink.textContent = 'Open WhatsApp Signup';
           actionsEl.appendChild(openLink);
 
-          // Back to settings
           var backLink = document.createElement('a');
           backLink.className = 'btn secondary';
           backLink.href = '/settings?tab=channels';
@@ -206,41 +196,72 @@
         return true;
       }
 
-      // Try to auto-open the popup
-      var opened = openHostedPopup();
+      // Auto-open the tab (triggered by the user's click on "Connect" in
+      // Settings, which navigated here — this counts as a user gesture)
+      var opened = openHostedTab();
 
       if (opened) {
         titleEl.textContent = 'Waiting for signup';
-        statusEl.textContent = 'Complete the WhatsApp signup in the popup window. This page will update automatically when done.';
+        statusEl.textContent = 'A new tab opened with the WhatsApp signup. Complete the steps there — this page will update automatically when done.';
 
-        // Check if popup was closed (user cancelled or completed)
-        var checkInterval = setInterval(function() {
-          // The postMessage listener will handle success.
-          // Here we just detect if the popup was closed without success.
-          // We can't read popup.location due to cross-origin.
-          // But we can detect popup.closed.
-          // Note: after postMessage success, we redirect, so this interval
-          // is cleared by the page unload.
-        }, 1000);
-
-        // After 60 seconds with no response, show a "still waiting?" message
+        // After 90 seconds, show a "check connection" fallback
         setTimeout(function() {
-          if (document.visibilityState === 'visible') {
-            statusEl.textContent = 'Still waiting? If the popup didn\'t open, tap below to try again.';
+          // Check if we're still on this page (not redirected by postMessage)
+          if (document.visibilityState !== undefined) {
+            titleEl.textContent = 'Already connected?';
+            statusEl.textContent = 'If you completed the signup in the other tab, tap below to check and save your connection.';
+            spinnerEl.classList.add('hidden');
             actionsEl.innerHTML = '';
-            var retry = document.createElement('button');
-            retry.className = 'btn';
-            retry.textContent = 'Reopen Popup';
-            retry.onclick = function() { openHostedPopup(); };
-            actionsEl.appendChild(retry);
+
+            var checkBtn = document.createElement('button');
+            checkBtn.className = 'btn';
+            checkBtn.textContent = 'Check Connection';
+            checkBtn.onclick = function() {
+              // Poll WasapFlow for registered clients
+              statusEl.textContent = 'Checking for new WhatsApp connections…';
+              spinnerEl.classList.remove('hidden');
+              actionsEl.classList.add('hidden');
+
+              fetch('/api/channels?action=sync-waba&workspace_id=' + workspaceId, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: '{}'
+              })
+              .then(function(r) { return r.json(); })
+              .then(function(d) {
+                if (d.ok) {
+                  titleEl.textContent = 'WhatsApp connected!';
+                  titleEl.classList.add('success');
+                  statusEl.textContent = 'Found and saved your WhatsApp connection.';
+                  setTimeout(function() { redirectToSettings('&wa=connected'); }, 1500);
+                } else {
+                  titleEl.textContent = 'No connection found';
+                  statusEl.textContent = d.error || 'Could not find a new WhatsApp connection. Make sure you completed all steps in the signup tab.';
+                  spinnerEl.classList.add('hidden');
+                  actionsEl.innerHTML = '';
+                  var retry = document.createElement('button');
+                  retry.className = 'btn';
+                  retry.textContent = 'Try Again';
+                  retry.onclick = function() { window.location.reload(); };
+                  actionsEl.appendChild(retry);
+                  actionsEl.classList.remove('hidden');
+                }
+              })
+              .catch(function(e) {
+                redirectToSettings('&wa_error=' + encodeURIComponent(e.message));
+              });
+            };
+            actionsEl.appendChild(checkBtn);
+
             var back = document.createElement('a');
             back.className = 'btn secondary';
             back.href = '/settings?tab=channels';
             back.textContent = 'Back to Settings';
             actionsEl.appendChild(back);
+
             actionsEl.classList.remove('hidden');
           }
-        }, 60000);
+        }, 90000);
       }
     }
   </script>
