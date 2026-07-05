@@ -764,8 +764,19 @@ export default function Settings() {
   const navigate = useNavigate();
   const [searchParams]    = useSearchParams();
   const [section, setSection]       = useState('profile');
-  const [channelConfigs, setChannelConfigs] = useState({});
-  const [loadingChannels, setLoadingChannels] = useState(true);
+  const [channelConfigs, setChannelConfigs] = useState(() => {
+    try {
+      const cached = JSON.parse(localStorage.getItem('wa_channel_configs') || 'null');
+      if (cached && typeof cached === 'object') return cached;
+    } catch {}
+    return {};
+  });
+  const [loadingChannels, setLoadingChannels] = useState(() => {
+    try {
+      const cached = localStorage.getItem('wa_channel_configs');
+      return !cached; // only show the spinner if we have nothing cached yet
+    } catch { return true; }
+  });
   const [profileForm, setProfileForm] = useState({ full_name: '', email: '' });
   const [profileSaved, setProfileSaved] = useState(false);
   const [wsName, setWsName]   = useState('');
@@ -868,12 +879,14 @@ export default function Settings() {
     // channel_configs row keyed to THEIR OWN id, completely disconnected from
     // the shared workspace's inbox — messages would never route anywhere.
     if (!workspaceOwnerId) return;
-    setLoadingChannels(true);
+    // Don't block the UI if we already have cached data to show — fetch quietly
+    // in the background and just patch it in when it lands.
     getChannelConfigs(workspaceOwnerId)
       .then(rows => {
         const map = {};
         rows.forEach(r => { map[r.channel] = r; });
         setChannelConfigs(map);
+        try { localStorage.setItem('wa_channel_configs', JSON.stringify(map)); } catch {}
       })
       .catch(e => console.error('[Settings] failed to load channel configs:', e))
       .finally(() => setLoadingChannels(false));
