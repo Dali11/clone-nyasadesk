@@ -62,7 +62,7 @@ export class WhatsAppWasapFlowProvider extends MessagingProvider {
     });
     const regData = await regRes.json();
     if (!regRes.ok || !regData.success) {
-      throw new Error(regData.message || regData.error || 'WasapFlow registration failed');
+      throw new Error(regData.message || regData.error?.message || regData.error || 'WasapFlow registration failed');
     }
 
     const wabaId = regData.waba_id;
@@ -129,7 +129,7 @@ export class WhatsAppWasapFlowProvider extends MessagingProvider {
     });
     const regData = await regRes.json();
     if (!regRes.ok || !regData.success) {
-      throw new Error(regData.message || regData.error || 'WasapFlow registration failed');
+      throw new Error(regData.message || regData.error?.message || regData.error || 'WasapFlow registration failed');
     }
 
     // Fetch phone number details
@@ -204,7 +204,7 @@ export class WhatsAppWasapFlowProvider extends MessagingProvider {
     });
     const json = await r.json();
     if (!r.ok || !json.success) {
-      throw new Error(json.message || json.error || 'WasapFlow send failed');
+      throw new Error(json.message || json.error?.message || json.error || 'WasapFlow send failed');
     }
 
     return { ok: true, external_id: json.message_id || json.id };
