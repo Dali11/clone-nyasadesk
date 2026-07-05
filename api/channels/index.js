@@ -31,6 +31,7 @@ export default async function handler(req, res) {
   if (action === 'baileys-status') return handleBaileysStatus(req, res);
   if (action === 'baileys-start') return handleBaileysStart(req, res);
   if (action === 'baileys-disconnect') return handleBaileysDisconnect(req, res);
+  if (action === 'baileys-pair')     return handleBaileysPair(req, res);
   return handleSend(req, res);
 }
 
@@ -192,6 +193,25 @@ async function handleBaileysDisconnect(req, res) {
     const wsId = req.query.workspace_id;
     if (!wsId) return res.status(400).json({ error: 'workspace_id required' });
     const r = await fetch(`${BAILEYS_SERVICE_URL}/disconnect/${wsId}`, { method: 'POST' });
+    const data = await r.json();
+    return res.status(r.status).json(data);
+  } catch (e) {
+    return res.status(500).json({ error: 'Baileys service unavailable: ' + e.message });
+  }
+}
+
+async function handleBaileysPair(req, res) {
+  try {
+    const wsId = req.query.workspace_id;
+    if (!wsId) return res.status(400).json({ error: 'workspace_id required' });
+    const { phoneNumber } = req.body || {};
+    if (!phoneNumber) return res.status(400).json({ error: 'phoneNumber required' });
+
+    const r = await fetch(`${BAILEYS_SERVICE_URL}/pair/${wsId}`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ phoneNumber }),
+    });
     const data = await r.json();
     return res.status(r.status).json(data);
   } catch (e) {

@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useSearchParams, useNavigate } from 'react-router-dom';
 import { User, Users, Globe, Bell, Building2, Check, Loader2,
-         Trash2, Copy, ExternalLink, ChevronDown, AlertCircle, Code2, ShieldCheck, CreditCard, Crown, Clock, CheckCircle2, QrCode } from 'lucide-react';
+         Trash2, Copy, ExternalLink, ChevronDown, AlertCircle, Code2, ShieldCheck, CreditCard, Crown, Clock, CheckCircle2, QrCode, Phone } from 'lucide-react';
 import Sidebar from '@/components/Sidebar';
 import Avatar from '@/components/Avatar';
 import TeamSection from '@/components/settings/TeamSection';
@@ -96,12 +96,15 @@ function ManualFields({ fields, setFields, fieldDefs }) {
 }
 
 function WhatsAppCard({ saved, workspaceId, onSave, onDelete }) {
-  const [qrData, setQrData] = useState(null); // { qrImage, status }
+  const [linkMode, setLinkMode] = useState(null); // 'qr' | 'phone' | null
+  const [qrData, setQrData] = useState(null);
   const [baileysStatus, setBaileysStatus] = useState(saved?.config?.provider === 'baileys' ? 'connected' : 'disconnected');
   const [loadingQR, setLoadingQR] = useState(false);
   const [error, setError] = useState('');
   const [polling, setPolling] = useState(false);
-  const [manualMode, setManualMode] = useState(false);
+  const [phoneNumber, setPhoneNumber] = useState('');
+  const [pairingCode, setPairingCode] = useState(null);
+  const [requestingPair, setRequestingPair] = useState(false);
   const [manualFields, setManualFields] = useState({});
   const [savingManual, setSavingManual] = useState(false);
 
@@ -117,26 +120,53 @@ function WhatsAppCard({ saved, workspaceId, onSave, onDelete }) {
       if (data.status === 'connected') {
         setBaileysStatus('connected');
         setQrData(null);
-        // Reload channel configs to reflect the connection
         if (onSave) onSave('whatsapp', { provider: 'baileys', linked_device: true });
       } else if (data.qrImage) {
         setQrData({ qrImage: data.qrImage, status: data.status });
         setBaileysStatus('qr_pending');
-        // Start polling for connection
         if (!polling) startPolling();
       } else {
         setBaileysStatus(data.status || 'connecting');
-        // Retry in 2 seconds (session might still be starting)
         setTimeout(() => fetchQR(), 2000);
       }
     } catch (e) {
-      setError('Could not reach the WhatsApp service. Make sure it is running. ' + e.message);
+      setError('Could not reach the WhatsApp service. ' + e.message);
     } finally {
       setLoadingQR(false);
     }
   };
 
-  // ── Poll for connection status ────────────────────────────────────────
+  // ── Request pairing code (link with phone number) ─────────────────────
+  const requestPairing = async () => {
+    if (!phoneNumber || phoneNumber.replace(/[^0-9]/g, '').length < 8) {
+      setError('Enter a valid phone number with country code (e.g. 265991234567)');
+      return;
+    }
+    setRequestingPair(true);
+    setError('');
+    setPairingCode(null);
+    try {
+      const res = await fetch(`/api/channels?action=baileys-pair&workspace_id=${workspaceId}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ phoneNumber: phoneNumber.replace(/[^0-9]/g, '') }),
+      });
+      const data = await res.json();
+      if (data.ok && data.pairingCode) {
+        setPairingCode(data.pairingCode);
+        setBaileysStatus('pairing_pending');
+        if (!polling) startPolling();
+      } else {
+        setError(data.error || 'Failed to generate pairing code');
+      }
+    } catch (e) {
+      setError('Could not reach the WhatsApp service. ' + e.message);
+    } finally {
+      setRequestingPair(false);
+    }
+  };
+
+  // ── Poll for connection status (shared by QR and phone pairing) ───────
   const startPolling = () => {
     setPolling(true);
     const interval = setInterval(async () => {
@@ -146,28 +176,26 @@ function WhatsAppCard({ saved, workspaceId, onSave, onDelete }) {
         if (data.status === 'connected') {
           setBaileysStatus('connected');
           setQrData(null);
+          setPairingCode(null);
           setPolling(false);
           clearInterval(interval);
           if (onSave) onSave('whatsapp', { provider: 'baileys', linked_device: true });
         } else if (data.status === 'disconnected' || data.status === 'qr_expired') {
-          // QR expired — stop polling, user needs to refresh
           setBaileysStatus(data.status);
           setQrData(null);
+          setPairingCode(null);
           setPolling(false);
           clearInterval(interval);
         }
-      } catch (e) {
-        // Keep polling — transient network error
-      }
+      } catch (e) { /* keep polling */ }
     }, 3000);
-
-    // Stop polling after 90 seconds
     setTimeout(() => {
       clearInterval(interval);
       setPolling(false);
       if (baileysStatus !== 'connected') {
         setBaileysStatus('qr_expired');
         setQrData(null);
+        setPairingCode(null);
       }
     }, 90000);
   };
@@ -178,6 +206,8 @@ function WhatsAppCard({ saved, workspaceId, onSave, onDelete }) {
       await fetch(`/api/channels?action=baileys-disconnect&workspace_id=${workspaceId}`, { method: 'POST' });
       setBaileysStatus('disconnected');
       setQrData(null);
+      setPairingCode(null);
+      setLinkMode(null);
       if (onDelete) onDelete('whatsapp');
     } catch (e) {
       setError('Disconnect failed: ' + e.message);
@@ -196,34 +226,24 @@ function WhatsAppCard({ saved, workspaceId, onSave, onDelete }) {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          channel: 'whatsapp',
-          workspace_id: workspaceId,
-          provider_key: 'cloud',
-          mode: 'manual',
-          access_token: manualFields.access_token,
-          phone_number_id: manualFields.phone_number_id,
-          waba_id: manualFields.waba_id || null,
-          verify_token: manualFields.verify_token || 'nyasadesk_verify',
+          channel: 'whatsapp', workspace_id: workspaceId, provider_key: 'cloud', mode: 'manual',
+          access_token: manualFields.access_token, phone_number_id: manualFields.phone_number_id,
+          waba_id: manualFields.waba_id || null, verify_token: manualFields.verify_token || 'nyasadesk_verify',
         }),
       });
       const data = await res.json();
       if (data.ok) {
         if (onSave) onSave('whatsapp', data.config?.config || { access_token: manualFields.access_token, phone_number_id: manualFields.phone_number_id });
         setError('');
-        setManualMode(false);
       } else {
         setError(data.error || 'Failed to save');
       }
-    } catch (e) {
-      setError(e.message);
-    } finally {
-      setSavingManual(false);
-    }
+    } catch (e) { setError(e.message); } finally { setSavingManual(false); }
   };
 
   const subtitle = isLive
-    ? ('Connected' + (saved?.config?.phone_number ? ' \u00b7 ' + saved.config.phone_number : ''))
-    : 'Scan QR to link your WhatsApp';
+    ? ('Connected' + (saved?.config?.phone_number ? ' · ' + saved.config.phone_number : ''))
+    : 'Link your WhatsApp account';
 
   return (
     <ChannelCard iconUrl="https://upload.wikimedia.org/wikipedia/commons/6/6b/WhatsApp.svg" title="WhatsApp" subtitle={subtitle}
@@ -251,54 +271,139 @@ function WhatsAppCard({ saved, workspaceId, onSave, onDelete }) {
           </div>
         )}
 
-        {/* ── Not connected: QR code linking ─────────────────────────────── */}
+        {/* ── Not connected ──────────────────────────────────────────────── */}
         {!isLive && (
           <div className="space-y-3">
-            {/* QR code display */}
-            {qrData?.qrImage && (
-              <div className="bg-white rounded-xl p-4 flex flex-col items-center gap-3">
-                <img src={qrData.qrImage} alt="WhatsApp QR Code" className="w-56 h-56" />
-                <p className="text-xs text-gray-600 text-center font-medium">
-                  Open WhatsApp on your phone \u2192 Settings \u2192 Linked Devices \u2192 Link a Device \u2192 Scan this code
+            {/* ── Initial: choose linking method ─────────────────────────── */}
+            {!linkMode && baileysStatus !== 'connecting' && baileysStatus !== 'pairing_pending' && (
+              <div className="bg-[#111B21] rounded-xl p-4 space-y-4">
+                <p className="text-xs text-gray-400 leading-relaxed text-center">
+                  Link your WhatsApp account to send and receive messages in Nyasadesk.
+                  No API keys or business verification needed.
+                </p>
+                <div className="space-y-2.5">
+                  {/* QR option */}
+                  <button
+                    onClick={() => { setLinkMode('qr'); fetchQR(); }}
+                    className="w-full py-3 rounded-xl text-sm font-bold text-white bg-[#25D366] hover:bg-[#20BD5A] flex items-center justify-center gap-2">
+                    <QrCode className="w-4 h-4" /> Scan QR Code
+                  </button>
+                  {/* Phone number option */}
+                  <button
+                    onClick={() => setLinkMode('phone')}
+                    className="w-full py-3 rounded-xl text-sm font-medium text-[#25D366] bg-[#25D366]/10 hover:bg-[#25D366]/20 flex items-center justify-center gap-2">
+                    <Phone className="w-4 h-4" /> Link with Phone Number
+                  </button>
+                </div>
+                <p className="text-[11px] text-gray-500 text-center">
+                  Scanning a QR is fastest. Use phone number if your device isn\'t nearby or you\'re on a call.
                 </p>
               </div>
             )}
 
-            {/* Loading state */}
-            {loadingQR && !qrData?.qrImage && (
-              <div className="bg-[#111B21] rounded-xl p-8 flex flex-col items-center gap-3">
-                <Loader2 className="w-8 h-8 animate-spin text-[#25D366]" />
-                <p className="text-xs text-gray-400">Generating QR code\u2026</p>
-              </div>
-            )}
-
-            {/* QR expired */}
-            {baileysStatus === 'qr_expired' && (
-              <div className="bg-[#111B21] rounded-xl p-4 text-center space-y-2">
-                <p className="text-xs text-amber-400">QR code expired. Generate a new one to try again.</p>
-              </div>
-            )}
-
-            {/* Connecting state */}
-            {baileysStatus === 'connecting' && !qrData?.qrImage && !loadingQR && (
-              <div className="bg-[#111B21] rounded-xl p-8 flex flex-col items-center gap-3">
-                <Loader2 className="w-6 h-6 animate-spin text-[#25D366]" />
-                <p className="text-xs text-gray-400">Connecting to WhatsApp\u2026</p>
-              </div>
-            )}
-
-            {/* Action buttons */}
-            {!qrData?.qrImage && !loadingQR && baileysStatus !== 'connecting' && (
-              <div className="bg-[#111B21] rounded-xl p-4 space-y-3 text-center">
-                <p className="text-xs text-gray-400 leading-relaxed">
-                  Link your WhatsApp account by scanning a QR code \u2014 just like WhatsApp Web.
-                  No API keys, no Meta business verification needed.
-                </p>
+            {/* ── QR code mode ────────────────────────────────────────────── */}
+            {linkMode === 'qr' && (
+              <div className="space-y-3">
+                {/* Back button */}
                 <button
-                  onClick={fetchQR}
-                  className="w-full py-3 rounded-xl text-sm font-bold text-white bg-[#25D366] hover:bg-[#20BD5A] flex items-center justify-center gap-2">
-                  <QrCode className="w-4 h-4" /> Link WhatsApp
+                  onClick={() => { setLinkMode(null); setQrData(null); setBaileysStatus('disconnected'); }}
+                  className="text-[11px] text-gray-500 hover:text-gray-400 flex items-center gap-1">
+                  <ChevronDown className="w-3 h-3 rotate-90" /> Back
                 </button>
+
+                {qrData?.qrImage && (
+                  <div className="bg-white rounded-xl p-4 flex flex-col items-center gap-3">
+                    <img src={qrData.qrImage} alt="WhatsApp QR Code" className="w-56 h-56" />
+                    <p className="text-xs text-gray-600 text-center font-medium leading-relaxed">
+                      Open WhatsApp on your phone → Settings → Linked Devices → Link a Device → Scan this code
+                    </p>
+                  </div>
+                )}
+
+                {loadingQR && !qrData?.qrImage && (
+                  <div className="bg-[#111B21] rounded-xl p-8 flex flex-col items-center gap-3">
+                    <Loader2 className="w-8 h-8 animate-spin text-[#25D366]" />
+                    <p className="text-xs text-gray-400">Generating QR code…</p>
+                  </div>
+                )}
+
+                {baileysStatus === 'qr_expired' && (
+                  <div className="bg-[#111B21] rounded-xl p-4 text-center space-y-3">
+                    <p className="text-xs text-amber-400">QR code expired.</p>
+                    <button onClick={fetchQR}
+                      className="px-4 py-2 rounded-lg text-xs font-medium text-white bg-[#25D366] hover:bg-[#20BD5A]">
+                      Generate new QR
+                    </button>
+                  </div>
+                )}
+
+                {baileysStatus === 'connecting' && !qrData?.qrImage && !loadingQR && (
+                  <div className="bg-[#111B21] rounded-xl p-8 flex flex-col items-center gap-3">
+                    <Loader2 className="w-6 h-6 animate-spin text-[#25D366]" />
+                    <p className="text-xs text-gray-400">Connecting to WhatsApp…</p>
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* ── Phone number pairing mode ──────────────────────────────── */}
+            {linkMode === 'phone' && (
+              <div className="space-y-3">
+                <button
+                  onClick={() => { setLinkMode(null); setPairingCode(null); setBaileysStatus('disconnected'); }}
+                  className="text-[11px] text-gray-500 hover:text-gray-400 flex items-center gap-1">
+                  <ChevronDown className="w-3 h-3 rotate-90" /> Back
+                </button>
+
+                <div className="bg-[#111B21] rounded-xl p-4 space-y-3">
+                  <p className="text-xs text-gray-400 leading-relaxed">
+                    Enter your WhatsApp phone number with country code (e.g. 265991234567).
+                    We\'ll give you a pairing code to type into your WhatsApp app.
+                  </p>
+                  <div className="space-y-2">
+                    <label className="text-[11px] text-gray-500">Phone Number</label>
+                    <input
+                      type="tel"
+                      value={phoneNumber}
+                      onChange={e => setPhoneNumber(e.target.value)}
+                      placeholder="265991234567"
+                      className="w-full bg-[#0B141A] text-white text-sm rounded-lg p-2.5 border border-white/10"
+                      disabled={!!pairingCode}
+                    />
+                  </div>
+
+                  {!pairingCode && (
+                    <button
+                      onClick={requestPairing}
+                      disabled={requestingPair}
+                      className="w-full py-3 rounded-xl text-sm font-bold text-white bg-[#25D366] hover:bg-[#20BD5A] disabled:opacity-50 flex items-center justify-center gap-2">
+                      {requestingPair ? (<><Loader2 className="w-4 h-4 animate-spin" /> Generating…</>) : "Get Pairing Code"}
+                    </button>
+                  )}
+
+                  {/* Pairing code display */}
+                  {pairingCode && (
+                    <div className="space-y-3 pt-2">
+                      <div className="bg-[#0B141A] rounded-xl p-5 text-center space-y-2 border border-[#25D366]/30">
+                        <p className="text-[11px] text-gray-500 uppercase tracking-wide">Your pairing code</p>
+                        <p className="text-3xl font-bold text-[#25D366] tracking-widest font-mono">{pairingCode}</p>
+                      </div>
+                      <div className="bg-[#111B21] rounded-xl p-4 space-y-2">
+                        <p className="text-xs text-gray-400 font-medium">Steps on your phone:</p>
+                        <ol className="text-[11px] text-gray-500 space-y-1.5 list-decimal list-inside leading-relaxed">
+                          <li>Open <span className="text-gray-300">WhatsApp</span></li>
+                          <li>Go to <span className="text-gray-300">Settings → Linked Devices</span></li>
+                          <li>Tap <span className="text-gray-300">Link a Device</span></li>
+                          <li>Tap <span className="text-gray-300">Link with phone number instead</span></li>
+                          <li>Enter the code above</li>
+                        </ol>
+                        <p className="text-[11px] text-amber-400 pt-1">
+                          Waiting for link… this page will update automatically when connected.
+                        </p>
+                      </div>
+                    </div>
+                  )}
+                </div>
               </div>
             )}
 
@@ -308,7 +413,7 @@ function WhatsAppCard({ saved, workspaceId, onSave, onDelete }) {
             )}
 
             {/* Advanced: Cloud API (for later) */}
-            <details className="group" onChange={() => setManualMode(!manualMode)}>
+            <details className="group">
               <summary className="text-[11px] text-gray-500 cursor-pointer select-none hover:text-gray-400 list-none flex items-center gap-1">
                 <ChevronDown className="w-3 h-3 group-open:rotate-180 transition-transform" />
                 Advanced: WhatsApp Cloud API (Meta Business)
@@ -320,9 +425,7 @@ function WhatsAppCard({ saved, workspaceId, onSave, onDelete }) {
                 </p>
                 <div className="space-y-2">
                   <label className="text-[11px] text-gray-500">Access Token</label>
-                  <input
-                    type="password"
-                    value={manualFields.access_token || ''}
+                  <input type="password" value={manualFields.access_token || ''}
                     onChange={e => setManualFields({...manualFields, access_token: e.target.value})}
                     placeholder="EAAG..."
                     className="w-full bg-[#0B141A] text-white text-xs rounded-lg p-2.5 border border-white/10" />
@@ -330,26 +433,22 @@ function WhatsAppCard({ saved, workspaceId, onSave, onDelete }) {
                 <div className="grid grid-cols-2 gap-2">
                   <div className="space-y-2">
                     <label className="text-[11px] text-gray-500">Phone Number ID</label>
-                    <input
-                      value={manualFields.phone_number_id || ''}
+                    <input value={manualFields.phone_number_id || ''}
                       onChange={e => setManualFields({...manualFields, phone_number_id: e.target.value})}
                       placeholder="123456789"
                       className="w-full bg-[#0B141A] text-white text-xs rounded-lg p-2.5 border border-white/10" />
                   </div>
                   <div className="space-y-2">
                     <label className="text-[11px] text-gray-500">WABA ID</label>
-                    <input
-                      value={manualFields.waba_id || ''}
+                    <input value={manualFields.waba_id || ''}
                       onChange={e => setManualFields({...manualFields, waba_id: e.target.value})}
                       placeholder="123456789"
                       className="w-full bg-[#0B141A] text-white text-xs rounded-lg p-2.5 border border-white/10" />
                   </div>
                 </div>
-                <button
-                  onClick={handleManualSave}
-                  disabled={savingManual}
+                <button onClick={handleManualSave} disabled={savingManual}
                   className="w-full py-2.5 rounded-xl text-sm font-medium text-white bg-[#25D366] hover:bg-[#20BD5A] disabled:opacity-50">
-                  {savingManual ? 'Saving\u2026' : 'Save Cloud API Credentials'}
+                  {savingManual ? 'Saving…' : 'Save Cloud API Credentials'}
                 </button>
               </div>
             </details>
@@ -359,6 +458,7 @@ function WhatsAppCard({ saved, workspaceId, onSave, onDelete }) {
     </ChannelCard>
   );
 }
+
 
 function MessengerCard({ saved, workspaceId, onSave, onDelete }) {
   const [mode, setMode]       = useState('easy');

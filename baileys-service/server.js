@@ -67,7 +67,7 @@ async function startSession(workspaceId) {
     },
   });
 
-  const session = { sock, store, status: 'connecting', qr: null, qrTimeout: null };
+  const session = { sock, store, status: 'connecting', qr: null, qrTimeout: null, pairingCode: null };
   sessions.set(workspaceId, session);
 
   // Load store from file
@@ -107,6 +107,7 @@ async function startSession(workspaceId) {
     if (connection === 'open') {
       session.status = 'connected';
       session.qr = null;
+      session.pairingCode = null;
       if (session.qrTimeout) clearTimeout(session.qrTimeout);
       logger.info(`[${workspaceId}] WhatsApp connected`);
       // Notify our backend
@@ -117,6 +118,7 @@ async function startSession(workspaceId) {
       const code = lastDisconnect?.error?.output?.statusCode;
       session.status = 'disconnected';
       session.qr = null;
+      session.pairingCode = null;
       logger.warn(`[${workspaceId}] Connection closed, code=${code}`);
 
       if (code !== DisconnectReason.loggedOut) {
@@ -309,6 +311,51 @@ app.get('/qr/:workspaceId', async (req, res) => {
 
   // Still connecting, no QR yet
   res.json({ status: session.status });
+});
+
+// Request pairing code (link with phone number instead of QR)
+// User enters their phone number, we return a code they type into WhatsApp
+app.post('/pair/:workspaceId', async (req, res) => {
+  const { workspaceId } = req.params;
+  const { phoneNumber } = req.body;
+
+  if (!phoneNumber) {
+    return res.status(400).json({ error: 'phoneNumber is required' });
+  }
+
+  // Clean the phone number: remove +, spaces, dashes
+  const cleanPhone = phoneNumber.replace(/[+\s-]/g, '');
+
+  let session = sessions.get(workspaceId);
+  if (!session || session.status === 'disconnected' || session.status === 'qr_expired') {
+    try {
+      session = await startSession(workspaceId);
+      // Wait a moment for the session to initialize and get a QR
+      await new Promise(r => setTimeout(r, 2000));
+      session = sessions.get(workspaceId);
+    } catch (e) {
+      return res.status(500).json({ error: 'Failed to start session: ' + e.message });
+    }
+  }
+
+  if (!session?.sock) {
+    return res.status(503).json({ error: 'Session not ready, try again in a moment' });
+  }
+
+  try {
+    // requestPairingCode returns a string like "ABCD1234"
+    const code = await session.sock.requestPairingCode(cleanPhone);
+    session.pairingCode = code;
+    session.status = 'pairing_pending';
+
+    // Notify our backend
+    postWebhook(workspaceId, { type: 'pairing', status: 'code_generated', code }).catch(() => {});
+
+    res.json({ ok: true, pairingCode: code, phoneNumber: cleanPhone });
+  } catch (e) {
+    logger.error(`[${workspaceId}] Pairing code failed:`, e.message);
+    res.status(500).json({ error: e.message });
+  }
 });
 
 // Get connection status
