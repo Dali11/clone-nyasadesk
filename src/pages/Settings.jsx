@@ -9,7 +9,6 @@ import { useNyasaAuth } from '@/lib/NyasaAuth';
 import { getChannelConfigs, saveChannelConfig, deleteChannelConfig } from '@/lib/channels';
 import { supabase } from '@/lib/supabase';
 import { useDocumentTitle } from '@/hooks/useDocumentTitle';
-import { useFacebookSDK } from '@/hooks/useFacebookSDK';
 
 const PROD_URL  = 'https://nyasadesk1.vercel.app';
 const FB_APP_ID = import.meta.env.VITE_FACEBOOK_APP_ID || '';
@@ -110,7 +109,6 @@ function WhatsAppCard({ saved, workspaceId, onSave, onDelete }) {
     return null;
   }); // { app_id, config_id } from WasapFlow
   const [signupError, setSignupError] = useState('');
-  const fbReady = useFacebookSDK(signup?.app_id || '');
   const isLive = !!(saved && saved.enabled && saved.config && (saved.config.waba_id || saved.config.access_token || saved.config.d360_api_key || saved.config.bird_workspace_id));
 
   // ── Fetch WasapFlow's Embedded Signup config (our Meta app, invisible to customer) ─
@@ -128,64 +126,31 @@ function WhatsAppCard({ saved, workspaceId, onSave, onDelete }) {
       .catch(e => setSignupError(e.message));
   }, []);
 
-  // ── One-click connect: Meta's WhatsApp Embedded Signup MUST run through the
-  // Facebook JS SDK's FB.login() popup with config_id — WasapFlow's docs are
-  // explicit about this. A plain redirect to facebook.com/dialog/oauth (what
-  // this used to do) doesn't run the guided WABA/number-picker UI at all —
-  // that's exactly why the button appeared to hang: Facebook has nowhere to
-  // send the user back to properly, since the flow needs the SDK's popup +
-  // postMessage session handling, not a full top-level page navigation. ──
+  // ── One-click connect: redirect-based OAuth flow.
+  // WasapFlow's Embedded Signup uses Meta's config_id-based OAuth. We redirect
+  // the whole page to Facebook's OAuth dialog (not a JS SDK popup — popups
+  // break in PWA/standalone mode because the window.opener/postMessage bridge
+  // gets severed). Facebook runs the Embedded Signup UI (login + WBA selection
+  // + number picker), then redirects back to /api/auth/whatsapp-embedded with
+  // ?code=...&state=WORKSPACE_ID. Our backend sends that code to WasapFlow's
+  // /clients/register-from-code, which exchanges it server-side and registers
+  // the WABA. We never see the raw Meta access token. ──
   const launchConnect = () => {
     if (!signup?.config_id || !signup?.app_id) {
       setStatus("error: Connect is still loading — try again in a moment");
       setTimeout(() => setStatus(""), 3000);
       return;
     }
-    if (!fbReady || !window.FB) {
-      setStatus("error: Facebook SDK still loading — try again in a moment");
-      setTimeout(() => setStatus(""), 3000);
-      return;
-    }
-    setSaving(true);
-    setStatus('');
-    window.FB.login((response) => {
-      const code = response?.authResponse?.code;
-      if (!code) {
-        setSaving(false);
-        setStatus('error: Connection cancelled or Facebook did not return an authorization code');
-        setTimeout(() => setStatus(''), 5000);
-        return;
-      }
-      // Send the code to our backend — WasapFlow exchanges it server-side
-      // (via /clients/register-from-code) and registers the WABA. We never
-      // see or handle the raw Meta access token ourselves.
-      fetch('/api/auth/whatsapp-embedded', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ code, workspace_id: workspaceId, provider: 'wasapflow' }),
-      })
-        .then(r => r.json())
-        .then(async (d) => {
-          if (d.ok && d.config?.config) {
-            await onSave('whatsapp', d.config.config);
-            setStatus('saved');
-            setTimeout(() => setStatus(''), 4000);
-          } else {
-            setStatus('error: ' + (d.error || 'Registration failed'));
-            setTimeout(() => setStatus(''), 6000);
-          }
-        })
-        .catch(e => {
-          setStatus('error: ' + e.message);
-          setTimeout(() => setStatus(''), 6000);
-        })
-        .finally(() => setSaving(false));
-    }, {
-      config_id: signup.config_id,
-      response_type: 'code',
-      override_default_response_type: true,
-      extras: signup.extras || { setup: {}, featureType: 'whatsapp_business_app_onboarding', sessionInfoVersion: '3', version: 'v4' },
-    });
+    const redirectUri = encodeURIComponent(PROD_URL + "/api/auth/whatsapp-embedded");
+    const state = workspaceId;
+    const url = `https://www.facebook.com/v19.0/dialog/oauth`
+      + `?client_id=${signup.app_id}`
+      + `&redirect_uri=${redirectUri}`
+      + `&state=${state}`
+      + `&scope=whatsapp_business_management,whatsapp_business_messaging`
+      + `&response_type=code`
+      + `&config_id=${signup.config_id}`;
+    window.location.href = url;
   };
 
   // ── Manual save (advanced / fallback path — hidden by default) ─────────
@@ -271,13 +236,11 @@ function WhatsAppCard({ saved, workspaceId, onSave, onDelete }) {
               </p>
               <button
                 onClick={launchConnect}
-                disabled={!signup?.config_id || !fbReady || saving}
+                disabled={!signup?.config_id}
                 className="w-full py-3 rounded-xl text-sm font-bold text-white bg-[#25D366] hover:bg-[#20BD5A] disabled:opacity-50 flex items-center justify-center gap-2">
-                {saving
-                  ? (<><Loader2 className="w-4 h-4 animate-spin" /> Connecting…</>)
-                  : (!signup?.config_id || !fbReady)
-                    ? (<><Loader2 className="w-4 h-4 animate-spin" /> Loading…</>)
-                    : "Connect WhatsApp Business"}
+                {!signup?.config_id
+                  ? (<><Loader2 className="w-4 h-4 animate-spin" /> Loading…</>)
+                  : "Connect WhatsApp Business"}
               </button>
               {status === 'saved' && (
                 <p className="text-[11px] text-[#25D366] flex items-center justify-center gap-1">
