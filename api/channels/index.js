@@ -16,13 +16,14 @@ const SUPABASE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY;
 const PROD_URL = 'https://nyasadesk1.vercel.app';
 
 export default async function handler(req, res) {
-  if (req.method !== 'POST') return res.status(405).json({ error: 'Method Not Allowed' });
+  if (req.method !== 'POST' && req.query.action !== 'hosted-connect') return res.status(405).json({ error: 'Method Not Allowed' });
   const action = req.query.action || 'send';
 
   if (action === 'telegram-setup') return handleConnect(req, res);
   if (action === 'connect')        return handleConnect(req, res);
   if (action === 'disconnect')     return handleDisconnect(req, res);
   if (action === 'signup-config')  return handleSignupConfig(req, res);
+  if (action === 'hosted-connect') return handleHostedConnect(req, res);
   return handleSend(req, res);
 }
 
@@ -92,6 +93,59 @@ async function handleSignupConfig(req, res) {
     return res.status(200).json({ ok: true, ...config });
   } catch (e) {
     console.error('[channels/signup-config] error:', e);
+    return res.status(500).json({ ok: false, error: e.message });
+  }
+}
+
+// ── WasapFlow hosted connect (redirects to their pre-whitelisted page) ───
+async function handleHostedConnect(req, res) {
+  try {
+    const partnerKey = process.env.WASAPFLOW_PARTNER_KEY;
+    if (!partnerKey) return res.status(500).json({ ok: false, error: 'WASAPFLOW_PARTNER_KEY not configured' });
+
+    const workspaceId = (req.query.workspace_id) || (req.body?.workspace_id);
+    if (!workspaceId) return res.status(400).json({ ok: false, error: 'workspace_id is required' });
+
+    const redirectUri = encodeURIComponent(PROD_URL + '/api/auth/whatsapp-embedded');
+
+    // Try the hosted connect page with partner_key as query param
+    // WasapFlow's hosted page is on their domain (already whitelisted with Meta)
+    const hostedUrl = `https://partner.wasapflow.com/bridge/connect?partner_key=${encodeURIComponent(partnerKey)}&redirect_uri=${redirectUri}&state=${workspaceId}`;
+
+    // First, try a server-side fetch to see what the page returns
+    try {
+      const probe = await fetch(`https://partner.wasapflow.com/bridge/connect?partner_key=${encodeURIComponent(partnerKey)}&redirect_uri=${redirectUri}&state=${workspaceId}`, {
+        headers: { 'x-partner-key': partnerKey },
+        redirect: 'manual',
+      });
+
+      if (probe.status === 200) {
+        // Page exists and returns HTML — redirect the user there
+        return res.redirect(302, hostedUrl);
+      } else if (probe.status >= 300 && probe.status < 400) {
+        // It's a redirect — follow it
+        const location = probe.headers.get('location');
+        if (location) return res.redirect(302, location);
+        return res.redirect(302, hostedUrl);
+      } else {
+        // Return the status so we can debug
+        const body = await probe.text().catch(() => '');
+        return res.status(200).json({
+          ok: false,
+          error: `WasapFlow hosted connect returned status ${probe.status}`,
+          status: probe.status,
+          bodyPreview: body.substring(0, 500),
+          hostedUrl: hostedUrl
+        });
+      }
+    } catch (fetchErr) {
+      return res.status(200).json({
+        ok: false,
+        error: 'Could not reach WasapFlow hosted connect: ' + fetchErr.message,
+        hostedUrl: hostedUrl
+      });
+    }
+  } catch (e) {
     return res.status(500).json({ ok: false, error: e.message });
   }
 }
