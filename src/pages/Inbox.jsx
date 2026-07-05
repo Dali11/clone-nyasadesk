@@ -19,7 +19,7 @@ const STATUS_TABS = [
   { key: 'closed',     label: 'Closed'     },
 ];
 
-const CHANNELS_FILTER = ['all', 'whatsapp', 'messenger', 'instagram', 'telegram', 'email', 'website'];
+const CHANNELS_FILTER = ['all', 'whatsapp', 'website'];
 
 export default function Inbox() {
   useDocumentTitle('Inbox');

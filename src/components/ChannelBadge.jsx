@@ -23,7 +23,7 @@ export const CHANNEL_CONFIG = {
   website:   { Icon: Globe,         bg: 'bg-cyan-100',   text: 'text-cyan-700',   dot: 'bg-cyan-500',   label: 'Website'   },
 };
 
-export const CHANNELS = ['whatsapp', 'messenger', 'email', 'website'];
+export const CHANNELS = ['whatsapp', 'website'];
 
 export default function ChannelBadge({ channel, showLabel = false, size = 'sm', dot = false }) {
   const cfg = CHANNEL_CONFIG[channel] || CHANNEL_CONFIG.email;

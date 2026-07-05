@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useSearchParams, useNavigate } from 'react-router-dom';
 import { User, Users, Globe, Bell, Building2, Check, Loader2,
-         Trash2, Copy, ExternalLink, ChevronDown, AlertCircle, Code2, ShieldCheck, CreditCard, Crown, Clock, CheckCircle2 } from 'lucide-react';
+         Trash2, Copy, ExternalLink, ChevronDown, AlertCircle, Code2, ShieldCheck, CreditCard, Crown, Clock, CheckCircle2, QrCode } from 'lucide-react';
 import Sidebar from '@/components/Sidebar';
 import Avatar from '@/components/Avatar';
 import TeamSection from '@/components/settings/TeamSection';
@@ -96,99 +96,101 @@ function ManualFields({ fields, setFields, fieldDefs }) {
 }
 
 function WhatsAppCard({ saved, workspaceId, onSave, onDelete }) {
-  const [mode, setMode]       = useState('embedded'); // one-click is the default, primary flow
-  const [fields, setFields]   = useState(saved ? saved.config || {} : {});
-  const [saving, setSaving]   = useState(false);
-  const [status, setStatus]   = useState('');
-  const [signup, setSignup]   = useState(() => {
-    // Instant-load from cache so the button is ready without waiting
+  const [qrData, setQrData] = useState(null); // { qrImage, status }
+  const [baileysStatus, setBaileysStatus] = useState(saved?.config?.provider === 'baileys' ? 'connected' : 'disconnected');
+  const [loadingQR, setLoadingQR] = useState(false);
+  const [error, setError] = useState('');
+  const [polling, setPolling] = useState(false);
+  const [manualMode, setManualMode] = useState(false);
+  const [manualFields, setManualFields] = useState({});
+  const [savingManual, setSavingManual] = useState(false);
+
+  const isLive = !!(saved && saved.enabled && saved.config && (saved.config.provider === 'baileys' || saved.config.waba_id || saved.config.access_token));
+
+  // ── Fetch QR code from Baileys service ────────────────────────────────
+  const fetchQR = async () => {
+    setLoadingQR(true);
+    setError('');
     try {
-      const cached = JSON.parse(localStorage.getItem('wa_signup_config') || 'null');
-      if (cached && cached.app_id && cached.config_id) return cached;
-    } catch {}
-    return null;
-  }); // { app_id, config_id } from WasapFlow
-  const [signupError, setSignupError] = useState('');
-  const isLive = !!(saved && saved.enabled && saved.config && (saved.config.waba_id || saved.config.access_token || saved.config.d360_api_key || saved.config.bird_workspace_id));
-
-  // ── Fetch WasapFlow's Embedded Signup config (our Meta app, invisible to customer) ─
-  useEffect(() => {
-    fetch('/api/channels?action=signup-config', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{}' })
-      .then(r => r.json())
-      .then(d => {
-        if (d.ok && d.app_id && d.config_id) {
-          setSignup(d);
-          try { localStorage.setItem('wa_signup_config', JSON.stringify(d)); } catch {}
-        } else {
-          setSignupError(d.error || 'Embedded signup unavailable');
-        }
-      })
-      .catch(e => setSignupError(e.message));
-  }, []);
-
-  // ── One-click connect: redirect-based OAuth flow.
-  // WasapFlow's Embedded Signup uses Meta's config_id-based OAuth. We redirect
-  // the whole page to Facebook's OAuth dialog (not a JS SDK popup — popups
-  // break in PWA/standalone mode because the window.opener/postMessage bridge
-  // gets severed). Facebook runs the Embedded Signup UI (login + WBA selection
-  // + number picker), then redirects back to /api/auth/whatsapp-embedded with
-  // ?code=...&state=WORKSPACE_ID. Our backend sends that code to WasapFlow's
-  // /clients/register-from-code, which exchanges it server-side and registers
-  // the WABA. We never see the raw Meta access token. ──
-  const launchConnect = () => {
-    if (!signup?.config_id || !signup?.app_id) {
-      setStatus("error: Connect is still loading — try again in a moment");
-      setTimeout(() => setStatus(""), 3000);
-      return;
-    }
-    // Redirect to the intermediate page that loads the FB JS SDK and calls
-    // FB.login() with config_id + extras. This is required because:
-    // 1. WhatsApp Embedded Signup UI only renders through FB.login() (not a
-    //    plain OAuth redirect — that just shows a generic login dialog)
-    // 2. FB.login() popup breaks in PWA/standalone mode — the intermediate
-    //    page is a full page load where the SDK can use redirect mode on
-    //    mobile (no popup needed)
-    window.location.href = `/wa-connect.html?workspace_id=${workspaceId}`;
-  };
-
-  // ── Sync WABA from WasapFlow (after returning from hosted connect) ────
-  const [syncing, setSyncing] = useState(false);
-  const syncWaba = async () => {
-    setSyncing(true);
-    setStatus('');
-    try {
-      const res = await fetch('/api/channels?action=sync-waba&workspace_id=' + workspaceId, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: '{}'
-      });
+      const res = await fetch(`/api/channels?action=baileys-qr&workspace_id=${workspaceId}`);
       const data = await res.json();
-      if (data.ok) {
-        setStatus('saved');
-        setBanner({ type: "success", msg: "WhatsApp connected successfully!" });
-        setTimeout(() => setBanner(null), 5000);
-        // Reload channel configs
-        if (onReload) onReload();
+      if (data.status === 'connected') {
+        setBaileysStatus('connected');
+        setQrData(null);
+        // Reload channel configs to reflect the connection
+        if (onSave) onSave('whatsapp', { provider: 'baileys', linked_device: true });
+      } else if (data.qrImage) {
+        setQrData({ qrImage: data.qrImage, status: data.status });
+        setBaileysStatus('qr_pending');
+        // Start polling for connection
+        if (!polling) startPolling();
       } else {
-        setStatus('error: ' + (data.error || 'No new WhatsApp connection found. Make sure you completed all steps on the signup page.'));
-        setTimeout(() => setStatus(''), 6000);
+        setBaileysStatus(data.status || 'connecting');
+        // Retry in 2 seconds (session might still be starting)
+        setTimeout(() => fetchQR(), 2000);
       }
     } catch (e) {
-      setStatus('error: ' + e.message);
-      setTimeout(() => setStatus(''), 6000);
+      setError('Could not reach the WhatsApp service. Make sure it is running. ' + e.message);
     } finally {
-      setSyncing(false);
+      setLoadingQR(false);
     }
   };
 
-  // ── Manual save (advanced / fallback path — hidden by default) ─────────
+  // ── Poll for connection status ────────────────────────────────────────
+  const startPolling = () => {
+    setPolling(true);
+    const interval = setInterval(async () => {
+      try {
+        const res = await fetch(`/api/channels?action=baileys-status&workspace_id=${workspaceId}`);
+        const data = await res.json();
+        if (data.status === 'connected') {
+          setBaileysStatus('connected');
+          setQrData(null);
+          setPolling(false);
+          clearInterval(interval);
+          if (onSave) onSave('whatsapp', { provider: 'baileys', linked_device: true });
+        } else if (data.status === 'disconnected' || data.status === 'qr_expired') {
+          // QR expired — stop polling, user needs to refresh
+          setBaileysStatus(data.status);
+          setQrData(null);
+          setPolling(false);
+          clearInterval(interval);
+        }
+      } catch (e) {
+        // Keep polling — transient network error
+      }
+    }, 3000);
+
+    // Stop polling after 90 seconds
+    setTimeout(() => {
+      clearInterval(interval);
+      setPolling(false);
+      if (baileysStatus !== 'connected') {
+        setBaileysStatus('qr_expired');
+        setQrData(null);
+      }
+    }, 90000);
+  };
+
+  // ── Disconnect ────────────────────────────────────────────────────────
+  const handleDisconnect = async () => {
+    try {
+      await fetch(`/api/channels?action=baileys-disconnect&workspace_id=${workspaceId}`, { method: 'POST' });
+      setBaileysStatus('disconnected');
+      setQrData(null);
+      if (onDelete) onDelete('whatsapp');
+    } catch (e) {
+      setError('Disconnect failed: ' + e.message);
+    }
+  };
+
+  // ── Manual Cloud API save (advanced, for later) ───────────────────────
   const handleManualSave = async () => {
-    if (!fields.access_token || !fields.phone_number_id) {
-      setStatus('error: Access Token and Phone Number ID are required');
-      setTimeout(() => setStatus(''), 4000);
+    if (!manualFields.access_token || !manualFields.phone_number_id) {
+      setError('Access Token and Phone Number ID are required');
       return;
     }
-    setSaving(true);
+    setSavingManual(true);
     try {
       const res = await fetch('/api/channels?action=connect', {
         method: 'POST',
@@ -198,35 +200,33 @@ function WhatsAppCard({ saved, workspaceId, onSave, onDelete }) {
           workspace_id: workspaceId,
           provider_key: 'cloud',
           mode: 'manual',
-          access_token: fields.access_token,
-          phone_number_id: fields.phone_number_id,
-          waba_id: fields.waba_id || null,
-          verify_token: fields.verify_token || 'nyasadesk_verify',
+          access_token: manualFields.access_token,
+          phone_number_id: manualFields.phone_number_id,
+          waba_id: manualFields.waba_id || null,
+          verify_token: manualFields.verify_token || 'nyasadesk_verify',
         }),
       });
       const data = await res.json();
       if (data.ok) {
-        await onSave('whatsapp', data.config?.config || { access_token: fields.access_token, phone_number_id: fields.phone_number_id });
-        setStatus('saved');
-        setTimeout(() => setStatus(''), 4000);
+        if (onSave) onSave('whatsapp', data.config?.config || { access_token: manualFields.access_token, phone_number_id: manualFields.phone_number_id });
+        setError('');
+        setManualMode(false);
       } else {
-        setStatus('error: ' + (data.error || 'Failed to save'));
-        setTimeout(() => setStatus(''), 6000);
+        setError(data.error || 'Failed to save');
       }
     } catch (e) {
-      setStatus('error: ' + e.message);
-      setTimeout(() => setStatus(''), 6000);
+      setError(e.message);
     } finally {
-      setSaving(false);
+      setSavingManual(false);
     }
   };
 
   const subtitle = isLive
-    ? ('Connected' + (saved.config?.phone_number ? ' · ' + saved.config.phone_number : ''))
-    : 'Receive & reply to WhatsApp messages';
+    ? ('Connected' + (saved?.config?.phone_number ? ' \u00b7 ' + saved.config.phone_number : ''))
+    : 'Scan QR to link your WhatsApp';
 
   return (
-    <ChannelCard iconUrl="https://upload.wikimedia.org/wikipedia/commons/6/6b/WhatsApp.svg" title="WhatsApp Business" subtitle={subtitle}
+    <ChannelCard iconUrl="https://upload.wikimedia.org/wikipedia/commons/6/6b/WhatsApp.svg" title="WhatsApp" subtitle={subtitle}
       accentColor="#25D366" isLive={isLive}>
       <div className="space-y-4">
         {/* ── Connected state ────────────────────────────────────────────── */}
@@ -237,81 +237,93 @@ function WhatsAppCard({ saved, workspaceId, onSave, onDelete }) {
                 <CheckCircle2 className="w-5 h-5 text-[#25D366]" />
                 <p className="text-sm font-bold text-white">WhatsApp is connected</p>
               </div>
-              {saved.config?.phone_number && (
+              {saved?.config?.phone_number && (
                 <p className="text-xs text-gray-400">Number: {saved.config.phone_number}</p>
               )}
-              {saved.config?.business_name && (
-                <p className="text-xs text-gray-400">Business: {saved.config.business_name}</p>
-              )}
               <p className="text-[11px] text-gray-500 pt-1">
-                Messages route automatically — nothing else to configure.
+                Linked via WhatsApp multi-device. Messages route automatically.
               </p>
             </div>
-            <button onClick={() => onDelete('whatsapp')}
+            <button onClick={handleDisconnect}
               className="w-full py-2.5 rounded-xl text-sm font-medium text-red-400 bg-red-500/10 hover:bg-red-500/20">
               Disconnect WhatsApp
             </button>
           </div>
         )}
 
-        {/* ── Not connected: one-click connect is front and center ───────── */}
+        {/* ── Not connected: QR code linking ─────────────────────────────── */}
         {!isLive && (
           <div className="space-y-3">
-            <div className="bg-[#111B21] rounded-xl p-4 space-y-3 text-center">
-              <p className="text-xs text-gray-400 leading-relaxed">
-                Click below, log in with Facebook, and pick your WhatsApp number.
-                No account to create, no keys to paste — we handle everything behind the scenes.
-              </p>
-              <button
-                onClick={launchConnect}
-                disabled={!signup?.config_id}
-                className="w-full py-3 rounded-xl text-sm font-bold text-white bg-[#25D366] hover:bg-[#20BD5A] disabled:opacity-50 flex items-center justify-center gap-2">
-                {!signup?.config_id
-                  ? (<><Loader2 className="w-4 h-4 animate-spin" /> Loading…</>)
-                  : "Connect WhatsApp Business"}
-              </button>
-              {status === 'saved' && (
-                <p className="text-[11px] text-[#25D366] flex items-center justify-center gap-1">
-                  <CheckCircle2 className="w-3.5 h-3.5" />WhatsApp connected successfully!
+            {/* QR code display */}
+            {qrData?.qrImage && (
+              <div className="bg-white rounded-xl p-4 flex flex-col items-center gap-3">
+                <img src={qrData.qrImage} alt="WhatsApp QR Code" className="w-56 h-56" />
+                <p className="text-xs text-gray-600 text-center font-medium">
+                  Open WhatsApp on your phone \u2192 Settings \u2192 Linked Devices \u2192 Link a Device \u2192 Scan this code
                 </p>
-              )}
-              {status.startsWith('error') && (
-                <p className="text-[11px] text-red-400">{status.replace('error: ', '')}</p>
-              )}
-              {signupError && !signup?.config_id && (
-                <p className="text-[11px] text-amber-400">Could not load one-click setup: {signupError}. Use Advanced below or retry.</p>
-              )}
-              {/* Check Connection button — shown after returning from WasapFlow hosted page */}
-              <div className="border-t border-white/10 pt-3 mt-3">
-                <p className="text-[11px] text-gray-500 mb-2">
-                  Already completed the signup on WasapFlow's page? Click below to sync your connection.
+              </div>
+            )}
+
+            {/* Loading state */}
+            {loadingQR && !qrData?.qrImage && (
+              <div className="bg-[#111B21] rounded-xl p-8 flex flex-col items-center gap-3">
+                <Loader2 className="w-8 h-8 animate-spin text-[#25D366]" />
+                <p className="text-xs text-gray-400">Generating QR code\u2026</p>
+              </div>
+            )}
+
+            {/* QR expired */}
+            {baileysStatus === 'qr_expired' && (
+              <div className="bg-[#111B21] rounded-xl p-4 text-center space-y-2">
+                <p className="text-xs text-amber-400">QR code expired. Generate a new one to try again.</p>
+              </div>
+            )}
+
+            {/* Connecting state */}
+            {baileysStatus === 'connecting' && !qrData?.qrImage && !loadingQR && (
+              <div className="bg-[#111B21] rounded-xl p-8 flex flex-col items-center gap-3">
+                <Loader2 className="w-6 h-6 animate-spin text-[#25D366]" />
+                <p className="text-xs text-gray-400">Connecting to WhatsApp\u2026</p>
+              </div>
+            )}
+
+            {/* Action buttons */}
+            {!qrData?.qrImage && !loadingQR && baileysStatus !== 'connecting' && (
+              <div className="bg-[#111B21] rounded-xl p-4 space-y-3 text-center">
+                <p className="text-xs text-gray-400 leading-relaxed">
+                  Link your WhatsApp account by scanning a QR code \u2014 just like WhatsApp Web.
+                  No API keys, no Meta business verification needed.
                 </p>
                 <button
-                  onClick={syncWaba}
-                  disabled={syncing}
-                  className="w-full py-2.5 rounded-xl text-xs font-bold text-[#25D366] bg-[#25D366]/10 hover:bg-[#25D366]/20 disabled:opacity-50 flex items-center justify-center gap-2">
-                  {syncing ? (<><Loader2 className="w-3.5 h-3.5 animate-spin" /> Checking…</>) : "Check WhatsApp Connection"}
+                  onClick={fetchQR}
+                  className="w-full py-3 rounded-xl text-sm font-bold text-white bg-[#25D366] hover:bg-[#20BD5A] flex items-center justify-center gap-2">
+                  <QrCode className="w-4 h-4" /> Link WhatsApp
                 </button>
               </div>
-            </div>
+            )}
 
-            {/* ── Advanced: manual credentials (collapsed, for power users only) ── */}
-            <details className="group">
+            {/* Error */}
+            {error && (
+              <p className="text-[11px] text-red-400 text-center px-2">{error}</p>
+            )}
+
+            {/* Advanced: Cloud API (for later) */}
+            <details className="group" onChange={() => setManualMode(!manualMode)}>
               <summary className="text-[11px] text-gray-500 cursor-pointer select-none hover:text-gray-400 list-none flex items-center gap-1">
                 <ChevronDown className="w-3 h-3 group-open:rotate-180 transition-transform" />
-                Advanced: use your own Meta developer credentials instead
+                Advanced: WhatsApp Cloud API (Meta Business)
               </summary>
               <div className="mt-3 bg-[#111B21] rounded-xl p-4 space-y-3">
                 <p className="text-xs text-gray-400 leading-relaxed">
-                  Paste your WhatsApp Cloud API credentials from the Meta developer console.
-                  You need a permanent System User access token (not a temporary one).
+                  Use the official WhatsApp Cloud API with your Meta Business credentials.
+                  Requires a verified Meta Business account and permanent access token.
                 </p>
                 <div className="space-y-2">
-                  <label className="text-[11px] text-gray-500">Access Token (permanent System User token)</label>
+                  <label className="text-[11px] text-gray-500">Access Token</label>
                   <input
                     type="password"
-                    value={fields.access_token || ''}
-                    onChange={e => setFields({...fields, access_token: e.target.value})}
+                    value={manualFields.access_token || ''}
+                    onChange={e => setManualFields({...manualFields, access_token: e.target.value})}
                     placeholder="EAAG..."
                     className="w-full bg-[#0B141A] text-white text-xs rounded-lg p-2.5 border border-white/10" />
                 </div>
@@ -319,42 +331,26 @@ function WhatsAppCard({ saved, workspaceId, onSave, onDelete }) {
                   <div className="space-y-2">
                     <label className="text-[11px] text-gray-500">Phone Number ID</label>
                     <input
-                      value={fields.phone_number_id || ''}
-                      onChange={e => setFields({...fields, phone_number_id: e.target.value})}
+                      value={manualFields.phone_number_id || ''}
+                      onChange={e => setManualFields({...manualFields, phone_number_id: e.target.value})}
                       placeholder="123456789"
                       className="w-full bg-[#0B141A] text-white text-xs rounded-lg p-2.5 border border-white/10" />
                   </div>
                   <div className="space-y-2">
-                    <label className="text-[11px] text-gray-500">WABA ID (optional)</label>
+                    <label className="text-[11px] text-gray-500">WABA ID</label>
                     <input
-                      value={fields.waba_id || ''}
-                      onChange={e => setFields({...fields, waba_id: e.target.value})}
+                      value={manualFields.waba_id || ''}
+                      onChange={e => setManualFields({...manualFields, waba_id: e.target.value})}
                       placeholder="123456789"
                       className="w-full bg-[#0B141A] text-white text-xs rounded-lg p-2.5 border border-white/10" />
                   </div>
                 </div>
-                <div className="space-y-2">
-                  <label className="text-[11px] text-gray-500">Verify Token (for webhook setup)</label>
-                  <input
-                    value={fields.verify_token || 'nyasadesk_verify'}
-                    onChange={e => setFields({...fields, verify_token: e.target.value})}
-                    className="w-full bg-[#0B141A] text-white text-xs rounded-lg p-2.5 border border-white/10" />
-                </div>
-                <div className="space-y-1">
-                  <label className="text-[11px] text-gray-500">Webhook URL (paste in Meta console):</label>
-                  <code className="block text-[11px] text-teal-400 bg-[#0B141A] rounded p-2 break-all">
-                    {PROD_URL}/api/webhooks/whatsapp
-                  </code>
-                </div>
                 <button
                   onClick={handleManualSave}
-                  disabled={saving}
+                  disabled={savingManual}
                   className="w-full py-2.5 rounded-xl text-sm font-medium text-white bg-[#25D366] hover:bg-[#20BD5A] disabled:opacity-50">
-                  {saving ? 'Saving…' : 'Save Credentials'}
+                  {savingManual ? 'Saving\u2026' : 'Save Cloud API Credentials'}
                 </button>
-                {status.startsWith('error') && (
-                  <p className="text-[11px] text-red-400">{status.replace('error: ', '')}</p>
-                )}
               </div>
             </details>
           </div>
@@ -1052,10 +1048,8 @@ export default function Settings() {
                 ) : (
                   <>
                     <WhatsAppCard  saved={channelConfigs.whatsapp}  workspaceId={workspaceOwnerId} onSave={handleSaveChannel} onDelete={handleDeleteChannel} />
-                    <MessengerCard saved={channelConfigs.messenger} workspaceId={workspaceOwnerId} onSave={handleSaveChannel} onDelete={handleDeleteChannel} />
-                    <InstagramCard saved={channelConfigs.instagram} workspaceId={workspaceOwnerId} onSave={handleSaveChannel} onDelete={handleDeleteChannel} />
-                    <TelegramCard  saved={channelConfigs.telegram}  workspaceId={workspaceOwnerId} onSave={handleSaveChannel} onDelete={handleDeleteChannel} />
-                    {/* Email channel — hidden until IMAP polling or proper Mailgun/SendGrid setup is built */}
+                    {/* Other channels hidden — focus on WhatsApp + Website for now.
+                        Cloud API integration will re-enable these later. */}
                     <WebsiteCard   saved={channelConfigs.website}   workspaceId={workspaceOwnerId} onSave={handleSaveChannel} onDelete={handleDeleteChannel} />
                   </>
                 )}
