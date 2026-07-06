@@ -336,21 +336,26 @@ app.post('/pair/:workspaceId', async (req, res) => {
   }
   const cleanPhone = parsed.number.slice(1); // E.164 minus the leading '+'
 
-  // If there's an existing session that already tried the QR flow (or any
-  // non-fresh state), tear it down first — mixing QR-flow and pairing-code
-  // creds on the same socket connection is a common source of WhatsApp
-  // rejecting the code outright. Always start clean for a pairing request.
+  // CRITICAL: Any leftover auth state on disk (from a previous QR attempt,
+  // a failed pairing, or a stale session) will corrupt the pairing-code flow.
+  // useMultiFileAuthState reloads those old creds, and WhatsApp rejects the
+  // pairing code because the registration keys don't match what it expects
+  // for a fresh link. We must wipe the directory before starting.
   const existing = sessions.get(workspaceId);
-  if (existing && existing.status !== 'pairing_pending') {
+  if (existing) {
     try { existing.sock?.end?.(new Error('switching to pairing-code flow')); } catch (_) {}
     sessions.delete(workspaceId);
   }
+  // Wipe the auth state directory completely — fresh creds for fresh pairing
+  const authDir = getAuthDir(workspaceId);
+  fs.rmSync(authDir, { recursive: true, force: true });
+  fs.mkdirSync(authDir, { recursive: true });
 
   let session;
   try {
     session = await startSession(workspaceId);
     // Give the socket a moment to open its websocket before requesting a code.
-    await new Promise(r => setTimeout(r, 1500));
+    await new Promise(r => setTimeout(r, 2500));
     session = sessions.get(workspaceId);
   } catch (e) {
     return res.status(500).json({ error: 'Failed to start session: ' + e.message });
