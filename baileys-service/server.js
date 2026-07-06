@@ -18,7 +18,6 @@ const {
   useMultiFileAuthState,
   DisconnectReason,
   fetchLatestBaileysVersion,
-  makeInMemoryStore,
   downloadMediaMessage,
 } = require('@whiskeysockets/baileys');
 
@@ -53,7 +52,7 @@ async function startSession(workspaceId) {
 
   const { state, saveCreds } = await useMultiFileAuthState(getAuthDir(workspaceId));
   const { version } = await fetchLatestBaileysVersion();
-  const store = makeInMemoryStore({ logger });
+  // Store not available in this Baileys version — not needed for bridge mode
 
   const sock = makeWASocket({
     version,
@@ -67,20 +66,10 @@ async function startSession(workspaceId) {
     },
   });
 
-  const session = { sock, store, status: 'connecting', qr: null, qrTimeout: null, pairingCode: null };
+  const session = { sock, status: 'connecting', qr: null, qrTimeout: null, pairingCode: null };
   sessions.set(workspaceId, session);
 
-  // Load store from file
-  const storeFile = path.join(getAuthDir(workspaceId), 'store.json');
-  if (fs.existsSync(storeFile)) {
-    store.readFromFile(storeFile);
-  }
-  // Save store periodically
-  setInterval(() => {
-    if (fs.existsSync(getAuthDir(workspaceId))) {
-      store.writeToFile(storeFile);
-    }
-  }, 30000);
+
 
   // ── Auth state updates ─────────────────────────────────────────────────
   sock.ev.on('creds.update', saveCreds);
@@ -250,7 +239,7 @@ async function startSession(workspaceId) {
     }
   });
 
-  store.bind(sock.ev);
+
   return session;
 }
 
