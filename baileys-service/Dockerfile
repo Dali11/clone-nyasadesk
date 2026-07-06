@@ -2,17 +2,13 @@ FROM node:20-slim
 
 WORKDIR /app
 
-# Install sharp dependencies
-RUN apt-get update && apt-get install -y --no-install-recommends \
-  libvips-dev \
-  && rm -rf /var/lib/apt/lists/*
+RUN apt-get update && apt-get install -y --no-install-recommends git && apt-get clean
 
 COPY package*.json ./
-RUN npm install --production
+RUN npm install --omit=dev
 
 COPY . .
 
-# Create auth state directory
 RUN mkdir -p /app/auth_state
 
 EXPOSE 3000
