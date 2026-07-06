@@ -67,7 +67,7 @@ async function startSession(workspaceId) {
     },
   });
 
-  const session = { sock, status: 'connecting', qr: null, qrTimeout: null, pairingCode: null };
+  const session = { sock, status: 'connecting', qr: null, qrTimeout: null, pairingCode: null, hasEverConnected: false };
   sessions.set(workspaceId, session);
 
 
@@ -96,6 +96,7 @@ async function startSession(workspaceId) {
 
     if (connection === 'open') {
       session.status = 'connected';
+      session.hasEverConnected = true;
       session.qr = null;
       session.pairingCode = null;
       if (session.qrTimeout) clearTimeout(session.qrTimeout);
@@ -107,21 +108,38 @@ async function startSession(workspaceId) {
 
     if (connection === 'close') {
       const code = lastDisconnect?.error?.output?.statusCode;
+      const wasEstablished = session.hasEverConnected;
+      const wasPairing = session.status === 'pairing_pending' || session.status === 'qr_pending';
       session.status = 'disconnected';
       session.qr = null;
       session.pairingCode = null;
       if (session.pairingTimeout) clearTimeout(session.pairingTimeout);
-      logger.warn(`[${workspaceId}] Connection closed, code=${code}`);
+      logger.warn(`[${workspaceId}] Connection closed, code=${code}, wasEstablished=${wasEstablished}`);
 
-      if (code !== DisconnectReason.loggedOut) {
-        // Reconnect (not a logout — network issue, restart, etc.)
-        setTimeout(() => startSession(workspaceId), 3000);
-      } else {
-        // Logged out — clear auth state
+      if (code === DisconnectReason.loggedOut) {
+        // Real logout — clear auth state
         logger.info(`[${workspaceId}] Logged out, clearing auth state`);
         const dir = getAuthDir(workspaceId);
         fs.rmSync(dir, { recursive: true, force: true });
         sessions.delete(workspaceId);
+      } else if (wasEstablished) {
+        // A previously-working connection dropped (network blip, server
+        // restart, etc.) — safe to auto-reconnect, nothing time-sensitive
+        // is in flight for the user.
+        setTimeout(() => startSession(workspaceId), 3000);
+      } else if (wasPairing) {
+        // Died mid QR-scan or mid pairing-code entry. Auto-reconnecting
+        // here would silently swap in a new socket/pairing session while
+        // the user is still typing the code they were shown — WhatsApp
+        // then rejects it as invalid ("Couldn't link device"). Instead,
+        // just mark expired and let the user explicitly request a new
+        // code/QR, which starts a clean session.
+        logger.warn(`[${workspaceId}] Connection dropped mid-pairing — NOT auto-reconnecting, user must request a fresh code/QR`);
+        session.status = 'qr_expired';
+        sessions.delete(workspaceId);
+      } else {
+        // Never even got that far — safe to retry once.
+        setTimeout(() => startSession(workspaceId), 3000);
       }
     }
   });
