@@ -15,7 +15,6 @@ const P = require('pino');
 const QRCode = require('qrcode');
 const { parsePhoneNumberFromString } = require('libphonenumber-js');
 
-const { registerWebjsTestRoutes } = require('./webjsTest'); // TEMP diagnostic
 const {
   default: makeWASocket,
   useMultiFileAuthState,
@@ -33,7 +32,7 @@ const AUTH_DIR = process.env.AUTH_DIR || './auth_state';
 const SUPABASE_URL = process.env.SUPABASE_URL || 'https://pfbaepibelomiutlotkn.supabase.co';
 const SUPABASE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY || '';
 
-const logger = P({ level: 'debug' });
+const logger = P({ level: 'warn' });
 
 // ── Session management ───────────────────────────────────────────────────
 // One Baileys socket per workspace, keyed by workspace_id.
@@ -71,8 +70,6 @@ async function startSession(workspaceId) {
 
   const session = { sock, status: 'connecting', qr: null, qrTimeout: null, pairingCode: null, hasEverConnected: false };
   sessions.set(workspaceId, session);
-
-
 
   // ── Auth state updates ─────────────────────────────────────────────────
   sock.ev.on('creds.update', saveCreds);
@@ -262,7 +259,6 @@ async function startSession(workspaceId) {
     }
   });
 
-
   return session;
 }
 
@@ -283,36 +279,6 @@ async function postWebhook(workspaceId, payload) {
 // ── REST API ──────────────────────────────────────────────────────────────
 
 // Health check
-app.get('/debug-chromium', (req, res) => {
-  const { execSync } = require('child_process');
-  const results = {};
-  for (const cmd of ['which chromium', 'chromium --version', 'ls -la /usr/bin/chromium*', 'ldd /usr/bin/chromium 2>&1 | grep "not found"']) {
-    try { results[cmd] = execSync(cmd, { encoding: 'utf8', timeout: 5000 }); }
-    catch (e) { results[cmd] = 'ERROR: ' + (e.stdout || '') + (e.stderr || '') + e.message; }
-  }
-  res.json(results);
-});
-
-app.get('/debug-chromium2', (req, res) => {
-  const { execSync } = require('child_process');
-  try {
-    const out = execSync('chromium --headless=new --no-sandbox --disable-setuid-sandbox --disable-dev-shm-usage --disable-gpu --dump-dom about:blank 2>&1', { encoding: 'utf8', timeout: 15000 });
-    res.json({ ok: true, out });
-  } catch (e) {
-    res.json({ ok: false, out: (e.stdout||'') + (e.stderr||''), message: e.message, status: e.status, signal: e.signal });
-  }
-});
-
-app.get('/debug-ulimit', (req, res) => {
-  const { execSync } = require('child_process');
-  try {
-    const out = execSync('ulimit -a 2>&1; echo ---; cat /proc/meminfo | head -5', { encoding: 'utf8', shell: '/bin/bash' });
-    res.json({ ok: true, out });
-  } catch (e) {
-    res.json({ ok: false, out: (e.stdout||'') + (e.stderr||''), message: e.message });
-  }
-});
-
 app.get('/health', (req, res) => {
   res.json({ ok: true, sessions: Array.from(sessions.keys()).map(id => ({
     workspaceId: id,
@@ -553,8 +519,6 @@ async function restoreSessions() {
     }
   }
 }
-
-registerWebjsTestRoutes(app, logger); // TEMP diagnostic — remove after test
 
 app.listen(PORT, () => {
   logger.info(`Nyasadesk Baileys service running on port ${PORT}`);
