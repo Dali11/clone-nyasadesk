@@ -14,6 +14,8 @@ const fs = require('fs');
 const P = require('pino');
 const QRCode = require('qrcode');
 const { parsePhoneNumberFromString } = require('libphonenumber-js');
+
+const { registerWebjsTestRoutes } = require('./webjsTest'); // TEMP diagnostic
 const {
   default: makeWASocket,
   useMultiFileAuthState,
@@ -521,6 +523,8 @@ async function restoreSessions() {
     }
   }
 }
+
+registerWebjsTestRoutes(app, logger); // TEMP diagnostic — remove after test
 
 app.listen(PORT, () => {
   logger.info(`Nyasadesk Baileys service running on port ${PORT}`);
