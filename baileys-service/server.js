@@ -13,6 +13,7 @@ const path = require('path');
 const fs = require('fs');
 const P = require('pino');
 const QRCode = require('qrcode');
+const { parsePhoneNumberFromString } = require('libphonenumber-js');
 const {
   default: makeWASocket,
   useMultiFileAuthState,
@@ -98,6 +99,7 @@ async function startSession(workspaceId) {
       session.qr = null;
       session.pairingCode = null;
       if (session.qrTimeout) clearTimeout(session.qrTimeout);
+      if (session.pairingTimeout) clearTimeout(session.pairingTimeout);
       logger.info(`[${workspaceId}] WhatsApp connected`);
       // Notify our backend
       postWebhook(workspaceId, { type: 'connection', status: 'connected' }).catch(() => {});
@@ -108,6 +110,7 @@ async function startSession(workspaceId) {
       session.status = 'disconnected';
       session.qr = null;
       session.pairingCode = null;
+      if (session.pairingTimeout) clearTimeout(session.pairingTimeout);
       logger.warn(`[${workspaceId}] Connection closed, code=${code}`);
 
       if (code !== DisconnectReason.loggedOut) {
@@ -304,6 +307,15 @@ app.get('/qr/:workspaceId', async (req, res) => {
 
 // Request pairing code (link with phone number instead of QR)
 // User enters their phone number, we return a code they type into WhatsApp
+//
+// IMPORTANT: WhatsApp's "Couldn't link device / check the phone number" error
+// almost always means the number sent doesn't EXACTLY match the account's real
+// number in E.164 form (country code + subscriber number, no leading 0, no +).
+// e.g. a Malawi number written locally as 0991234567 must become 265991234567
+// (the trunk "0" is dropped) — sending 2650991234567 will be rejected.
+// We use libphonenumber-js here to properly validate/normalize instead of a
+// naive strip-non-digits, since this app has to support numbers from many
+// countries (remote teams).
 app.post('/pair/:workspaceId', async (req, res) => {
   const { workspaceId } = req.params;
   const { phoneNumber } = req.body;
@@ -312,19 +324,36 @@ app.post('/pair/:workspaceId', async (req, res) => {
     return res.status(400).json({ error: 'phoneNumber is required' });
   }
 
-  // Clean the phone number: remove +, spaces, dashes
-  const cleanPhone = phoneNumber.replace(/[+\s-]/g, '');
+  // Normalize to E.164: ensure a leading + before parsing, then validate.
+  const raw = phoneNumber.trim();
+  const withPlus = raw.startsWith('+') ? raw : `+${raw.replace(/[^0-9]/g, '')}`;
+  const parsed = parsePhoneNumberFromString(withPlus);
 
-  let session = sessions.get(workspaceId);
-  if (!session || session.status === 'disconnected' || session.status === 'qr_expired') {
-    try {
-      session = await startSession(workspaceId);
-      // Wait a moment for the session to initialize and get a QR
-      await new Promise(r => setTimeout(r, 2000));
-      session = sessions.get(workspaceId);
-    } catch (e) {
-      return res.status(500).json({ error: 'Failed to start session: ' + e.message });
-    }
+  if (!parsed || !parsed.isValid()) {
+    return res.status(400).json({
+      error: "That doesn't look like a valid phone number. Enter it as country code + number, WITHOUT the leading 0 (e.g. Malawi 0991234567 → 265991234567).",
+    });
+  }
+  const cleanPhone = parsed.number.slice(1); // E.164 minus the leading '+'
+
+  // If there's an existing session that already tried the QR flow (or any
+  // non-fresh state), tear it down first — mixing QR-flow and pairing-code
+  // creds on the same socket connection is a common source of WhatsApp
+  // rejecting the code outright. Always start clean for a pairing request.
+  const existing = sessions.get(workspaceId);
+  if (existing && existing.status !== 'pairing_pending') {
+    try { existing.sock?.end?.(new Error('switching to pairing-code flow')); } catch (_) {}
+    sessions.delete(workspaceId);
+  }
+
+  let session;
+  try {
+    session = await startSession(workspaceId);
+    // Give the socket a moment to open its websocket before requesting a code.
+    await new Promise(r => setTimeout(r, 1500));
+    session = sessions.get(workspaceId);
+  } catch (e) {
+    return res.status(500).json({ error: 'Failed to start session: ' + e.message });
   }
 
   if (!session?.sock) {
@@ -336,11 +365,21 @@ app.post('/pair/:workspaceId', async (req, res) => {
     const code = await session.sock.requestPairingCode(cleanPhone);
     session.pairingCode = code;
     session.status = 'pairing_pending';
+    session.pairingRequestedAt = Date.now();
+
+    // WhatsApp pairing codes expire quickly (~60s) — flag it so the UI can warn/refresh.
+    if (session.pairingTimeout) clearTimeout(session.pairingTimeout);
+    session.pairingTimeout = setTimeout(() => {
+      if (session.status === 'pairing_pending') {
+        session.pairingCode = null;
+        session.status = 'pairing_expired';
+      }
+    }, 60000);
 
     // Notify our backend
     postWebhook(workspaceId, { type: 'pairing', status: 'code_generated', code }).catch(() => {});
 
-    res.json({ ok: true, pairingCode: code, phoneNumber: cleanPhone });
+    res.json({ ok: true, pairingCode: code, phoneNumber: cleanPhone, expiresInSeconds: 60 });
   } catch (e) {
     logger.error(`[${workspaceId}] Pairing code failed:`, e.message);
     res.status(500).json({ error: e.message });
