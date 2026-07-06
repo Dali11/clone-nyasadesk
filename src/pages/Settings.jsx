@@ -310,7 +310,13 @@ function WhatsAppCard({ saved, workspaceId, onSave, onDelete }) {
           .catch(e => { setEmbeddedLoading(false); setError(e.message); });
       } else {
         setEmbeddedLoading(false);
-        setError('Facebook sign-in was cancelled or did not complete.');
+        // Surface Facebook's actual reason instead of a generic message —
+        // response.status is one of 'connected' | 'not_authorized' | 'unknown',
+        // and Facebook sometimes attaches an error/error_description too.
+        console.warn('[FB.login] no authResponse.code — full response:', response);
+        let raw = '';
+        try { raw = JSON.stringify(response); } catch (e) { raw = String(response); }
+        setError(`Facebook sign-in did not complete. Raw response: ${raw}`);
       }
     }, {
       config_id: metaConfigId,
