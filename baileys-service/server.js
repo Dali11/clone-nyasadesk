@@ -303,6 +303,16 @@ app.get('/debug-chromium2', (req, res) => {
   }
 });
 
+app.get('/debug-ulimit', (req, res) => {
+  const { execSync } = require('child_process');
+  try {
+    const out = execSync('ulimit -a 2>&1; echo ---; cat /proc/meminfo | head -5', { encoding: 'utf8', shell: '/bin/bash' });
+    res.json({ ok: true, out });
+  } catch (e) {
+    res.json({ ok: false, out: (e.stdout||'') + (e.stderr||''), message: e.message });
+  }
+});
+
 app.get('/health', (req, res) => {
   res.json({ ok: true, sessions: Array.from(sessions.keys()).map(id => ({
     workspaceId: id,
