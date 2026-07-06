@@ -97,7 +97,6 @@ function ManualFields({ fields, setFields, fieldDefs }) {
 
 function WhatsAppCard({ saved, workspaceId, onSave, onDelete }) {
   const [metaConfigId, setMetaConfigId] = useState(null);
-  const [embeddedLoading, setEmbeddedLoading] = useState(false);
   const [linkMode, setLinkMode] = useState(null); // 'qr' | 'phone' | 'embedded' | null
   const [qrData, setQrData] = useState(null);
   const [baileysStatus, setBaileysStatus] = useState(saved?.config?.provider === 'baileys' ? 'connected' : 'disconnected');
@@ -261,20 +260,20 @@ function WhatsAppCard({ saved, workspaceId, onSave, onDelete }) {
   // "black screen then bounces back" failure. A plain top-level redirect has
   // nothing to break: Facebook does its thing, then sends the browser back to
   // our own domain with a code in the URL, which our backend exchanges server-side.
-  const handleEmbeddedSignup = () => {
-    if (!metaConfigId) {
-      setError("Facebook signup isn't configured yet. Use QR/phone linking below for now.");
-      return;
-    }
-    setError('');
-    setEmbeddedLoading(true);
-    const redirectUri = encodeURIComponent(PROD_URL + '/api/auth/facebook-callback');
-    const state = encodeURIComponent(
-      btoa(JSON.stringify({ workspace_id: workspaceId, provider: 'whatsapp' }))
-    );
-    const url = `https://www.facebook.com/v19.0/dialog/oauth?client_id=${FB_APP_ID}&redirect_uri=${redirectUri}&state=${state}&config_id=${metaConfigId}&response_type=code&override_default_response_type=true`;
-    window.location.href = url;
-  };
+  // Build a real, static <a href> URL (computed at render time) instead of
+  // triggering the redirect from JS on click. Some ad/tracker blockers
+  // specifically intercept script-triggered `location.href = facebook.com/...`
+  // redirects (that pattern is also used by forced-login-wall scams), but a
+  // genuine anchor tap is just normal browser navigation and isn't touched.
+  const embeddedSignupUrl = metaConfigId
+    ? (() => {
+        const redirectUri = encodeURIComponent(PROD_URL + '/api/auth/facebook-callback');
+        const state = encodeURIComponent(
+          btoa(JSON.stringify({ workspace_id: workspaceId, provider: 'whatsapp' }))
+        );
+        return `https://www.facebook.com/v19.0/dialog/oauth?client_id=${FB_APP_ID}&redirect_uri=${redirectUri}&state=${state}&config_id=${metaConfigId}&response_type=code&override_default_response_type=true`;
+      })()
+    : null;
 
   const subtitle = isLive
     ? ('Connected' + (saved?.config?.phone_number ? ' · ' + saved.config.phone_number : ''))
@@ -317,14 +316,13 @@ function WhatsAppCard({ saved, workspaceId, onSave, onDelete }) {
                 </p>
                 <div className="space-y-2.5">
                   {/* Official Embedded Signup - primary path */}
-                  {metaConfigId && (
-                    <button
-                      onClick={handleEmbeddedSignup}
-                      disabled={embeddedLoading}
-                      className="w-full py-3 rounded-xl text-sm font-bold text-white bg-[#1877F2] hover:bg-[#166FE5] disabled:opacity-60 flex items-center justify-center gap-2">
-                      {embeddedLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : <ShieldCheck className="w-4 h-4" />}
-                      {embeddedLoading ? 'Connecting...' : 'Connect with Facebook'}
-                    </button>
+                  {embeddedSignupUrl && (
+                    <a
+                      href={embeddedSignupUrl}
+                      className="w-full py-3 rounded-xl text-sm font-bold text-white bg-[#1877F2] hover:bg-[#166FE5] flex items-center justify-center gap-2">
+                      <ShieldCheck className="w-4 h-4" />
+                      Connect with Facebook
+                    </a>
                   )}
                   {metaConfigId && (
                     <p className="text-[11px] text-gray-500 text-center">
