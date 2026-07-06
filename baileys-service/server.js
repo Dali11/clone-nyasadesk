@@ -283,6 +283,16 @@ async function postWebhook(workspaceId, payload) {
 // ── REST API ──────────────────────────────────────────────────────────────
 
 // Health check
+app.get('/debug-chromium', (req, res) => {
+  const { execSync } = require('child_process');
+  const results = {};
+  for (const cmd of ['which chromium', 'chromium --version', 'ls -la /usr/bin/chromium*', 'ldd /usr/bin/chromium 2>&1 | grep "not found"']) {
+    try { results[cmd] = execSync(cmd, { encoding: 'utf8', timeout: 5000 }); }
+    catch (e) { results[cmd] = 'ERROR: ' + (e.stdout || '') + (e.stderr || '') + e.message; }
+  }
+  res.json(results);
+});
+
 app.get('/health', (req, res) => {
   res.json({ ok: true, sessions: Array.from(sessions.keys()).map(id => ({
     workspaceId: id,
