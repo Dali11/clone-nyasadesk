@@ -9,6 +9,7 @@ import { useNyasaAuth } from '@/lib/NyasaAuth';
 import { getChannelConfigs, saveChannelConfig, deleteChannelConfig } from '@/lib/channels';
 import { supabase } from '@/lib/supabase';
 import { useDocumentTitle } from '@/hooks/useDocumentTitle';
+import { useFacebookSDK } from '@/hooks/useFacebookSDK';
 
 const PROD_URL  = 'https://nyasadesk1.vercel.app';
 const FB_APP_ID = import.meta.env.VITE_FACEBOOK_APP_ID || '';
@@ -96,7 +97,10 @@ function ManualFields({ fields, setFields, fieldDefs }) {
 }
 
 function WhatsAppCard({ saved, workspaceId, onSave, onDelete }) {
-  const [linkMode, setLinkMode] = useState(null); // 'qr' | 'phone' | null
+  const fbReady = useFacebookSDK(FB_APP_ID);
+  const [metaConfigId, setMetaConfigId] = useState(null);
+  const [embeddedLoading, setEmbeddedLoading] = useState(false);
+  const [linkMode, setLinkMode] = useState(null); // 'qr' | 'phone' | 'embedded' | null
   const [qrData, setQrData] = useState(null);
   const [baileysStatus, setBaileysStatus] = useState(saved?.config?.provider === 'baileys' ? 'connected' : 'disconnected');
   const [loadingQR, setLoadingQR] = useState(false);
@@ -241,6 +245,79 @@ function WhatsAppCard({ saved, workspaceId, onSave, onDelete }) {
     } catch (e) { setError(e.message); } finally { setSavingManual(false); }
   };
 
+  // ── Embedded Signup (official Meta 1-click flow) ──────────────────────
+  useEffect(() => {
+    fetch('/api/auth/whatsapp-embedded', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ _action: 'get_config', workspace_id: workspaceId }),
+    })
+      .then(r => r.json())
+      .then(d => { if (d.config_id) setMetaConfigId(d.config_id); })
+      .catch(() => {});
+  }, [workspaceId]);
+
+  // Meta broadcasts the WABA/phone number chosen during signup via postMessage —
+  // capture it so the backend doesn't have to guess it back from debug_token.
+  const embeddedSignupDataRef = useState({ current: null })[0];
+  useEffect(() => {
+    const handler = (event) => {
+      if (!event.origin?.endsWith('facebook.com')) return;
+      try {
+        const data = JSON.parse(event.data);
+        if (data.type === 'WA_EMBEDDED_SIGNUP' && data.event === 'FINISH') {
+          embeddedSignupDataRef.current = data.data || null;
+        }
+      } catch (e) { /* not our message */ }
+    };
+    window.addEventListener('message', handler);
+    return () => window.removeEventListener('message', handler);
+  }, []);
+
+  const handleEmbeddedSignup = () => {
+    if (!window.FB || !metaConfigId) {
+      setError("Facebook signup isn't configured yet. Use QR/phone linking below for now.");
+      return;
+    }
+    setError('');
+    setEmbeddedLoading(true);
+    window.FB.login((response) => {
+      if (response.authResponse?.code) {
+        const captured = embeddedSignupDataRef.current || {};
+        fetch('/api/auth/whatsapp-embedded', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            _action: undefined,
+            code: response.authResponse.code,
+            workspace_id: workspaceId,
+            provider: 'cloud',
+            phone_number_id: captured.phone_number_id || null,
+            waba_id: captured.waba_id || null,
+          }),
+        })
+          .then(r => r.json())
+          .then(d => {
+            setEmbeddedLoading(false);
+            if (d.ok) {
+              if (onSave) onSave('whatsapp', d.config?.config || { connected_via: 'embedded_signup' });
+            } else {
+              setError(d.error || 'Could not finish connecting WhatsApp');
+            }
+          })
+          .catch(e => { setEmbeddedLoading(false); setError(e.message); });
+      } else {
+        setEmbeddedLoading(false);
+        setError('Facebook sign-in was cancelled or did not complete.');
+      }
+    }, {
+      config_id: metaConfigId,
+      response_type: 'code',
+      override_default_response_type: true,
+      extras: { setup: {}, featureType: '', sessionInfoVersion: '3' },
+    });
+  };
+
   const subtitle = isLive
     ? ('Connected' + (saved?.config?.phone_number ? ' · ' + saved.config.phone_number : ''))
     : 'Link your WhatsApp account';
@@ -278,10 +355,29 @@ function WhatsAppCard({ saved, workspaceId, onSave, onDelete }) {
             {!linkMode && baileysStatus !== 'connecting' && baileysStatus !== 'pairing_pending' && (
               <div className="bg-[#111B21] rounded-xl p-4 space-y-4">
                 <p className="text-xs text-gray-400 leading-relaxed text-center">
-                  Link your WhatsApp account to send and receive messages in Nyasadesk.
-                  No API keys or business verification needed.
+                  Connect your WhatsApp Business number to send and receive messages in Nyasadesk.
                 </p>
                 <div className="space-y-2.5">
+                  {/* Official Embedded Signup - primary path */}
+                  {metaConfigId && (
+                    <button
+                      onClick={handleEmbeddedSignup}
+                      disabled={!fbReady || embeddedLoading}
+                      className="w-full py-3 rounded-xl text-sm font-bold text-white bg-[#1877F2] hover:bg-[#166FE5] disabled:opacity-60 flex items-center justify-center gap-2">
+                      {embeddedLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : <ShieldCheck className="w-4 h-4" />}
+                      {embeddedLoading ? 'Connecting...' : 'Connect with Facebook'}
+                    </button>
+                  )}
+                  {metaConfigId && (
+                    <p className="text-[11px] text-gray-500 text-center">
+                      Official Meta signup - pick your WhatsApp Business number in a secure popup. Recommended.
+                    </p>
+                  )}
+                  <div className="flex items-center gap-2 py-1">
+                    <div className="flex-1 h-px bg-white/10" />
+                    <span className="text-[10px] text-gray-600 uppercase tracking-wide">or</span>
+                    <div className="flex-1 h-px bg-white/10" />
+                  </div>
                   {/* QR option */}
                   <button
                     onClick={() => { setLinkMode('qr'); fetchQR(); }}
@@ -296,7 +392,7 @@ function WhatsAppCard({ saved, workspaceId, onSave, onDelete }) {
                   </button>
                 </div>
                 <p className="text-[11px] text-gray-500 text-center">
-                  Scanning a QR is fastest. Use phone number if your device isn\'t nearby or you\'re on a call.
+                  Scanning a QR is fastest. Use phone number if your device isn't nearby or you're on a call.
                 </p>
               </div>
             )}

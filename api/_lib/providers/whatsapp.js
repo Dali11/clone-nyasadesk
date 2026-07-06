@@ -34,7 +34,12 @@ export class WhatsAppCloudProvider extends MessagingProvider {
   }
 
   // ── Embedded Signup: exchange FB OAuth code for WhatsApp access ────────
-  async _connectEmbeddedSignup(workspaceId, { code }, ctx) {
+  // phone_number_id/waba_id, when supplied, come from the WA_EMBEDDED_SIGNUP
+  // postMessage event the frontend listens for during FB.login — that's
+  // Meta's own recommended, reliable source. Falls back to deriving the
+  // WABA from debug_token if the frontend didn't capture it (e.g. an older
+  // SDK version or the message arrived after code exchange already ran).
+  async _connectEmbeddedSignup(workspaceId, { code, phone_number_id, waba_id }, ctx) {
     const { sb } = ctx;
     const APP_ID = process.env.FACEBOOK_APP_ID;
     const APP_SECRET = process.env.FACEBOOK_APP_SECRET;
@@ -49,19 +54,36 @@ export class WhatsAppCloudProvider extends MessagingProvider {
     if (tokenData.error) throw new Error(tokenData.error.message);
     const userToken = tokenData.access_token;
 
-    // 2. Get WABA (WhatsApp Business Account) details
-    const debugRes = await fetch(
-      `${GRAPH}/debug_token?input_token=${userToken}&access_token=${APP_ID}|${APP_SECRET}`
-    );
-    const debugData = await debugRes.json();
-    const wabaId = debugData?.data?.granular_scopes?.find(s => s.scope === 'whatsapp_business_management')?.target?.[0]
-                   || debugData?.data?.profile_id;
+    // 2. Get WABA (WhatsApp Business Account) — prefer the ID the frontend
+    // captured from the WA_EMBEDDED_SIGNUP postMessage, fall back to
+    // deriving it from debug_token's granular scopes.
+    let wabaId = waba_id || null;
+    if (!wabaId) {
+      const debugRes = await fetch(
+        `${GRAPH}/debug_token?input_token=${userToken}&access_token=${APP_ID}|${APP_SECRET}`
+      );
+      const debugData = await debugRes.json();
+      wabaId = debugData?.data?.granular_scopes?.find(s => s.scope === 'whatsapp_business_management')?.target?.[0]
+               || debugData?.data?.profile_id;
+    }
 
-    // 3. Get phone numbers from WABA
-    let phoneNumberId = null;
+    // 3. Get phone numbers from WABA (or use the frontend-captured phone_number_id directly)
+    let phoneNumberId = phone_number_id || null;
     let phoneNumber = null;
     let businessName = null;
-    if (wabaId) {
+    if (phoneNumberId) {
+      try {
+        const phoneRes = await fetch(
+          `${GRAPH}/${phoneNumberId}?fields=display_phone_number,verified_name&access_token=${userToken}`
+        );
+        const phoneData = await phoneRes.json();
+        if (!phoneData.error) {
+          phoneNumber = phoneData.display_phone_number;
+          businessName = phoneData.verified_name;
+        }
+      } catch (e) { /* non-fatal */ }
+    }
+    if (wabaId && !phoneNumberId) {
       const phonesRes = await fetch(
         `${GRAPH}/${wabaId}/phone_numbers?fields=id,display_phone_number,verified_name&access_token=${userToken}`
       );
