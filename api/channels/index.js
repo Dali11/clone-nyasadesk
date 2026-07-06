@@ -17,7 +17,8 @@ const PROD_URL = 'https://nyasadesk1.vercel.app';
 const BRIDGE_API = 'https://officialapi.wasapflow.com/bridge/v1';
 
 export default async function handler(req, res) {
-  if (req.method !== 'POST' && req.query.action !== 'hosted-connect') return res.status(405).json({ error: 'Method Not Allowed' });
+  const getActions = ['hosted-connect', 'baileys-qr', 'baileys-status'];
+  if (req.method !== 'POST' && !getActions.includes(req.query.action)) return res.status(405).json({ error: 'Method Not Allowed' });
   const action = req.query.action || 'send';
 
   if (action === 'telegram-setup') return handleConnect(req, res);
