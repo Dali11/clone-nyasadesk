@@ -45,8 +45,9 @@ function registerWebjsTestRoutes(app, logger) {
             '--disable-gpu',
             '--disable-accelerated-2d-canvas',
             '--no-first-run',
-            '--no-zygote',
-            '--single-process',
+            '--disable-extensions',
+            '--disable-background-networking',
+            '--disable-software-rasterizer',
           ],
         },
       });
