@@ -31,7 +31,7 @@ const AUTH_DIR = process.env.AUTH_DIR || './auth_state';
 const SUPABASE_URL = process.env.SUPABASE_URL || 'https://pfbaepibelomiutlotkn.supabase.co';
 const SUPABASE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY || '';
 
-const logger = P({ level: 'warn' });
+const logger = P({ level: 'debug' });
 
 // ── Session management ───────────────────────────────────────────────────
 // One Baileys socket per workspace, keyed by workspace_id.
