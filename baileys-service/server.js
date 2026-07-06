@@ -293,6 +293,16 @@ app.get('/debug-chromium', (req, res) => {
   res.json(results);
 });
 
+app.get('/debug-chromium2', (req, res) => {
+  const { execSync } = require('child_process');
+  try {
+    const out = execSync('chromium --headless=new --no-sandbox --disable-setuid-sandbox --disable-dev-shm-usage --disable-gpu --dump-dom about:blank 2>&1', { encoding: 'utf8', timeout: 15000 });
+    res.json({ ok: true, out });
+  } catch (e) {
+    res.json({ ok: false, out: (e.stdout||'') + (e.stderr||''), message: e.message, status: e.status, signal: e.signal });
+  }
+});
+
 app.get('/health', (req, res) => {
   res.json({ ok: true, sessions: Array.from(sessions.keys()).map(id => ({
     workspaceId: id,
