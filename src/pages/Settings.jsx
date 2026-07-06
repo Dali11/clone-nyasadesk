@@ -9,6 +9,7 @@ import { useNyasaAuth } from '@/lib/NyasaAuth';
 import { getChannelConfigs, saveChannelConfig, deleteChannelConfig } from '@/lib/channels';
 import { supabase } from '@/lib/supabase';
 import { useDocumentTitle } from '@/hooks/useDocumentTitle';
+import { useFacebookSDK } from '@/hooks/useFacebookSDK';
 
 const PROD_URL  = 'https://nyasadesk1.vercel.app';
 const FB_APP_ID = import.meta.env.VITE_FACEBOOK_APP_ID || '';
@@ -96,7 +97,9 @@ function ManualFields({ fields, setFields, fieldDefs }) {
 }
 
 function WhatsAppCard({ saved, workspaceId, onSave, onDelete }) {
+  const fbReady = useFacebookSDK(FB_APP_ID);
   const [metaConfigId, setMetaConfigId] = useState(null);
+  const [embeddedLoading, setEmbeddedLoading] = useState(false);
   const [linkMode, setLinkMode] = useState(null); // 'qr' | 'phone' | 'embedded' | null
   const [qrData, setQrData] = useState(null);
   const [baileysStatus, setBaileysStatus] = useState(saved?.config?.provider === 'baileys' ? 'connected' : 'disconnected');
@@ -254,26 +257,68 @@ function WhatsAppCard({ saved, workspaceId, onSave, onDelete }) {
       .catch(() => {});
   }, [workspaceId]);
 
-  // Full-page OAuth redirect (same reliable pattern Messenger already uses) —
-  // NOT the FB JS-SDK popup. The popup depends on postMessage/window.opener
-  // between two windows, which mobile browsers routinely kill, causing the
-  // "black screen then bounces back" failure. A plain top-level redirect has
-  // nothing to break: Facebook does its thing, then sends the browser back to
-  // our own domain with a code in the URL, which our backend exchanges server-side.
-  // Build a real, static <a href> URL (computed at render time) instead of
-  // triggering the redirect from JS on click. Some ad/tracker blockers
-  // specifically intercept script-triggered `location.href = facebook.com/...`
-  // redirects (that pattern is also used by forced-login-wall scams), but a
-  // genuine anchor tap is just normal browser navigation and isn't touched.
-  const embeddedSignupUrl = metaConfigId
-    ? (() => {
-        const redirectUri = encodeURIComponent(PROD_URL + '/api/auth/facebook-callback');
-        const state = encodeURIComponent(
-          btoa(JSON.stringify({ workspace_id: workspaceId, provider: 'whatsapp' }))
-        );
-        return `https://www.facebook.com/v19.0/dialog/oauth?client_id=${FB_APP_ID}&redirect_uri=${redirectUri}&state=${state}&config_id=${metaConfigId}&response_type=code&override_default_response_type=true`;
-      })()
-    : null;
+  // Meta's Embedded Signup wizard (the WABA/phone-number picker UI) is
+  // rendered by the JS SDK itself — a plain OAuth redirect only ever shows
+  // the generic login screen and can't render the picker at all. So this
+  // has to be FB.login(), not a link. Meta broadcasts the chosen WABA/phone
+  // number via postMessage during the flow; we capture it as a hint for the
+  // backend (which also double-checks via the granted token's scopes).
+  const embeddedSignupDataRef = useState({ current: null })[0];
+  useEffect(() => {
+    const handler = (event) => {
+      if (!event.origin?.endsWith('facebook.com')) return;
+      try {
+        const data = JSON.parse(event.data);
+        if (data.type === 'WA_EMBEDDED_SIGNUP' && data.event === 'FINISH') {
+          embeddedSignupDataRef.current = data.data || null;
+        }
+      } catch (e) { /* not our message */ }
+    };
+    window.addEventListener('message', handler);
+    return () => window.removeEventListener('message', handler);
+  }, []);
+
+  const handleEmbeddedSignup = () => {
+    if (!window.FB || !metaConfigId) {
+      setError("Facebook signup isn't configured yet. Use QR/phone linking below for now.");
+      return;
+    }
+    setError('');
+    setEmbeddedLoading(true);
+    window.FB.login((response) => {
+      if (response.authResponse?.code) {
+        const captured = embeddedSignupDataRef.current || {};
+        fetch('/api/auth/whatsapp-embedded', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            code: response.authResponse.code,
+            workspace_id: workspaceId,
+            phone_number_id: captured.phone_number_id || null,
+            waba_id: captured.waba_id || null,
+          }),
+        })
+          .then(r => r.json())
+          .then(d => {
+            setEmbeddedLoading(false);
+            if (d.ok) {
+              if (onSave) onSave('whatsapp', d.config || { connected_via: 'embedded_signup' });
+            } else {
+              setError(d.error || 'Could not finish connecting WhatsApp');
+            }
+          })
+          .catch(e => { setEmbeddedLoading(false); setError(e.message); });
+      } else {
+        setEmbeddedLoading(false);
+        setError('Facebook sign-in was cancelled or did not complete.');
+      }
+    }, {
+      config_id: metaConfigId,
+      response_type: 'code',
+      override_default_response_type: true,
+      extras: { setup: {}, featureType: '', sessionInfoVersion: '3' },
+    });
+  };
 
   const subtitle = isLive
     ? ('Connected' + (saved?.config?.phone_number ? ' · ' + saved.config.phone_number : ''))
@@ -316,13 +361,14 @@ function WhatsAppCard({ saved, workspaceId, onSave, onDelete }) {
                 </p>
                 <div className="space-y-2.5">
                   {/* Official Embedded Signup - primary path */}
-                  {embeddedSignupUrl && (
-                    <a
-                      href={embeddedSignupUrl}
-                      className="w-full py-3 rounded-xl text-sm font-bold text-white bg-[#1877F2] hover:bg-[#166FE5] flex items-center justify-center gap-2">
-                      <ShieldCheck className="w-4 h-4" />
-                      Connect with Facebook
-                    </a>
+                  {metaConfigId && (
+                    <button
+                      onClick={handleEmbeddedSignup}
+                      disabled={!fbReady || embeddedLoading}
+                      className="w-full py-3 rounded-xl text-sm font-bold text-white bg-[#1877F2] hover:bg-[#166FE5] disabled:opacity-60 flex items-center justify-center gap-2">
+                      {embeddedLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : <ShieldCheck className="w-4 h-4" />}
+                      {embeddedLoading ? 'Connecting...' : 'Connect with Facebook'}
+                    </button>
                   )}
                   {metaConfigId && (
                     <p className="text-[11px] text-gray-500 text-center">
