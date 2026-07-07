@@ -394,6 +394,7 @@ async function handleSend(req, res) {
       await sb.from('messages').update({
         ...(result.external_id ? { external_id: result.external_id } : {}),
         status: 'sent',
+        error_reason: null,
       }).eq('id', message_id);
     }
 
@@ -408,7 +409,10 @@ async function handleSend(req, res) {
     console.error('Send error:', err);
     if (req.body?.message_id) {
       const sb2 = createClient(SUPABASE_URL, SUPABASE_KEY);
-      await sb2.from('messages').update({ status: 'failed' }).eq('id', req.body.message_id);
+      // Store the real failure reason (e.g. Meta's actual Graph API rejection,
+      // or our own pre-flight format check) so the UI can show it instead of
+      // just a bare red X with no explanation.
+      await sb2.from('messages').update({ status: 'failed', error_reason: (err.message || 'Unknown error').slice(0, 500) }).eq('id', req.body.message_id);
     }
     return res.status(500).json({ error: err.message });
   }

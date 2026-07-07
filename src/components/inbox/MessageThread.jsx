@@ -14,7 +14,7 @@ const CHANNEL_COLOR = {
   website:   '#CFFAFE',
 };
 
-function StatusIcon({ status }) {
+function StatusIcon({ status, errorReason }) {
   // WhatsApp-style receipt semantics:
   //  sending   -> spinner (optimistic, not yet accepted by the server)
   //  sent      -> single grey check (server/API accepted it)
@@ -25,8 +25,18 @@ function StatusIcon({ status }) {
   if (status === 'sent')      return <Check className="w-3 h-3 text-gray-400" />;
   if (status === 'delivered') return <CheckCheck className="w-3 h-3 text-gray-400" />;
   if (status === 'read')      return <CheckCheck className="w-3 h-3 text-[#53BDEB]" />;
-  if (status === 'failed')    return <X className="w-3 h-3 text-red-400" title="Failed to send" />;
+  if (status === 'failed')    return <FailedIcon reason={errorReason} />;
   return null;
+}
+function FailedIcon({ reason }) {
+  const msg = reason ? `Failed to send: ${reason}` : 'Failed to send (no reason recorded)';
+  return (
+    <X
+      className="w-3 h-3 text-red-400 cursor-help"
+      title={msg}
+      onClick={(e) => { e.stopPropagation(); window.alert(msg); }}
+    />
+  );
 }
 
 // WhatsApp's Cloud API only accepts specific audio containers/codecs for
@@ -286,7 +296,7 @@ function Bubble({ msg, menuOpenId, onOpenMenu, onCopy, onShare, onDelete, onTogg
           <p className="text-[10px] text-gray-500">
             {ts ? formatDistanceToNow(new Date(ts), { addSuffix: true }) : ''}
           </p>
-          {isOut && !isDeleted && <StatusIcon status={msg.status} />}
+          {isOut && !isDeleted && <StatusIcon status={msg.status} errorReason={msg.error_reason} />}
         </div>
         {!isDeleted && (
           <MessageActionsMenu msg={msg} isOut={isOut} open={menuOpen}

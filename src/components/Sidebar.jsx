@@ -1,7 +1,9 @@
-import { Link, useLocation } from 'react-router-dom';
-import { MessageSquare, BarChart2, Users, Megaphone, Settings, Zap, BookOpen, ShieldCheck } from 'lucide-react';
+import { Link, useLocation, useNavigate } from 'react-router-dom';
+import { MessageSquare, BarChart2, Users, Megaphone, Settings, Zap, BookOpen, ShieldCheck, LogOut } from 'lucide-react';
 import Avatar from './Avatar';
 import { useNyasaAuth } from '@/lib/NyasaAuth';
+import { useAuth } from '@/lib/AuthContext';
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 
 const NAV = [
   { path: '/',           icon: MessageSquare, label: 'Inbox'     },
@@ -22,8 +24,15 @@ const MOBILE_NAV = [
 
 export default function Sidebar() {
   const { pathname } = useLocation();
+  const navigate = useNavigate();
+  const { signOut } = useAuth();
   const { user, profile, isPlatformAdmin } = useNyasaAuth();
   const workspaceName = profile?.workspace_name || user?.workspace_name || '';
+
+  const handleLogout = async () => {
+    await signOut();
+    navigate('/login', { replace: true });
+  };
   // Platform-admin-only nav entry — separate from the per-workspace "admin"
   // role. Only the small allowlist in platform_admin_emails ever sees this.
   const navItems = isPlatformAdmin
@@ -75,17 +84,26 @@ export default function Sidebar() {
 
         {/* User footer */}
         <div className="p-3 border-t border-white/5">
-          <div className="flex items-center gap-3 px-2 py-2 rounded-xl hover:bg-white/5 transition-colors cursor-pointer">
-            <Avatar name={user?.full_name || ''} size="sm" status={user?.status || 'online'} />
-            <div className="min-w-0 flex-1">
-              <p className="text-sm font-semibold text-white truncate leading-tight">
-                {user?.full_name || user?.email || 'You'}
-              </p>
-              <p className="text-[11px] text-gray-500 truncate leading-tight capitalize">
-                {user?.role || 'agent'}
-              </p>
-            </div>
-          </div>
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <div className="flex items-center gap-3 px-2 py-2 rounded-xl hover:bg-white/5 transition-colors cursor-pointer">
+                <Avatar name={user?.full_name || ''} size="sm" status={user?.status || 'online'} />
+                <div className="min-w-0 flex-1">
+                  <p className="text-sm font-semibold text-white truncate leading-tight">
+                    {user?.full_name || user?.email || 'You'}
+                  </p>
+                  <p className="text-[11px] text-gray-500 truncate leading-tight capitalize">
+                    {user?.role || 'agent'}
+                  </p>
+                </div>
+              </div>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent side="top" align="start" className="w-48">
+              <DropdownMenuItem onClick={handleLogout} className="text-red-500 focus:text-red-500">
+                <LogOut className="w-4 h-4 mr-2" /> Log out
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
         </div>
       </div>
 
@@ -118,7 +136,18 @@ export default function Sidebar() {
         </div>
 
         <div className="p-2 border-t border-white/5 flex items-center justify-center">
-          <Avatar name={user?.full_name || ''} size="sm" status={user?.status || 'online'} />
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <button className="cursor-pointer">
+                <Avatar name={user?.full_name || ''} size="sm" status={user?.status || 'online'} />
+              </button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent side="right" align="end" className="w-48">
+              <DropdownMenuItem onClick={handleLogout} className="text-red-500 focus:text-red-500">
+                <LogOut className="w-4 h-4 mr-2" /> Log out
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
         </div>
       </div>
 
@@ -138,7 +167,18 @@ export default function Sidebar() {
           )}
         </div>
         <div className="ml-auto">
-          <Avatar name={user?.full_name || ''} size="xs" status={user?.status || 'online'} />
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <button className="cursor-pointer">
+                <Avatar name={user?.full_name || ''} size="xs" status={user?.status || 'online'} />
+              </button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent side="bottom" align="end" className="w-48">
+              <DropdownMenuItem onClick={handleLogout} className="text-red-500 focus:text-red-500">
+                <LogOut className="w-4 h-4 mr-2" /> Log out
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
         </div>
       </div>
 
