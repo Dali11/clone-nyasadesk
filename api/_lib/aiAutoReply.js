@@ -15,15 +15,25 @@ import { getProvider } from './providers/index.js';
 
 export async function autoReplyIfEnabled(sb, { workspaceId, conversationId, channel, externalId, contact }) {
   try {
-    const { data: agents } = await sb.from('ai_agents').select('*')
+    // NOTE: supabase-js's .contains() serializes an array value using
+    // Postgres array literal syntax ({whatsapp}), which Postgres then
+    // rejects for a jsonb column ("invalid input syntax for type json").
+    // .filter(col, 'cs', jsonString) sends the correct JSON-array syntax
+    // instead. This silently broke every auto-reply until caught: the
+    // destructured { data } was never checked for { error }, so the query
+    // failing just looked identical to "no agent configured" and returned
+    // with zero logging.
+    const { data: agents, error: agentsErr } = await sb.from('ai_agents').select('*')
       .eq('workspace_id', workspaceId).eq('status', 'active').eq('automation_mode', 'auto')
-      .contains('enabled_channels', [channel])
+      .filter('enabled_channels', 'cs', JSON.stringify([channel]))
       .order('created_at', { ascending: true }).limit(1);
+    if (agentsErr) { console.error('[aiAutoReply] ai_agents query failed:', agentsErr); return; }
     const agent = agents?.[0];
     if (!agent) return; // no fully-automated agent configured for this channel
 
-    const { data: cfg } = await sb.from('channel_configs').select('*')
+    const { data: cfg, error: cfgErr } = await sb.from('channel_configs').select('*')
       .eq('workspace_id', workspaceId).eq('channel', channel).single();
+    if (cfgErr) { console.error('[aiAutoReply] channel_configs query failed:', cfgErr); return; }
     if (!cfg?.enabled) return; // channel not actually connected -- nothing to send through
 
     const { data: messages } = await sb.from('messages').select('direction,body,attachments')
