@@ -66,9 +66,7 @@ export default function Register() {
   return (
     <div style={{ minHeight: '100vh', background: BG, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: 24, fontFamily: "'Inter', sans-serif" }}>
       <div style={{ marginBottom: 40, textAlign: 'center' }}>
-        <div style={{ width: 72, height: 72, borderRadius: 22, background: WA_GREEN, display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 16px' }}>
-          <span style={{ color: '#fff', fontWeight: 900, fontSize: 36 }}>N</span>
-        </div>
+        <img src="/icon-192.png" alt="Nyasadesk" style={{ width: 72, height: 72, borderRadius: 22, margin: '0 auto 16px', display: 'block' }} />
         <h1 style={{ color: TEXT, fontSize: 26, fontWeight: 800, margin: 0 }}>Create your workspace</h1>
         <p style={{ color: MUTED, fontSize: 14, marginTop: 6 }}>Free 14-day trial · No credit card needed</p>
       </div>

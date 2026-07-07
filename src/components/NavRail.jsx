@@ -21,9 +21,7 @@ export default function NavRail({ user }) {
     <TooltipProvider delayDuration={0}>
       <nav className="nav-rail flex flex-col items-center py-4 w-16 min-h-screen shrink-0 z-30">
         {/* Logo */}
-        <div className="mb-8 flex items-center justify-center w-9 h-9 rounded-xl bg-[#5C6CF7] shadow-lg">
-          <Inbox className="w-5 h-5 text-white" />
-        </div>
+        <img src="/icon-192.png" alt="Nyasadesk" className="mb-8 w-9 h-9 rounded-xl shadow-lg" />
 
         {/* Nav items */}
         <div className="flex flex-col items-center gap-1 flex-1">

@@ -42,9 +42,7 @@ export default function Sidebar() {
         >
           <div className="flex items-center gap-3">
             {/* Logo mark */}
-            <div className="w-9 h-9 rounded-xl bg-white/20 flex items-center justify-center shrink-0 shadow-inner">
-              <span className="text-white font-black text-lg leading-none">N</span>
-            </div>
+            <img src="/icon-192.png" alt="Nyasadesk" className="w-9 h-9 rounded-xl shrink-0 shadow-inner" />
             <div className="min-w-0">
               <p className="text-white font-bold text-base leading-tight tracking-wide">Nyasadesk</p>
               {workspaceName && (
@@ -130,9 +128,7 @@ export default function Sidebar() {
         className="md:hidden fixed top-0 left-0 right-0 z-50 flex items-center gap-3 px-4 h-14 border-b border-white/10"
         style={{ background: 'linear-gradient(135deg, #075E54 0%, #128C7E 100%)' }}
       >
-        <div className="w-8 h-8 rounded-lg bg-white/20 flex items-center justify-center shrink-0">
-          <span className="text-white font-black text-base leading-none">N</span>
-        </div>
+        <img src="/icon-192.png" alt="Nyasadesk" className="w-8 h-8 rounded-lg shrink-0" />
         <div className="min-w-0">
           <p className="text-white font-bold text-sm leading-tight">Nyasadesk</p>
           {workspaceName && (

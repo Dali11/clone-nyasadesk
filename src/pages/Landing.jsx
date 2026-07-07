@@ -34,9 +34,7 @@ export default function Landing() {
       <nav style={{ background: SURFACE, borderBottom: `1px solid ${SURFACE2}`, position: 'sticky', top: 0, zIndex: 50 }}>
         <div style={{ maxWidth: 1100, margin: '0 auto', padding: '0 24px', height: 60, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-            <div style={{ width: 36, height: 36, borderRadius: 10, background: WA_GREEN, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-              <span style={{ color: '#fff', fontWeight: 900, fontSize: 18 }}>N</span>
-            </div>
+            <img src="/icon-192.png" alt="Nyasadesk" style={{ width: 36, height: 36, borderRadius: 10 }} />
             <span style={{ fontWeight: 700, fontSize: 18, color: TEXT }}>Nyasadesk</span>
           </div>
           <div style={{ display: 'flex', alignItems: 'center', gap: 20 }}>
