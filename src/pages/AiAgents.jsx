@@ -1,8 +1,8 @@
-import { useState, useEffect } from 'react';
-import { Plus, Bot, Trash2, Loader2, Sparkles, X, BookOpen, Pencil } from 'lucide-react';
+import { useState, useEffect, useRef } from 'react';
+import { Plus, Bot, Trash2, Loader2, Sparkles, X, BookOpen, Pencil, Link2, Upload } from 'lucide-react';
 import Sidebar from '@/components/Sidebar';
 import { useNyasaAuth } from '@/lib/NyasaAuth';
-import { getAiAgents, saveAiAgent, deleteAiAgent, getAiAgentTemplates, getAiKnowledge, saveAiKnowledge, deleteAiKnowledge } from '@/lib/channels';
+import { getAiAgents, saveAiAgent, deleteAiAgent, getAiAgentTemplates, getAiKnowledge, saveAiKnowledge, deleteAiKnowledge, addKnowledgeFromUrl, addKnowledgeFromFile } from '@/lib/channels';
 import { useDocumentTitle } from '@/hooks/useDocumentTitle';
 
 const CHANNEL_OPTIONS = ['whatsapp', 'website', 'instagram', 'telegram', 'messenger'];
@@ -29,6 +29,9 @@ export default function AiAgents() {
   const [loadingKnowledge, setLoadingKnowledge] = useState(false);
   const [knowledgeForm, setKnowledgeForm] = useState(null); // null | 'new' | item
   const [savingKnowledge, setSavingKnowledge] = useState(false);
+  const [ingestingUrl, setIngestingUrl] = useState(false);
+  const [ingestingFile, setIngestingFile] = useState(false);
+  const fileInputRef = useRef(null);
 
   const load = async () => {
     if (!workspaceOwnerId) { setLoading(false); return; }
@@ -99,6 +102,36 @@ export default function AiAgents() {
       setKnowledgeItems(prev => prev.filter(k => k.id !== id));
     } catch (e) {
       console.error('[AiAgents] knowledge delete error:', e);
+    }
+  };
+
+  const addFromUrl = async () => {
+    const url = window.prompt('Paste a URL (e.g. your FAQ or pricing page):');
+    if (!url) return;
+    setIngestingUrl(true);
+    try {
+      await addKnowledgeFromUrl(workspaceOwnerId, editing, url.trim());
+      await loadKnowledge(editing);
+    } catch (e) {
+      alert('Could not add that page: ' + e.message);
+    } finally {
+      setIngestingUrl(false);
+    }
+  };
+
+  const addFromFile = async (e) => {
+    const file = e.target.files?.[0];
+    e.target.value = '';
+    if (!file) return;
+    if (file.size > 2.5 * 1024 * 1024) { alert('File is too large (max 2.5MB) — try a shorter document.'); return; }
+    setIngestingFile(true);
+    try {
+      await addKnowledgeFromFile(workspaceOwnerId, editing, file);
+      await loadKnowledge(editing);
+    } catch (e2) {
+      alert('Could not read that file: ' + e2.message);
+    } finally {
+      setIngestingFile(false);
     }
   };
 
@@ -343,7 +376,11 @@ export default function AiAgents() {
                       knowledgeItems.map(k => (
                         <div key={k.id} className="flex items-start gap-2 bg-[#202C33] rounded-lg px-2.5 py-2">
                           <div className="flex-1 min-w-0">
-                            <p className="text-xs font-semibold text-white truncate">{k.title}</p>
+                            <div className="flex items-center gap-1.5">
+                              {k.source_type === 'url' && <Link2 className="w-3 h-3 text-gray-500 shrink-0" />}
+                              {k.source_type === 'file' && <Upload className="w-3 h-3 text-gray-500 shrink-0" />}
+                              <p className="text-xs font-semibold text-white truncate">{k.title}</p>
+                            </div>
                             <p className="text-[11px] text-gray-500 line-clamp-2">{k.content}</p>
                           </div>
                           <button onClick={() => setKnowledgeForm({ ...k })} className="text-gray-500 hover:text-[#25D366] shrink-0 p-1">
@@ -376,10 +413,21 @@ export default function AiAgents() {
                         </div>
                       </div>
                     ) : (
-                      <button onClick={() => setKnowledgeForm({ title: '', content: '' })}
-                        className="w-full flex items-center justify-center gap-1.5 text-[11px] font-semibold text-[#25D366] bg-[#25D366]/10 hover:bg-[#25D366]/20 rounded-lg py-1.5 transition-colors">
-                        <BookOpen className="w-3.5 h-3.5" /> Add knowledge
-                      </button>
+                      <div className="flex gap-1.5">
+                        <button onClick={() => setKnowledgeForm({ title: '', content: '' })}
+                          className="flex-1 flex items-center justify-center gap-1.5 text-[11px] font-semibold text-[#25D366] bg-[#25D366]/10 hover:bg-[#25D366]/20 rounded-lg py-1.5 transition-colors">
+                          <BookOpen className="w-3.5 h-3.5" /> Text
+                        </button>
+                        <button onClick={addFromUrl} disabled={ingestingUrl}
+                          className="flex-1 flex items-center justify-center gap-1.5 text-[11px] font-semibold text-[#25D366] bg-[#25D366]/10 hover:bg-[#25D366]/20 disabled:opacity-50 rounded-lg py-1.5 transition-colors">
+                          {ingestingUrl ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Link2 className="w-3.5 h-3.5" />} URL
+                        </button>
+                        <button onClick={() => fileInputRef.current?.click()} disabled={ingestingFile}
+                          className="flex-1 flex items-center justify-center gap-1.5 text-[11px] font-semibold text-[#25D366] bg-[#25D366]/10 hover:bg-[#25D366]/20 disabled:opacity-50 rounded-lg py-1.5 transition-colors">
+                          {ingestingFile ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Upload className="w-3.5 h-3.5" />} File
+                        </button>
+                        <input ref={fileInputRef} type="file" accept=".pdf,.docx,.txt" onChange={addFromFile} className="hidden" />
+                      </div>
                     )}
                   </div>
                 )}

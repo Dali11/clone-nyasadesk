@@ -11,6 +11,7 @@
 import { createClient } from '@supabase/supabase-js';
 import { getProvider } from '../_lib/providers/index.js';
 import { AI_AGENT_TEMPLATES, generateDraftReply } from '../_lib/aiAgents.js';
+import { ingestUrl, ingestFile } from '../_lib/knowledgeIngest.js';
 
 const SUPABASE_URL = 'https://pfbaepibelomiutlotkn.supabase.co';
 const SUPABASE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY;
@@ -40,6 +41,8 @@ export default async function handler(req, res) {
   if (action === 'ai-agents-save') return handleAiAgentsSave(req, res);
   if (action === 'ai-agents-delete') return handleAiAgentsDelete(req, res);
   if (action === 'ai-draft')       return handleAiDraft(req, res);
+  if (action === 'ai-knowledge-from-url')  return handleAiKnowledgeFromUrl(req, res);
+  if (action === 'ai-knowledge-from-file') return handleAiKnowledgeFromFile(req, res);
   return handleSend(req, res);
 }
 
@@ -136,6 +139,45 @@ async function handleAiDraft(req, res) {
   } catch (e) {
     console.error('[ai-draft] error:', e);
     return res.status(500).json({ ok: false, error: e.message });
+  }
+}
+
+// ── AI Agents: knowledge base ingestion (Phase 3) ──────────────────────────
+// Turns a URL or an uploaded PDF/DOCX/TXT into a knowledge snippet, same
+// table as Phase 2's manual entries (source_type distinguishes them). Still
+// no embeddings/chunking -- content is truncated, then buildKnowledgeBlock
+// caps the total prompt size at draft time.
+async function handleAiKnowledgeFromUrl(req, res) {
+  try {
+    const { workspace_id, agent_id, url } = req.body || {};
+    if (!workspace_id || !url) return res.status(400).json({ error: 'workspace_id and url are required' });
+    const { title, content } = await ingestUrl(url);
+    const sb = createClient(SUPABASE_URL, SUPABASE_KEY);
+    const { data, error } = await sb.from('ai_knowledge')
+      .insert({ workspace_id, agent_id: agent_id || null, title, content, source_type: 'url', url })
+      .select().single();
+    if (error) throw error;
+    return res.status(200).json({ ok: true, knowledge: data });
+  } catch (e) {
+    console.error('[ai-knowledge-from-url] error:', e);
+    return res.status(400).json({ ok: false, error: e.message });
+  }
+}
+
+async function handleAiKnowledgeFromFile(req, res) {
+  try {
+    const { workspace_id, agent_id, filename, mime_type, content_base64 } = req.body || {};
+    if (!workspace_id || !content_base64) return res.status(400).json({ error: 'workspace_id and content_base64 are required' });
+    const { title, content } = await ingestFile(filename, mime_type, content_base64);
+    const sb = createClient(SUPABASE_URL, SUPABASE_KEY);
+    const { data, error } = await sb.from('ai_knowledge')
+      .insert({ workspace_id, agent_id: agent_id || null, title, content, source_type: 'file' })
+      .select().single();
+    if (error) throw error;
+    return res.status(200).json({ ok: true, knowledge: data });
+  } catch (e) {
+    console.error('[ai-knowledge-from-file] error:', e);
+    return res.status(400).json({ ok: false, error: e.message });
   }
 }
 

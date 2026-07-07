@@ -721,3 +721,37 @@ export async function deleteAiKnowledge(id) {
   const { error } = await supabase.from('ai_knowledge').delete().eq('id', id);
   if (error) throw error;
 }
+
+// ── AI Agents: knowledge ingestion from URL / file (Phase 3) ──────────────
+
+export async function addKnowledgeFromUrl(workspaceId, agentId, url) {
+  const res = await fetch('/api/channels?action=ai-knowledge-from-url', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ workspace_id: workspaceId, agent_id: agentId, url }),
+  });
+  const data = await res.json();
+  if (!res.ok || !data.ok) throw new Error(data.error || 'Failed to add knowledge from URL');
+  return data.knowledge;
+}
+
+export function fileToBase64(file) {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(String(reader.result).split(',')[1] || '');
+    reader.onerror = reject;
+    reader.readAsDataURL(file);
+  });
+}
+
+export async function addKnowledgeFromFile(workspaceId, agentId, file) {
+  const content_base64 = await fileToBase64(file);
+  const res = await fetch('/api/channels?action=ai-knowledge-from-file', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ workspace_id: workspaceId, agent_id: agentId, filename: file.name, mime_type: file.type, content_base64 }),
+  });
+  const data = await res.json();
+  if (!res.ok || !data.ok) throw new Error(data.error || 'Failed to add knowledge from file');
+  return data.knowledge;
+}
