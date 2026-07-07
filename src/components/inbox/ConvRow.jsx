@@ -55,9 +55,11 @@ export default function ConvRow({ conv, active, onClick }) {
             </span>
           </div>
         </div>
-        <div className={`text-xs truncate mb-1 ${conv.unread ? 'text-gray-200 font-medium' : 'text-gray-600'}`}>
-          {conv.subject}
-        </div>
+        {conv.subject && conv.subject !== conv.contact_name && (
+          <div className={`text-xs truncate mb-1 ${conv.unread ? 'text-gray-200 font-medium' : 'text-gray-600'}`}>
+            {conv.subject}
+          </div>
+        )}
         <div className={`text-xs truncate mb-1 ${conv.unread ? 'text-gray-300 font-medium' : 'text-gray-700'}`}>
           {conv.last_message_preview || 'No messages yet'}
         </div>
