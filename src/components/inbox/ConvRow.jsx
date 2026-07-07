@@ -45,25 +45,31 @@ export default function ConvRow({ conv, active, onClick }) {
       </div>
       <div className="flex-1 min-w-0">
         <div className="flex items-center justify-between mb-0.5">
-          <span className={`text-sm truncate ${conv.unread ? 'font-semibold text-white' : 'font-normal text-gray-300'}`}>
+          <span className={`text-sm truncate ${conv.unread ? 'font-bold text-white' : 'font-normal text-gray-300'}`}>
             {conv.contact_name}
           </span>
           <div className="flex items-center gap-1.5 shrink-0 ml-2">
             {conv.is_reminder_active && <Bell className="w-3 h-3 text-yellow-400" />}
-            <span className="text-[10px] text-gray-600">{timeAgo(conv.last_message_at)}</span>
+            <span className={`text-[10px] ${conv.unread ? 'text-[#25D366] font-semibold' : 'text-gray-600'}`}>
+              {timeAgo(conv.last_message_at)}
+            </span>
           </div>
         </div>
-        <div className={`text-xs truncate mb-1 ${conv.unread ? 'text-gray-300' : 'text-gray-600'}`}>
+        <div className={`text-xs truncate mb-1 ${conv.unread ? 'text-gray-200 font-medium' : 'text-gray-600'}`}>
           {conv.subject}
         </div>
-        <div className={`text-xs truncate mb-1 ${conv.unread ? 'text-gray-400' : 'text-gray-700'}`}>
+        <div className={`text-xs truncate mb-1 ${conv.unread ? 'text-gray-300 font-medium' : 'text-gray-700'}`}>
           {conv.last_message_preview || 'No messages yet'}
         </div>
         <div className="flex items-center justify-between">
           <SLABadge slaBreachAt={conv.sla_breach_at} />
-          <div className="flex items-center gap-1 ml-auto">
+          <div className="flex items-center gap-1.5 ml-auto">
             {!conv.assigned_to && <span className="text-[9px] text-yellow-500 font-semibold">Unassigned</span>}
-            {conv.unread && <span className="w-4 h-4 rounded-full bg-[#25D366] text-white text-[9px] font-bold flex items-center justify-center">●</span>}
+            {conv.unread_count > 0 && (
+              <span className="min-w-[18px] h-[18px] px-1 rounded-full bg-[#25D366] text-white text-[10px] font-bold flex items-center justify-center leading-none">
+                {conv.unread_count > 99 ? '99+' : conv.unread_count}
+              </span>
+            )}
           </div>
         </div>
       </div>
