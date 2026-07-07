@@ -33,13 +33,20 @@ export default function ChatHeader({ conversation, users = [], onUpdate, onBack,
           <div className="flex items-center gap-1.5 text-xs text-gray-500">
             <span className={`w-1.5 h-1.5 rounded-full ${STATUS_COLOR[conversation.status] || 'bg-gray-500'}`} />
             <span className="capitalize">{conversation.status}</span>
-            {conversation.assigned_to_name && <><span>·</span><span className="text-[#25D366]">{conversation.assigned_to_name}</span></>}
-            {!conversation.assigned_to && <span className="text-orange-400">Unassigned</span>}
+            {!conversation.assigned_to && <><span>·</span><span className="text-orange-400">Unassigned</span></>}
           </div>
         </div>
       </button>
 
       <div className="flex items-center gap-2 shrink-0">
+        {conversation.assigned_to_name && (
+          <span
+            title={`Assigned to ${conversation.assigned_to_name}`}
+            className="hidden sm:inline-block text-[9px] font-medium text-gray-500 bg-white/5 px-1.5 py-0.5 rounded-full truncate max-w-[70px]"
+          >
+            {conversation.assigned_to_name.split(' ')[0]}
+          </span>
+        )}
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
             <button className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-[#25D366] text-white text-xs font-semibold hover:bg-[#20BA5A] transition-colors">

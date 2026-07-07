@@ -192,13 +192,49 @@ export class WhatsAppCloudProvider extends MessagingProvider {
     return { config: data, phone_number: phoneNumber, business_name: businessName };
   }
 
+  // ── List Meta-approved message templates for this WABA ────────────────
+  // Required for any business-initiated message (broadcasts) sent outside
+  // the 24h customer-service window -- Meta rejects free-form text there.
+  async listTemplates(config) {
+    const { waba_id, access_token } = config;
+    if (!waba_id || !access_token) {
+      throw new Error('WhatsApp channel is missing waba_id — reconnect the channel to enable templates');
+    }
+    const r = await fetch(`${GRAPH}/${waba_id}/message_templates?fields=name,status,language,category,components&limit=100&access_token=${access_token}`);
+    const json = await r.json();
+    if (!r.ok) throw new Error(json.error?.message || 'Failed to fetch WhatsApp templates');
+    return (json.data || []).filter(t => t.status === 'APPROVED');
+  }
+
   // ── Send an outbound message ───────────────────────────────────────────
   async sendMessage(config, message, ctx) {
     const { phone_number_id, access_token } = config;
-    const { to, text, media } = message;
+    const { to, text, media, template } = message;
 
     if (!phone_number_id || !access_token) {
       throw new Error('WhatsApp channel not fully configured — missing phone_number_id or access_token');
+    }
+
+    // Template message (used for broadcasts / any business-initiated send
+    // outside the 24h customer-service window — Meta requires an
+    // Meta-approved template in that case, plain text gets rejected).
+    if (template?.name) {
+      const payload = {
+        messaging_product: 'whatsapp', to, type: 'template',
+        template: {
+          name: template.name,
+          language: { code: template.language || 'en_US' },
+          ...(template.components ? { components: template.components } : {}),
+        },
+      };
+      const r = await fetch(`${GRAPH}/${phone_number_id}/messages`, {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${access_token}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+      });
+      const json = await r.json();
+      if (!r.ok) throw new Error(json.error?.message || 'WhatsApp template send failed');
+      return { ok: true, external_id: json.messages?.[0]?.id };
     }
 
     const WA_TYPE = { image: 'image', video: 'video', audio: 'audio' };

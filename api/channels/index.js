@@ -17,7 +17,7 @@ const PROD_URL = 'https://nyasadesk1.vercel.app';
 const BRIDGE_API = 'https://officialapi.wasapflow.com/bridge/v1';
 
 export default async function handler(req, res) {
-  const getActions = ['hosted-connect'];
+  const getActions = ['hosted-connect', 'templates'];
   if (req.method !== 'POST' && !getActions.includes(req.query.action)) return res.status(405).json({ error: 'Method Not Allowed' });
   const action = req.query.action || 'send';
 
@@ -29,7 +29,27 @@ export default async function handler(req, res) {
   if (action === 'hosted-connect') return handleHostedConnect(req, res);
   if (action === 'save-waba')     return handleSaveWaba(req, res);
   if (action === 'sync-waba')     return handleSyncWaba(req, res);
+  if (action === 'templates')     return handleListTemplates(req, res);
   return handleSend(req, res);
+}
+
+// ── List Meta-approved WhatsApp message templates ─────────────────────────
+// GET /api/channels?action=templates&workspace_id=...
+async function handleListTemplates(req, res) {
+  try {
+    const workspace_id = req.query.workspace_id;
+    if (!workspace_id) return res.status(400).json({ error: 'workspace_id is required' });
+    const sb = createClient(SUPABASE_URL, SUPABASE_KEY);
+    const { data: cfg } = await sb.from('channel_configs').select('*')
+      .eq('workspace_id', workspace_id).eq('channel', 'whatsapp').single();
+    if (!cfg?.enabled) return res.status(200).json({ ok: true, templates: [] });
+    const provider = getProvider('whatsapp:cloud');
+    const templates = await provider.listTemplates(cfg.config);
+    return res.status(200).json({ ok: true, templates });
+  } catch (e) {
+    console.error('[channels/templates] error:', e);
+    return res.status(500).json({ ok: false, error: e.message, templates: [] });
+  }
 }
 
 // ── Connect a channel via provider abstraction ───────────────────────────
@@ -347,12 +367,12 @@ async function handleHostedConnect(req, res) {
 // ── Send an outbound message via provider abstraction ────────────────────
 async function handleSend(req, res) {
   try {
-    const { message_id, conversation_id, workspace_id, channel, body: text, attachments } = req.body || {};
+    const { message_id, conversation_id, workspace_id, channel, body: text, attachments, template } = req.body || {};
     if (!conversation_id || !workspace_id || !channel) {
       return res.status(400).json({ error: 'Missing fields: conversation_id, workspace_id, channel' });
     }
     const media = Array.isArray(attachments) && attachments.length ? attachments[0] : null;
-    if (!text && !media) return res.status(400).json({ error: 'Message must have text or an attachment' });
+    if (!text && !media && !template?.name) return res.status(400).json({ error: 'Message must have text, an attachment, or a template' });
 
     const sb = createClient(SUPABASE_URL, SUPABASE_KEY);
 
@@ -386,7 +406,7 @@ async function handleSend(req, res) {
       : channel;
     const provider = getProvider(providerKey);
     const result = await provider.sendMessage(cfg.config, {
-      to: conv.external_id, text, media, message_id, conversation_id, workspace_id,
+      to: conv.external_id, text, media, template, message_id, conversation_id, workspace_id,
     }, { sb });
 
     // 4. Update message status

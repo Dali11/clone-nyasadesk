@@ -1,9 +1,9 @@
 import { useState, useEffect, useRef, Fragment } from 'react';
 import { Send, StickyNote, Loader2, Check, CheckCheck, X, Zap, Paperclip, Mic, Square, Play, Pause,
-         ChevronDown, Copy, Share2, Pin, PinOff, Trash2, Ban } from 'lucide-react';
+         ChevronDown, Copy, Share2, Pin, PinOff, Trash2, Ban, Reply, Palette } from 'lucide-react';
 import { formatDistanceToNow, isToday, isYesterday, format as formatDate } from 'date-fns';
 import { motion, AnimatePresence } from 'framer-motion';
-import { getMessages, sendMessage, sendMediaMessage, addNote, deleteMessage, setMessagePinned, subscribeToMessages, getCannedResponses } from '@/lib/channels';
+import { getMessages, sendMessage, sendMediaMessage, addNote, deleteMessage, setMessagePinned, subscribeToMessages, getCannedResponses, setChatBackground } from '@/lib/channels';
 import { useNyasaAuth } from '@/lib/NyasaAuth';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger, DropdownMenuSeparator } from '@/components/ui/dropdown-menu';
 
@@ -13,6 +13,20 @@ const CHANNEL_COLOR = {
   email:     '#EDE9FE',
   website:   '#CFFAFE',
 };
+
+// Per-agent chat background presets — purely personal/local to whoever's
+// viewing (stored on their own profile row), never shared with teammates.
+const CHAT_BACKGROUNDS = {
+  default: { label: 'Default', style: { background: '#0B141A', backgroundImage: 'radial-gradient(circle at 1px 1px, rgba(255,255,255,0.03) 1px, transparent 0)', backgroundSize: '20px 20px' } },
+  doodle:  { label: 'WhatsApp Doodle', style: { background: '#E9E3D7', backgroundImage: "url('https://user-images.githubusercontent.com/15075759/61976795-a6bc0100-af9f-11e9-8ba9-2ae1a4f6f42f.png')", backgroundSize: '400px' } },
+  navy:    { label: 'Deep Navy', style: { background: '#0F1E33' } },
+  black:   { label: 'Solid Black', style: { background: '#000000' } },
+};
+function backgroundStyle(bg) {
+  if (bg && CHAT_BACKGROUNDS[bg]) return CHAT_BACKGROUNDS[bg].style;
+  if (bg && /^https?:\/\//.test(bg)) return { backgroundImage: `url('${bg}')`, backgroundSize: 'cover', backgroundPosition: 'center' };
+  return CHAT_BACKGROUNDS.default.style;
+}
 
 // WhatsApp-style date separator label: "Today" / "Yesterday" / "March 3, 2026"
 function dayLabel(ts) {
@@ -189,7 +203,7 @@ function MediaAttachment({ att }) {
 // WhatsApp-style action menu: a small always-reachable "chevron" button, a
 // long-press (pointer-hold) on the bubble itself, and right-click on desktop
 // all open the same dropdown — Copy / Share / Pin / Delete.
-function MessageActionsMenu({ msg, isOut, open, onOpenChange, onCopy, onShare, onTogglePin, onDelete }) {
+function MessageActionsMenu({ msg, isOut, open, onOpenChange, onCopy, onShare, onTogglePin, onDelete, onReply }) {
   return (
     <DropdownMenu open={open} onOpenChange={onOpenChange}>
       <DropdownMenuTrigger asChild>
@@ -202,6 +216,11 @@ function MessageActionsMenu({ msg, isOut, open, onOpenChange, onCopy, onShare, o
         </button>
       </DropdownMenuTrigger>
       <DropdownMenuContent align={isOut ? 'end' : 'start'} className="w-40 bg-[#233138] border-white/10 text-gray-200">
+        {onReply && (
+          <DropdownMenuItem onClick={onReply} className="text-xs gap-2 hover:bg-white/10 focus:bg-white/10 cursor-pointer">
+            <Reply className="w-3.5 h-3.5" />Reply
+          </DropdownMenuItem>
+        )}
         {msg.body && (
           <DropdownMenuItem onClick={onCopy} className="text-xs gap-2 hover:bg-white/10 focus:bg-white/10 cursor-pointer">
             <Copy className="w-3.5 h-3.5" />Copy
@@ -222,7 +241,7 @@ function MessageActionsMenu({ msg, isOut, open, onOpenChange, onCopy, onShare, o
   );
 }
 
-function Bubble({ msg, menuOpenId, onOpenMenu, onCopy, onShare, onDelete, onTogglePin, bubbleRef }) {
+function Bubble({ msg, menuOpenId, onOpenMenu, onCopy, onShare, onDelete, onTogglePin, onReply, onJumpToReply, bubbleRef }) {
   const isNote     = msg.direction === 'note';
   const isActivity = msg.direction === 'activity';
   const isOut      = msg.direction === 'outbound';
@@ -268,7 +287,8 @@ function Bubble({ msg, menuOpenId, onOpenMenu, onCopy, onShare, onDelete, onTogg
           <MessageActionsMenu msg={msg} isOut={false} open={menuOpen}
             onOpenChange={v => onOpenMenu(v ? msg.id : null)}
             onCopy={() => onCopy(msg)} onShare={() => onShare(msg)}
-            onTogglePin={() => onTogglePin(msg)} onDelete={() => onDelete(msg)} />
+            onTogglePin={() => onTogglePin(msg)} onDelete={() => onDelete(msg)}
+            onReply={() => onReply(msg)} />
         )}
       </div>
     </div>
@@ -299,11 +319,17 @@ function Bubble({ msg, menuOpenId, onOpenMenu, onCopy, onShare, onDelete, onTogg
         onPointerLeave={clearPress}
         onContextMenu={!isDeleted ? handleContextMenu : undefined}
       >
-        {!isOut && msg.sender_name && (
-          <p className="text-[10px] font-semibold text-[#128C7E] mb-0.5">{msg.sender_name}</p>
-        )}
         {msg.pinned && !isDeleted && (
           <Pin className={`w-3 h-3 absolute -top-1.5 ${isOut ? '-left-1.5' : '-right-1.5'} text-[#128C7E] fill-[#128C7E]/20`} />
+        )}
+        {msg.reply_to && !isDeleted && (
+          <button
+            onClick={e => { e.stopPropagation(); onJumpToReply?.(msg.reply_to.id); }}
+            className="w-full text-left mb-1.5 pl-2 pr-2 py-1 rounded-md bg-black/10 border-l-[3px] border-[#128C7E] overflow-hidden"
+          >
+            <p className="text-[10px] font-semibold text-[#128C7E] truncate">{msg.reply_to.sender_name || 'Message'}</p>
+            <p className="text-[11px] text-gray-600 truncate">{msg.reply_to.body || 'Attachment'}</p>
+          </button>
         )}
         {isDeleted ? (
           <p className="italic text-gray-500 flex items-center gap-1.5"><Ban className="w-3.5 h-3.5" />This message was deleted</p>
@@ -325,7 +351,8 @@ function Bubble({ msg, menuOpenId, onOpenMenu, onCopy, onShare, onDelete, onTogg
           <MessageActionsMenu msg={msg} isOut={isOut} open={menuOpen}
             onOpenChange={v => onOpenMenu(v ? msg.id : null)}
             onCopy={() => onCopy(msg)} onShare={() => onShare(msg)}
-            onTogglePin={() => onTogglePin(msg)} onDelete={() => onDelete(msg)} />
+            onTogglePin={() => onTogglePin(msg)} onDelete={() => onDelete(msg)}
+            onReply={() => onReply(msg)} />
         )}
       </div>
     </motion.div>
@@ -333,7 +360,9 @@ function Bubble({ msg, menuOpenId, onOpenMenu, onCopy, onShare, onDelete, onTogg
 }
 
 export default function MessageThread({ conversation, workspaceId }) {
-  const { user } = useNyasaAuth();
+  const { user, profile } = useNyasaAuth();
+  const [bg, setBg] = useState(profile?.chat_background || 'default');
+  const [showBgPicker, setShowBgPicker] = useState(false);
   const [messages, setMessages]   = useState([]);
   const [loading, setLoading]     = useState(true);
   const [body, setBody]           = useState('');
@@ -345,6 +374,7 @@ export default function MessageThread({ conversation, workspaceId }) {
   const [recordSecs, setRecordSecs] = useState(0);
   const [canned, setCanned] = useState([]);
   const [menuOpenId, setMenuOpenId] = useState(null);
+  const [replyingTo, setReplyingTo] = useState(null);
   const bottomRef = useRef(null);
   const inputRef  = useRef(null);
   const fileInputRef = useRef(null);
@@ -356,6 +386,20 @@ export default function MessageThread({ conversation, workspaceId }) {
   const recordTimerRef = useRef(null);
 
   const wId = workspaceId || user?.id;
+
+  useEffect(() => { if (profile?.chat_background) setBg(profile.chat_background); }, [profile?.chat_background]);
+
+  const chooseBackground = async (key) => {
+    setBg(key);
+    setShowBgPicker(false);
+    try { await setChatBackground(user.id, key); } catch (e) { console.error('[MessageThread] failed to save background:', e); }
+  };
+
+  const chooseCustomBackground = async () => {
+    const url = window.prompt('Paste an image URL to use as your chat background:');
+    if (!url) return;
+    await chooseBackground(url);
+  };
 
   // Load messages
   useEffect(() => {
@@ -396,6 +440,10 @@ export default function MessageThread({ conversation, workspaceId }) {
     setBody('');
     setSending(true);
     inputRef.current?.focus();
+    const replyToSnapshot = replyingTo
+      ? { id: replyingTo.id, sender_name: replyingTo.direction === 'outbound' ? 'You' : (replyingTo.sender_name || conversation.contact_name), body: replyingTo.body || (replyingTo.attachments?.[0] ? `[${replyingTo.attachments[0].type}]` : '') }
+      : null;
+    setReplyingTo(null);
 
     if (tab === 'note') {
       // Notes are real, persisted messages (direction: 'note') — saved to the
@@ -408,7 +456,7 @@ export default function MessageThread({ conversation, workspaceId }) {
         created_at: new Date().toISOString(),
       }]);
       try {
-        const saved = await addNote(wId, conversation.id, text, user?.full_name || 'You', user?.id);
+        const saved = await addNote(wId, conversation.id, text, user?.full_name || 'You', user?.id, replyToSnapshot);
         setMessages(prev => prev.map(m => m.id === tempId ? saved : m));
       } catch (e) {
         console.error('[MessageThread] failed to save note:', e);
@@ -426,10 +474,11 @@ export default function MessageThread({ conversation, workspaceId }) {
       body: text, channel: conversation.channel,
       sender_name: user?.full_name || 'You', status: 'sending',
       created_at: new Date().toISOString(),
+      ...(replyToSnapshot ? { reply_to: replyToSnapshot } : {}),
     }]);
 
     try {
-      const msg = await sendMessage(wId, conversation.id, text, user?.full_name || 'You', null, user?.id || null);
+      const msg = await sendMessage(wId, conversation.id, text, user?.full_name || 'You', null, user?.id || null, replyToSnapshot);
       setMessages(prev => prev.map(m => m.id === tempId ? { ...msg, direction: 'outbound' } : m));
     } catch (e) {
       setMessages(prev => prev.map(m => m.id === tempId ? { ...m, status: 'failed' } : m));
@@ -552,13 +601,17 @@ export default function MessageThread({ conversation, workspaceId }) {
     messageRefs.current[id]?.scrollIntoView({ behavior: 'smooth', block: 'center' });
   };
 
+  const handleReplyMessage = (msg) => {
+    setReplyingTo(msg);
+    inputRef.current?.focus();
+  };
+
   const pinnedMessages = messages.filter(m => m.pinned && !m.deleted_at);
 
   if (!conversation) return null;
 
   return (
-    <div className="flex-1 flex flex-col overflow-hidden bg-[#0B141A]"
-      style={{ backgroundImage: 'radial-gradient(circle at 1px 1px, rgba(255,255,255,0.03) 1px, transparent 0)', backgroundSize: '20px 20px' }}>
+    <div className="flex-1 flex flex-col overflow-hidden" style={backgroundStyle(bg)}>
 
       {/* Pinned messages bar */}
       {pinnedMessages.length > 0 && (
@@ -602,6 +655,8 @@ export default function MessageThread({ conversation, workspaceId }) {
                   onShare={handleShareMessage}
                   onTogglePin={handleTogglePinMessage}
                   onDelete={handleDeleteMessage}
+                  onReply={handleReplyMessage}
+                  onJumpToReply={scrollToMessage}
                 />
               </Fragment>
             );
@@ -612,6 +667,20 @@ export default function MessageThread({ conversation, workspaceId }) {
 
       {/* Composer */}
       <div className="shrink-0 border-t border-white/5 bg-[#202C33] px-3 py-2">
+        {/* Reply preview bar */}
+        {replyingTo && (
+          <div className="flex items-center gap-2 bg-[#1a2530] rounded-lg pl-2 pr-1 py-1.5 mb-2 border-l-[3px] border-[#25D366]">
+            <div className="flex-1 min-w-0">
+              <p className="text-[10px] font-semibold text-[#25D366] truncate">
+                Replying to {replyingTo.direction === 'outbound' ? 'yourself' : (replyingTo.sender_name || conversation.contact_name)}
+              </p>
+              <p className="text-[11px] text-gray-500 truncate">{replyingTo.body || 'Attachment'}</p>
+            </div>
+            <button onClick={() => setReplyingTo(null)} className="p-1.5 text-gray-500 hover:text-gray-300 shrink-0">
+              <X className="w-3.5 h-3.5" />
+            </button>
+          </div>
+        )}
         {/* Tab row */}
         <div className="flex gap-1 mb-2">
           {['reply', 'note'].map(t => (
@@ -622,9 +691,32 @@ export default function MessageThread({ conversation, workspaceId }) {
             </button>
           ))}
 
+          {/* Background picker */}
+          <div className="relative ml-auto">
+            <button onClick={() => setShowBgPicker(s => !s)}
+              className="flex items-center gap-1 text-[11px] text-gray-500 hover:text-gray-300 px-2 py-1 rounded-lg hover:bg-white/5 transition-colors">
+              <Palette className="w-3.5 h-3.5" />
+            </button>
+            {showBgPicker && (
+              <div className="absolute right-0 bottom-full mb-1 z-10 bg-[#233138] border border-white/10 rounded-xl p-2 w-40 shadow-lg space-y-0.5">
+                <p className="text-[10px] text-gray-500 px-2 pb-1">Chat background (only for you)</p>
+                {Object.entries(CHAT_BACKGROUNDS).map(([key, v]) => (
+                  <button key={key} onClick={() => chooseBackground(key)}
+                    className={`w-full text-left text-xs px-2 py-1.5 rounded-lg hover:bg-white/10 transition-colors ${bg === key ? 'text-[#25D366] font-semibold' : 'text-gray-300'}`}>
+                    {v.label}
+                  </button>
+                ))}
+                <button onClick={chooseCustomBackground}
+                  className="w-full text-left text-xs px-2 py-1.5 rounded-lg hover:bg-white/10 transition-colors text-gray-300">
+                  Custom image URL…
+                </button>
+              </div>
+            )}
+          </div>
+
           {/* Canned response trigger */}
           <button onClick={() => setShowCanned(s => !s)}
-            className="ml-auto flex items-center gap-1 text-[11px] text-gray-500 hover:text-gray-300 px-2 py-1 rounded-lg hover:bg-white/5 transition-colors">
+            className="flex items-center gap-1 text-[11px] text-gray-500 hover:text-gray-300 px-2 py-1 rounded-lg hover:bg-white/5 transition-colors">
             <Zap className="w-3.5 h-3.5" /> Quick
           </button>
         </div>

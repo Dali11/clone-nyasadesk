@@ -1,10 +1,10 @@
 import { useState, useEffect } from 'react';
-import { Plus, Send, Trash2, X, Megaphone, Loader2 } from 'lucide-react';
+import { Plus, Send, Trash2, X, Megaphone, Loader2, AlertTriangle } from 'lucide-react';
 import Sidebar from '@/components/Sidebar';
 import ChannelBadge, { CHANNELS } from '@/components/ChannelBadge';
 import Avatar from '@/components/Avatar';
 import { useNyasaAuth } from '@/lib/NyasaAuth';
-import { getContacts, getBroadcasts, createBroadcast, sendBroadcast, deleteBroadcast } from '@/lib/channels';
+import { getContacts, getBroadcasts, createBroadcast, sendBroadcast, deleteBroadcast, getWhatsAppTemplates } from '@/lib/channels';
 import { useDocumentTitle } from '@/hooks/useDocumentTitle';
 
 const STATUS_COLORS = { sent: 'text-green-400 bg-green-900/20', draft: 'text-yellow-400 bg-yellow-900/20', sending: 'text-blue-400 bg-blue-900/20' };
@@ -35,9 +35,17 @@ function BroadcastCard({ bc, contacts, sending, onDelete, onSend }) {
         {audience.length > 5 && <span className="text-xs text-gray-500">+{audience.length - 5}</span>}
       </div>
       {bc.status === 'sent' ? (
-        <div className="text-center bg-[#2A3942] rounded-xl py-2.5">
-          <p className="text-lg font-bold text-[#25D366]">{bc.sent_count}</p>
-          <p className="text-[10px] text-gray-500">Messages dispatched</p>
+        <div className="flex gap-2">
+          <div className="flex-1 text-center bg-[#2A3942] rounded-xl py-2.5">
+            <p className="text-lg font-bold text-[#25D366]">{bc.sent_count}</p>
+            <p className="text-[10px] text-gray-500">Accepted by API</p>
+          </div>
+          {bc.failed_count > 0 && (
+            <div className="flex-1 text-center bg-red-900/20 rounded-xl py-2.5">
+              <p className="text-lg font-bold text-red-400">{bc.failed_count}</p>
+              <p className="text-[10px] text-gray-500">Failed</p>
+            </div>
+          )}
         </div>
       ) : (
         <button onClick={() => onSend(bc.id)} disabled={isSending}
@@ -60,7 +68,9 @@ export default function Broadcasts() {
   const [showNew, setShowNew] = useState(false);
   const [creating, setCreating] = useState(false);
   const [sendingId, setSendingId] = useState(null);
-  const [form, setForm] = useState({ name: '', channel: 'whatsapp', message: '', audience: [] });
+  const [form, setForm] = useState({ name: '', channel: 'whatsapp', message: '', audience: [], template_name: '', template_language: 'en_US' });
+  const [templates, setTemplates] = useState([]);
+  const [templatesLoading, setTemplatesLoading] = useState(false);
 
   const load = async () => {
     if (!workspaceId) { setLoading(false); return; }
@@ -77,6 +87,18 @@ export default function Broadcasts() {
 
   useEffect(() => { load(); }, [workspaceId]);
 
+  // WhatsApp broadcasts must use a Meta-approved template for contacts
+  // outside the 24h customer-service window -- fetch the workspace's
+  // approved templates whenever the composer's channel is WhatsApp.
+  useEffect(() => {
+    if (!workspaceId || form.channel !== 'whatsapp' || !showNew) { return; }
+    setTemplatesLoading(true);
+    getWhatsAppTemplates(workspaceId)
+      .then(setTemplates)
+      .catch(() => setTemplates([]))
+      .finally(() => setTemplatesLoading(false));
+  }, [workspaceId, form.channel, showNew]);
+
   const set = (k, v) => setForm(f => ({ ...f, [k]: v }));
   const toggleAudience = (id) => setForm(f => ({ ...f, audience: f.audience.includes(id) ? f.audience.filter(a => a !== id) : [...f.audience, id] }));
 
@@ -86,13 +108,26 @@ export default function Broadcasts() {
     try {
       await createBroadcast(workspaceId, form);
       setShowNew(false);
-      setForm({ name: '', channel: 'whatsapp', message: '', audience: [] });
+      setForm({ name: '', channel: 'whatsapp', message: '', audience: [], template_name: '', template_language: 'en_US' });
       await load();
     } catch (e) {
       console.error('[Broadcasts] create error:', e);
     } finally {
       setCreating(false);
     }
+  };
+
+  // Grab the BODY component's text off an approved template (what the
+  // customer actually receives) so we can preview it and detect {{1}}.
+  const templateBodyText = (t) => t?.components?.find(c => c.type === 'BODY')?.text || '';
+
+  const selectTemplate = (key) => {
+    if (!key) { set('template_name', ''); set('message', ''); return; }
+    const [name, language] = key.split('|');
+    const t = templates.find(x => x.name === name && x.language === language);
+    set('template_name', name);
+    set('template_language', language);
+    set('message', templateBodyText(t));
   };
 
   const send = async (id) => {
@@ -164,13 +199,55 @@ export default function Broadcasts() {
             <input className={inputCls} placeholder="Broadcast name *" value={form.name} onChange={e => set('name', e.target.value)} />
             <div>
               <label className="text-xs text-gray-500 mb-1.5 block">Channel</label>
-              <select value={form.channel} onChange={e => set('channel', e.target.value)} className="w-full bg-[#2A3942] text-white text-sm rounded-xl px-4 py-2.5 focus:outline-none border-0">
+              <select value={form.channel} onChange={e => { set('channel', e.target.value); set('template_name', ''); }} className="w-full bg-[#2A3942] text-white text-sm rounded-xl px-4 py-2.5 focus:outline-none border-0">
                 {CHANNELS.map(c => <option key={c} value={c} className="capitalize">{c}</option>)}
               </select>
             </div>
+
+            {form.channel === 'whatsapp' && (
+              <div>
+                <label className="text-xs text-gray-500 mb-1.5 block">
+                  WhatsApp Template <span className="text-gray-600">(required unless every recipient messaged you in the last 24h)</span>
+                </label>
+                <select
+                  value={form.template_name ? `${form.template_name}|${form.template_language}` : ''}
+                  onChange={e => selectTemplate(e.target.value)}
+                  className="w-full bg-[#2A3942] text-white text-sm rounded-xl px-4 py-2.5 focus:outline-none border-0"
+                >
+                  <option value="">Free text (24h window only)</option>
+                  {templatesLoading && <option disabled>Loading templates…</option>}
+                  {templates.map(t => (
+                    <option key={`${t.name}|${t.language}`} value={`${t.name}|${t.language}`}>
+                      {t.name} ({t.language})
+                    </option>
+                  ))}
+                </select>
+                {!templatesLoading && templates.length === 0 && (
+                  <p className="text-[11px] text-gray-600 mt-1.5">
+                    No approved templates found. Create and submit one in Meta Business Manager first, or use Free text only for contacts who messaged you recently.
+                  </p>
+                )}
+              </div>
+            )}
+
             <div>
-              <label className="text-xs text-gray-500 mb-1.5 block">Message <span className="text-gray-600">(use {'{{name}}'} for contact name)</span></label>
-              <textarea rows={4} className={`${inputCls} resize-none`} placeholder="Hi {{name}}, …" value={form.message} onChange={e => set('message', e.target.value)} />
+              <label className="text-xs text-gray-500 mb-1.5 block">
+                Message <span className="text-gray-600">(use {'{{name}}'} for contact name)</span>
+              </label>
+              <textarea
+                rows={4}
+                className={`${inputCls} resize-none ${form.template_name ? 'opacity-70' : ''}`}
+                placeholder="Hi {{name}}, …"
+                value={form.message}
+                readOnly={!!form.template_name}
+                onChange={e => set('message', e.target.value)}
+              />
+              {form.channel === 'whatsapp' && !form.template_name && (
+                <p className="text-[11px] text-amber-400 flex items-start gap-1.5 mt-1.5">
+                  <AlertTriangle className="w-3.5 h-3.5 shrink-0 mt-0.5" />
+                  Free text only reaches contacts who messaged you within the last 24 hours — everyone else's message will be rejected by WhatsApp. Pick a template above to reach anyone.
+                </p>
+              )}
             </div>
             <div>
               <label className="text-xs text-gray-500 mb-1.5 block">Recipients ({form.audience.length} selected)</label>

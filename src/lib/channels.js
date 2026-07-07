@@ -187,11 +187,11 @@ export async function uploadChatMedia(workspaceId, file, kind) {
 // Sends a media message (image/video/audio/voice note). Uploads the file to
 // storage first, then goes through the exact same sendMessage() pipeline so
 // status handling / realtime / dedupe logic is identical to text messages.
-export async function sendMediaMessage(workspaceId, conversationId, file, kind, senderName, caption = '', senderId = null) {
+export async function sendMediaMessage(workspaceId, conversationId, file, kind, senderName, caption = '', senderId = null, replyTo = null) {
   const url = await uploadChatMedia(workspaceId, file, kind);
   const attachments = [{ url, type: kind, mime: file.type, name: file.name || null }];
   const placeholderBody = caption || (kind === 'image' ? '📷 Photo' : kind === 'video' ? '🎥 Video' : '🎤 Voice message');
-  return sendMessage(workspaceId, conversationId, placeholderBody, senderName, attachments, senderId);
+  return sendMessage(workspaceId, conversationId, placeholderBody, senderName, attachments, senderId, replyTo);
 }
 
 // Internal notes are NEVER dispatched to the external channel — just saved
@@ -201,7 +201,7 @@ export async function sendMediaMessage(workspaceId, conversationId, file, kind, 
 // were built as local-only React state in MessageThread.jsx and vanished on
 // refresh — turns out the messages table's CHECK constraint only allowed
 // 'inbound'/'outbound' anyway, so a real insert would have failed silently.)
-export async function addNote(workspaceId, conversationId, body, senderName, senderId = null) {
+export async function addNote(workspaceId, conversationId, body, senderName, senderId = null, replyTo = null) {
   const { data: msg, error } = await supabase
     .from('messages')
     .insert({
@@ -211,6 +211,7 @@ export async function addNote(workspaceId, conversationId, body, senderName, sen
       body,
       sender_name: senderName,
       sender_id: senderId,
+      ...(replyTo ? { reply_to: replyTo } : {}),
     })
     .select()
     .single();
@@ -218,7 +219,7 @@ export async function addNote(workspaceId, conversationId, body, senderName, sen
   return msg;
 }
 
-export async function sendMessage(workspaceId, conversationId, body, senderName, attachments = null, senderId = null) {
+export async function sendMessage(workspaceId, conversationId, body, senderName, attachments = null, senderId = null, replyTo = null) {
   // 1. Insert message record — return as soon as this lands so the caller can
   // reconcile its optimistic bubble immediately. Everything below (steps 2 & 3)
   // used to be awaited before returning, which left a multi-hundred-ms window
@@ -240,6 +241,7 @@ export async function sendMessage(workspaceId, conversationId, body, senderName,
       sender_id: senderId,
       status: 'sending',
       ...(attachments ? { attachments } : {}),
+      ...(replyTo ? { reply_to: replyTo } : {}),
     })
     .select()
     .single();
@@ -329,14 +331,25 @@ export async function getBroadcasts(workspaceId) {
   return data || [];
 }
 
-export async function createBroadcast(workspaceId, { name, channel, message, audience }) {
+export async function createBroadcast(workspaceId, { name, channel, message, audience, template_name, template_language }) {
   const { data, error } = await supabase
     .from('broadcasts')
-    .insert({ workspace_id: workspaceId, name, channel, message, audience, status: 'draft' })
+    .insert({
+      workspace_id: workspaceId, name, channel, message, audience, status: 'draft',
+      ...(template_name ? { template_name, template_language: template_language || 'en_US' } : {}),
+    })
     .select()
     .single();
   if (error) throw error;
   return data;
+}
+
+// Fetch Meta-approved WhatsApp templates for this workspace (empty array for
+// any other channel, or if WhatsApp isn't connected yet).
+export async function getWhatsAppTemplates(workspaceId) {
+  const res = await fetch(`/api/channels?action=templates&workspace_id=${encodeURIComponent(workspaceId)}`);
+  const data = await res.json();
+  return data.templates || [];
 }
 
 export async function deleteBroadcast(id) {
@@ -354,18 +367,27 @@ export async function sendBroadcast(workspaceId, broadcastId) {
 
   const contactIds = bc.audience || [];
   let sentCount = 0;
+  let failedCount = 0;
+
+  // WhatsApp broadcasts to contacts outside the 24h customer-service window
+  // MUST use a Meta-approved template — free text is rejected by the Graph
+  // API in that case. If this broadcast was composed with a template
+  // selected, every send goes out as that template (Meta still delivers it
+  // fine to contacts who ARE in-window). Free text is only safe when every
+  // recipient messaged recently, which the UI now warns about explicitly.
+  const usesTemplate = bc.channel === 'whatsapp' && !!bc.template_name;
 
   await Promise.all(contactIds.map(async (contactId) => {
     try {
       const { data: contact } = await supabase.from('contacts').select('*').eq('id', contactId).single();
-      if (!contact) return;
+      if (!contact) { failedCount += 1; return; }
 
-      const personalizedBody = bc.message.replace(/\{\{\s*name\s*\}\}/gi, contact.full_name || 'there');
+      const personalizedBody = (bc.message || '').replace(/\{\{\s*name\s*\}\}/gi, contact.full_name || 'there');
 
       // Find an existing conversation with this contact on this channel, else create one
       let { data: conv } = await supabase
         .from('conversations')
-        .select('id')
+        .select('id, external_id')
         .eq('workspace_id', workspaceId)
         .eq('contact_id', contactId)
         .eq('channel', bc.channel)
@@ -377,23 +399,69 @@ export async function sendBroadcast(workspaceId, broadcastId) {
           .insert({
             workspace_id: workspaceId, contact_id: contactId, channel: bc.channel,
             status: 'open', last_message: personalizedBody, last_message_at: new Date().toISOString(),
+            external_id: contact.phone || contact.email || null,
           })
-          .select('id')
+          .select('id, external_id')
           .single();
         if (convErr) throw convErr;
         conv = newConv;
       }
 
-      await sendMessage(workspaceId, conv.id, personalizedBody, 'Broadcast');
+      // Insert the message row first (so it shows in the thread + gets a
+      // real id to track status against), then dispatch synchronously and
+      // WAIT for the real result -- unlike the optimistic single-message
+      // send path, a broadcast's reported counts must reflect what Meta
+      // actually accepted, not just what got queued locally.
+      const { data: msg, error: msgErr } = await supabase
+        .from('messages')
+        .insert({
+          workspace_id: workspaceId, conversation_id: conv.id, direction: 'outbound',
+          body: personalizedBody, sender_name: 'Broadcast', status: 'sending',
+        })
+        .select()
+        .single();
+      if (msgErr) throw msgErr;
+
+      const res = await fetch('/api/channels?action=send', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          message_id: msg.id, conversation_id: conv.id, workspace_id: workspaceId,
+          channel: bc.channel, body: personalizedBody,
+          ...(usesTemplate ? {
+            template: {
+              name: bc.template_name,
+              language: bc.template_language || 'en_US',
+              // Only attach a body parameter if this template body actually has
+              // a {{1}} variable (Meta rejects a components array whose length
+              // doesn't match the approved template's variable count exactly).
+              ...((bc.message || '').includes('{{')
+                ? { components: [{ type: 'body', parameters: [{ type: 'text', text: contact.full_name || 'there' }] }] }
+                : {}),
+            },
+          } : {}),
+        }),
+      });
+      const result = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(result.error || 'Send failed');
+
+      await supabase.from('conversations').update({
+        last_message: personalizedBody, last_message_at: new Date().toISOString(), updated_at: new Date().toISOString(),
+      }).eq('id', conv.id);
+
       sentCount += 1;
     } catch (e) {
       console.error('[sendBroadcast] failed for contact', contactId, e);
+      failedCount += 1;
     }
   }));
 
   const { data: updated, error: updateErr } = await supabase
     .from('broadcasts')
-    .update({ status: 'sent', sent_at: new Date().toISOString(), sent_count: sentCount, updated_at: new Date().toISOString() })
+    .update({
+      status: 'sent', sent_at: new Date().toISOString(),
+      sent_count: sentCount, failed_count: failedCount, updated_at: new Date().toISOString(),
+    })
     .eq('id', broadcastId)
     .select()
     .single();
@@ -531,5 +599,14 @@ export async function updateCannedResponse(id, updates) {
 
 export async function deleteCannedResponse(id) {
   const { error } = await supabase.from('canned_responses').delete().eq('id', id);
+  if (error) throw error;
+}
+
+// Per-agent chat background preference for their OWN inbox view only —
+// stored on their own profiles row (never the shared workspace row), so
+// it never affects what teammates see. `bg` is a preset key (see
+// CHAT_BACKGROUNDS in MessageThread.jsx) or a custom image URL.
+export async function setChatBackground(userId, bg) {
+  const { error } = await supabase.from('profiles').update({ chat_background: bg }).eq('id', userId);
   if (error) throw error;
 }
