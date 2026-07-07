@@ -17,7 +17,7 @@ const PROD_URL = 'https://nyasadesk1.vercel.app';
 const BRIDGE_API = 'https://officialapi.wasapflow.com/bridge/v1';
 
 export default async function handler(req, res) {
-  const getActions = ['hosted-connect', 'baileys-qr', 'baileys-status'];
+  const getActions = ['hosted-connect'];
   if (req.method !== 'POST' && !getActions.includes(req.query.action)) return res.status(405).json({ error: 'Method Not Allowed' });
   const action = req.query.action || 'send';
 
@@ -28,11 +28,6 @@ export default async function handler(req, res) {
   if (action === 'hosted-connect') return handleHostedConnect(req, res);
   if (action === 'save-waba')     return handleSaveWaba(req, res);
   if (action === 'sync-waba')     return handleSyncWaba(req, res);
-  if (action === 'baileys-qr')    return handleBaileysQR(req, res);
-  if (action === 'baileys-status') return handleBaileysStatus(req, res);
-  if (action === 'baileys-start') return handleBaileysStart(req, res);
-  if (action === 'baileys-disconnect') return handleBaileysDisconnect(req, res);
-  if (action === 'baileys-pair')     return handleBaileysPair(req, res);
   return handleSend(req, res);
 }
 
@@ -146,77 +141,6 @@ async function handleSaveWaba(req, res) {
   } catch (e) {
     console.error('[channels/save-waba] error:', e);
     return res.status(500).json({ ok: false, error: e.message });
-  }
-}
-
-// ── Baileys (Linked Devices) proxy endpoints ────────────────────────────
-// These proxy requests to our Railway-hosted Baileys service.
-const BAILEYS_SERVICE_URL = process.env.BAILEYS_SERVICE_URL || 'http://localhost:3000';
-
-async function handleBaileysQR(req, res) {
-  try {
-    const wsId = req.query.workspace_id;
-    if (!wsId) return res.status(400).json({ error: 'workspace_id required' });
-    const r = await fetch(`${BAILEYS_SERVICE_URL}/qr/${wsId}`);
-    const data = await r.json();
-    return res.status(r.status).json(data);
-  } catch (e) {
-    return res.status(500).json({ error: 'Baileys service unavailable: ' + e.message });
-  }
-}
-
-async function handleBaileysStatus(req, res) {
-  try {
-    const wsId = req.query.workspace_id;
-    if (!wsId) return res.status(400).json({ error: 'workspace_id required' });
-    const r = await fetch(`${BAILEYS_SERVICE_URL}/status/${wsId}`);
-    const data = await r.json();
-    return res.status(r.status).json(data);
-  } catch (e) {
-    return res.status(500).json({ error: 'Baileys service unavailable: ' + e.message });
-  }
-}
-
-async function handleBaileysStart(req, res) {
-  try {
-    const wsId = req.query.workspace_id;
-    if (!wsId) return res.status(400).json({ error: 'workspace_id required' });
-    const r = await fetch(`${BAILEYS_SERVICE_URL}/start/${wsId}`, { method: 'POST' });
-    const data = await r.json();
-    return res.status(r.status).json(data);
-  } catch (e) {
-    return res.status(500).json({ error: 'Baileys service unavailable: ' + e.message });
-  }
-}
-
-async function handleBaileysDisconnect(req, res) {
-  try {
-    const wsId = req.query.workspace_id;
-    if (!wsId) return res.status(400).json({ error: 'workspace_id required' });
-    const r = await fetch(`${BAILEYS_SERVICE_URL}/disconnect/${wsId}`, { method: 'POST' });
-    const data = await r.json();
-    return res.status(r.status).json(data);
-  } catch (e) {
-    return res.status(500).json({ error: 'Baileys service unavailable: ' + e.message });
-  }
-}
-
-async function handleBaileysPair(req, res) {
-  try {
-    const wsId = req.query.workspace_id;
-    if (!wsId) return res.status(400).json({ error: 'workspace_id required' });
-    const { phoneNumber } = req.body || {};
-    if (!phoneNumber) return res.status(400).json({ error: 'phoneNumber required' });
-
-    const r = await fetch(`${BAILEYS_SERVICE_URL}/pair/${wsId}`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ phoneNumber }),
-    });
-    const data = await r.json();
-    return res.status(r.status).json(data);
-  } catch (e) {
-    return res.status(500).json({ error: 'Baileys service unavailable: ' + e.message });
   }
 }
 
@@ -387,51 +311,6 @@ async function handleSend(req, res) {
 
     // 3. Send through the provider abstraction
     // Detect which WhatsApp provider to use based on the stored config
-    // ── Baileys (Linked Devices): send via our Railway service ──────────
-    if (cfg.config?.provider === 'baileys') {
-      const baileysUrl = process.env.BAILEYS_SERVICE_URL || 'http://localhost:3000';
-      const recipient = conv.external_id?.replace(/@.*$/, '') || conv.external_id;
-      let baileysResult;
-      if (media) {
-        // Send media via Baileys
-        const mediaRes = await fetch(`${baileysUrl}/send-media`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            workspaceId: workspace_id,
-            to: recipient,
-            mediaBase64: media.base64 || null,
-            mediaType: media.type,
-            caption: text || '',
-            filename: media.filename,
-            mimeType: media.mime_type,
-          }),
-        });
-        baileysResult = await mediaRes.json();
-      } else {
-        // Send text via Baileys
-        const textRes = await fetch(`${baileysUrl}/send`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ workspaceId: workspace_id, to: recipient, text }),
-        });
-        baileysResult = await textRes.json();
-      }
-      if (!baileysResult.ok) throw new Error(baileysResult.error || 'Baileys send failed');
-
-      if (message_id) {
-        await sb.from('messages').update({
-          ...(baileysResult.messageId ? { external_id: baileysResult.messageId } : {}),
-          status: 'sent',
-        }).eq('id', message_id);
-      }
-      await sb.from('conversations').update({
-        last_message: text || (media ? `[${media.type}]` : ''),
-        last_message_at: new Date().toISOString(),
-      }).eq('id', conversation_id);
-      return res.status(200).json({ ok: true });
-    }
-
     const providerKey = channel === 'whatsapp'
       ? (cfg.config?.provider === 'wasapflow' ? 'whatsapp:wasapflow'
          : cfg.config?.bird_workspace_id ? 'whatsapp:bird'
