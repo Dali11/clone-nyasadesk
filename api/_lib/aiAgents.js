@@ -100,6 +100,20 @@ export function buildKnowledgeBlock(knowledge) {
   return intro + '\n\n' + parts.join('\n\n');
 }
 
+// Strengthened, always-on anti-hallucination guardrail -- separate from the
+// per-KB-entry note above so it still applies even when the KB is thin/empty
+// (which is exactly when a confident "sales agent" persona is most likely to
+// paper over the gap with plausible-sounding invented specifics: made-up
+// service lists, prices, policies). Placed LAST in the system prompt (models
+// weight recent instructions more heavily) and phrased as a hard rule, not
+// a soft suggestion.
+const ANTI_HALLUCINATION_RULE = 'CRITICAL RULE: only state specific facts (services offered, prices, '
+  + 'features, policies, timelines) if they are explicitly given to you above in your instructions or '
+  + 'knowledge base. If a customer asks something specific you do not have real information for, do NOT '
+  + 'guess or invent a plausible-sounding answer -- say you will have a team member confirm the details, '
+  + 'or ask a clarifying question instead. It is always better to admit you are not sure than to state '
+  + 'something that might be wrong.';
+
 // ── OpenAI draft generation ────────────────────────────────────────────────
 // Builds a reply suggestion from an agent's persona + knowledge base + recent
 // conversation history. Returns plain text (always a draft for a human to
@@ -121,6 +135,7 @@ export async function generateDraftReply(agent, recentMessages, contact, knowled
       ? 'Your reply is sent straight to the customer with no human review -- write it as the final message text only, no preamble, no explanation of what you are doing.'
       : 'You are drafting a reply for a human staff member to review before sending -- write it as the final message text only, no preamble, no explanation of what you are doing.',
     knowledgeBlock,
+    ANTI_HALLUCINATION_RULE,
   ].filter(Boolean);
 
   const history = (recentMessages || []).slice(-12).map(m => ({
