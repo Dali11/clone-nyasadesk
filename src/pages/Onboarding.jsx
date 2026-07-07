@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '@/lib/AuthContext';
 import { useNyasaAuth } from '@/lib/NyasaAuth';
@@ -33,7 +33,19 @@ export default function Onboarding() {
   useDocumentTitle('Get Started');
   const navigate = useNavigate();
   const { user } = useAuth();
-  const { setOnboardingComplete } = useNyasaAuth();
+  const { profile, setOnboardingComplete } = useNyasaAuth();
+
+  // Defense in depth: this page should only ever run for a brand-new
+  // workspace owner. If we somehow land here with a profile that already
+  // belongs to someone else's workspace (an invited teammate caught by a
+  // stale/incorrect onboardingComplete=false), bail out immediately instead
+  // of letting `finish()` below overwrite their role/workspace data.
+  useEffect(() => {
+    if (profile?.workspace_id && profile.workspace_id !== user?.id) {
+      setOnboardingComplete(true);
+      navigate('/', { replace: true });
+    }
+  }, [profile?.workspace_id, user?.id]);
 
   const [step, setStep]               = useState(0);
   const [workspaceName, setWsName]    = useState('');
@@ -72,7 +84,7 @@ export default function Onboarding() {
                 'Content-Type': 'application/json',
                 ...(session?.access_token ? { Authorization: `Bearer ${session.access_token}` } : {}),
               },
-              body: JSON.stringify({ email, role: 'user', workspace_id: user.id }),
+              body: JSON.stringify({ email, role: 'user', workspace_id: user.id }) // this IS correct here — Onboarding only runs for a brand-new owner, whose own id is the workspace id,
             }).catch(e => console.error('[Onboarding] invite failed for', email, e))
           ));
         } catch (e) {

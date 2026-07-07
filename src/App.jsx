@@ -74,7 +74,14 @@ function AppRoutes() {
   }
 
   // ── Logged in but onboarding not done ───────────────────────────────────
-  if (!onboardingComplete) {
+  // IMPORTANT: only gate on an explicit `false` here. onboardingComplete can
+  // be `null` ("we don't know yet" — profile still loading or a slow/failed
+  // fetch) — treating null the same as false used to shove already-invited
+  // teammates into the "create a new workspace" wizard on a slow first
+  // login, which silently promoted them to admin of their own phantom
+  // workspace. Only a confirmed `false` (real profile row, genuinely never
+  // onboarded) should show the wizard.
+  if (onboardingComplete === false) {
     return (
       <Routes>
         <Route path="*" element={<Onboarding />} />

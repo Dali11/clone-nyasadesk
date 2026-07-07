@@ -7,7 +7,14 @@ const NyasaAuthContext = createContext(null);
 export function NyasaAuthProvider({ children }) {
   const { user, loading: authLoading } = useAuth();
   const [profile, setProfile]                       = useState(null);
-  const [onboardingComplete, setOnboardingComplete] = useState(false);
+  // null = "we don't know yet" (still loading / never resolved). Only ever
+  // render the onboarding wizard when this is explicitly false from real
+  // profile data — NEVER default a not-yet-loaded user into "needs onboarding".
+  // Doing so once sent an already-invited teammate through the "create a new
+  // workspace" flow on a slow first login, which silently promoted them to
+  // admin. Defaulting unknown to "treat as complete" is the safe direction:
+  // worst case the real Inbox renders with an empty profile for a beat.
+  const [onboardingComplete, setOnboardingComplete] = useState(null);
   const [loadingProfile, setLoadingProfile]         = useState(true);
   const [isPlatformAdmin, setIsPlatformAdmin]       = useState(false);
 
@@ -16,7 +23,7 @@ export function NyasaAuthProvider({ children }) {
 
     if (!user) {
       setProfile(null);
-      setOnboardingComplete(false);
+      setOnboardingComplete(null);
       setIsPlatformAdmin(false);
       setLoadingProfile(false);
       return;
@@ -24,18 +31,24 @@ export function NyasaAuthProvider({ children }) {
 
     let cancelled = false;
 
-    // Hard 4s timeout — never leave the user on a blank screen
+    const loadProfile = () => supabase.from('profiles').select('*').eq('id', user.id).single();
+
+    // Generous timeout — only trips the "proceed without profile" fallback on
+    // a genuinely stuck connection. Even then, it does NOT assume onboarding
+    // is needed (see onboardingComplete comment above) — it just stops
+    // blocking the UI with a spinner. The real fetch below keeps running and
+    // will correct the state the moment it resolves.
     const timeout = setTimeout(() => {
       if (!cancelled) {
-        console.warn('[NyasaAuth] Profile load timed out — proceeding without profile');
+        console.warn('[NyasaAuth] Profile load timed out — proceeding without profile (assuming onboarding complete, not forcing the wizard)');
         setLoadingProfile(false);
       }
-    }, 4000);
+    }, 10000);
 
     (async () => {
       try {
-        const [{ data, error }, adminCheck] = await Promise.all([
-          supabase.from('profiles').select('*').eq('id', user.id).single(),
+        let [{ data, error }, adminCheck] = await Promise.all([
+          loadProfile(),
           // Platform-admin allowlist check — RLS only lets a user see their
           // OWN row here (self_check policy: email = auth.email()), so this
           // never leaks the admin list to anyone else. Purely for showing/
@@ -43,6 +56,14 @@ export function NyasaAuthProvider({ children }) {
           // server-side by every /api/admin/* endpoint.
           supabase.from('platform_admin_emails').select('email').eq('email', user.email).maybeSingle(),
         ]);
+
+        // One retry on transient failure (dropped connection, cold function,
+        // etc.) before giving up — avoids a single flaky request wrongly
+        // deciding this user needs onboarding.
+        if (error && !cancelled) {
+          await new Promise(r => setTimeout(r, 800));
+          ({ data, error } = await loadProfile());
+        }
 
         if (cancelled) return;
 
@@ -68,11 +89,15 @@ export function NyasaAuthProvider({ children }) {
           setProfile(merged);
           setOnboardingComplete(!!data.onboarding_complete);
         } else {
+          // No row at all (brand new user, never onboarded) — this is the
+          // ONLY case where we actually know onboarding is needed.
           setProfile(null);
           setOnboardingComplete(false);
         }
       } catch (e) {
         if (!cancelled) console.error('[NyasaAuth] Profile load error:', e);
+        // Leave onboardingComplete as-is (null = unknown) — do not force the
+        // wizard on an error we can't explain.
       } finally {
         if (!cancelled) {
           clearTimeout(timeout);
