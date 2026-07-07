@@ -54,11 +54,11 @@ export default function Inbox() {
 
   // Load the real team roster once, for the chat header's "Assign to" menu
   useEffect(() => {
-    if (!user?.id) return;
+    if (!workspaceOwnerId) return;
     (async () => {
       try {
         const { data: { session } } = await supabase.auth.getSession();
-        const res = await fetch(`/api/team?workspace_id=${encodeURIComponent(user.workspace_id || user.id)}`, {
+        const res = await fetch(`/api/team?workspace_id=${encodeURIComponent(workspaceOwnerId)}`, {
           headers: session?.access_token ? { Authorization: `Bearer ${session.access_token}` } : {},
         });
         const data = await res.json();
@@ -69,7 +69,7 @@ export default function Inbox() {
         console.error('[Inbox] failed to load team roster:', e);
       }
     })();
-  }, [user?.id, user?.workspace_id]);
+  }, [workspaceOwnerId]);
 
   // Realtime subscription
   useEffect(() => {
@@ -220,7 +220,7 @@ export default function Inbox() {
               canDelete={canViewAllChats}
             />
             <div className="flex-1 flex overflow-hidden relative">
-              <MessageThread conversation={activeConv} workspaceId={user?.id} />
+              <MessageThread conversation={activeConv} workspaceId={workspaceOwnerId} />
               {/* Below xl: full-screen slide-over opened by tapping the contact in ChatHeader.
                   At xl+: permanently docked side panel, same as before. */}
               <ContactPanel
@@ -245,7 +245,7 @@ export default function Inbox() {
         )}
       </div>
 
-      <NewConvModal open={showNew} onClose={() => setShowNew(false)} onCreated={c => { setConversations(p => [c, ...p]); setShowNew(false); setActiveConv(c); }} workspaceId={user?.id} />
+      <NewConvModal open={showNew} onClose={() => setShowNew(false)} onCreated={c => { setConversations(p => [c, ...p]); setShowNew(false); setActiveConv(c); }} workspaceId={workspaceOwnerId} />
     </div>
   );
 }
