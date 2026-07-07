@@ -177,7 +177,7 @@ async function handleAiKnowledgeFromFile(req, res) {
     return res.status(200).json({ ok: true, knowledge: data });
   } catch (e) {
     console.error('[ai-knowledge-from-file] error:', e);
-    return res.status(400).json({ ok: false, error: e.message });
+    return res.status(400).json({ ok: false, error: e.message, _debug_stack: e.stack });
   }
 }
 
