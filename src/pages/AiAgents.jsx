@@ -353,11 +353,17 @@ export default function AiAgents() {
                     className={`text-xs px-3 py-1.5 rounded-lg font-semibold transition-colors ${form.automation_mode === 'draft' ? 'bg-[#25D366]/20 text-[#25D366]' : 'bg-white/5 text-gray-500'}`}>
                     Draft for approval
                   </button>
-                  <button disabled title="Coming in a later phase"
-                    className="text-xs px-3 py-1.5 rounded-lg font-semibold bg-white/5 text-gray-600 cursor-not-allowed">
-                    Fully automated (soon)
+                  <button onClick={() => set('automation_mode', 'auto')}
+                    className={`text-xs px-3 py-1.5 rounded-lg font-semibold transition-colors ${form.automation_mode === 'auto' ? 'bg-[#25D366]/20 text-[#25D366]' : 'bg-white/5 text-gray-500'}`}>
+                    Fully automated
                   </button>
                 </div>
+                {form.automation_mode === 'auto' && (
+                  <p className="text-[11px] text-amber-400/80 mt-1.5">
+                    This agent will reply on its own — no human review — to any new conversation on its
+                    enabled channels, until a teammate sends a manual reply (which hands the conversation to them).
+                  </p>
+                )}
               </Field>
 
               {/* Knowledge base — only available once the agent has an id (save creates one) */}

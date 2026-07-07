@@ -4,8 +4,9 @@
 // route file hosts the ai-agents actions (currently api/channels/index.js).
 //
 // Phase 1: agent CRUD + "generate draft reply".
-// Phase 2: knowledge base (plain text / FAQ snippets) fed into the draft prompt.
-// No auto-send yet -- both phases only ever produce a draft for a human to review.
+// Phase 2: knowledge base (plain text / FAQ snippets, then URL/PDF/DOCX ingestion) fed into the prompt.
+// Phase 3b: automation_mode 'auto' sends this text straight to the customer (see
+// api/_lib/aiAutoReply.js) instead of only drafting into the composer for a human.
 
 const OPENAI_API_KEY = process.env.OPENAI_API_KEY;
 
@@ -116,7 +117,9 @@ export async function generateDraftReply(agent, recentMessages, contact, knowled
     Array.isArray(agent.languages) && agent.languages.length
       ? 'Reply in the same language the customer is using; you are able to speak: ' + agent.languages.join(', ') + '.'
       : '',
-    'You are drafting a reply for a human staff member to review before sending -- write it as the final message text only, no preamble, no explanation of what you are doing.',
+    agent.automation_mode === 'auto'
+      ? 'Your reply is sent straight to the customer with no human review -- write it as the final message text only, no preamble, no explanation of what you are doing.'
+      : 'You are drafting a reply for a human staff member to review before sending -- write it as the final message text only, no preamble, no explanation of what you are doing.',
     knowledgeBlock,
   ].filter(Boolean);
 

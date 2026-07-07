@@ -73,6 +73,20 @@ export async function persistInboundMessage(sb, workspaceId, params) {
     // errors internally, so awaiting it can't make this handler fail; it
     // just guarantees the push actually gets sent before we return.
     await notifyNewMessage(sb, { ownerId: workspaceId, contactName: contact?.full_name || contactName, body, conversationId: conv.id, channel });
+
+    // AI Agents Phase 3b: auto-reply. Only fires while the conversation is
+    // still unclaimed by a human (assigned_to IS NULL) -- the existing
+    // auto_assign_on_reply() DB trigger sets assigned_to the moment a real
+    // staff member sends a manual reply (sender_id = their uuid), which
+    // doubles perfectly as the "human took over, stop auto-replying" signal.
+    // No schema change needed. Dynamic imports here (not static) deliberately
+    // avoid a circular import: providers/index.js imports this same base.js.
+    // Must be awaited for the same Vercel-freezes-on-response reason as push
+    // above; autoReplyIfEnabled swallows its own errors so this can't throw.
+    if (!conv.assigned_to) {
+      const { autoReplyIfEnabled } = await import('../aiAutoReply.js');
+      await autoReplyIfEnabled(sb, { workspaceId, conversationId: conv.id, channel, externalId, contact });
+    }
   }
 
   return { contact, conversation: conv };
