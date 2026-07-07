@@ -5,6 +5,7 @@ import { formatDistanceToNow, isToday, isYesterday, format as formatDate } from 
 import { motion, AnimatePresence } from 'framer-motion';
 import { getMessages, sendMessage, sendMediaMessage, addNote, deleteMessage, setMessagePinned, subscribeToMessages, getCannedResponses, setChatBackground } from '@/lib/channels';
 import { useNyasaAuth } from '@/lib/NyasaAuth';
+import { useToast } from '@/components/ui/use-toast';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger, DropdownMenuSeparator } from '@/components/ui/dropdown-menu';
 
 const CHANNEL_COLOR = {
@@ -361,6 +362,7 @@ function Bubble({ msg, menuOpenId, onOpenMenu, onCopy, onShare, onDelete, onTogg
 
 export default function MessageThread({ conversation, workspaceId }) {
   const { user, profile } = useNyasaAuth();
+  const { toast } = useToast();
   const [bg, setBg] = useState(profile?.chat_background || 'default');
   const [showBgPicker, setShowBgPicker] = useState(false);
   const [messages, setMessages]   = useState([]);
@@ -481,7 +483,9 @@ export default function MessageThread({ conversation, workspaceId }) {
       const msg = await sendMessage(wId, conversation.id, text, user?.full_name || 'You', null, user?.id || null, replyToSnapshot);
       setMessages(prev => prev.map(m => m.id === tempId ? { ...msg, direction: 'outbound' } : m));
     } catch (e) {
+      console.error('[MessageThread] send failed:', e);
       setMessages(prev => prev.map(m => m.id === tempId ? { ...m, status: 'failed' } : m));
+      toast({ title: 'Message failed to send', description: e?.message || 'Unknown error', variant: 'destructive' });
     } finally {
       sendingRef.current = false;
       setSending(false);
@@ -503,7 +507,12 @@ export default function MessageThread({ conversation, workspaceId }) {
       const msg = await sendMediaMessage(wId, conversation.id, file, kind, user?.full_name || 'You', '', user?.id || null);
       setMessages(prev => prev.map(m => m.id === tempId ? { ...msg, direction: 'outbound' } : m));
     } catch (e) {
+      // Was previously a silent failure -- the temp bubble just flipped to
+      // "failed" with zero indication of *why* (upload rejected, network
+      // drop, storage quota, etc). Now logs the real error and surfaces it.
+      console.error('[MessageThread] media send failed:', e);
       setMessages(prev => prev.map(m => m.id === tempId ? { ...m, status: 'failed' } : m));
+      toast({ title: `Failed to send ${kind}`, description: e?.message || 'Unknown error', variant: 'destructive' });
     } finally {
       setUploading(false);
     }

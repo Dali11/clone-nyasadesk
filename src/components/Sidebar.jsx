@@ -33,7 +33,7 @@ const MOBILE_MORE_NAV = [
   { path: '/settings',   icon: Settings,  label: 'Settings'   },
 ];
 
-export default function Sidebar() {
+export default function Sidebar({ hideMobileChrome = false } = {}) {
   const { pathname } = useLocation();
   const navigate = useNavigate();
   const { signOut } = useAuth();
@@ -182,9 +182,13 @@ export default function Sidebar() {
       </div>
 
       {/* ── Mobile (<768px): top header + bottom tab bar ──────────────── */}
+      {/* Hidden while a chat is open on mobile (Inbox passes hideMobileChrome)
+          so ChatHeader can take over the top of the screen instead of stacking
+          under Nyasadesk's own branded bar -- matches WhatsApp's own behavior
+          of the header becoming the open conversation, not staying app-level. */}
       {/* Top header bar */}
       <div
-        className="md:hidden fixed top-0 left-0 right-0 z-50 flex items-center gap-3 px-4 h-14 border-b border-white/10"
+        className={`md:hidden fixed top-0 left-0 right-0 z-50 flex items-center gap-3 px-4 h-14 border-b border-white/10 ${hideMobileChrome ? 'hidden' : ''}`}
         style={{ background: 'linear-gradient(135deg, #075E54 0%, #128C7E 100%)' }}
       >
         <img src="/icon-192.png" alt="Nyasadesk" className="w-8 h-8 rounded-lg shrink-0" />
@@ -219,7 +223,7 @@ export default function Sidebar() {
       </div>
 
       {/* Bottom tab bar */}
-      <nav className="md:hidden fixed bottom-0 left-0 right-0 z-50 bg-[#111B21] border-t border-white/10 flex items-center justify-around px-2 pb-safe">
+      <nav className={`md:hidden fixed bottom-0 left-0 right-0 z-50 bg-[#111B21] border-t border-white/10 flex items-center justify-around px-2 pb-safe ${hideMobileChrome ? 'hidden' : ''}`}>
         {MOBILE_NAV.map(({ path, icon: Icon, label }) => {
           const active = pathname === path;
           return (

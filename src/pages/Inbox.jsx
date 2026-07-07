@@ -143,8 +143,15 @@ export default function Inbox() {
   const showChat = !!activeConv;
 
   return (
-    <div className="flex h-screen overflow-hidden bg-[#111B21] pt-14 md:pt-0 pb-[56px] md:pb-0">
-      <Sidebar />
+    // The reserved pt-14/pb-[56px] mobile padding exists for Sidebar's own
+    // fixed top bar ("Nyasadesk" branding) + bottom tab bar. Once a chat is
+    // open on mobile, both are hidden (see hideMobileChrome below) and
+    // ChatHeader/the composer become the real top/bottom chrome instead --
+    // so drop the reserved space too, or you'd get a blank gap where the
+    // Nyasadesk bar used to be, exactly like WhatsApp's own conversation view
+    // has zero app-chrome above/below the open chat.
+    <div className={`flex h-screen overflow-hidden bg-[#111B21] md:pt-0 md:pb-0 ${showChat ? '' : 'pt-14 pb-[56px]'}`}>
+      <Sidebar hideMobileChrome={showChat} />
 
       {/* Conversation list — hidden on mobile when chat is open */}
       <div className={`flex flex-col bg-[#111B21] border-r border-white/10
