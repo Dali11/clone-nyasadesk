@@ -80,7 +80,15 @@ export const AI_AGENT_TEMPLATES = [
 // snippets are meant to be short (FAQs, policies, price lists), so we just
 // concatenate them into the system prompt, capped so a large KB can't blow
 // the token budget or crowd out the agent's persona.
-const MAX_KNOWLEDGE_CHARS = 6000;
+// Raised from 6000 -- Phase 3 file/URL ingestion (knowledgeIngest.js) caps a
+// single entry at 12000 chars, so a 6000 prompt-time cap meant any real
+// uploaded PDF/DOCX/URL doc bigger than ~5900 chars got silently DROPPED IN
+// FULL (the old loop used `break` on the first oversized chunk, discarding
+// it entirely instead of truncating) -- the agent would then answer with
+// zero real knowledge and no error anywhere. Bumped to 14000 (comfortably
+// >= the ingestion cap) and changed the loop to truncate an oversized chunk
+// to fit the remaining budget instead of dropping it.
+const MAX_KNOWLEDGE_CHARS = 14000;
 
 export function buildKnowledgeBlock(knowledge) {
   if (!Array.isArray(knowledge) || !knowledge.length) return '';
@@ -88,9 +96,10 @@ export function buildKnowledgeBlock(knowledge) {
   const parts = [];
   for (const k of knowledge) {
     const chunk = '### ' + k.title + '\n' + k.content;
-    if (used + chunk.length > MAX_KNOWLEDGE_CHARS) break;
-    parts.push(chunk);
-    used += chunk.length;
+    const remaining = MAX_KNOWLEDGE_CHARS - used;
+    if (remaining <= 0) break;
+    parts.push(chunk.length > remaining ? chunk.slice(0, remaining) : chunk);
+    used += Math.min(chunk.length, remaining);
   }
   if (!parts.length) return '';
   const intro = "Here is this business's knowledge base. Use it as your source of truth for facts "
