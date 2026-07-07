@@ -35,15 +35,22 @@ export async function autoReplyIfEnabled(sb, { workspaceId, conversationId, chan
 
     const replyText = await generateDraftReply(agent, messages || [], contact, knowledge || []);
 
-    const providerKey = channel === 'whatsapp'
-      ? (cfg.config?.provider === 'wasapflow' ? 'whatsapp:wasapflow'
-         : cfg.config?.bird_workspace_id ? 'whatsapp:bird'
-         : cfg.config?.d360_api_key ? 'whatsapp:360dialog' : 'whatsapp:cloud')
-      : channel;
-    const provider = getProvider(providerKey);
-    const result = await provider.sendMessage(cfg.config, {
-      to: externalId, text: replyText, conversation_id: conversationId, workspace_id: workspaceId,
-    }, { sb });
+    // Website live-chat has no outbound provider -- same special-case as
+    // handleSend() in channels/index.js: the widget just reads straight from
+    // the messages table, there's nothing external to push the reply to.
+    let externalMsgId = null;
+    if (channel !== 'website') {
+      const providerKey = channel === 'whatsapp'
+        ? (cfg.config?.provider === 'wasapflow' ? 'whatsapp:wasapflow'
+           : cfg.config?.bird_workspace_id ? 'whatsapp:bird'
+           : cfg.config?.d360_api_key ? 'whatsapp:360dialog' : 'whatsapp:cloud')
+        : channel;
+      const provider = getProvider(providerKey);
+      const result = await provider.sendMessage(cfg.config, {
+        to: externalId, text: replyText, conversation_id: conversationId, workspace_id: workspaceId,
+      }, { sb });
+      externalMsgId = result?.external_id || null;
+    }
 
     // sender_id intentionally NOT a uuid (agent.id is one, but tagged with a
     // prefix) -- auto_assign_on_reply()'s trigger only claims the
@@ -53,7 +60,7 @@ export async function autoReplyIfEnabled(sb, { workspaceId, conversationId, chan
     await sb.from('messages').insert({
       workspace_id: workspaceId, conversation_id: conversationId,
       direction: 'outbound', body: replyText, channel,
-      external_id: result?.external_id || null,
+      external_id: externalMsgId,
       sender_name: agent.name, sender_id: 'ai:' + agent.id,
       status: 'sent',
       metadata: { is_ai: true, agent_id: agent.id, agent_name: agent.name },
