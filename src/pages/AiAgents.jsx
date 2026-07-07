@@ -199,7 +199,7 @@ export default function AiAgents() {
             </h1>
             <p className="text-xs text-gray-500 mt-0.5">AI-powered team members for your shared inbox</p>
           </div>
-          {isWorkspaceAdmin && (
+          {isWorkspaceAdmin && agents.length === 0 && (
             <div className="flex gap-2">
               <button onClick={() => setShowTemplates(true)}
                 className="flex items-center gap-1.5 bg-[#202C33] hover:bg-[#2A3942] text-white text-sm font-semibold px-3 py-2 rounded-lg transition-colors">
@@ -210,6 +210,11 @@ export default function AiAgents() {
                 <Plus className="w-4 h-4" /> New agent
               </button>
             </div>
+          )}
+          {isWorkspaceAdmin && agents.length >= 1 && (
+            <p className="text-[11px] text-gray-500 max-w-[220px] text-right">
+              1 of 1 agent used on your plan. Delete it to create a different one.
+            </p>
           )}
         </div>
 
