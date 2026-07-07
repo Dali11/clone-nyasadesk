@@ -30,12 +30,29 @@ export async function notifyNewMessage(sb, { ownerId, contactName, body, convers
       .eq('owner_id', ownerId);
     if (error || !subs?.length) return;
 
+    // Total unread conversations for this workspace -- closest real
+    // equivalent to WhatsApp's home-screen icon badge count. Native Android
+    // apps can render a custom grouped notification summary ("N messages
+    // from M chats"); the standard Web Notifications API used by every
+    // website/PWA (including us) has no equivalent hook for that -- but the
+    // Badging API (navigator.setAppBadge, called from the service worker)
+    // DOES let us put a real number on the installed PWA's home-screen icon.
+    let unreadTotal = 0;
+    try {
+      const { count } = await sb
+        .from('conversations')
+        .select('id', { count: 'exact', head: true })
+        .eq('workspace_id', ownerId)
+        .gt('unread_count', 0);
+      unreadTotal = count || 0;
+    } catch { /* badge is best-effort, never block the actual notification */ }
+
     const payload = JSON.stringify({
       title: contactName || 'New message',
       body: (body || '').slice(0, 140) || 'Sent an attachment',
       icon: '/icon-192.png',
       badge: '/icon-192.png',
-      data: { url: '/', conversationId, channel },
+      data: { url: '/', conversationId, channel, unreadTotal },
     });
 
     await Promise.all(subs.map(async (row) => {

@@ -92,6 +92,17 @@ export default function Inbox() {
     return true;
   });
 
+  // Keep the installed PWA's home-screen icon badge in sync with the real
+  // unread count whenever the list changes (new message arrives, or the
+  // user opens a chat and it gets marked read) -- not just when a push
+  // notification fires, so the badge reflects reality even if you never
+  // left the app open through a background push at all.
+  useEffect(() => {
+    if (!('setAppBadge' in navigator)) return;
+    const unread = conversations.filter(c => c.unread_count > 0).length;
+    (unread > 0 ? navigator.setAppBadge(unread) : navigator.clearAppBadge()).catch(() => {});
+  }, [conversations]);
+
   const counts = {
     all:        conversations.length,
     unassigned: conversations.filter(c => !c.assigned_to).length,
