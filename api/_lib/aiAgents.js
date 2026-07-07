@@ -3,9 +3,9 @@
 // Vercel Hobby's 12-serverless-function cap) and is imported by whichever
 // route file hosts the ai-agents actions (currently api/channels/index.js).
 //
-// Phase 1 scope: agent CRUD + "generate draft reply" only. No auto-send, no
-// knowledge base yet (system_instructions text is the only "knowledge" for
-// now) -- both come in later phases per the agreed build plan.
+// Phase 1: agent CRUD + "generate draft reply".
+// Phase 2: knowledge base (plain text / FAQ snippets) fed into the draft prompt.
+// No auto-send yet -- both phases only ever produce a draft for a human to review.
 
 const OPENAI_API_KEY = process.env.OPENAI_API_KEY;
 
@@ -65,7 +65,7 @@ export const AI_AGENT_TEMPLATES = [
   {
     key: 'knowledge_base',
     name: 'Knowledge Base Agent',
-    description: 'Answers questions strictly from the business\'s own documented knowledge.',
+    description: "Answers questions strictly from the business's own documented knowledge.",
     role: 'Knowledge Base',
     personality: 'Accurate, matter-of-fact',
     tone: 'Neutral and informative',
@@ -73,32 +73,61 @@ export const AI_AGENT_TEMPLATES = [
   },
 ];
 
+// ── Knowledge base helpers ──────────────────────────────────────────────────
+// Phase 2 scope: plain text / FAQ snippets only (no URL scraping / PDF
+// parsing yet -- that's a later phase). No embeddings/vector search either:
+// snippets are meant to be short (FAQs, policies, price lists), so we just
+// concatenate them into the system prompt, capped so a large KB can't blow
+// the token budget or crowd out the agent's persona.
+const MAX_KNOWLEDGE_CHARS = 6000;
+
+export function buildKnowledgeBlock(knowledge) {
+  if (!Array.isArray(knowledge) || !knowledge.length) return '';
+  let used = 0;
+  const parts = [];
+  for (const k of knowledge) {
+    const chunk = '### ' + k.title + '\n' + k.content;
+    if (used + chunk.length > MAX_KNOWLEDGE_CHARS) break;
+    parts.push(chunk);
+    used += chunk.length;
+  }
+  if (!parts.length) return '';
+  const intro = "Here is this business's knowledge base. Use it as your source of truth for facts "
+    + '(pricing, policies, hours, products, etc). If the answer is not in here and is not something '
+    + "you'd reasonably know as this role, say you're not sure and offer to get a human to confirm -- "
+    + 'never invent facts.';
+  return intro + '\n\n' + parts.join('\n\n');
+}
+
 // ── OpenAI draft generation ────────────────────────────────────────────────
-// Builds a reply suggestion from an agent's persona + recent conversation
-// history. Returns plain text (no auto-send in Phase 1 -- always a draft for
-// a human to review/edit/send from the composer).
-export async function generateDraftReply(agent, recentMessages, contact) {
+// Builds a reply suggestion from an agent's persona + knowledge base + recent
+// conversation history. Returns plain text (always a draft for a human to
+// review/edit/send from the composer -- never auto-sent).
+export async function generateDraftReply(agent, recentMessages, contact, knowledge) {
   if (!OPENAI_API_KEY) throw new Error('OPENAI_API_KEY is not configured on the server');
 
+  const knowledgeBlock = buildKnowledgeBlock(knowledge);
+
   const systemParts = [
-    `You are "${agent.name}", an AI ${agent.role || 'assistant'} for this business.`,
+    'You are "' + agent.name + '", an AI ' + (agent.role || 'assistant') + ' for this business.',
     agent.system_instructions || '',
-    agent.personality ? `Personality: ${agent.personality}.` : '',
-    agent.tone ? `Tone: ${agent.tone}.` : '',
+    agent.personality ? 'Personality: ' + agent.personality + '.' : '',
+    agent.tone ? 'Tone: ' + agent.tone + '.' : '',
     Array.isArray(agent.languages) && agent.languages.length
-      ? `Reply in the same language the customer is using; you are able to speak: ${agent.languages.join(', ')}.`
+      ? 'Reply in the same language the customer is using; you are able to speak: ' + agent.languages.join(', ') + '.'
       : '',
     'You are drafting a reply for a human staff member to review before sending -- write it as the final message text only, no preamble, no explanation of what you are doing.',
+    knowledgeBlock,
   ].filter(Boolean);
 
   const history = (recentMessages || []).slice(-12).map(m => ({
     role: m.direction === 'inbound' ? 'user' : 'assistant',
-    content: m.body || (m.attachments?.length ? `[${m.attachments[0].type}]` : ''),
+    content: m.body || (m.attachments?.length ? '[' + m.attachments[0].type + ']' : ''),
   })).filter(m => m.content);
 
   const messages = [
     { role: 'system', content: systemParts.join('\n') },
-    ...(contact?.name ? [{ role: 'system', content: `Customer name: ${contact.name}` }] : []),
+    ...(contact?.name ? [{ role: 'system', content: 'Customer name: ' + contact.name }] : []),
     ...history,
   ];
 
@@ -106,7 +135,7 @@ export async function generateDraftReply(agent, recentMessages, contact) {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
-      Authorization: `Bearer ${OPENAI_API_KEY}`,
+      Authorization: 'Bearer ' + OPENAI_API_KEY,
     },
     body: JSON.stringify({
       model: agent.model || DEFAULT_MODEL,
@@ -118,7 +147,7 @@ export async function generateDraftReply(agent, recentMessages, contact) {
 
   if (!res.ok) {
     const errBody = await res.text().catch(() => '');
-    throw new Error(`OpenAI request failed (${res.status}): ${errBody.slice(0, 300)}`);
+    throw new Error('OpenAI request failed (' + res.status + '): ' + errBody.slice(0, 300));
   }
 
   const data = await res.json();

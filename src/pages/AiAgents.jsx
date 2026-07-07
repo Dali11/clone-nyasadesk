@@ -1,8 +1,8 @@
 import { useState, useEffect } from 'react';
-import { Plus, Bot, Trash2, Loader2, Sparkles, X } from 'lucide-react';
+import { Plus, Bot, Trash2, Loader2, Sparkles, X, BookOpen, Pencil } from 'lucide-react';
 import Sidebar from '@/components/Sidebar';
 import { useNyasaAuth } from '@/lib/NyasaAuth';
-import { getAiAgents, saveAiAgent, deleteAiAgent, getAiAgentTemplates } from '@/lib/channels';
+import { getAiAgents, saveAiAgent, deleteAiAgent, getAiAgentTemplates, getAiKnowledge, saveAiKnowledge, deleteAiKnowledge } from '@/lib/channels';
 import { useDocumentTitle } from '@/hooks/useDocumentTitle';
 
 const CHANNEL_OPTIONS = ['whatsapp', 'website', 'instagram', 'telegram', 'messenger'];
@@ -25,6 +25,10 @@ export default function AiAgents() {
   const [showTemplates, setShowTemplates] = useState(false);
   const [form, setForm] = useState(BLANK_FORM);
   const [saving, setSaving] = useState(false);
+  const [knowledgeItems, setKnowledgeItems] = useState([]);
+  const [loadingKnowledge, setLoadingKnowledge] = useState(false);
+  const [knowledgeForm, setKnowledgeForm] = useState(null); // null | 'new' | item
+  const [savingKnowledge, setSavingKnowledge] = useState(false);
 
   const load = async () => {
     if (!workspaceOwnerId) { setLoading(false); return; }
@@ -58,8 +62,45 @@ export default function AiAgents() {
     setEditing('new');
   };
 
-  const startBlank = () => { setForm(BLANK_FORM); setShowTemplates(false); setEditing('new'); };
-  const startEdit = (agent) => { setForm({ ...BLANK_FORM, ...agent }); setEditing(agent.id); };
+  const startBlank = () => { setForm(BLANK_FORM); setShowTemplates(false); setEditing('new'); setKnowledgeItems([]); setKnowledgeForm(null); };
+  const startEdit = (agent) => { setForm({ ...BLANK_FORM, ...agent }); setEditing(agent.id); setKnowledgeForm(null); loadKnowledge(agent.id); };
+
+  const loadKnowledge = async (agentId) => {
+    setLoadingKnowledge(true);
+    try {
+      setKnowledgeItems(await getAiKnowledge(workspaceOwnerId, agentId));
+    } catch (e) {
+      console.error('[AiAgents] knowledge load error:', e);
+    } finally {
+      setLoadingKnowledge(false);
+    }
+  };
+
+  const saveKnowledge = async () => {
+    if (!knowledgeForm?.title?.trim() || !knowledgeForm?.content?.trim() || savingKnowledge) return;
+    setSavingKnowledge(true);
+    try {
+      const payload = { title: knowledgeForm.title, content: knowledgeForm.content, agent_id: editing, ...(knowledgeForm.id ? { id: knowledgeForm.id } : {}) };
+      await saveAiKnowledge(workspaceOwnerId, payload);
+      setKnowledgeForm(null);
+      await loadKnowledge(editing);
+    } catch (e) {
+      console.error('[AiAgents] knowledge save error:', e);
+      alert('Failed to save knowledge: ' + e.message);
+    } finally {
+      setSavingKnowledge(false);
+    }
+  };
+
+  const delKnowledge = async (id) => {
+    if (!window.confirm('Delete this knowledge snippet?')) return;
+    try {
+      await deleteAiKnowledge(id);
+      setKnowledgeItems(prev => prev.filter(k => k.id !== id));
+    } catch (e) {
+      console.error('[AiAgents] knowledge delete error:', e);
+    }
+  };
 
   const toggleChannel = (ch) => set('enabled_channels', form.enabled_channels.includes(ch)
     ? form.enabled_channels.filter(c => c !== ch) : [...form.enabled_channels, ch]);
@@ -71,12 +112,22 @@ export default function AiAgents() {
     setSaving(true);
     try {
       const payload = { ...form, ...(editing !== 'new' ? { id: editing } : {}) };
-      await saveAiAgent(workspaceOwnerId, payload);
-      setEditing(null);
+      const savedAgent = await saveAiAgent(workspaceOwnerId, payload);
+      if (editing === 'new') {
+        // Switch straight into edit mode on the new agent so knowledge can
+        // be added right away, instead of closing and forcing a re-open.
+        setEditing(savedAgent.id);
+        setKnowledgeItems([]);
+      } else {
+        setEditing(null);
+      }
       await load();
     } catch (e) {
       console.error('[AiAgents] save error:', e);
-      alert('Failed to save: ' + e.message);
+      const isNetworkErr = e instanceof TypeError || /failed to fetch|network/i.test(e?.message || '');
+      alert(isNetworkErr
+        ? "Couldn't save — your connection dropped. Check your signal and try again."
+        : 'Failed to save: ' + e.message);
     } finally {
       setSaving(false);
     }
@@ -275,10 +326,68 @@ export default function AiAgents() {
                   </button>
                 </div>
               </Field>
+
+              {/* Knowledge base — only available once the agent has an id (save creates one) */}
+              <Field label="Knowledge base">
+                {editing === 'new' ? (
+                  <p className="text-xs text-gray-600">Save the agent first, then add FAQs, policies, or price lists here.</p>
+                ) : (
+                  <div className="bg-[#1a2530] rounded-xl p-2.5 space-y-1.5">
+                    {loadingKnowledge ? (
+                      <div className="flex items-center gap-2 text-gray-500 text-xs py-2">
+                        <Loader2 className="w-3.5 h-3.5 animate-spin" /> Loading…
+                      </div>
+                    ) : knowledgeItems.length === 0 && !knowledgeForm ? (
+                      <p className="text-xs text-gray-600 py-1">No knowledge added yet — teach this agent your FAQs, policies, or prices.</p>
+                    ) : (
+                      knowledgeItems.map(k => (
+                        <div key={k.id} className="flex items-start gap-2 bg-[#202C33] rounded-lg px-2.5 py-2">
+                          <div className="flex-1 min-w-0">
+                            <p className="text-xs font-semibold text-white truncate">{k.title}</p>
+                            <p className="text-[11px] text-gray-500 line-clamp-2">{k.content}</p>
+                          </div>
+                          <button onClick={() => setKnowledgeForm({ ...k })} className="text-gray-500 hover:text-[#25D366] shrink-0 p-1">
+                            <Pencil className="w-3.5 h-3.5" />
+                          </button>
+                          <button onClick={() => delKnowledge(k.id)} className="text-gray-500 hover:text-red-400 shrink-0 p-1">
+                            <Trash2 className="w-3.5 h-3.5" />
+                          </button>
+                        </div>
+                      ))
+                    )}
+
+                    {knowledgeForm ? (
+                      <div className="bg-[#202C33] rounded-lg p-2.5 space-y-1.5">
+                        <input value={knowledgeForm.title || ''} onChange={e => setKnowledgeForm(f => ({ ...f, title: e.target.value }))}
+                          placeholder="Title, e.g. Refund policy"
+                          className="w-full bg-[#1a2530] text-white text-xs rounded-lg px-2.5 py-1.5 focus:outline-none focus:ring-1 focus:ring-[#25D366]" />
+                        <textarea value={knowledgeForm.content || ''} onChange={e => setKnowledgeForm(f => ({ ...f, content: e.target.value }))} rows={3}
+                          placeholder="The actual info the agent should know…"
+                          className="w-full bg-[#1a2530] text-white text-xs rounded-lg px-2.5 py-1.5 focus:outline-none focus:ring-1 focus:ring-[#25D366] resize-none" />
+                        <div className="flex gap-1.5">
+                          <button onClick={() => setKnowledgeForm(null)}
+                            className="flex-1 text-[11px] font-semibold text-gray-400 hover:text-white bg-white/5 hover:bg-white/10 rounded-lg py-1.5 transition-colors">
+                            Cancel
+                          </button>
+                          <button onClick={saveKnowledge} disabled={savingKnowledge || !knowledgeForm.title?.trim() || !knowledgeForm.content?.trim()}
+                            className="flex-1 text-[11px] font-semibold text-black bg-[#25D366] hover:bg-[#20bd5a] disabled:opacity-50 rounded-lg py-1.5 transition-colors">
+                            {savingKnowledge ? 'Saving…' : 'Save snippet'}
+                          </button>
+                        </div>
+                      </div>
+                    ) : (
+                      <button onClick={() => setKnowledgeForm({ title: '', content: '' })}
+                        className="w-full flex items-center justify-center gap-1.5 text-[11px] font-semibold text-[#25D366] bg-[#25D366]/10 hover:bg-[#25D366]/20 rounded-lg py-1.5 transition-colors">
+                        <BookOpen className="w-3.5 h-3.5" /> Add knowledge
+                      </button>
+                    )}
+                  </div>
+                )}
+              </Field>
             </div>
 
             <div className="flex gap-2 mt-5">
-              <button onClick={() => setEditing(null)}
+              <button onClick={() => { setEditing(null); setKnowledgeForm(null); }}
                 className="flex-1 text-sm font-semibold text-gray-300 hover:text-white bg-white/5 hover:bg-white/10 rounded-lg py-2 transition-colors">
                 Cancel
               </button>

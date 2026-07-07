@@ -126,7 +126,12 @@ async function handleAiDraft(req, res) {
     const { data: messages } = await sb.from('messages').select('direction,body,attachments')
       .eq('conversation_id', conversation_id).order('created_at', { ascending: true });
 
-    const draft = await generateDraftReply(agent, messages || [], contact);
+    // Knowledge: this agent's own snippets + workspace-shared ones (agent_id null)
+    const { data: knowledge } = await sb.from('ai_knowledge').select('title,content')
+      .eq('workspace_id', workspace_id).or('agent_id.eq.' + agent_id + ',agent_id.is.null')
+      .order('created_at', { ascending: true });
+
+    const draft = await generateDraftReply(agent, messages || [], contact, knowledge || []);
     return res.status(200).json({ ok: true, draft });
   } catch (e) {
     console.error('[ai-draft] error:', e);

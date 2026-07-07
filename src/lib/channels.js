@@ -627,19 +627,38 @@ export async function getAiAgents(workspaceId) {
   return data || [];
 }
 
+// Retries transient network failures (mobile connections drop fetch calls
+// mid-flight -- shows up as a bare "TypeError: Failed to fetch" with no
+// Supabase error body). Real errors (RLS, validation) come back as proper
+// Postgrest error objects and are NOT retried, they just throw immediately.
+async function withRetry(fn, attempts = 3) {
+  let lastErr;
+  for (let i = 0; i < attempts; i++) {
+    try { return await fn(); } catch (e) {
+      lastErr = e;
+      const isNetworkErr = e instanceof TypeError || /failed to fetch|network/i.test(e?.message || '');
+      if (!isNetworkErr || i === attempts - 1) throw e;
+      await new Promise(r => setTimeout(r, 500 * (i + 1)));
+    }
+  }
+  throw lastErr;
+}
+
 export async function saveAiAgent(workspaceId, agent) {
   const { id, ...fields } = agent;
-  if (id) {
+  return withRetry(async () => {
+    if (id) {
+      const { data, error } = await supabase.from('ai_agents')
+        .update({ ...fields, updated_at: new Date().toISOString() })
+        .eq('id', id).eq('workspace_id', workspaceId).select().single();
+      if (error) throw error;
+      return data;
+    }
     const { data, error } = await supabase.from('ai_agents')
-      .update({ ...fields, updated_at: new Date().toISOString() })
-      .eq('id', id).eq('workspace_id', workspaceId).select().single();
+      .insert({ workspace_id: workspaceId, ...fields }).select().single();
     if (error) throw error;
     return data;
-  }
-  const { data, error } = await supabase.from('ai_agents')
-    .insert({ workspace_id: workspaceId, ...fields }).select().single();
-  if (error) throw error;
-  return data;
+  });
 }
 
 export async function deleteAiAgent(id) {
@@ -667,4 +686,38 @@ export async function generateAiDraft(workspaceId, agentId, conversationId) {
   const data = await res.json();
   if (!res.ok || !data.ok) throw new Error(data.error || 'Failed to generate draft');
   return data.draft;
+}
+
+// ── AI Agents: knowledge base (Phase 2) ────────────────────────────────────
+// Plain text / FAQ snippets. agent_id null = shared across all agents in the
+// workspace; agent_id set = specific to that one agent.
+
+export async function getAiKnowledge(workspaceId, agentId) {
+  let q = supabase.from('ai_knowledge').select('*').eq('workspace_id', workspaceId);
+  q = agentId ? q.or(`agent_id.eq.${agentId},agent_id.is.null`) : q.is('agent_id', null);
+  const { data, error } = await q.order('created_at', { ascending: true });
+  if (error) throw error;
+  return data || [];
+}
+
+export async function saveAiKnowledge(workspaceId, snippet) {
+  const { id, ...fields } = snippet;
+  return withRetry(async () => {
+    if (id) {
+      const { data, error } = await supabase.from('ai_knowledge')
+        .update({ ...fields, updated_at: new Date().toISOString() })
+        .eq('id', id).eq('workspace_id', workspaceId).select().single();
+      if (error) throw error;
+      return data;
+    }
+    const { data, error } = await supabase.from('ai_knowledge')
+      .insert({ workspace_id: workspaceId, ...fields }).select().single();
+    if (error) throw error;
+    return data;
+  });
+}
+
+export async function deleteAiKnowledge(id) {
+  const { error } = await supabase.from('ai_knowledge').delete().eq('id', id);
+  if (error) throw error;
 }
