@@ -103,9 +103,30 @@ function WhatsAppCard({ saved, workspaceId, onSave, onDelete }) {
   const [error, setError] = useState('');
   const [manualFields, setManualFields] = useState({});
   const [savingManual, setSavingManual] = useState(false);
+  const [verifying, setVerifying] = useState(false);
+  const [verifyResult, setVerifyResult] = useState(null);
 
   const isLive = !!(saved && saved.enabled && saved.config &&
     (saved.config.waba_id || saved.config.access_token || saved.config.phone_number_id));
+
+  // ── Verify connection actually works (token valid + webhook subscribed) ─
+  const handleVerify = async () => {
+    setVerifying(true);
+    setVerifyResult(null);
+    try {
+      const res = await fetch('/api/channels?action=verify', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ workspace_id: workspaceId, channel: 'whatsapp' }),
+      });
+      const data = await res.json();
+      setVerifyResult(data);
+    } catch (e) {
+      setVerifyResult({ ok: false, error: e.message });
+    } finally {
+      setVerifying(false);
+    }
+  };
 
   // ── Disconnect ────────────────────────────────────────────────────────
   const handleDisconnect = async () => {
@@ -242,6 +263,34 @@ function WhatsAppCard({ saved, workspaceId, onSave, onDelete }) {
                 Connected via the official WhatsApp Cloud API. Messages route automatically.
               </p>
             </div>
+            {verifyResult && (
+              <div className={`rounded-xl p-3 text-[11px] space-y-1 ${verifyResult.healthy ? 'bg-[#25D366]/10' : 'bg-amber-500/10'}`}>
+                {verifyResult.ok ? (
+                  <>
+                    <p className={`font-semibold ${verifyResult.healthy ? 'text-[#25D366]' : 'text-amber-400'}`}>
+                      {verifyResult.healthy ? 'Connection is healthy — messages will arrive.' : 'Found an issue.'}
+                    </p>
+                    <p className="text-gray-400">
+                      Access token: {verifyResult.checks?.token_valid ? 'valid' : (verifyResult.checks?.token_error || 'invalid')}
+                    </p>
+                    <p className="text-gray-400">
+                      Webhook subscribed to Meta: {verifyResult.checks?.webhook_subscribed ? 'yes' : 'no'}
+                      {verifyResult.checks?.auto_fixed ? ' (just fixed automatically)' : ''}
+                    </p>
+                    {verifyResult.checks?.webhook_note && (
+                      <p className="text-amber-400">{verifyResult.checks.webhook_note}</p>
+                    )}
+                  </>
+                ) : (
+                  <p className="text-amber-400">{verifyResult.error || 'Could not verify connection'}</p>
+                )}
+              </div>
+            )}
+            <button onClick={handleVerify} disabled={verifying}
+              className="w-full py-2.5 rounded-xl text-sm font-medium text-[#25D366] bg-[#25D366]/10 hover:bg-[#25D366]/20 disabled:opacity-50 flex items-center justify-center gap-2">
+              {verifying ? <Loader2 className="w-4 h-4 animate-spin" /> : null}
+              {verifying ? 'Checking…' : 'Verify Connection'}
+            </button>
             <button onClick={handleDisconnect}
               className="w-full py-2.5 rounded-xl text-sm font-medium text-red-400 bg-red-500/10 hover:bg-red-500/20">
               Disconnect WhatsApp

@@ -24,6 +24,7 @@ export default async function handler(req, res) {
   if (action === 'telegram-setup') return handleConnect(req, res);
   if (action === 'connect')        return handleConnect(req, res);
   if (action === 'disconnect')     return handleDisconnect(req, res);
+  if (action === 'verify')          return handleVerify(req, res);
   if (action === 'signup-config')  return handleSignupConfig(req, res);
   if (action === 'hosted-connect') return handleHostedConnect(req, res);
   if (action === 'save-waba')     return handleSaveWaba(req, res);
@@ -85,6 +86,73 @@ async function handleDisconnect(req, res) {
     return res.status(200).json({ ok: true });
   } catch (e) {
     console.error('[channels/disconnect] error:', e);
+    return res.status(500).json({ ok: false, error: e.message });
+  }
+}
+
+
+// ── Verify a channel connection is actually working ──────────────────────
+// Checks the stored credentials are still valid AND (for WhatsApp) that
+// Meta will actually deliver webhook events to us — a connected token with
+// no WABA subscription looks "connected" in the UI but silently receives
+// nothing. Auto-fixes the subscription gap when it finds one.
+async function handleVerify(req, res) {
+  try {
+    const { workspace_id, channel } = req.body || {};
+    if (!workspace_id || !channel) {
+      return res.status(400).json({ ok: false, error: 'workspace_id and channel are required' });
+    }
+    const sb = createClient(SUPABASE_URL, SUPABASE_KEY);
+    const { data: cfg } = await sb.from('channel_configs').select('*')
+      .eq('workspace_id', workspace_id).eq('channel', channel).single();
+    if (!cfg?.enabled) return res.status(400).json({ ok: false, error: 'Channel is not connected' });
+
+    if (channel === 'whatsapp') {
+      const { access_token, phone_number_id, waba_id } = cfg.config || {};
+      const checks = { token_valid: false, webhook_subscribed: false, waba_id_present: !!waba_id };
+
+      if (access_token && phone_number_id) {
+        const r = await fetch(`https://graph.facebook.com/v21.0/${phone_number_id}?fields=display_phone_number,verified_name,quality_rating,code_verification_status&access_token=${access_token}`);
+        const d = await r.json();
+        if (!d.error) {
+          checks.token_valid = true;
+          checks.phone_number = d.display_phone_number;
+          checks.verified_name = d.verified_name;
+          checks.quality_rating = d.quality_rating;
+          checks.code_verification_status = d.code_verification_status;
+        } else {
+          checks.token_error = d.error.message;
+        }
+      } else {
+        checks.token_error = 'Missing access token or phone number ID';
+      }
+
+      if (access_token && waba_id) {
+        const r2 = await fetch(`https://graph.facebook.com/v21.0/${waba_id}/subscribed_apps?access_token=${access_token}`);
+        const d2 = await r2.json();
+        checks.webhook_subscribed = Array.isArray(d2.data) && d2.data.length > 0;
+
+        // Self-heal: if the app isn't subscribed to this WABA, subscribe it now
+        // instead of just reporting a red X the user can't act on.
+        if (!checks.webhook_subscribed && checks.token_valid) {
+          try {
+            const subRes = await fetch(`https://graph.facebook.com/v21.0/${waba_id}/subscribed_apps`, {
+              method: 'POST', headers: { Authorization: `Bearer ${access_token}` },
+            });
+            const subData = await subRes.json();
+            if (subData.success) { checks.webhook_subscribed = true; checks.auto_fixed = true; }
+          } catch (e) { /* leave as unsubscribed, report to user */ }
+        }
+      } else if (!waba_id) {
+        checks.webhook_note = 'No WABA ID stored — cannot verify or fix webhook subscription automatically.';
+      }
+
+      return res.status(200).json({ ok: true, healthy: checks.token_valid && checks.webhook_subscribed, checks });
+    }
+
+    return res.status(200).json({ ok: true, healthy: true, checks: { note: 'Verification not implemented for this channel' } });
+  } catch (e) {
+    console.error('[channels/verify] error:', e);
     return res.status(500).json({ ok: false, error: e.message });
   }
 }

@@ -156,6 +156,19 @@ export class WhatsAppCloudProvider extends MessagingProvider {
       }
     } catch (e) { /* non-fatal — token may still work for sending */ }
 
+    // Register webhook subscription for the WABA — without this, Meta has
+    // no destination to deliver inbound-message webhooks to, even though
+    // the app-level webhook URL is configured. This is the #1 cause of
+    // "I connected but nothing arrives" for manual Cloud API connections.
+    if (waba_id) {
+      try {
+        await fetch(`${GRAPH}/${waba_id}/subscribed_apps`, {
+          method: 'POST',
+          headers: { Authorization: `Bearer ${access_token}` },
+        });
+      } catch (e) { /* non-fatal — surfaced via the verify-connection check instead */ }
+    }
+
     const config = {
       access_token,
       phone_number_id,
