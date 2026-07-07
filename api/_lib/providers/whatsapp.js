@@ -204,6 +204,18 @@ export class WhatsAppCloudProvider extends MessagingProvider {
     const WA_TYPE = { image: 'image', video: 'video', audio: 'audio' };
     let payload;
 
+    // WhatsApp Cloud API only accepts specific audio containers/codecs:
+    // OGG (Opus only), MP4/AAC, MPEG (mp3), AMR. audio/webm — the browser's
+    // MediaRecorder default — is silently rejected by Meta with a generic
+    // API error. Fail fast with a clear, actionable message instead.
+    const SUPPORTED_AUDIO_MIME = /^audio\/(ogg|mp4|mpeg|aac|amr)/i;
+    if (media && media.type === 'audio' && media.mime && !SUPPORTED_AUDIO_MIME.test(media.mime)) {
+      throw new Error(
+        `WhatsApp doesn't support this audio format (${media.mime}). Supported: OGG/Opus, MP4/AAC, MP3, AMR. ` +
+        `If this was recorded in-browser, try recording again — newer recordings use a supported format.`
+      );
+    }
+
     if (media && WA_TYPE[media.type]) {
       const waType = WA_TYPE[media.type];
       payload = {

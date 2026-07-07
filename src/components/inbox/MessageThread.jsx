@@ -25,8 +25,34 @@ function StatusIcon({ status }) {
   if (status === 'sent')      return <Check className="w-3 h-3 text-gray-400" />;
   if (status === 'delivered') return <CheckCheck className="w-3 h-3 text-gray-400" />;
   if (status === 'read')      return <CheckCheck className="w-3 h-3 text-[#53BDEB]" />;
-  if (status === 'failed')    return <X className="w-3 h-3 text-red-400" />;
+  if (status === 'failed')    return <X className="w-3 h-3 text-red-400" title="Failed to send" />;
   return null;
+}
+
+// WhatsApp's Cloud API only accepts specific audio containers/codecs for
+// outbound media: OGG (Opus only), MP4/AAC, MPEG (mp3), and AMR. The
+// browser's default MediaRecorder output — audio/webm — is NOT in that
+// list, so a plain `new MediaRecorder(stream)` recording silently gets
+// rejected by Meta on send (it still plays fine locally/on the website
+// widget, since that never leaves the browser — hence "only works web to
+// web"). Ask the browser to record directly into a format WhatsApp
+// actually accepts, in priority order.
+const AUDIO_MIME_CANDIDATES = [
+  'audio/ogg;codecs=opus',  // Chrome/Firefox/Android — WhatsApp's own native voice-note format
+  'audio/mp4',              // Safari/iOS — AAC in MP4, also WhatsApp-compatible
+  'audio/webm;codecs=opus', // last-resort fallback — NOT WhatsApp-compatible, website-only
+];
+function pickRecorderMimeType() {
+  if (typeof MediaRecorder === 'undefined' || !MediaRecorder.isTypeSupported) return '';
+  for (const mt of AUDIO_MIME_CANDIDATES) {
+    if (MediaRecorder.isTypeSupported(mt)) return mt;
+  }
+  return '';
+}
+function extForMime(mime) {
+  if (mime.includes('ogg')) return 'ogg';
+  if (mime.includes('mp4')) return 'm4a';
+  return 'webm';
 }
 
 // Module-level singleton — WhatsApp-style "only one voice note plays at a
@@ -412,17 +438,19 @@ export default function MessageThread({ conversation, workspaceId }) {
   const startRecording = async () => {
     try {
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-      const recorder = new MediaRecorder(stream);
+      const chosenMime = pickRecorderMimeType();
+      const recorder = chosenMime ? new MediaRecorder(stream, { mimeType: chosenMime }) : new MediaRecorder(stream);
+      const actualMime = recorder.mimeType || chosenMime || 'audio/webm';
       recordChunksRef.current = [];
       recorder.ondataavailable = (e) => { if (e.data.size > 0) recordChunksRef.current.push(e.data); };
       recorder.onstop = () => {
         stream.getTracks().forEach(t => t.stop());
         clearInterval(recordTimerRef.current);
-        const blob = new Blob(recordChunksRef.current, { type: 'audio/webm' });
+        const blob = new Blob(recordChunksRef.current, { type: actualMime });
         setRecording(false);
         setRecordSecs(0);
         if (blob.size > 0) {
-          const file = new File([blob], `voice-note-${Date.now()}.webm`, { type: 'audio/webm' });
+          const file = new File([blob], `voice-note-${Date.now()}.${extForMime(actualMime)}`, { type: actualMime });
           handleSendMedia(file, 'audio');
         }
       };
