@@ -105,6 +105,7 @@ function WhatsAppCard({ saved, workspaceId, onSave, onDelete }) {
   const [savingManual, setSavingManual] = useState(false);
   const [verifying, setVerifying] = useState(false);
   const [verifyResult, setVerifyResult] = useState(null);
+  const [showSlowHint, setShowSlowHint] = useState(false);
 
   const isLive = !!(saved && saved.enabled && saved.config &&
     (saved.config.waba_id || saved.config.access_token || saved.config.phone_number_id));
@@ -203,8 +204,19 @@ function WhatsAppCard({ saved, workspaceId, onSave, onDelete }) {
       return;
     }
     setError('');
+    setShowSlowHint(false);
     setEmbeddedLoading(true);
+
+    // If nothing has come back after a while, the popup was very likely
+    // blocked silently (privacy/tracking-protection browsers, blocked
+    // third-party cookies) rather than the user just taking their time —
+    // Meta's own dialog is fast. Surface a concrete, actionable hint
+    // instead of leaving a non-technical user staring at a spinner.
+    const slowTimer = setTimeout(() => setShowSlowHint(true), 8000);
+
     window.FB.login((response) => {
+      clearTimeout(slowTimer);
+      setShowSlowHint(false);
       if (response.authResponse?.code) {
         const captured = embeddedSignupDataRef.current || {};
         fetch('/api/auth/whatsapp-embedded', {
@@ -230,7 +242,12 @@ function WhatsAppCard({ saved, workspaceId, onSave, onDelete }) {
       } else {
         setEmbeddedLoading(false);
         console.warn('[FB.login] no authResponse.code — full response:', response);
-        setError('Facebook sign-in did not complete. You can use the manual connection below instead.');
+        setError(
+          "The Facebook popup closed without finishing — usually caused by a browser blocking cookies " +
+          "for facebook.com. Try: (1) use Chrome or Safari instead of a privacy-focused browser, " +
+          "(2) tap the shield/lock icon near your address bar and allow cookies for this site, then try again. " +
+          "Or use the manual connection below instead."
+        );
       }
     }, {
       config_id: metaConfigId,
@@ -312,18 +329,40 @@ function WhatsAppCard({ saved, workspaceId, onSave, onDelete }) {
                     disabled={!fbReady || embeddedLoading}
                     className="w-full py-3 rounded-xl text-sm font-bold text-white bg-[#1877F2] hover:bg-[#166FE5] disabled:opacity-60 flex items-center justify-center gap-2">
                     {embeddedLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : <ShieldCheck className="w-4 h-4" />}
-                    {embeddedLoading ? 'Connecting...' : 'Connect with Facebook'}
+                    {!fbReady ? 'Loading secure connection…' : embeddedLoading ? 'Connecting...' : 'Connect with Facebook'}
                   </button>
                   <p className="text-[11px] text-gray-500 text-center">
                     Official Meta signup — pick your WhatsApp Business number in a secure popup. Recommended.
                   </p>
+                  {showSlowHint && (
+                    <div className="bg-amber-500/10 rounded-xl p-3 space-y-1">
+                      <p className="text-[11px] font-semibold text-amber-400">Taking longer than usual?</p>
+                      <p className="text-[11px] text-amber-200/80 leading-relaxed">
+                        A popup should have appeared already. If you don't see one, your browser is probably
+                        blocking it. Try tapping the shield/lock icon next to your address bar and allowing
+                        cookies/popups for this site, or switch to Chrome and click "Connect with Facebook" again.
+                      </p>
+                    </div>
+                  )}
+                  <details className="group">
+                    <summary className="text-[11px] text-gray-500 cursor-pointer select-none hover:text-gray-400 list-none flex items-center gap-1 justify-center">
+                      <ChevronDown className="w-3 h-3 group-open:rotate-180 transition-transform" />
+                      Nothing happening when you click?
+                    </summary>
+                    <div className="mt-2 text-[11px] text-gray-500 leading-relaxed space-y-1 px-1">
+                      <p>1. Use Chrome, Safari, or Edge — some privacy browsers block this by default.</p>
+                      <p>2. Look for a shield/lock icon near your address bar and allow cookies for this page.</p>
+                      <p>3. If you're on a work device, your IT admin may block third-party popups/cookies — try a personal device.</p>
+                      <p>4. Still stuck? Use the manual connection option below instead — no popup required.</p>
+                    </div>
+                  </details>
                 </div>
               )}
             </div>
 
             {/* Error */}
             {error && (
-              <p className="text-[11px] text-red-400 text-center px-2">{error}</p>
+              <p className="text-[11px] text-red-400 text-center px-2 leading-relaxed">{error}</p>
             )}
 
             {/* Manual Cloud API connection — the fallback/default path */}
