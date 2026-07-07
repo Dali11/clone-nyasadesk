@@ -10,6 +10,7 @@
 
 import { createClient } from '@supabase/supabase-js';
 import { getProvider } from '../_lib/providers/index.js';
+import { AI_AGENT_TEMPLATES, generateDraftReply } from '../_lib/aiAgents.js';
 
 const SUPABASE_URL = 'https://pfbaepibelomiutlotkn.supabase.co';
 const SUPABASE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY;
@@ -17,7 +18,11 @@ const PROD_URL = 'https://nyasadesk1.vercel.app';
 const BRIDGE_API = 'https://officialapi.wasapflow.com/bridge/v1';
 
 export default async function handler(req, res) {
-  const getActions = ['hosted-connect', 'templates'];
+  // AI Agents actions live here too -- api/ is hard-capped at 12 files on
+  // Vercel Hobby (see AGENTS.md), so new modules get added as actions on an
+  // existing route rather than new files. Logic itself lives in
+  // api/_lib/aiAgents.js, this file just dispatches.
+  const getActions = ['hosted-connect', 'templates', 'ai-agents-list', 'ai-templates'];
   if (req.method !== 'POST' && !getActions.includes(req.query.action)) return res.status(405).json({ error: 'Method Not Allowed' });
   const action = req.query.action || 'send';
 
@@ -30,7 +35,103 @@ export default async function handler(req, res) {
   if (action === 'save-waba')     return handleSaveWaba(req, res);
   if (action === 'sync-waba')     return handleSyncWaba(req, res);
   if (action === 'templates')     return handleListTemplates(req, res);
+  if (action === 'ai-templates')   return handleAiTemplates(req, res);
+  if (action === 'ai-agents-list') return handleAiAgentsList(req, res);
+  if (action === 'ai-agents-save') return handleAiAgentsSave(req, res);
+  if (action === 'ai-agents-delete') return handleAiAgentsDelete(req, res);
+  if (action === 'ai-draft')       return handleAiDraft(req, res);
   return handleSend(req, res);
+}
+
+// ── AI Agents: list built-in templates ─────────────────────────────────────
+async function handleAiTemplates(req, res) {
+  return res.status(200).json({ ok: true, templates: AI_AGENT_TEMPLATES });
+}
+
+// ── AI Agents: list agents for a workspace ─────────────────────────────────
+async function handleAiAgentsList(req, res) {
+  try {
+    const workspace_id = req.query.workspace_id;
+    if (!workspace_id) return res.status(400).json({ error: 'workspace_id is required' });
+    const sb = createClient(SUPABASE_URL, SUPABASE_KEY);
+    const { data, error } = await sb.from('ai_agents').select('*').eq('workspace_id', workspace_id).order('created_at', { ascending: true });
+    if (error) throw error;
+    return res.status(200).json({ ok: true, agents: data || [] });
+  } catch (e) {
+    console.error('[ai-agents-list] error:', e);
+    return res.status(500).json({ ok: false, error: e.message });
+  }
+}
+
+// ── AI Agents: create or update an agent ────────────────────────────────────
+async function handleAiAgentsSave(req, res) {
+  try {
+    const { id, workspace_id, ...fields } = req.body || {};
+    if (!workspace_id) return res.status(400).json({ error: 'workspace_id is required' });
+    const sb = createClient(SUPABASE_URL, SUPABASE_KEY);
+    const ALLOWED = ['name', 'description', 'role', 'template_key', 'model', 'system_instructions',
+      'personality', 'tone', 'languages', 'enabled_channels', 'handoff_rules', 'permissions',
+      'operating_hours', 'automation_mode', 'status'];
+    const payload = {};
+    for (const k of ALLOWED) if (k in fields) payload[k] = fields[k];
+
+    if (id) {
+      const { data, error } = await sb.from('ai_agents').update({ ...payload, updated_at: new Date().toISOString() }).eq('id', id).eq('workspace_id', workspace_id).select().single();
+      if (error) throw error;
+      return res.status(200).json({ ok: true, agent: data });
+    } else {
+      const { data, error } = await sb.from('ai_agents').insert({ workspace_id, ...payload }).select().single();
+      if (error) throw error;
+      return res.status(200).json({ ok: true, agent: data });
+    }
+  } catch (e) {
+    console.error('[ai-agents-save] error:', e);
+    return res.status(500).json({ ok: false, error: e.message });
+  }
+}
+
+// ── AI Agents: delete an agent ───────────────────────────────────────────
+async function handleAiAgentsDelete(req, res) {
+  try {
+    const { id, workspace_id } = req.body || {};
+    if (!id || !workspace_id) return res.status(400).json({ error: 'id and workspace_id are required' });
+    const sb = createClient(SUPABASE_URL, SUPABASE_KEY);
+    const { error } = await sb.from('ai_agents').delete().eq('id', id).eq('workspace_id', workspace_id);
+    if (error) throw error;
+    return res.status(200).json({ ok: true });
+  } catch (e) {
+    console.error('[ai-agents-delete] error:', e);
+    return res.status(500).json({ ok: false, error: e.message });
+  }
+}
+
+// ── AI Agents: generate a draft reply for a conversation ──────────────────
+// Phase 1 only ever drafts into the composer -- a human always reviews and
+// hits send. Full automation (auto-send) is a later phase per the agreed
+// build plan, gated by ai_agents.automation_mode.
+async function handleAiDraft(req, res) {
+  try {
+    const { agent_id, conversation_id, workspace_id } = req.body || {};
+    if (!agent_id || !conversation_id || !workspace_id) {
+      return res.status(400).json({ error: 'agent_id, conversation_id, and workspace_id are required' });
+    }
+    const sb = createClient(SUPABASE_URL, SUPABASE_KEY);
+    const { data: agent, error: agentErr } = await sb.from('ai_agents').select('*').eq('id', agent_id).eq('workspace_id', workspace_id).single();
+    if (agentErr || !agent) return res.status(404).json({ error: 'AI agent not found' });
+
+    const { data: conv } = await sb.from('conversations').select('contact_id').eq('id', conversation_id).single();
+    const { data: contact } = conv?.contact_id
+      ? await sb.from('contacts').select('name').eq('id', conv.contact_id).single()
+      : { data: null };
+    const { data: messages } = await sb.from('messages').select('direction,body,attachments')
+      .eq('conversation_id', conversation_id).order('created_at', { ascending: true });
+
+    const draft = await generateDraftReply(agent, messages || [], contact);
+    return res.status(200).json({ ok: true, draft });
+  } catch (e) {
+    console.error('[ai-draft] error:', e);
+    return res.status(500).json({ ok: false, error: e.message });
+  }
 }
 
 // ── List Meta-approved WhatsApp message templates ─────────────────────────

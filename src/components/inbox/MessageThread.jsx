@@ -1,9 +1,9 @@
 import { useState, useEffect, useRef, Fragment } from 'react';
-import { Send, StickyNote, Loader2, Check, CheckCheck, X, Zap, Paperclip, Mic, Square, Play, Pause,
+import { Send, StickyNote, Loader2, Check, CheckCheck, X, Zap, Bot, Sparkles, Paperclip, Mic, Square, Play, Pause,
          ChevronDown, Copy, Share2, Pin, PinOff, Trash2, Ban, Reply, Palette } from 'lucide-react';
 import { formatDistanceToNow, isToday, isYesterday, format as formatDate } from 'date-fns';
 import { motion, AnimatePresence } from 'framer-motion';
-import { getMessages, sendMessage, sendMediaMessage, addNote, deleteMessage, setMessagePinned, subscribeToMessages, getCannedResponses, setChatBackground } from '@/lib/channels';
+import { getMessages, sendMessage, sendMediaMessage, addNote, deleteMessage, setMessagePinned, subscribeToMessages, getCannedResponses, setChatBackground, getAiAgents, generateAiDraft } from '@/lib/channels';
 import { useNyasaAuth } from '@/lib/NyasaAuth';
 import { useToast } from '@/components/ui/use-toast';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger, DropdownMenuSeparator } from '@/components/ui/dropdown-menu';
@@ -375,6 +375,9 @@ export default function MessageThread({ conversation, workspaceId }) {
   const [recording, setRecording] = useState(false);
   const [recordSecs, setRecordSecs] = useState(0);
   const [canned, setCanned] = useState([]);
+  const [aiAgents, setAiAgents] = useState([]);
+  const [showAiPicker, setShowAiPicker] = useState(false);
+  const [aiDrafting, setAiDrafting] = useState(false);
   const [menuOpenId, setMenuOpenId] = useState(null);
   const [replyingTo, setReplyingTo] = useState(null);
   const bottomRef = useRef(null);
@@ -417,6 +420,32 @@ export default function MessageThread({ conversation, workspaceId }) {
     if (!wId) return;
     getCannedResponses(wId).then(setCanned).catch(() => setCanned([]));
   }, [wId]);
+
+  // Load active AI agents for the "Draft with AI" picker
+  useEffect(() => {
+    if (!wId) return;
+    getAiAgents(wId).then(agents => setAiAgents(agents.filter(a => a.status === 'active'))).catch(() => setAiAgents([]));
+  }, [wId]);
+
+  // Generates a draft into the composer using the chosen agent's persona +
+  // this conversation's history. Never auto-sends -- lands in the textarea
+  // for a human to review/edit, same as picking a canned response.
+  const handleAiDraft = async (agent) => {
+    if (aiDrafting) return;
+    setAiDrafting(true);
+    setShowAiPicker(false);
+    try {
+      const draft = await generateAiDraft(wId, agent.id, conversation.id);
+      setBody(draft);
+      setTab('reply');
+      inputRef.current?.focus();
+    } catch (e) {
+      console.error('[MessageThread] AI draft failed:', e);
+      toast({ title: 'AI draft failed', description: e?.message || 'Unknown error', variant: 'destructive' });
+    } finally {
+      setAiDrafting(false);
+    }
+  };
 
   // Realtime
   useEffect(() => {
@@ -728,6 +757,27 @@ export default function MessageThread({ conversation, workspaceId }) {
             className="flex items-center gap-1 text-[11px] text-gray-500 hover:text-gray-300 px-2 py-1 rounded-lg hover:bg-white/5 transition-colors">
             <Zap className="w-3.5 h-3.5" /> Quick
           </button>
+
+          {/* AI draft trigger — only shows if the workspace has any active agents */}
+          {aiAgents.length > 0 && (
+            <div className="relative">
+              <button onClick={() => setShowAiPicker(s => !s)} disabled={aiDrafting}
+                className="flex items-center gap-1 text-[11px] text-gray-500 hover:text-gray-300 px-2 py-1 rounded-lg hover:bg-white/5 transition-colors disabled:opacity-50">
+                {aiDrafting ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Sparkles className="w-3.5 h-3.5" />} AI draft
+              </button>
+              {showAiPicker && (
+                <div className="absolute left-0 bottom-full mb-1 z-10 bg-[#233138] border border-white/10 rounded-xl p-1.5 w-52 shadow-lg space-y-0.5">
+                  <p className="text-[10px] text-gray-500 px-2 pb-1">Draft a reply using…</p>
+                  {aiAgents.map(a => (
+                    <button key={a.id} onClick={() => handleAiDraft(a)}
+                      className="w-full text-left text-xs px-2 py-1.5 rounded-lg hover:bg-white/10 transition-colors text-gray-300 flex items-center gap-1.5">
+                      <Bot className="w-3.5 h-3.5 text-[#25D366] shrink-0" /> {a.name}
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
         </div>
 
         {/* Canned responses */}

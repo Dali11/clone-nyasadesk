@@ -610,3 +610,61 @@ export async function setChatBackground(userId, bg) {
   const { error } = await supabase.from('profiles').update({ chat_background: bg }).eq('id', userId);
   if (error) throw error;
 }
+
+// ── AI Agents ────────────────────────────────────────────────────────────
+// Agent CRUD goes straight to Supabase (RLS: is_workspace_member for read,
+// is_workspace_admin for write) — same convention as rules/canned_responses.
+// Only draft generation needs the backend, since that's the one operation
+// that touches the server-side OpenAI key.
+
+export async function getAiAgents(workspaceId) {
+  const { data, error } = await supabase
+    .from('ai_agents')
+    .select('*')
+    .eq('workspace_id', workspaceId)
+    .order('created_at', { ascending: true });
+  if (error) throw error;
+  return data || [];
+}
+
+export async function saveAiAgent(workspaceId, agent) {
+  const { id, ...fields } = agent;
+  if (id) {
+    const { data, error } = await supabase.from('ai_agents')
+      .update({ ...fields, updated_at: new Date().toISOString() })
+      .eq('id', id).eq('workspace_id', workspaceId).select().single();
+    if (error) throw error;
+    return data;
+  }
+  const { data, error } = await supabase.from('ai_agents')
+    .insert({ workspace_id: workspaceId, ...fields }).select().single();
+  if (error) throw error;
+  return data;
+}
+
+export async function deleteAiAgent(id) {
+  const { error } = await supabase.from('ai_agents').delete().eq('id', id);
+  if (error) throw error;
+}
+
+export async function getAiAgentTemplates() {
+  const res = await fetch('/api/channels?action=ai-templates');
+  const data = await res.json();
+  if (!res.ok || !data.ok) throw new Error(data.error || 'Failed to load templates');
+  return data.templates || [];
+}
+
+// Generates a draft reply for a conversation using the given agent. Always
+// returns text for a human to review in the composer — never auto-sends
+// (Phase 1: automation_mode is stored on the agent for future phases, not
+// acted on yet).
+export async function generateAiDraft(workspaceId, agentId, conversationId) {
+  const res = await fetch('/api/channels?action=ai-draft', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ workspace_id: workspaceId, agent_id: agentId, conversation_id: conversationId }),
+  });
+  const data = await res.json();
+  if (!res.ok || !data.ok) throw new Error(data.error || 'Failed to generate draft');
+  return data.draft;
+}
