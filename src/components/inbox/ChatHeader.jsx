@@ -1,4 +1,4 @@
-import { ChevronDown, MoreVertical, ArrowLeft, Trash2 } from 'lucide-react';
+import { ChevronDown, MoreVertical, ArrowLeft, Trash2, Bot } from 'lucide-react';
 import Avatar from '@/components/Avatar';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger, DropdownMenuSeparator } from '@/components/ui/dropdown-menu';
 
@@ -17,6 +17,10 @@ export default function ChatHeader({ conversation, users = [], onUpdate, onBack,
   });
   const updateStatus = (status) => onUpdate({ id: conversation.id, status });
   const updatePriority = (priority) => onUpdate({ id: conversation.id, priority });
+  // Hands the conversation back to the AI: clearing assigned_to is exactly
+  // the signal aiAutoReply.js checks (assigned_to IS NULL) before it'll
+  // auto-reply again on the next inbound message. No other state to touch.
+  const resumeAutomation = () => onUpdate({ id: conversation.id, assigned_to: null, assigned_to_name: null });
 
   return (
     <div className="bg-[#202C33] border-b border-white/10 px-4 py-2.5 flex items-center gap-3 shrink-0">
@@ -74,6 +78,11 @@ export default function ChatHeader({ conversation, users = [], onUpdate, onBack,
                 <Avatar name={u.full_name} size="xs" />{u.full_name}
               </DropdownMenuItem>
             ))}
+            {conversation.assigned_to && (
+              <DropdownMenuItem onClick={resumeAutomation} className="text-xs hover:bg-white/10 focus:bg-white/10 cursor-pointer gap-2 text-[#25D366]">
+                <Bot className="w-3.5 h-3.5" />Resume AI automation
+              </DropdownMenuItem>
+            )}
             <DropdownMenuSeparator className="bg-white/10" />
             <div className="px-2 py-1.5 text-[10px] text-gray-500 font-semibold uppercase">Priority</div>
             {PRIORITIES.map(p => (
