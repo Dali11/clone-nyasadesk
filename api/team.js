@@ -114,10 +114,45 @@ async function inviteHandler(req, res, sb, sbAnon) {
   return res.status(200).json({ success: true, user_id: newUserId });
 }
 
+// Push-notification subscribe/unsubscribe -- merged in here (rather than a
+// new file) to stay within Vercel Hobby's 12-function cap. Frontend-only
+// endpoint, keyed off action=push-subscribe / action=push-unsubscribe.
+async function pushSubscribeHandler(req, res, sb, sbAnon) {
+  const { subscription, workspace_id } = req.body || {};
+  if (!subscription?.endpoint || !workspace_id) {
+    return res.status(400).json({ error: 'subscription and workspace_id are required' });
+  }
+  const callerId = await verifyCaller(req, res, sb, sbAnon);
+  if (!callerId) return;
+
+  const { error } = await sb.from('push_subscriptions').upsert({
+    user_id: callerId, owner_id: workspace_id,
+    endpoint: subscription.endpoint, subscription,
+  }, { onConflict: 'endpoint' });
+  if (error) return res.status(500).json({ error: error.message });
+  return res.status(200).json({ success: true });
+}
+
+async function pushUnsubscribeHandler(req, res, sb, sbAnon) {
+  const { endpoint } = req.body || {};
+  if (!endpoint) return res.status(400).json({ error: 'endpoint is required' });
+  const callerId = await verifyCaller(req, res, sb, sbAnon);
+  if (!callerId) return;
+
+  const { error } = await sb.from('push_subscriptions').delete()
+    .eq('endpoint', endpoint).eq('user_id', callerId);
+  if (error) return res.status(500).json({ error: error.message });
+  return res.status(200).json({ success: true });
+}
+
 export default async function handler(req, res) {
   try {
     const sb = createClient(SUPABASE_URL, SUPABASE_KEY);
     const sbAnon = createClient(SUPABASE_URL, SUPABASE_ANON);
+
+    const action = req.query.action;
+    if (action === 'push-subscribe' && req.method === 'POST') return await pushSubscribeHandler(req, res, sb, sbAnon);
+    if (action === 'push-unsubscribe' && req.method === 'POST') return await pushUnsubscribeHandler(req, res, sb, sbAnon);
 
     if (req.method === 'GET') return await listHandler(req, res, sb, sbAnon);
     if (req.method === 'POST') return await inviteHandler(req, res, sb, sbAnon);

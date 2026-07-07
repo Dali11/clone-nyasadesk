@@ -1,9 +1,12 @@
+import { useState } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
-import { MessageSquare, BarChart2, Users, Megaphone, Settings, Zap, BookOpen, ShieldCheck, LogOut } from 'lucide-react';
+import { MessageSquare, BarChart2, Users, Megaphone, Settings, Zap, BookOpen, ShieldCheck, LogOut, MoreHorizontal, Bell, BellOff } from 'lucide-react';
 import Avatar from './Avatar';
 import { useNyasaAuth } from '@/lib/NyasaAuth';
 import { useAuth } from '@/lib/AuthContext';
+import { usePushNotifications } from '@/lib/usePushNotifications';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
+import { Sheet, SheetContent, SheetTrigger } from '@/components/ui/sheet';
 
 const NAV = [
   { path: '/',           icon: MessageSquare, label: 'Inbox'     },
@@ -15,19 +18,30 @@ const NAV = [
   { path: '/settings',   icon: Settings,      label: 'Settings'  },
 ];
 
+// Bottom tab bar only has room for a few icons -- everything else (which
+// used to be COMPLETELY UNREACHABLE on mobile: no route, no menu, nothing)
+// lives behind the "More" sheet below.
 const MOBILE_NAV = [
   { path: '/',          icon: MessageSquare, label: 'Inbox'    },
   { path: '/contacts',  icon: Users,         label: 'Contacts' },
   { path: '/dashboard', icon: BarChart2,     label: 'Reports'  },
-  { path: '/settings',  icon: Settings,      label: 'Settings' },
+];
+const MOBILE_MORE_NAV = [
+  { path: '/broadcasts', icon: Megaphone, label: 'Broadcasts' },
+  { path: '/rules',      icon: Zap,       label: 'Rules'      },
+  { path: '/canned',     icon: BookOpen,  label: 'Responses'  },
+  { path: '/settings',   icon: Settings,  label: 'Settings'   },
 ];
 
 export default function Sidebar() {
   const { pathname } = useLocation();
   const navigate = useNavigate();
   const { signOut } = useAuth();
-  const { user, profile, isPlatformAdmin } = useNyasaAuth();
+  const { user, profile, isPlatformAdmin, workspaceOwnerId } = useNyasaAuth();
   const workspaceName = profile?.workspace_name || user?.workspace_name || '';
+  const [moreOpen, setMoreOpen] = useState(false);
+  const { supported: pushSupported, subscribed: pushSubscribed, loading: pushLoading, subscribe: pushSubscribe, unsubscribe: pushUnsubscribe } = usePushNotifications(workspaceOwnerId);
+  const togglePush = () => (pushSubscribed ? pushUnsubscribe() : pushSubscribe());
 
   const handleLogout = async () => {
     await signOut();
@@ -38,6 +52,10 @@ export default function Sidebar() {
   const navItems = isPlatformAdmin
     ? [...NAV, { path: '/admin', icon: ShieldCheck, label: 'Admin Panel' }]
     : NAV;
+  const mobileMoreItems = isPlatformAdmin
+    ? [...MOBILE_MORE_NAV, { path: '/admin', icon: ShieldCheck, label: 'Admin Panel' }]
+    : MOBILE_MORE_NAV;
+  const moreActive = mobileMoreItems.some(i => i.path === pathname);
 
   return (
     <>
@@ -99,6 +117,12 @@ export default function Sidebar() {
               </div>
             </DropdownMenuTrigger>
             <DropdownMenuContent side="top" align="start" className="w-48">
+              {pushSupported && (
+                <DropdownMenuItem onClick={togglePush} disabled={pushLoading}>
+                  {pushSubscribed ? <BellOff className="w-4 h-4 mr-2" /> : <Bell className="w-4 h-4 mr-2" />}
+                  {pushSubscribed ? 'Disable notifications' : 'Enable notifications'}
+                </DropdownMenuItem>
+              )}
               <DropdownMenuItem onClick={handleLogout} className="text-red-500 focus:text-red-500">
                 <LogOut className="w-4 h-4 mr-2" /> Log out
               </DropdownMenuItem>
@@ -143,6 +167,12 @@ export default function Sidebar() {
               </button>
             </DropdownMenuTrigger>
             <DropdownMenuContent side="right" align="end" className="w-48">
+              {pushSupported && (
+                <DropdownMenuItem onClick={togglePush} disabled={pushLoading}>
+                  {pushSubscribed ? <BellOff className="w-4 h-4 mr-2" /> : <Bell className="w-4 h-4 mr-2" />}
+                  {pushSubscribed ? 'Disable notifications' : 'Enable notifications'}
+                </DropdownMenuItem>
+              )}
               <DropdownMenuItem onClick={handleLogout} className="text-red-500 focus:text-red-500">
                 <LogOut className="w-4 h-4 mr-2" /> Log out
               </DropdownMenuItem>
@@ -174,6 +204,12 @@ export default function Sidebar() {
               </button>
             </DropdownMenuTrigger>
             <DropdownMenuContent side="bottom" align="end" className="w-48">
+              {pushSupported && (
+                <DropdownMenuItem onClick={togglePush} disabled={pushLoading}>
+                  {pushSubscribed ? <BellOff className="w-4 h-4 mr-2" /> : <Bell className="w-4 h-4 mr-2" />}
+                  {pushSubscribed ? 'Disable notifications' : 'Enable notifications'}
+                </DropdownMenuItem>
+              )}
               <DropdownMenuItem onClick={handleLogout} className="text-red-500 focus:text-red-500">
                 <LogOut className="w-4 h-4 mr-2" /> Log out
               </DropdownMenuItem>
@@ -195,6 +231,35 @@ export default function Sidebar() {
             </Link>
           );
         })}
+
+        {/* "More" -- Broadcasts/Rules/Responses/Settings/Admin previously had
+            NO way to be reached at all on mobile (no route in the tab bar,
+            no overflow menu). This sheet is the fix. */}
+        <Sheet open={moreOpen} onOpenChange={setMoreOpen}>
+          <SheetTrigger asChild>
+            <button
+              className={`flex flex-col items-center gap-0.5 py-2 px-4 transition-colors
+                ${moreActive ? 'text-[#25D366]' : 'text-gray-500'}`}>
+              <MoreHorizontal className="w-5 h-5" />
+              <span className="text-[10px] font-medium">More</span>
+            </button>
+          </SheetTrigger>
+          <SheetContent side="bottom" className="bg-[#111B21] border-white/10 text-gray-200 rounded-t-2xl pb-8">
+            <div className="grid grid-cols-4 gap-3 pt-2">
+              {mobileMoreItems.map(({ path, icon: Icon, label }) => {
+                const active = pathname === path;
+                return (
+                  <Link key={path} to={path} onClick={() => setMoreOpen(false)}
+                    className={`flex flex-col items-center gap-1.5 py-3 rounded-xl transition-colors
+                      ${active ? 'bg-[#25D366]/15 text-[#25D366]' : 'text-gray-400 hover:bg-white/5'}`}>
+                    <Icon className="w-5 h-5" />
+                    <span className="text-[11px] font-medium">{label}</span>
+                  </Link>
+                );
+              })}
+            </div>
+          </SheetContent>
+        </Sheet>
       </nav>
     </>
   );

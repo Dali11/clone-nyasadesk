@@ -1,4 +1,5 @@
 // api/_lib/providers/base.js
+import { notifyNewMessage } from '../pushNotify.js';
 // Provider abstraction layer — defines the interface that all messaging
 // providers implement. This keeps the rest of NyasaDesk (inbox, CRM,
 // automations, AI, reporting) completely independent of the underlying
@@ -64,6 +65,11 @@ export async function persistInboundMessage(sb, workspaceId, params) {
       status: 'delivered', created_at: timestamp,
       ...(attachments ? { attachments } : {}),
     }, { onConflict: 'conversation_id,external_id' });
+
+    // Fire-and-forget push notification to every team member's subscribed
+    // device — not awaited, so a slow/failed push never delays the webhook
+    // response back to the provider (Meta etc. will retry on timeout).
+    notifyNewMessage(sb, { ownerId: workspaceId, contactName: contact?.full_name || contactName, body, conversationId: conv.id, channel });
   }
 
   return { contact, conversation: conv };

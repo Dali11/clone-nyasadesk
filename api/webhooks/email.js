@@ -1,5 +1,6 @@
 import { createClient } from '@supabase/supabase-js';
 import { applyAssignmentRules } from '../_lib/assignRules.js';
+import { notifyNewMessage } from '../_lib/pushNotify.js';
 
 const SUPABASE_URL = 'https://pfbaepibelomiutlotkn.supabase.co';
 const SUPABASE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY;
@@ -54,6 +55,7 @@ export default async function handler(req, res) {
       if (!conv.assigned_to) {
         await applyAssignmentRules(sb, { workspaceId, conversationId: conv.id, channel: 'email', contact });
       }
+      notifyNewMessage(sb, { ownerId: workspaceId, contactName: fromName, body: text, conversationId: conv.id, channel: 'email' });
     }
     return res.status(200).send('OK');
   } catch (err) {
