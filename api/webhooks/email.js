@@ -55,7 +55,7 @@ export default async function handler(req, res) {
       if (!conv.assigned_to) {
         await applyAssignmentRules(sb, { workspaceId, conversationId: conv.id, channel: 'email', contact });
       }
-      notifyNewMessage(sb, { ownerId: workspaceId, contactName: fromName, body: text, conversationId: conv.id, channel: 'email' });
+      await notifyNewMessage(sb, { ownerId: workspaceId, contactName: fromName, body: text, conversationId: conv.id, channel: 'email' });
     }
     return res.status(200).send('OK');
   } catch (err) {

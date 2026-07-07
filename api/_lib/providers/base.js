@@ -66,10 +66,13 @@ export async function persistInboundMessage(sb, workspaceId, params) {
       ...(attachments ? { attachments } : {}),
     }, { onConflict: 'conversation_id,external_id' });
 
-    // Fire-and-forget push notification to every team member's subscribed
-    // device — not awaited, so a slow/failed push never delays the webhook
-    // response back to the provider (Meta etc. will retry on timeout).
-    notifyNewMessage(sb, { ownerId: workspaceId, contactName: contact?.full_name || contactName, body, conversationId: conv.id, channel });
+    // IMPORTANT: must be awaited. On Vercel's serverless runtime, once the
+    // webhook response is sent the function execution is frozen/torn down --
+    // an un-awaited "fire and forget" call here gets silently killed before
+    // it ever reaches FCM/APNs. notifyNewMessage() already swallows its own
+    // errors internally, so awaiting it can't make this handler fail; it
+    // just guarantees the push actually gets sent before we return.
+    await notifyNewMessage(sb, { ownerId: workspaceId, contactName: contact?.full_name || contactName, body, conversationId: conv.id, channel });
   }
 
   return { contact, conversation: conv };
