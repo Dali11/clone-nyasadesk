@@ -1,7 +1,7 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, Fragment } from 'react';
 import { Send, StickyNote, Loader2, Check, CheckCheck, X, Zap, Paperclip, Mic, Square, Play, Pause,
          ChevronDown, Copy, Share2, Pin, PinOff, Trash2, Ban } from 'lucide-react';
-import { formatDistanceToNow } from 'date-fns';
+import { formatDistanceToNow, isToday, isYesterday, format as formatDate } from 'date-fns';
 import { motion, AnimatePresence } from 'framer-motion';
 import { getMessages, sendMessage, sendMediaMessage, addNote, deleteMessage, setMessagePinned, subscribeToMessages, getCannedResponses } from '@/lib/channels';
 import { useNyasaAuth } from '@/lib/NyasaAuth';
@@ -13,6 +13,29 @@ const CHANNEL_COLOR = {
   email:     '#EDE9FE',
   website:   '#CFFAFE',
 };
+
+// WhatsApp-style date separator label: "Today" / "Yesterday" / "March 3, 2026"
+function dayLabel(ts) {
+  if (!ts) return '';
+  const d = new Date(ts);
+  if (isToday(d)) return 'Today';
+  if (isYesterday(d)) return 'Yesterday';
+  return formatDate(d, 'MMMM d, yyyy');
+}
+function sameDay(a, b) {
+  if (!a || !b) return false;
+  const da = new Date(a), db = new Date(b);
+  return da.getFullYear() === db.getFullYear() && da.getMonth() === db.getMonth() && da.getDate() === db.getDate();
+}
+function DateSeparator({ label }) {
+  return (
+    <div className="flex items-center justify-center my-3 select-none">
+      <span className="text-[11px] font-medium text-gray-400 bg-white/5 px-3 py-1 rounded-full shadow-sm">
+        {label}
+      </span>
+    </div>
+  );
+}
 
 function StatusIcon({ status, errorReason }) {
   // WhatsApp-style receipt semantics:
@@ -563,19 +586,26 @@ export default function MessageThread({ conversation, workspaceId }) {
             <p className="text-xs text-gray-600">Send the first message below</p>
           </div>
         ) : (
-          messages.map(msg => (
-            <Bubble
-              key={msg.id}
-              msg={msg}
-              bubbleRef={el => { if (el) messageRefs.current[msg.id] = el; }}
-              menuOpenId={menuOpenId}
-              onOpenMenu={setMenuOpenId}
-              onCopy={handleCopyMessage}
-              onShare={handleShareMessage}
-              onTogglePin={handleTogglePinMessage}
-              onDelete={handleDeleteMessage}
-            />
-          ))
+          messages.map((msg, i) => {
+            const ts = msg.created_at || msg.created_date;
+            const prevTs = i > 0 ? (messages[i - 1].created_at || messages[i - 1].created_date) : null;
+            const showSeparator = ts && !sameDay(ts, prevTs);
+            return (
+              <Fragment key={msg.id}>
+                {showSeparator && <DateSeparator label={dayLabel(ts)} />}
+                <Bubble
+                  msg={msg}
+                  bubbleRef={el => { if (el) messageRefs.current[msg.id] = el; }}
+                  menuOpenId={menuOpenId}
+                  onOpenMenu={setMenuOpenId}
+                  onCopy={handleCopyMessage}
+                  onShare={handleShareMessage}
+                  onTogglePin={handleTogglePinMessage}
+                  onDelete={handleDeleteMessage}
+                />
+              </Fragment>
+            );
+          })
         )}
         <div ref={bottomRef} />
       </div>
