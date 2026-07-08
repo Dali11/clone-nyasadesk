@@ -27,14 +27,20 @@ import AdminOverview   from "./pages/admin/AdminOverview";
 import AdminWorkspaces from "./pages/admin/AdminWorkspaces";
 import AdminAdmins     from "./pages/admin/AdminAdmins";
 import AdminPricing   from "./pages/admin/AdminPricing";
+import AdminChurn      from "./pages/admin/AdminChurn";
+import AdminAiUsage    from "./pages/admin/AdminAiUsage";
+import AdminTransactions from "./pages/admin/AdminTransactions";
+import AdminAuditLog   from "./pages/admin/AdminAuditLog";
 import PrivacyPolicy   from './pages/PrivacyPolicy';
 import DataDeletion    from './pages/DataDeletion';
 import SupportPage     from './pages/SupportPage';
+import { LockKeyhole } from 'lucide-react';
+import { supabase } from '@/lib/supabase';
 
 function AppRoutes() {
   const location = useLocation();
   const { user, loading: authLoading } = useAuth();
-  const { onboardingComplete, loadingProfile } = useNyasaAuth();
+  const { onboardingComplete, loadingProfile, profile } = useNyasaAuth();
 
   // ── Public embeddable support page — no auth, no loading gate. ─────────
   // Meant to be iframed on a customer's own site or linked to directly, so
@@ -92,6 +98,35 @@ function AppRoutes() {
     );
   }
 
+  // ── Hard block: workspace suspended by a platform admin ─────────────────
+  // Real enforcement, not cosmetic -- every route renders this instead,
+  // regardless of what URL was requested. profile.subscription_status is
+  // already merged from the workspace OWNER's row for invited teammates
+  // (see NyasaAuth.jsx), so this correctly blocks the whole team at once.
+  if (profile?.subscription_status === 'suspended') {
+    return (
+      <div style={{ minHeight: '100vh', background: '#111B21', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 24 }}>
+        <div style={{ maxWidth: 380, textAlign: 'center' }}>
+          <div style={{ width: 56, height: 56, borderRadius: 16, background: 'rgba(239,68,68,0.15)', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 16px' }}>
+            <LockKeyhole size={26} color="#f87171" />
+          </div>
+          <p style={{ color: 'white', fontWeight: 700, fontSize: 18, marginBottom: 8 }}>This account has been suspended</p>
+          <p style={{ color: '#9CA3AF', fontSize: 14, lineHeight: 1.6, marginBottom: 20 }}>
+            Access to Nyasadesk has been paused for this workspace. If you believe this is a mistake, please contact support to resolve it.
+          </p>
+          <div style={{ display: 'flex', gap: 10, justifyContent: 'center' }}>
+            <a href="mailto:support@nyasadesk.com" style={{ display: 'inline-block', background: '#25D366', color: '#0D1418', fontWeight: 700, fontSize: 14, padding: '10px 20px', borderRadius: 10, textDecoration: 'none' }}>
+              Contact support
+            </a>
+            <button onClick={() => supabase.auth.signOut()} style={{ background: 'transparent', color: '#9CA3AF', fontWeight: 600, fontSize: 14, padding: '10px 16px', borderRadius: 10, border: '1px solid rgba(255,255,255,0.1)', cursor: 'pointer' }}>
+              Log out
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   // ── Fully authenticated — go straight to inbox, never landing ──────────
   return (
     <Routes>
@@ -114,6 +149,10 @@ function AppRoutes() {
         <Route path="workspaces" element={<AdminWorkspaces />} />
         <Route path="admins"     element={<AdminAdmins />} />
         <Route path="pricing"    element={<AdminPricing />} />
+        <Route path="churn"       element={<AdminChurn />} />
+        <Route path="ai-usage"    element={<AdminAiUsage />} />
+        <Route path="transactions" element={<AdminTransactions />} />
+        <Route path="audit-log"   element={<AdminAuditLog />} />
       </Route>
       {/* Redirect /login and /register back to inbox when already logged in */}
       <Route path="/login"      element={<Navigate to="/" replace />} />

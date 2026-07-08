@@ -237,8 +237,33 @@
     .nyasa-bubble .ticks.sent svg { fill: none; stroke: rgba(255,255,255,0.7); }
     :host(:not(.nyasa-theme-dark)) .nyasa-bubble .ticks.sent svg { stroke: rgba(0,0,0,0.45); }
     .nyasa-bubble .ticks.read svg { fill: none; stroke: #53BDEB; }
-    .nyasa-bubble .attach-img { display: block; max-width: 240px; max-height: 240px; border-radius: 8px; margin-bottom: 4px; object-fit: cover; }
-    .nyasa-bubble .attach-video { display: block; max-width: 240px; max-height: 240px; border-radius: 8px; margin-bottom: 4px; }
+    .nyasa-bubble .attach-img { display: block; max-width: 240px; max-height: 240px; border-radius: 8px; margin-bottom: 4px; object-fit: cover; cursor: pointer; }
+    .nyasa-bubble .attach-video-wrap { position: relative; display: block; max-width: 240px; margin-bottom: 4px; cursor: pointer; border-radius: 8px; overflow: hidden; }
+    .nyasa-bubble .attach-video-wrap video { display: block; max-width: 240px; max-height: 240px; width: 100%; pointer-events: none; }
+    .nyasa-bubble .attach-video-wrap .play-overlay {
+      position: absolute; inset: 0; display: flex; align-items: center; justify-content: center;
+      background: rgba(0,0,0,0.25); transition: background 0.15s;
+    }
+    .nyasa-bubble .attach-video-wrap:hover .play-overlay { background: rgba(0,0,0,0.4); }
+    .nyasa-bubble .attach-video-wrap .play-overlay span {
+      width: 36px; height: 36px; border-radius: 50%; background: rgba(0,0,0,0.55);
+      display: flex; align-items: center; justify-content: center;
+    }
+    .nyasa-bubble .attach-video-wrap .play-overlay svg { width: 16px; height: 16px; fill: #fff; margin-left: 2px; }
+    /* ── Fullscreen media lightbox (tap any image/video thumbnail) ─────────── */
+    #nyasa-lightbox {
+      position: fixed; inset: 0; z-index: 2147483641; background: rgba(0,0,0,0.92);
+      display: none; align-items: center; justify-content: center; padding: 24px;
+    }
+    #nyasa-lightbox.active { display: flex; }
+    #nyasa-lightbox img, #nyasa-lightbox video { max-width: 100%; max-height: 100%; object-fit: contain; border-radius: 6px; }
+    #nyasa-lightbox .lb-actions { position: absolute; top: 16px; right: 16px; display: flex; gap: 8px; }
+    #nyasa-lightbox .lb-actions a, #nyasa-lightbox .lb-actions button {
+      width: 36px; height: 36px; border-radius: 50%; background: rgba(255,255,255,0.12); border: none;
+      display: flex; align-items: center; justify-content: center; cursor: pointer; color: #fff; text-decoration: none;
+    }
+    #nyasa-lightbox .lb-actions a:hover, #nyasa-lightbox .lb-actions button:hover { background: rgba(255,255,255,0.22); }
+    #nyasa-lightbox .lb-actions svg { width: 16px; height: 16px; fill: #fff; }
     #nyasa-powered { background: var(--nyasa-panel-bg); text-align: center; font-size: 10px; color: var(--nyasa-muted); padding: 4px 0 6px; flex-shrink: 0; }
     #nyasa-powered a { color: var(--nyasa-muted); text-decoration: none; }
     @media (max-width: 420px) {
@@ -450,6 +475,17 @@
       </div>
       <div id="nyasa-powered"><a href="https://nyasadesk1.vercel.app" target="_blank">Powered by Nyasadesk</a></div>
     </div>
+    <div id="nyasa-lightbox">
+      <div class="lb-actions">
+        <a id="nyasa-lb-download" href="#" download title="Download">
+          <svg viewBox="0 0 24 24"><path d="M12 16l5-5h-3V4h-4v7H7l5 5zm-7 2h14v2H5v-2z"/></svg>
+        </a>
+        <button id="nyasa-lb-close" title="Close">
+          <svg viewBox="0 0 24 24"><path d="M6 6l12 12M18 6L6 18" stroke="#fff" stroke-width="2" fill="none" stroke-linecap="round"/></svg>
+        </button>
+      </div>
+      <div id="nyasa-lb-media"></div>
+    </div>
   `;
 
   // ── Refs ──────────────────────────────────────────────────────────────────
@@ -459,6 +495,10 @@
   const msgs        = shadow.getElementById('nyasa-msgs');
   const nameGate    = shadow.getElementById('nyasa-name-gate');
   const composer    = shadow.getElementById('nyasa-composer');
+  const lightbox    = shadow.getElementById('nyasa-lightbox');
+  const lbMedia     = shadow.getElementById('nyasa-lb-media');
+  const lbClose     = shadow.getElementById('nyasa-lb-close');
+  const lbDownload  = shadow.getElementById('nyasa-lb-download');
   const nameInput   = shadow.getElementById('nyasa-name-input');
   const emailInput  = shadow.getElementById('nyasa-email-input');
   const nameBtn     = shadow.getElementById('nyasa-name-btn');
@@ -596,9 +636,12 @@
           <span class="dur">0:00</span>
         </div>`;
       } else if (att.type === 'video') {
-        mediaHtml = `<video class="attach-video" src="${att.url}" controls></video>`;
+        mediaHtml = `<div class="attach-video-wrap" data-lightbox-url="${att.url}" data-lightbox-type="video">
+          <video class="attach-video" src="${att.url}"></video>
+          <span class="play-overlay"><span><svg viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg></span></span>
+        </div>`;
       } else {
-        mediaHtml = `<img class="attach-img" src="${att.url}" alt="attachment" />`;
+        mediaHtml = `<img class="attach-img" src="${att.url}" alt="attachment" data-lightbox-url="${att.url}" data-lightbox-type="image" />`;
       }
     }
     // Skip rendering placeholder caption text like "📷 Photo" twice when there's
@@ -616,6 +659,31 @@
     const audioEl = b.querySelector('.nyasa-audio');
     if (audioEl) wireAudioPlayer(audioEl);
   };
+
+  // ── Fullscreen media lightbox ──────────────────────────────────────────────
+  // Tapping any image/video thumbnail in the thread opens it fullscreen --
+  // same behaviour as the main team inbox. Single delegated listener on the
+  // messages container covers every bubble, including ones rendered later.
+  const openLightbox = (url, type) => {
+    lbMedia.innerHTML = type === 'video'
+      ? `<video src="${url}" controls autoplay></video>`
+      : `<img src="${url}" alt="attachment" />`;
+    lbDownload.setAttribute('href', url);
+    lightbox.classList.add('active');
+  };
+  const closeLightbox = () => {
+    lightbox.classList.remove('active');
+    lbMedia.innerHTML = ''; // stops video playback immediately
+  };
+  msgs.addEventListener('click', e => {
+    const el = e.target.closest('[data-lightbox-url]');
+    if (!el) return;
+    openLightbox(el.getAttribute('data-lightbox-url'), el.getAttribute('data-lightbox-type'));
+  });
+  lbClose.addEventListener('click', closeLightbox);
+  lightbox.addEventListener('click', e => { if (e.target === lightbox) closeLightbox(); });
+  lbDownload.addEventListener('click', e => e.stopPropagation());
+  window.addEventListener('keydown', e => { if (e.key === 'Escape' && lightbox.classList.contains('active')) closeLightbox(); });
 
   // ── Audio player logic ────────────────────────────────────────────────────
   // Mini WhatsApp-style player: play/pause toggle, clickable seek bar,

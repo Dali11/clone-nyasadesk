@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Loader2, Users, MessageSquare, Calendar, Clock, Crown, Plus } from 'lucide-react';
+import { Loader2, Users, MessageSquare, Calendar, Clock, Crown, Plus, Lock, Unlock, Eye } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
 import { useDocumentTitle } from '@/hooks/useDocumentTitle';
 
@@ -11,10 +11,11 @@ const PLAN_INFO = {
 };
 
 const SUB_BADGE = {
-  trialing: { label: 'Trial', cls: 'bg-yellow-500/15 text-yellow-400' },
-  active:   { label: 'Active', cls: 'bg-[#25D366]/15 text-[#25D366]' },
-  past_due: { label: 'Past Due', cls: 'bg-red-500/15 text-red-400' },
-  canceled: { label: 'Canceled', cls: 'bg-gray-500/15 text-gray-400' },
+  trialing:  { label: 'Trial', cls: 'bg-yellow-500/15 text-yellow-400' },
+  active:    { label: 'Active', cls: 'bg-[#25D366]/15 text-[#25D366]' },
+  past_due:  { label: 'Past Due', cls: 'bg-red-500/15 text-red-400' },
+  canceled:  { label: 'Canceled', cls: 'bg-gray-500/15 text-gray-400' },
+  suspended: { label: 'Suspended', cls: 'bg-red-600/20 text-red-500' },
 };
 
 // Formerly the whole of AdminPanel.jsx — now lives inside AdminLayout's
@@ -27,6 +28,7 @@ export default function AdminWorkspaces() {
   const [deniedMsg, setDeniedMsg] = useState('');
   const [updating, setUpdating] = useState(null);
   const [pricing, setPricing] = useState({}); // plan -> price_mwk, live from admin/pricing
+  const [viewingId, setViewingId] = useState(null); // workspace_id currently open in the detail modal
 
   const authedHeaders = async () => {
     const { data: { session } } = await supabase.auth.getSession();
@@ -202,12 +204,130 @@ export default function AdminWorkspaces() {
                       Reactivate Trial
                     </button>
                   )}
+                  {w.subscription_status === 'suspended' ? (
+                    <button onClick={() => setSubStatus(w.id, 'active')}
+                      className="flex items-center gap-1 text-[10px] font-semibold px-2.5 py-1 rounded-lg bg-[#25D366]/10 text-[#25D366] hover:bg-[#25D366]/20 transition-colors">
+                      <Unlock className="w-3 h-3" /> Reactivate
+                    </button>
+                  ) : (
+                    <button onClick={() => { if (window.confirm(`Suspend ${w.workspace_name || w.email}? This immediately blocks their entire team from logging in.`)) setSubStatus(w.id, 'suspended'); }}
+                      className="flex items-center gap-1 text-[10px] font-semibold px-2.5 py-1 rounded-lg bg-red-600/10 text-red-500 hover:bg-red-600/20 transition-colors">
+                      <Lock className="w-3 h-3" /> Suspend
+                    </button>
+                  )}
+                  <button onClick={() => setViewingId(w.id)}
+                    className="flex items-center gap-1 text-[10px] font-semibold px-2.5 py-1 rounded-lg bg-white/5 text-gray-300 hover:bg-white/10 transition-colors ml-auto">
+                    <Eye className="w-3 h-3" /> View details
+                  </button>
                 </div>
               </div>
             );
           })}
         </div>
       )}
+
+      {viewingId && <WorkspaceDetailModal workspaceId={viewingId} onClose={() => setViewingId(null)} />}
+    </div>
+  );
+}
+
+// ── Workspace detail modal ("view as", read-only) ──────────────────────────
+function WorkspaceDetailModal({ workspaceId, onClose }) {
+  const [data, setData] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState('');
+
+  useEffect(() => {
+    (async () => {
+      setLoading(true);
+      try {
+        const { data: { session } } = await supabase.auth.getSession();
+        const headers = { Authorization: `Bearer ${session?.access_token || ''}` };
+        const res = await fetch(`/api/admin/workspaces?resource=workspace-detail&workspace_id=${workspaceId}`, { headers });
+        const json = await res.json();
+        if (!res.ok) throw new Error(json.error || 'Failed to load workspace detail');
+        setData(json);
+      } catch (e) {
+        setError(e.message || 'Failed to load');
+      } finally {
+        setLoading(false);
+      }
+    })();
+  }, [workspaceId]);
+
+  return (
+    <div className="fixed inset-0 z-50 bg-black/70 flex items-center justify-center p-4" onClick={onClose}>
+      <div className="bg-[#1a2530] rounded-2xl border border-white/10 w-full max-w-2xl max-h-[85vh] overflow-y-auto p-5" onClick={e => e.stopPropagation()}>
+        <div className="flex items-center justify-between mb-4">
+          <h2 className="text-white font-bold text-lg">
+            {data?.workspace?.workspace_name || data?.workspace?.full_name || 'Workspace'}
+          </h2>
+          <button onClick={onClose} className="text-gray-500 hover:text-gray-300">✕</button>
+        </div>
+
+        {loading ? (
+          <div className="flex justify-center py-16"><Loader2 className="w-5 h-5 text-indigo-400 animate-spin" /></div>
+        ) : error ? (
+          <p className="text-red-400 text-sm">{error}</p>
+        ) : (
+          <div className="space-y-5">
+            <div>
+              <p className="text-xs font-bold text-gray-500 uppercase tracking-wide mb-2">Team ({data.team.length})</p>
+              <div className="space-y-1">
+                {data.team.map(t => (
+                  <div key={t.id} className="flex items-center justify-between text-xs bg-white/5 rounded-lg px-3 py-2">
+                    <span className="text-white">{t.full_name || 'Unnamed'}</span>
+                    <span className="text-gray-500 capitalize">{t.role}</span>
+                  </div>
+                ))}
+                {data.team.length === 0 && <p className="text-xs text-gray-600">No team members</p>}
+              </div>
+            </div>
+
+            <div>
+              <p className="text-xs font-bold text-gray-500 uppercase tracking-wide mb-2">Recent conversations</p>
+              <div className="space-y-1">
+                {data.recent_conversations.map(cvo => (
+                  <div key={cvo.id} className="text-xs bg-white/5 rounded-lg px-3 py-2">
+                    <div className="flex items-center justify-between">
+                      <span className="text-white font-semibold">{cvo.contact_name || 'Unknown'}</span>
+                      <span className="text-gray-500 capitalize">{cvo.channel}</span>
+                    </div>
+                    <p className="text-gray-500 truncate mt-0.5">{cvo.last_message || '—'}</p>
+                  </div>
+                ))}
+                {data.recent_conversations.length === 0 && <p className="text-xs text-gray-600">No conversations yet</p>}
+              </div>
+            </div>
+
+            <div>
+              <p className="text-xs font-bold text-gray-500 uppercase tracking-wide mb-2">AI agents</p>
+              <div className="space-y-1">
+                {data.ai_agents.map(a => (
+                  <div key={a.id} className="flex items-center justify-between text-xs bg-white/5 rounded-lg px-3 py-2">
+                    <span className="text-white">{a.name}</span>
+                    <span className={a.status === 'active' ? 'text-[#25D366]' : 'text-yellow-400'}>{a.status}</span>
+                  </div>
+                ))}
+                {data.ai_agents.length === 0 && <p className="text-xs text-gray-600">No AI agents configured</p>}
+              </div>
+            </div>
+
+            <div>
+              <p className="text-xs font-bold text-gray-500 uppercase tracking-wide mb-2">Recent transactions</p>
+              <div className="space-y-1">
+                {data.recent_transactions.map(t => (
+                  <div key={t.id} className="flex items-center justify-between text-xs bg-white/5 rounded-lg px-3 py-2">
+                    <span className="text-white capitalize">{t.plan} · {t.currency} {Number(t.amount).toLocaleString()}</span>
+                    <span className="text-gray-500 capitalize">{t.status}</span>
+                  </div>
+                ))}
+                {data.recent_transactions.length === 0 && <p className="text-xs text-gray-600">No transactions yet</p>}
+              </div>
+            </div>
+          </div>
+        )}
+      </div>
     </div>
   );
 }

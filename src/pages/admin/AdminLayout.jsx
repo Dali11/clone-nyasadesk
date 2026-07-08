@@ -1,15 +1,26 @@
 import { Outlet, Link, useLocation, useNavigate } from 'react-router-dom';
-import { useEffect } from 'react';
-import { ShieldCheck, LayoutGrid, Building2, Users2, DollarSign, ArrowLeftCircle } from 'lucide-react';
+import { useEffect, useState } from 'react';
+import { ShieldCheck, LayoutGrid, Building2, Users2, DollarSign, ArrowLeftCircle, AlertTriangle, Bot, Receipt, ScrollText, MoreHorizontal } from 'lucide-react';
 import { useNyasaAuth } from '@/lib/NyasaAuth';
 import { useDocumentTitle } from '@/hooks/useDocumentTitle';
+import { Sheet, SheetContent, SheetTrigger } from '@/components/ui/sheet';
 
+// Full nav -- shown as a flat list on the desktop rail (plenty of vertical
+// room there). Mobile bottom nav only surfaces the 3 most-used items plus a
+// "More" sheet for the rest -- same pattern as the client Sidebar's More tab.
 const ADMIN_NAV = [
-  { path: '/admin',            icon: LayoutGrid, label: 'Overview',   end: true },
-  { path: '/admin/workspaces', icon: Building2,  label: 'Workspaces' },
-  { path: '/admin/pricing',    icon: DollarSign, label: 'Pricing'    },
-  { path: '/admin/admins',     icon: Users2,     label: 'Admins'     },
+  { path: '/admin',             icon: LayoutGrid,   label: 'Overview',   end: true },
+  { path: '/admin/workspaces',  icon: Building2,    label: 'Workspaces' },
+  { path: '/admin/churn',       icon: AlertTriangle, label: 'Churn'      },
+  { path: '/admin/ai-usage',    icon: Bot,          label: 'AI Usage'   },
+  { path: '/admin/transactions', icon: Receipt,     label: 'Transactions' },
+  { path: '/admin/pricing',     icon: DollarSign,   label: 'Pricing'    },
+  { path: '/admin/admins',      icon: Users2,       label: 'Admins'     },
+  { path: '/admin/audit-log',   icon: ScrollText,   label: 'Audit Log'  },
 ];
+const MOBILE_PRIMARY = ['/admin', '/admin/workspaces', '/admin/churn'];
+const mobilePrimaryNav = ADMIN_NAV.filter(i => MOBILE_PRIMARY.includes(i.path));
+const mobileMoreNav = ADMIN_NAV.filter(i => !MOBILE_PRIMARY.includes(i.path));
 
 // Dedicated shell for the whole /admin/* section — its own rail, its own
 // accent color (indigo, vs. the client app's WhatsApp green), and its own
@@ -21,6 +32,8 @@ export default function AdminLayout() {
   const { pathname } = useLocation();
   const navigate = useNavigate();
   const { isPlatformAdmin, user } = useNyasaAuth();
+  const [moreOpen, setMoreOpen] = useState(false);
+  const moreActive = mobileMoreNav.some(i => pathname.startsWith(i.path));
 
   useEffect(() => {
     if (!isPlatformAdmin) navigate('/', { replace: true });
@@ -98,7 +111,7 @@ export default function AdminLayout() {
 
       {/* ── Mobile bottom nav ────────────────────────────────────────── */}
       <div className="lg:hidden fixed bottom-0 inset-x-0 h-[56px] z-20 flex items-center justify-around bg-[#111B21] border-t border-white/5">
-        {ADMIN_NAV.map(({ path, icon: Icon, label, end }) => {
+        {mobilePrimaryNav.map(({ path, icon: Icon, label, end }) => {
           const active = end ? pathname === path : pathname.startsWith(path);
           return (
             <Link key={path} to={path} className={`flex flex-col items-center gap-0.5 ${active ? 'text-indigo-400' : 'text-gray-500'}`}>
@@ -107,6 +120,29 @@ export default function AdminLayout() {
             </Link>
           );
         })}
+        <Sheet open={moreOpen} onOpenChange={setMoreOpen}>
+          <SheetTrigger asChild>
+            <button className={`flex flex-col items-center gap-0.5 ${moreActive ? 'text-indigo-400' : 'text-gray-500'}`}>
+              <MoreHorizontal className="w-5 h-5" />
+              <span className="text-[10px] font-medium">More</span>
+            </button>
+          </SheetTrigger>
+          <SheetContent side="bottom" className="bg-[#111B21] border-white/10 text-gray-200 rounded-t-2xl pb-8">
+            <div className="grid grid-cols-4 gap-3 pt-2">
+              {mobileMoreNav.map(({ path, icon: Icon, label }) => {
+                const active = pathname.startsWith(path);
+                return (
+                  <Link key={path} to={path} onClick={() => setMoreOpen(false)}
+                    className={`flex flex-col items-center gap-1.5 py-3 rounded-xl transition-colors
+                      ${active ? 'bg-indigo-500/15 text-indigo-400' : 'text-gray-400 hover:bg-white/5'}`}>
+                    <Icon className="w-5 h-5" />
+                    <span className="text-[11px] font-medium text-center">{label}</span>
+                  </Link>
+                );
+              })}
+            </div>
+          </SheetContent>
+        </Sheet>
       </div>
 
       <div className="flex-1 overflow-y-auto scrollbar-thin bg-[#0D1418]">

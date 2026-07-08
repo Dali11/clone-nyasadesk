@@ -23,7 +23,27 @@ export default async function handler(req, res) {
   if (resource === 'admins') return handleAdmins(req, res, sb, admin);
   if (resource === 'transactions') return handleTransactions(req, res, sb);
   if (resource === 'pricing') return handlePricing(req, res, sb);
+  if (resource === 'churn') return handleChurn(req, res, sb);
+  if (resource === 'ai-usage') return handleAiUsage(req, res, sb);
+  if (resource === 'audit-log') return handleAuditLog(req, res, sb);
+  if (resource === 'workspace-detail') return handleWorkspaceDetail(req, res, sb);
   return handleWorkspaces(req, res, sb, admin);
+}
+
+// Best-effort audit trail for admin mutations -- every suspend/reactivate,
+// plan change, and admin-allowlist edit gets logged here. Never blocks or
+// fails the actual action if logging itself has a hiccup.
+async function logAudit(sb, admin, action, targetWorkspaceId, details) {
+  try {
+    await sb.from('admin_audit_log').insert({
+      admin_email: admin?.email || 'unknown',
+      action,
+      target_workspace_id: targetWorkspaceId || null,
+      details: details || {},
+    });
+  } catch (e) {
+    console.error('[admin_audit_log] failed to write entry (non-fatal):', e?.message || e);
+  }
 }
 
 // ── Workspaces (default resource) ─────────────────────────────────────────
@@ -86,7 +106,10 @@ async function handleWorkspaces(req, res, sb, admin) {
         updates.plan = plan;
       }
       if (subscription_status !== undefined) {
-        if (!['trialing', 'active', 'past_due', 'canceled'].includes(subscription_status)) {
+        // 'suspended' is a real hard block (see App.jsx SuspendedGate) --
+        // distinct from 'canceled' (which just means no active paid plan,
+        // but the workspace can still log in and see a "resubscribe" state).
+        if (!['trialing', 'active', 'past_due', 'canceled', 'suspended'].includes(subscription_status)) {
           return res.status(400).json({ error: 'Invalid subscription_status' });
         }
         updates.subscription_status = subscription_status;
@@ -103,6 +126,7 @@ async function handleWorkspaces(req, res, sb, admin) {
 
       const { error } = await sb.from('profiles').update(updates).eq('id', workspace_id);
       if (error) throw error;
+      await logAudit(sb, admin, 'workspace_update', workspace_id, { updates, extend_trial_days: extend_trial_days || undefined });
       return res.status(200).json({ success: true });
     } catch (e) {
       console.error('[admin/workspaces] PATCH error:', e);
@@ -191,6 +215,7 @@ async function handleAdmins(req, res, sb, admin) {
       if (!email || !email.includes('@')) return res.status(400).json({ error: 'A valid email is required' });
       const { error } = await sb.from('platform_admin_emails').insert({ email });
       if (error) throw error;
+      await logAudit(sb, admin, 'admin_added', null, { email });
       return res.status(200).json({ success: true });
     } catch (e) {
       console.error('[admin/admins] POST error:', e);
@@ -207,6 +232,7 @@ async function handleAdmins(req, res, sb, admin) {
       }
       const { error } = await sb.from('platform_admin_emails').delete().eq('email', email);
       if (error) throw error;
+      await logAudit(sb, admin, 'admin_removed', null, { email });
       return res.status(200).json({ success: true });
     } catch (e) {
       console.error('[admin/admins] DELETE error:', e);
@@ -286,4 +312,153 @@ async function handlePricing(req, res, sb) {
   }
 
   return res.status(405).json({ error: 'Method not allowed' });
+}
+
+// ── Churn / at-risk (?resource=churn) ─────────────────────────────────────
+// Flags workspaces likely to churn: trial ending within 3 days (or already
+// expired without upgrading), past_due billing, or an active/paid workspace
+// gone quiet (no conversation activity in 14+ days). Not a hard rule engine
+// -- just surfaces the list with a reason so an admin can proactively reach
+// out, sorted most-urgent first.
+async function handleChurn(req, res, sb) {
+  if (req.method !== 'GET') return res.status(405).json({ error: 'Method not allowed' });
+  try {
+    const { data: owners, error } = await sb
+      .from('profiles')
+      .select('id, workspace_name, full_name, plan, subscription_status, trial_ends_at, updated_at')
+      .is('workspace_id', null);
+    if (error) throw error;
+
+    const now = new Date();
+    const at_risk = [];
+    for (const o of owners || []) {
+      let reason = null, urgency = 0;
+      if (o.subscription_status === 'past_due') { reason = 'Payment past due'; urgency = 3; }
+      else if (o.subscription_status === 'trialing' && o.trial_ends_at) {
+        const daysLeft = Math.ceil((new Date(o.trial_ends_at) - now) / 86400000);
+        if (daysLeft <= 0) { reason = 'Trial expired, not upgraded'; urgency = 3; }
+        else if (daysLeft <= 3) { reason = `Trial ends in ${daysLeft} day${daysLeft === 1 ? '' : 's'}`; urgency = 2; }
+      }
+      if (!reason && o.subscription_status === 'active') {
+        const { data: lastConv } = await sb.from('conversations')
+          .select('last_message_at').eq('workspace_id', o.id)
+          .order('last_message_at', { ascending: false }).limit(1).maybeSingle();
+        const lastActivity = lastConv?.last_message_at ? new Date(lastConv.last_message_at) : null;
+        const idleDays = lastActivity ? Math.floor((now - lastActivity) / 86400000) : null;
+        if (idleDays !== null && idleDays >= 14) { reason = `No activity in ${idleDays} days`; urgency = 1; }
+      }
+      if (reason) at_risk.push({ id: o.id, workspace_name: o.workspace_name || o.full_name || 'Untitled', plan: o.plan, subscription_status: o.subscription_status, reason, urgency });
+    }
+    at_risk.sort((a, b) => b.urgency - a.urgency);
+    return res.status(200).json({ at_risk });
+  } catch (e) {
+    console.error('[admin/churn] GET error:', e);
+    return res.status(500).json({ error: e.message || 'Internal server error' });
+  }
+}
+
+// ── AI usage cost dashboard (?resource=ai-usage) ──────────────────────────
+// Aggregates ai_usage_logs per workspace over the last 30 days -- the actual
+// OpenAI $ cost being incurred per workspace, so admins can see if any one
+// workspace's AI usage is disproportionate to what they're paying (Scale
+// plan is flat-rate, so this is a cost-monitoring tool, not billing itself).
+async function handleAiUsage(req, res, sb) {
+  if (req.method !== 'GET') return res.status(405).json({ error: 'Method not allowed' });
+  try {
+    const since = new Date(Date.now() - 30 * 86400000).toISOString();
+    const { data: logs, error } = await sb.from('ai_usage_logs')
+      .select('workspace_id, total_tokens, estimated_cost_usd, created_at')
+      .gte('created_at', since);
+    if (error) throw error;
+
+    const byWorkspace = {};
+    let totalCost = 0, totalCalls = 0;
+    for (const l of logs || []) {
+      if (!byWorkspace[l.workspace_id]) byWorkspace[l.workspace_id] = { cost: 0, tokens: 0, calls: 0 };
+      byWorkspace[l.workspace_id].cost += l.estimated_cost_usd || 0;
+      byWorkspace[l.workspace_id].tokens += l.total_tokens || 0;
+      byWorkspace[l.workspace_id].calls += 1;
+      totalCost += l.estimated_cost_usd || 0;
+      totalCalls += 1;
+    }
+
+    const workspaceIds = Object.keys(byWorkspace);
+    let names = {};
+    if (workspaceIds.length) {
+      const { data: profs } = await sb.from('profiles').select('id, workspace_name, full_name').in('id', workspaceIds);
+      names = Object.fromEntries((profs || []).map(p => [p.id, p.workspace_name || p.full_name || 'Unknown']));
+    }
+
+    const usage = Object.entries(byWorkspace)
+      .map(([workspace_id, v]) => ({ workspace_id, workspace_name: names[workspace_id] || 'Unknown', ...v }))
+      .sort((a, b) => b.cost - a.cost);
+
+    return res.status(200).json({ usage, totals: { cost_usd: totalCost, calls: totalCalls, window_days: 30 } });
+  } catch (e) {
+    console.error('[admin/ai-usage] GET error:', e);
+    return res.status(500).json({ error: e.message || 'Internal server error' });
+  }
+}
+
+// ── Audit log (?resource=audit-log) ───────────────────────────────────────
+async function handleAuditLog(req, res, sb) {
+  if (req.method !== 'GET') return res.status(405).json({ error: 'Method not allowed' });
+  try {
+    const { data: entries, error } = await sb.from('admin_audit_log')
+      .select('id, admin_email, action, target_workspace_id, details, created_at')
+      .order('created_at', { ascending: false }).limit(200);
+    if (error) throw error;
+
+    const workspaceIds = [...new Set((entries || []).map(e => e.target_workspace_id).filter(Boolean))];
+    let names = {};
+    if (workspaceIds.length) {
+      const { data: profs } = await sb.from('profiles').select('id, workspace_name, full_name').in('id', workspaceIds);
+      names = Object.fromEntries((profs || []).map(p => [p.id, p.workspace_name || p.full_name || 'Unknown']));
+    }
+
+    return res.status(200).json({
+      entries: (entries || []).map(e => ({ ...e, target_workspace_name: e.target_workspace_id ? (names[e.target_workspace_id] || 'Unknown') : null })),
+    });
+  } catch (e) {
+    console.error('[admin/audit-log] GET error:', e);
+    return res.status(500).json({ error: e.message || 'Internal server error' });
+  }
+}
+
+// ── Workspace detail / "view as" (?resource=workspace-detail) ────────────
+// Deliberately NOT real session impersonation (no auth token is ever
+// generated for the admin as that user) -- that would mean assuming a
+// customer's identity, which is a much bigger trust/security line to cross
+// than a platform admin needs for support purposes. Instead this is a
+// read-only deep-dive: team roster, recent conversations, recent
+// transactions, and AI agent status, all fetched service-role so an admin
+// can see exactly what the workspace owner sees without ever holding their
+// credentials.
+async function handleWorkspaceDetail(req, res, sb) {
+  if (req.method !== 'GET') return res.status(405).json({ error: 'Method not allowed' });
+  try {
+    const workspaceId = req.query.workspace_id;
+    if (!workspaceId) return res.status(400).json({ error: 'workspace_id is required' });
+
+    const [ownerRes, teamRes, convRes, txnRes, agentRes] = await Promise.all([
+      sb.from('profiles').select('*').eq('id', workspaceId).maybeSingle(),
+      sb.from('profiles').select('id, full_name, role, updated_at').or(`workspace_id.eq.${workspaceId},id.eq.${workspaceId}`),
+      sb.from('conversations').select('id, contact_name, channel, status, last_message, last_message_at').eq('workspace_id', workspaceId).order('last_message_at', { ascending: false }).limit(10),
+      sb.from('transactions').select('id, tx_ref, plan, amount, currency, status, created_at').eq('workspace_id', workspaceId).order('created_at', { ascending: false }).limit(10),
+      sb.from('ai_agents').select('id, name, status, automation_mode, enabled_channels').eq('workspace_id', workspaceId),
+    ]);
+    if (ownerRes.error) throw ownerRes.error;
+    if (!ownerRes.data) return res.status(404).json({ error: 'Workspace not found' });
+
+    return res.status(200).json({
+      workspace: ownerRes.data,
+      team: teamRes.data || [],
+      recent_conversations: convRes.data || [],
+      recent_transactions: txnRes.data || [],
+      ai_agents: agentRes.data || [],
+    });
+  } catch (e) {
+    console.error('[admin/workspace-detail] GET error:', e);
+    return res.status(500).json({ error: e.message || 'Internal server error' });
+  }
 }
