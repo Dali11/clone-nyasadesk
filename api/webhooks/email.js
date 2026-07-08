@@ -6,7 +6,7 @@ const SUPABASE_URL = 'https://pfbaepibelomiutlotkn.supabase.co';
 const SUPABASE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY;
 
 // Inbound email via Mailgun/SendGrid Inbound Parse
-// Point your provider's inbound webhook to: https://nyasadesk1.vercel.app/api/webhooks/email
+// Point your provider's inbound webhook to: https://nyasadesk.com/api/webhooks/email
 export default async function handler(req, res) {
   try {
     if (req.method !== 'POST') return res.status(405).send('Method Not Allowed');

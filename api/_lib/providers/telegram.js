@@ -21,7 +21,7 @@ export class TelegramProvider extends MessagingProvider {
     if (!meJson.ok) throw new Error('Invalid bot token — check it was copied from @BotFather');
 
     // Register webhook
-    const webhookUrl = `https://nyasadesk1.vercel.app/api/webhooks/telegram?workspace_id=${encodeURIComponent(workspaceId)}`;
+    const webhookUrl = `https://nyasadesk.com/api/webhooks/telegram?workspace_id=${encodeURIComponent(workspaceId)}`;
     const hookRes = await fetch(`${TG_API}${bot_token}/setWebhook`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },

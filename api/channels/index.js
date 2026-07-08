@@ -19,7 +19,7 @@ import {
 
 const SUPABASE_URL = 'https://pfbaepibelomiutlotkn.supabase.co';
 const SUPABASE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY;
-const PROD_URL = 'https://nyasadesk1.vercel.app';
+const PROD_URL = 'https://nyasadesk.com';
 const BRIDGE_API = 'https://officialapi.wasapflow.com/bridge/v1';
 
 export default async function handler(req, res) {

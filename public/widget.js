@@ -1,8 +1,8 @@
 /* Nyasadesk Live Chat Widget v1.2
- * Floating bubble:  <script src="https://nyasadesk1.vercel.app/widget.js" data-workspace-id="YOUR_ID"></script>
+ * Floating bubble:  <script src="https://nyasadesk.com/widget.js" data-workspace-id="YOUR_ID"></script>
  * Inline / support-page embed (fills its container, always open, no popup bubble):
  *   <div id="nyasa-inline-target"></div>
- *   <script src="https://nyasadesk1.vercel.app/widget.js" data-workspace-id="YOUR_ID" data-mode="inline"></script>
+ *   <script src="https://nyasadesk.com/widget.js" data-workspace-id="YOUR_ID" data-mode="inline"></script>
  *
  * Theming: the widget auto-adapts to the host site — it inherits the page's
  * font, follows OS/browser light-dark mode automatically, and (in inline
@@ -13,7 +13,7 @@
 (function () {
   'use strict';
 
-  const API    = 'https://nyasadesk1.vercel.app/api/widget/chat';
+  const API    = 'https://nyasadesk.com/api/widget/chat';
   const script = document.currentScript || document.querySelector('script[data-workspace-id]');
   const WID    = script?.getAttribute('data-workspace-id');
   const MODE   = (script?.getAttribute('data-mode') || 'popup').toLowerCase(); // 'popup' | 'inline'
@@ -473,7 +473,7 @@
           </button>
         </div>
       </div>
-      <div id="nyasa-powered"><a href="https://nyasadesk1.vercel.app" target="_blank">Powered by Nyasadesk</a></div>
+      <div id="nyasa-powered"><a href="https://nyasadesk.com" target="_blank">Powered by Nyasadesk</a></div>
     </div>
     <div id="nyasa-lightbox">
       <div class="lb-actions">

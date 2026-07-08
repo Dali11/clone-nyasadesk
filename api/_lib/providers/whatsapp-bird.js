@@ -110,7 +110,7 @@ export class WhatsAppBirdProvider extends MessagingProvider {
     if (!channelId) throw new Error('No channelId returned from connector creation. Waiting for channel.created webhook...');
 
     // 5. Subscribe to webhooks (inbound messages + outbound status)
-    const webhookUrl = `https://nyasadesk1.vercel.app/api/webhooks/whatsapp?workspace_id=${workspaceId}&source=bird`;
+    const webhookUrl = `https://nyasadesk.com/api/webhooks/whatsapp?workspace_id=${workspaceId}&source=bird`;
     const signingKey = `nyasa_bird_${workspaceId.slice(-8)}`;
 
     // Inbound messages

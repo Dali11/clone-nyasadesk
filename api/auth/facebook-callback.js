@@ -1,7 +1,7 @@
 // api/auth/facebook-callback.js
 // Handles the OAuth code→token exchange for Facebook (Messenger) login.
 // After user approves, Facebook redirects to:
-//   https://nyasadesk1.vercel.app/api/auth/facebook-callback?code=...&state=...
+//   https://nyasadesk.com/api/auth/facebook-callback?code=...&state=...
 
 import { createClient } from '@supabase/supabase-js';
 
@@ -9,8 +9,8 @@ const SUPABASE_URL  = 'https://pfbaepibelomiutlotkn.supabase.co';
 const SUPABASE_KEY  = process.env.SUPABASE_SERVICE_ROLE_KEY;
 const APP_ID        = process.env.FACEBOOK_APP_ID;
 const APP_SECRET    = process.env.FACEBOOK_APP_SECRET;
-const REDIRECT_URI  = 'https://nyasadesk1.vercel.app/api/auth/facebook-callback';
-const PROD_URL      = 'https://nyasadesk1.vercel.app';
+const REDIRECT_URI  = 'https://nyasadesk.com/api/auth/facebook-callback';
+const PROD_URL      = 'https://nyasadesk.com';
 
 export default async function handler(req, res) {
   const { code, state, error: fbError } = req.query;

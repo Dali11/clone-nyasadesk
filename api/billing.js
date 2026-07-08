@@ -9,7 +9,7 @@ const SUPABASE_ANON = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFz
 const SUPABASE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY;
 const PAYCHANGU_SECRET = process.env.PAYCHANGU_SECRET_KEY;
 const PAYCHANGU_WEBHOOK_SECRET = process.env.PAYCHANGU_WEBHOOK_SECRET;
-const PROD_URL = 'https://nyasadesk1.vercel.app';
+const PROD_URL = 'https://nyasadesk.com';
 
 function readRawBody(req) {
   return new Promise((resolve, reject) => {
@@ -45,7 +45,7 @@ export default async function handler(req, res) {
 
   // ── PayChangu webhook (async payment notification) ──────────────────
   // Set this URL in PayChangu dashboard → Settings → API & Webhooks:
-  //   https://nyasadesk1.vercel.app/api/billing?hook=paychangu
+  //   https://nyasadesk.com/api/billing?hook=paychangu
   if (req.query.hook === 'paychangu') {
     try {
       const signature = req.headers['signature'];

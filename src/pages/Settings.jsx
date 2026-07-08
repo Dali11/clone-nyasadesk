@@ -11,7 +11,7 @@ import { supabase } from '@/lib/supabase';
 import { useDocumentTitle } from '@/hooks/useDocumentTitle';
 import { useFacebookSDK } from '@/hooks/useFacebookSDK';
 
-const PROD_URL  = 'https://nyasadesk1.vercel.app';
+const PROD_URL  = 'https://nyasadesk.com';
 const FB_APP_ID = import.meta.env.VITE_FACEBOOK_APP_ID || '';
 
 const SECTIONS = [

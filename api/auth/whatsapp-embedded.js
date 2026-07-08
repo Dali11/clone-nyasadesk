@@ -19,8 +19,14 @@ const SUPABASE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY;
 const APP_ID        = process.env.FACEBOOK_APP_ID;
 const APP_SECRET    = process.env.FACEBOOK_APP_SECRET;
 
+// Accept requests from either the canonical custom domain or the underlying
+// Vercel domain (both serve the exact same deployment) instead of hardcoding
+// one -- avoids this silently breaking again the next time a domain changes.
+const ALLOWED_ORIGINS = ['https://nyasadesk.com', 'https://nyasadesk1.vercel.app'];
+
 export default async function handler(req, res) {
-  res.setHeader('Access-Control-Allow-Origin', 'https://nyasadesk1.vercel.app');
+  const origin = req.headers.origin;
+  res.setHeader('Access-Control-Allow-Origin', ALLOWED_ORIGINS.includes(origin) ? origin : ALLOWED_ORIGINS[0]);
   res.setHeader('Access-Control-Allow-Methods', 'POST,OPTIONS');
   res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
   if (req.method === 'OPTIONS') return res.status(200).end();

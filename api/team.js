@@ -92,7 +92,7 @@ async function inviteHandler(req, res, sb, sbAnon) {
   }
 
   const { data, error } = await sb.auth.admin.inviteUserByEmail(email, {
-    redirectTo: redirect_to || 'https://nyasadesk1.vercel.app/login',
+    redirectTo: redirect_to || 'https://nyasadesk.com/login',
   });
 
   if (error) {

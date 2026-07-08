@@ -30,7 +30,7 @@ export async function ingestUrl(url) {
   if (!/^https?:$/.test(parsed.protocol)) throw new Error('URL must start with http:// or https://');
 
   const res = await fetch(parsed.toString(), {
-    headers: { 'User-Agent': 'Mozilla/5.0 (compatible; NyasaDeskBot/1.0; +https://nyasadesk1.vercel.app)' },
+    headers: { 'User-Agent': 'Mozilla/5.0 (compatible; NyasaDeskBot/1.0; +https://nyasadesk.com)' },
     redirect: 'follow',
   });
   if (!res.ok) throw new Error('Could not fetch that page (HTTP ' + res.status + ')');

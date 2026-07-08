@@ -94,7 +94,7 @@ export class WhatsApp360DialogProvider extends MessagingProvider {
       config: data,
       phone_number: phoneNumber,
       business_name: businessName,
-      webhook_url: `https://nyasadesk1.vercel.app/api/webhooks/whatsapp?workspace_id=${workspaceId}`,
+      webhook_url: `https://nyasadesk.com/api/webhooks/whatsapp?workspace_id=${workspaceId}`,
       webhook_instructions: 'Set this URL as your webhook in 360dialog Hub -> Webhook URL',
     };
   }
@@ -120,7 +120,7 @@ export class WhatsApp360DialogProvider extends MessagingProvider {
     };
 
     // Auto-set the webhook URL via 360dialog's API
-    const webhookUrl = `https://nyasadesk1.vercel.app/api/webhooks/whatsapp?workspace_id=${workspaceId}`;
+    const webhookUrl = `https://nyasadesk.com/api/webhooks/whatsapp?workspace_id=${workspaceId}`;
     try {
       await fetch(`${D360_BASE}/webhooks`, {
         method: 'POST',
