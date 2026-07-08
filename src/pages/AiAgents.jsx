@@ -142,6 +142,10 @@ export default function AiAgents() {
 
   const save = async () => {
     if (!form.name.trim() || saving) return;
+    if (form.system_instructions.length > INSTRUCTIONS_MAX_CHARS) {
+      alert(`System instructions are too long (${form.system_instructions.length.toLocaleString()} / ${INSTRUCTIONS_MAX_CHARS.toLocaleString()} chars) -- trim it down a bit before saving.`);
+      return;
+    }
     setSaving(true);
     try {
       const payload = { ...form, ...(editing !== 'new' ? { id: editing } : {}) };
@@ -199,8 +203,13 @@ export default function AiAgents() {
             </h1>
             <p className="text-xs text-gray-500 mt-0.5">AI-powered team members for your shared inbox</p>
           </div>
-          {isWorkspaceAdmin && agents.length === 0 && (
-            <div className="flex gap-2">
+          {isWorkspaceAdmin && (
+            <div className="flex items-center gap-2">
+              {agents.length > 0 && (
+                <p className="text-[11px] text-gray-500 hidden sm:block">
+                  {agents.length} agent{agents.length === 1 ? '' : 's'} -- one per department works great
+                </p>
+              )}
               <button onClick={() => setShowTemplates(true)}
                 className="flex items-center gap-1.5 bg-[#202C33] hover:bg-[#2A3942] text-white text-sm font-semibold px-3 py-2 rounded-lg transition-colors">
                 <Sparkles className="w-4 h-4" /> From template
@@ -210,11 +219,6 @@ export default function AiAgents() {
                 <Plus className="w-4 h-4" /> New agent
               </button>
             </div>
-          )}
-          {isWorkspaceAdmin && agents.length >= 1 && (
-            <p className="text-[11px] text-gray-500 max-w-[220px] text-right">
-              1 of 1 agent used on your plan. Delete it to create a different one.
-            </p>
           )}
         </div>
 
@@ -327,10 +331,22 @@ export default function AiAgents() {
                     className="w-full bg-[#202C33] text-white text-sm rounded-lg px-3 py-2 focus:outline-none focus:ring-1 focus:ring-[#25D366]" />
                 </Field>
               </div>
-              <Field label="System instructions">
-                <textarea value={form.system_instructions} onChange={e => set('system_instructions', e.target.value)} rows={5}
-                  placeholder="Tell the agent how to behave, what it knows, and what it should never do."
-                  className="w-full bg-[#202C33] text-white text-sm rounded-lg px-3 py-2 focus:outline-none focus:ring-1 focus:ring-[#25D366] resize-none" />
+              <Field label={
+                <span className="flex items-center justify-between">
+                  <span>System instructions</span>
+                  <span className={form.system_instructions.length > INSTRUCTIONS_MAX_CHARS ? 'text-red-400' : 'text-gray-600'}>
+                    {form.system_instructions.length.toLocaleString()} / {INSTRUCTIONS_MAX_CHARS.toLocaleString()}
+                  </span>
+                </span>
+              }>
+                <textarea value={form.system_instructions} onChange={e => set('system_instructions', e.target.value)} rows={10}
+                  placeholder="Tell the agent how to behave, what it knows, and what it should never do. Write as much as you need -- full policies, scripts, edge cases are all fine."
+                  className={`w-full bg-[#202C33] text-white text-sm rounded-lg px-3 py-2 focus:outline-none focus:ring-1 resize-y ${form.system_instructions.length > INSTRUCTIONS_MAX_CHARS ? 'ring-1 ring-red-500' : 'focus:ring-[#25D366]'}`} />
+                {form.system_instructions.length > INSTRUCTIONS_MAX_CHARS && (
+                  <p className="text-[10px] text-red-400 mt-1">
+                    That's long -- trim it a bit. {INSTRUCTIONS_MAX_CHARS.toLocaleString()} characters is plenty of room for detailed instructions while keeping replies fast and cheap.
+                  </p>
+                )}
               </Field>
               <Field label="Languages">
                 <div className="flex gap-1.5 flex-wrap">
@@ -462,10 +478,16 @@ export default function AiAgents() {
   );
 }
 
+// Generous but not unbounded -- gpt-4o-mini has a huge context window, so this is
+// about giving the agent real room for detailed policies/scripts (roughly 4-5x what
+// a long, thorough persona doc needs), not a technical ceiling. Paired with the
+// 14,000-char knowledge base cap, total system prompt stays comfortably small/cheap.
+const INSTRUCTIONS_MAX_CHARS = 20000;
+
 function Field({ label, children }) {
   return (
     <div>
-      <label className="text-[11px] font-semibold text-gray-500 mb-1 block">{label}</label>
+      <div className="text-[11px] font-semibold text-gray-500 mb-1">{label}</div>
       {children}
     </div>
   );

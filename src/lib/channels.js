@@ -50,6 +50,12 @@ function normalizeConversation(row) {
     contact_phone: c.phone || null,
     contact_company: c.company || null,
     contact_avatar_url: c.avatar_url || null,
+    // BUG FIX: ad_attribution/lead_source were captured on inbound Click-to-WhatsApp
+    // ad messages and stored on the contact, but this select() never fetched those
+    // columns -- ContactPanel's "From an ad" block was fully built and wired up, it
+    // just always received `undefined` and silently never rendered. Now included.
+    contact_ad_attribution: c.ad_attribution || null,
+    contact_lead_source: c.lead_source || null,
     last_message_preview: row.last_message || '',
     unread: (row.unread_count || 0) > 0,
   };
@@ -58,7 +64,7 @@ function normalizeConversation(row) {
 export async function getConversations(workspaceId, filters = {}) {
   let q = supabase
     .from('conversations')
-    .select('*, contact:contacts(id,full_name,phone,email,company,avatar_url,deal_stage,tags,notes)')
+    .select('*, contact:contacts(id,full_name,phone,email,company,avatar_url,deal_stage,tags,notes,ad_attribution,lead_source)')
     .eq('workspace_id', workspaceId)
     .order('last_message_at', { ascending: false });
 
