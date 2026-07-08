@@ -15,6 +15,16 @@ const OPENAI_API_KEY = process.env.OPENAI_API_KEY;
 // mini, Scale -> full gpt-4o) without changing the agent schema.
 export const DEFAULT_MODEL = 'gpt-4o-mini';
 
+// AI Agents are a Scale-plan-only feature (enforced at the DB level too --
+// see the enforce_ai_agent_plan trigger on ai_agents -- this is the
+// server-side runtime check so a downgraded workspace's existing agent stops
+// actually running/costing money immediately, not just at its next edit).
+export async function workspaceHasAiAgentAccess(sb, workspaceId) {
+  const { data, error } = await sb.from('profiles').select('plan').eq('id', workspaceId).single();
+  if (error || !data) return false;
+  return data.plan === 'scale';
+}
+
 // ── Built-in starter templates ─────────────────────────────────────────────
 // Preconfigure behaviour; fully editable after an agent is created from one.
 export const AI_AGENT_TEMPLATES = [
@@ -150,6 +160,10 @@ function stripRedundantLinks(text) {
 
 export async function generateDraftReply(agent, recentMessages, contact, knowledge, ctx = {}) {
   if (!OPENAI_API_KEY) throw new Error('OPENAI_API_KEY is not configured on the server');
+  if (ctx.sb && ctx.workspaceId) {
+    const hasAccess = await workspaceHasAiAgentAccess(ctx.sb, ctx.workspaceId);
+    if (!hasAccess) throw new Error('AI Agents are only available on the Scale plan. Upgrade to keep using this feature.');
+  }
 
   const knowledgeBlock = buildKnowledgeBlock(knowledge);
 

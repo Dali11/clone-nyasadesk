@@ -13,12 +13,12 @@ const PLANS = [
   },
   {
     key: 'growth', name: 'Growth', price: 'K30,000', period: '/mo', seats: '5 team members', highlight: true,
-    features: ['Everything in Starter', 'AI Agent (draft or fully automated)', 'Quotes & invoices with payment tracking', 'Broadcast campaigns', 'SLA tracking & alerts', 'Round-robin & smart assignment rules'],
+    features: ['Everything in Starter', 'Quotes & invoices with payment tracking', 'Broadcast campaigns', 'SLA tracking & alerts', 'Round-robin & smart assignment rules'],
     cta: 'Get started',
   },
   {
     key: 'scale', name: 'Scale', price: 'K120,000', period: '/mo', seats: 'Unlimited team members',
-    features: ['Everything in Growth', 'Unlimited team members', 'Unlimited channels', 'Priority support', 'Onboarding assistance'],
+    features: ['Everything in Growth', 'AI Agent (draft or fully automated)', 'Unlimited team members', 'Unlimited channels', 'Priority support', 'Onboarding assistance'],
     cta: 'Get started',
   },
 ];

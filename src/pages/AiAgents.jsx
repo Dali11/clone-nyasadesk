@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
-import { Plus, Bot, Trash2, Loader2, Sparkles, X, BookOpen, Pencil, Link2, Upload } from 'lucide-react';
+import { Link } from 'react-router-dom';
+import { Plus, Bot, Trash2, Loader2, Sparkles, X, BookOpen, Pencil, Link2, Upload, Lock } from 'lucide-react';
 import Sidebar from '@/components/Sidebar';
 import { useNyasaAuth } from '@/lib/NyasaAuth';
 import { getAiAgents, saveAiAgent, deleteAiAgent, getAiAgentTemplates, getAiKnowledge, saveAiKnowledge, deleteAiKnowledge, addKnowledgeFromUrl, addKnowledgeFromFile, getAiUsageSummary } from '@/lib/channels';
@@ -16,7 +17,8 @@ const BLANK_FORM = {
 
 export default function AiAgents() {
   useDocumentTitle('AI Agents');
-  const { workspaceOwnerId, isWorkspaceAdmin } = useNyasaAuth();
+  const { workspaceOwnerId, isWorkspaceAdmin, profile } = useNyasaAuth();
+  const hasAiAccess = profile?.plan === 'scale';
 
   const [agents, setAgents] = useState([]);
   const [usage, setUsage] = useState({}); // agent_id -> { cost, count } (last 30 days)
@@ -187,6 +189,7 @@ export default function AiAgents() {
 
   const toggleStatus = async (agent) => {
     const status = agent.status === 'active' ? 'disabled' : 'active';
+    if (status === 'active' && !hasAiAccess) return; // Scale-plan-only -- DB also blocks this, avoid a doomed round-trip
     try {
       await saveAiAgent(workspaceOwnerId, { id: agent.id, status });
       setAgents(prev => prev.map(a => a.id === agent.id ? { ...a, status } : a));
@@ -209,19 +212,28 @@ export default function AiAgents() {
           </div>
           {isWorkspaceAdmin && (
             <div className="flex items-center gap-2">
-              {agents.length > 0 && (
+              {hasAiAccess && agents.length > 0 && (
                 <p className="text-[11px] text-gray-500 hidden sm:block">
                   {agents.length} agent{agents.length === 1 ? '' : 's'} -- one per department works great
                 </p>
               )}
-              <button onClick={() => setShowTemplates(true)}
-                className="flex items-center gap-1.5 bg-[#202C33] hover:bg-[#2A3942] text-white text-sm font-semibold px-3 py-2 rounded-lg transition-colors">
-                <Sparkles className="w-4 h-4" /> From template
-              </button>
-              <button onClick={startBlank}
-                className="flex items-center gap-1.5 bg-[#25D366] hover:bg-[#20bd5a] text-black text-sm font-semibold px-3 py-2 rounded-lg transition-colors">
-                <Plus className="w-4 h-4" /> New agent
-              </button>
+              {hasAiAccess ? (
+                <>
+                  <button onClick={() => setShowTemplates(true)}
+                    className="flex items-center gap-1.5 bg-[#202C33] hover:bg-[#2A3942] text-white text-sm font-semibold px-3 py-2 rounded-lg transition-colors">
+                    <Sparkles className="w-4 h-4" /> From template
+                  </button>
+                  <button onClick={startBlank}
+                    className="flex items-center gap-1.5 bg-[#25D366] hover:bg-[#20bd5a] text-black text-sm font-semibold px-3 py-2 rounded-lg transition-colors">
+                    <Plus className="w-4 h-4" /> New agent
+                  </button>
+                </>
+              ) : (
+                <Link to="/pricing"
+                  className="flex items-center gap-1.5 bg-[#25D366] hover:bg-[#20bd5a] text-black text-sm font-semibold px-3 py-2 rounded-lg transition-colors">
+                  <Lock className="w-3.5 h-3.5" /> Upgrade to Scale
+                </Link>
+              )}
             </div>
           )}
         </div>
@@ -231,6 +243,19 @@ export default function AiAgents() {
             <div className="flex items-center justify-center gap-2 text-gray-500 text-sm py-16">
               <Loader2 className="w-4 h-4 animate-spin" /> Loading…
             </div>
+          ) : !hasAiAccess && agents.length === 0 ? (
+            <div className="flex flex-col items-center justify-center gap-3 py-16 text-center px-6">
+              <div className="w-14 h-14 rounded-2xl bg-[#25D366]/15 flex items-center justify-center mb-1">
+                <Lock className="w-6 h-6 text-[#25D366]" />
+              </div>
+              <p className="text-sm font-semibold text-white">AI Agents are a Scale-plan feature</p>
+              <p className="text-xs text-gray-500 max-w-xs">
+                Set up an AI teammate that drafts replies, or works fully autonomously — including generating quotes and invoices mid-conversation. Upgrade to Scale to unlock it.
+              </p>
+              <Link to="/pricing" className="mt-2 flex items-center gap-1.5 bg-[#25D366] hover:bg-[#20bd5a] text-black text-sm font-semibold px-4 py-2 rounded-lg transition-colors">
+                <Lock className="w-3.5 h-3.5" /> Upgrade to Scale
+              </Link>
+            </div>
           ) : agents.length === 0 ? (
             <div className="flex flex-col items-center justify-center gap-3 py-16 text-center px-6">
               <Bot className="w-10 h-10 text-gray-700" />
@@ -239,6 +264,14 @@ export default function AiAgents() {
             </div>
           ) : (
             <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+              {!hasAiAccess && (
+                <div className="sm:col-span-2 lg:col-span-3 flex items-center gap-3 bg-[#202C33] border border-[#25D366]/20 rounded-xl p-4">
+                  <Lock className="w-4 h-4 text-[#25D366] shrink-0" />
+                  <p className="text-xs text-gray-400 flex-1">
+                    Your plan no longer includes AI Agents, so this one is paused. <Link to="/pricing" className="text-[#25D366] font-semibold">Upgrade to Scale</Link> to reactivate it — your setup is saved.
+                  </p>
+                </div>
+              )}
               {agents.map(agent => (
                 <div key={agent.id} className="bg-[#202C33] rounded-xl p-4 flex flex-col gap-2 border border-white/5">
                   <div className="flex items-start justify-between gap-2">

@@ -128,7 +128,7 @@ export default function Landing() {
         <div style={{ maxWidth: 1100, margin: '0 auto', display: 'flex', alignItems: 'center', gap: 56, flexWrap: 'wrap' }}>
           <div style={{ flex: '1 1 380px' }}>
             <div style={{ display: 'inline-flex', alignItems: 'center', gap: 8, background: `${WA_GREEN}20`, color: WA_GREEN, fontSize: 12, fontWeight: 700, padding: '6px 14px', borderRadius: 999, marginBottom: 18 }}>
-              <Sparkles size={13} /> AI AGENTS
+              <Sparkles size={13} /> AI AGENTS · SCALE PLAN
             </div>
             <h2 style={{ fontSize: 32, fontWeight: 800, color: TEXT, marginBottom: 16, lineHeight: 1.2 }}>Your AI teammate that never sleeps</h2>
             <p style={{ color: MUTED, fontSize: 15, lineHeight: 1.7, marginBottom: 24, maxWidth: 460 }}>

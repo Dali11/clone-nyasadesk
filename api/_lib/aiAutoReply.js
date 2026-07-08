@@ -10,7 +10,7 @@
 // signal. Every failure here is caught and logged, never thrown -- this
 // must never break the webhook response that triggered it.
 
-import { generateDraftReply } from './aiAgents.js';
+import { generateDraftReply, workspaceHasAiAgentAccess } from './aiAgents.js';
 import { getProvider } from './providers/index.js';
 import { getDocumentTools, executeDocumentTool } from './aiDocumentTools.js';
 
@@ -31,6 +31,12 @@ export async function autoReplyIfEnabled(sb, { workspaceId, conversationId, chan
     if (agentsErr) { console.error('[aiAutoReply] ai_agents query failed:', agentsErr); return; }
     const agent = agents?.[0];
     if (!agent) return; // no fully-automated agent configured for this channel
+
+    // Scale-plan-only feature -- bail before any further DB/OpenAI work if the
+    // workspace has been downgraded (DB trigger also auto-pauses the agent row
+    // on downgrade, but this covers the moment right in between).
+    const hasAccess = await workspaceHasAiAgentAccess(sb, workspaceId);
+    if (!hasAccess) { console.warn('[aiAutoReply] workspace', workspaceId, 'no longer has AI Agent access (plan downgrade) -- skipping'); return; }
 
     const { data: cfg, error: cfgErr } = await sb.from('channel_configs').select('*')
       .eq('workspace_id', workspaceId).eq('channel', channel).single();
