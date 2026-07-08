@@ -25,9 +25,19 @@ export async function saveSettings(sb, workspaceId, patch) {
   const ALLOWED = ['company_name', 'logo_url', 'address', 'phone', 'email', 'website', 'currency',
     'bank_accounts', 'mobile_money_accounts', 'tax_enabled', 'tax_label', 'tax_rate_percent', 'tax_number',
     'default_payment_instructions', 'default_terms', 'default_validity_days', 'default_due_days',
-    'default_template', 'brand_color', 'footer_text', 'signature_url', 'quotation_prefix', 'invoice_prefix'];
+    'default_template', 'brand_color', 'footer_text', 'signature_url', 'quotation_prefix', 'invoice_prefix',
+    'next_quotation_number', 'next_invoice_number'];
   const clean = {};
   for (const k of ALLOWED) if (k in patch) clean[k] = patch[k];
+  // Manual override of the running counter -- only accept a sane positive
+  // integer, never let a bad value corrupt future document numbering.
+  for (const k of ['next_quotation_number', 'next_invoice_number']) {
+    if (k in clean) {
+      const n = parseInt(clean[k], 10);
+      if (!Number.isFinite(n) || n < 1) throw new Error('Next number must be a positive whole number');
+      clean[k] = n;
+    }
+  }
   const { data, error } = await sb.from('business_document_settings')
     .update(clean).eq('workspace_id', workspaceId).select('*').single();
   if (error) throw new Error('Failed to save document settings: ' + error.message);

@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { FileText, Plus, X, Loader2, Trash2, Send, Download, ArrowRightLeft, Wallet, Search } from 'lucide-react';
+import { FileText, Plus, X, Loader2, Trash2, Send, Download, ArrowRightLeft, Wallet, Search, Pencil, Upload } from 'lucide-react';
 import Sidebar from '@/components/Sidebar';
 import { useNyasaAuth } from '@/lib/NyasaAuth';
 import { supabase } from '@/lib/supabase';
@@ -7,6 +7,7 @@ import { useDocumentTitle } from '@/hooks/useDocumentTitle';
 import {
   getDocSettings, saveDocSettings, listQuotations, listInvoices, createQuotation, updateQuotation,
   convertQuotationToInvoice, createInvoice, recordInvoicePayment, sendDocument, getQuotation, getInvoice,
+  uploadChatMedia,
 } from '@/lib/channels';
 
 const inputCls = 'w-full bg-[#2A3942] text-white text-sm rounded-xl px-3 py-2.5 focus:outline-none focus:ring-1 focus:ring-[#25D366] border-0 placeholder:text-gray-600';
@@ -42,6 +43,7 @@ export default function Documents() {
   const [settings, setSettings] = useState(null);
   const [loading, setLoading] = useState(true);
   const [showCreate, setShowCreate] = useState(false);
+  const [editingDoc, setEditingDoc] = useState(null); // the doc object being edited, or null when creating
   const [form, setForm] = useState(BLANK_DOC_FORM);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
@@ -76,9 +78,15 @@ export default function Documents() {
     try {
       const input = { ...form, items: form.items.filter(it => it.description.trim()) };
       if (!input.items.length) throw new Error('Add at least one item');
-      if (tab === 'quotations') await createQuotation(workspaceOwnerId, input);
-      else await createInvoice(workspaceOwnerId, input);
-      setShowCreate(false); setForm(BLANK_DOC_FORM);
+      if (editingDoc) {
+        if (tab === 'invoices') await updateInvoice(workspaceOwnerId, editingDoc.id, input);
+        else await updateQuotation(workspaceOwnerId, editingDoc.id, input);
+      } else if (tab === 'quotations') {
+        await createQuotation(workspaceOwnerId, input);
+      } else {
+        await createInvoice(workspaceOwnerId, input);
+      }
+      setShowCreate(false); setEditingDoc(null); setForm(BLANK_DOC_FORM);
       await load();
     } catch (e) {
       setError(e.message);
@@ -86,6 +94,27 @@ export default function Documents() {
       setSaving(false);
     }
   };
+
+  const startEdit = (doc) => {
+    setEditingDoc(doc);
+    setForm({
+      customer_name: doc.customer_name || '', customer_business_name: doc.customer_business_name || '',
+      customer_email: doc.customer_email || '', customer_phone: doc.customer_phone || '',
+      customer_address: doc.customer_address || '', duration: doc.duration || '', notes: doc.notes || '',
+      discount_amount: doc.discount_amount || 0,
+      items: (doc.items && doc.items.length ? doc.items : [{ ...BLANK_ITEM }]),
+    });
+    setError(''); setShowCreate(true);
+  };
+
+  const closeModal = () => { setShowCreate(false); setEditingDoc(null); setForm(BLANK_DOC_FORM); };
+
+  // Editing after money has actually moved (paid invoice) or after a
+  // quotation has already become a real invoice would be confusing --
+  // everything else (draft/sent/accepted/rejected/expired/overdue/etc) is
+  // still safe to correct (e.g. a typo in an item description or price).
+  const isLocked = (doc) => (tab === 'invoices' && ['paid', 'cancelled'].includes(doc.status))
+    || (tab === 'quotations' && !!doc.converted_to_invoice_id);
 
   const convert = async (id) => {
     try { await convertQuotationToInvoice(workspaceOwnerId, id); await load(); setTab('invoices'); }
@@ -102,7 +131,7 @@ export default function Documents() {
   const list = tab === 'invoices' ? invoices : quotations;
 
   return (
-    <div className="flex h-screen bg-[#111B21]">
+    <div className="flex h-screen overflow-hidden bg-[#111B21] pt-14 md:pt-0 pb-[56px] md:pb-0">
       <Sidebar />
       <div className="flex-1 flex flex-col overflow-hidden">
         <div className="px-4 sm:px-6 py-4 border-b border-white/5 flex items-center justify-between">
@@ -111,7 +140,7 @@ export default function Documents() {
             <p className="text-gray-500 text-xs mt-0.5">Create, send, and track quotations and invoices.</p>
           </div>
           {tab !== 'settings' && (
-            <button onClick={() => { setForm(BLANK_DOC_FORM); setError(''); setShowCreate(true); }}
+            <button onClick={() => { setEditingDoc(null); setForm(BLANK_DOC_FORM); setError(''); setShowCreate(true); }}
               className="flex items-center gap-1.5 bg-[#25D366] text-black text-sm font-semibold px-3.5 py-2 rounded-xl hover:bg-[#20b859] transition-colors">
               <Plus className="w-4 h-4" /> New {tab === 'invoices' ? 'Invoice' : 'Quotation'}
             </button>
@@ -158,6 +187,10 @@ export default function Documents() {
                     )}
                   </div>
                   <div className="flex items-center gap-1.5">
+                    {!isLocked(doc) && (
+                      <button title="Edit" onClick={() => startEdit(doc)}
+                        className="p-2 rounded-lg bg-white/5 hover:bg-white/10 text-gray-300"><Pencil className="w-3.5 h-3.5" /></button>
+                    )}
                     <button title="Download PDF" onClick={() => download(tab === 'invoices' ? 'invoice' : 'quotation', doc.id)}
                       className="p-2 rounded-lg bg-white/5 hover:bg-white/10 text-gray-300"><Download className="w-3.5 h-3.5" /></button>
                     <button title="Send" onClick={() => setSendTarget({ doc_type: tab === 'invoices' ? 'invoice' : 'quotation', id: doc.id })}
@@ -179,11 +212,11 @@ export default function Documents() {
       </div>
 
       {showCreate && (
-        <div className="fixed inset-0 z-50 bg-black/60 flex items-center justify-center p-4" onClick={() => setShowCreate(false)}>
+        <div className="fixed inset-0 z-50 bg-black/60 flex items-center justify-center p-4" onClick={closeModal}>
           <div className="bg-[#111B21] rounded-2xl border border-white/10 w-full max-w-lg max-h-[85vh] overflow-y-auto p-5" onClick={e => e.stopPropagation()}>
             <div className="flex items-center justify-between mb-4">
-              <h2 className="text-white font-bold">New {tab === 'invoices' ? 'Invoice' : 'Quotation'}</h2>
-              <button onClick={() => setShowCreate(false)}><X className="w-5 h-5 text-gray-500" /></button>
+              <h2 className="text-white font-bold">{editingDoc ? 'Edit' : 'New'} {tab === 'invoices' ? 'Invoice' : 'Quotation'} {editingDoc ? `· ${editingDoc.number}` : ''}</h2>
+              <button onClick={closeModal}><X className="w-5 h-5 text-gray-500" /></button>
             </div>
             {error && <p className="text-red-400 text-xs mb-3">{error}</p>}
             <div className="space-y-3">
@@ -216,7 +249,7 @@ export default function Documents() {
 
               <button onClick={create} disabled={saving}
                 className="w-full bg-[#25D366] text-black text-sm font-semibold py-2.5 rounded-xl hover:bg-[#20b859] transition-colors disabled:opacity-50 flex items-center justify-center gap-2">
-                {saving && <Loader2 className="w-4 h-4 animate-spin" />} Create {tab === 'invoices' ? 'Invoice' : 'Quotation'}
+                {saving && <Loader2 className="w-4 h-4 animate-spin" />} {editingDoc ? 'Save changes' : `Create ${tab === 'invoices' ? 'Invoice' : 'Quotation'}`}
               </button>
             </div>
           </div>
@@ -357,8 +390,24 @@ function DocSettingsForm({ workspaceId, settings, onSaved }) {
   const [form, setForm] = useState(settings || {});
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
+  const [logoUploading, setLogoUploading] = useState(false);
   useEffect(() => { setForm(settings || {}); }, [settings]);
   const set = (k, v) => setForm(f => ({ ...f, [k]: v }));
+
+  const handleLogoUpload = async (e) => {
+    const file = e.target.files?.[0];
+    e.target.value = '';
+    if (!file) return;
+    setLogoUploading(true);
+    try {
+      const url = await uploadChatMedia(workspaceId, file, 'logo');
+      set('logo_url', url);
+    } catch (err) {
+      alert('Logo upload failed: ' + err.message);
+    } finally {
+      setLogoUploading(false);
+    }
+  };
 
   const addBank = () => set('bank_accounts', [...(form.bank_accounts || []), { bank_name: '', account_name: '', account_number: '', branch: '' }]);
   const setBank = (idx, k, v) => set('bank_accounts', (form.bank_accounts || []).map((b, i) => i === idx ? { ...b, [k]: v } : b));
@@ -393,7 +442,17 @@ function DocSettingsForm({ workspaceId, settings, onSaved }) {
           <div><label className={labelCls}>Brand color</label><input type="color" className="w-full h-10 rounded-xl bg-[#2A3942] border-0" value={form.brand_color || '#25D366'} onChange={e => set('brand_color', e.target.value)} /></div>
         </div>
         <div><label className={labelCls}>Address</label><input className={inputCls} value={form.address || ''} onChange={e => set('address', e.target.value)} /></div>
-        <div><label className={labelCls}>Logo URL</label><input className={inputCls} value={form.logo_url || ''} onChange={e => set('logo_url', e.target.value)} /></div>
+        <div>
+          <label className={labelCls}>Logo</label>
+          <div className="flex items-center gap-2">
+            <input className={inputCls} placeholder="Logo URL, or upload one" value={form.logo_url || ''} onChange={e => set('logo_url', e.target.value)} />
+            <label className="shrink-0 p-2.5 rounded-xl bg-white/5 hover:bg-white/10 text-gray-300 cursor-pointer" title="Upload logo image">
+              {logoUploading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Upload className="w-4 h-4" />}
+              <input type="file" accept="image/*" className="hidden" onChange={handleLogoUpload} disabled={logoUploading} />
+            </label>
+          </div>
+          {form.logo_url && <img src={form.logo_url} alt="Logo preview" className="h-10 mt-2 rounded bg-white/5 object-contain" />}
+        </div>
         <div><label className={labelCls}>Signature image URL</label><input className={inputCls} value={form.signature_url || ''} onChange={e => set('signature_url', e.target.value)} /></div>
       </div>
 
@@ -402,9 +461,12 @@ function DocSettingsForm({ workspaceId, settings, onSaved }) {
         <div className="grid grid-cols-2 gap-3">
           <div><label className={labelCls}>Quotation prefix</label><input className={inputCls} value={form.quotation_prefix || ''} onChange={e => set('quotation_prefix', e.target.value)} /></div>
           <div><label className={labelCls}>Invoice prefix</label><input className={inputCls} value={form.invoice_prefix || ''} onChange={e => set('invoice_prefix', e.target.value)} /></div>
+          <div><label className={labelCls}>Next quotation number</label><input type="number" min="1" className={inputCls} value={form.next_quotation_number ?? ''} onChange={e => set('next_quotation_number', e.target.value)} /></div>
+          <div><label className={labelCls}>Next invoice number</label><input type="number" min="1" className={inputCls} value={form.next_invoice_number ?? ''} onChange={e => set('next_invoice_number', e.target.value)} /></div>
           <div><label className={labelCls}>Quotation validity (days)</label><input type="number" className={inputCls} value={form.default_validity_days ?? ''} onChange={e => set('default_validity_days', e.target.value)} /></div>
           <div><label className={labelCls}>Invoice due (days)</label><input type="number" className={inputCls} value={form.default_due_days ?? ''} onChange={e => set('default_due_days', e.target.value)} /></div>
         </div>
+        <p className="text-gray-600 text-[11px]">Changes the number the NEXT document will get (e.g. set to 100 to start at #0100) -- doesn't renumber ones already issued.</p>
       </div>
 
       <div className="bg-[#202C33] rounded-xl p-4 space-y-3">
