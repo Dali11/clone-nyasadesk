@@ -1,3 +1,4 @@
+import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { Check, ArrowRight } from 'lucide-react';
 import { useDocumentTitle } from '@/hooks/useDocumentTitle';
@@ -5,19 +6,21 @@ import MarketingHeader from '@/components/marketing/MarketingHeader';
 import MarketingFooter from '@/components/marketing/MarketingFooter';
 import { WA_GREEN, WA_DARK_GREEN, WA_NAVY, BG, SURFACE, SURFACE2, TEXT, MUTED } from '@/lib/marketingTheme';
 
+const FALLBACK_PRICE = { starter: 'K15,000', growth: 'K30,000', scale: 'K120,000' };
+
 const PLANS = [
   {
-    key: 'starter', name: 'Starter', price: 'K15,000', period: '/mo', seats: '2 team members',
+    key: 'starter', name: 'Starter', period: '/mo', seats: '2 team members',
     features: ['All channels — WhatsApp, Messenger, email, website chat', 'Shared team inbox', 'Contact CRM & deal stages', 'Canned responses', 'Basic assignment rules'],
     cta: 'Get started',
   },
   {
-    key: 'growth', name: 'Growth', price: 'K30,000', period: '/mo', seats: '5 team members', highlight: true,
+    key: 'growth', name: 'Growth', period: '/mo', seats: '5 team members', highlight: true,
     features: ['Everything in Starter', 'Quotes & invoices with payment tracking', 'Broadcast campaigns', 'SLA tracking & alerts', 'Round-robin & smart assignment rules'],
     cta: 'Get started',
   },
   {
-    key: 'scale', name: 'Scale', price: 'K120,000', period: '/mo', seats: 'Unlimited team members',
+    key: 'scale', name: 'Scale', period: '/mo', seats: 'Unlimited team members',
     features: ['Everything in Growth', 'AI Agent (draft or fully automated)', 'Unlimited team members', 'Unlimited channels', 'Priority support', 'Onboarding assistance'],
     cta: 'Get started',
   },
@@ -25,6 +28,21 @@ const PLANS = [
 
 export default function Pricing() {
   useDocumentTitle('Pricing');
+  const [prices, setPrices] = useState(FALLBACK_PRICE);
+
+  useEffect(() => {
+    fetch('/api/billing?action=plans')
+      .then(r => r.json())
+      .then(d => {
+        if (!d?.pricing) return;
+        const formatted = {};
+        for (const key of Object.keys(FALLBACK_PRICE)) {
+          formatted[key] = d.pricing[key] != null ? `K${d.pricing[key].toLocaleString()}` : FALLBACK_PRICE[key];
+        }
+        setPrices(formatted);
+      })
+      .catch(() => {}); // marketing page never breaks -- keeps the hardcoded fallback
+  }, []);
 
   return (
     <div style={{ background: BG, color: TEXT, fontFamily: "'Inter', sans-serif", minHeight: '100vh' }}>
@@ -55,7 +73,7 @@ export default function Pricing() {
               )}
               <p style={{ color: MUTED, fontSize: 13, fontWeight: 600, textTransform: 'uppercase', letterSpacing: 1, marginBottom: 8 }}>{p.name}</p>
               <div style={{ display: 'flex', alignItems: 'baseline', gap: 4, marginBottom: 4 }}>
-                <span style={{ fontSize: 42, fontWeight: 800, color: TEXT }}>{p.price}</span>
+                <span style={{ fontSize: 42, fontWeight: 800, color: TEXT }}>{prices[p.key]}</span>
                 <span style={{ color: MUTED, fontSize: 14 }}>{p.period}</span>
               </div>
               <p style={{ color: MUTED, fontSize: 13, marginBottom: 24 }}>{p.seats}</p>

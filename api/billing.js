@@ -1,6 +1,6 @@
 import { createClient } from '@supabase/supabase-js';
 import crypto from 'crypto';
-import { PLAN_PRICING_MWK, PLAN_LABEL } from './_lib/adminAuth.js';
+import { PLAN_PRICING_MWK, PLAN_LABEL, getPlanPricing } from './_lib/adminAuth.js';
 
 export const config = { api: { bodyParser: false } };
 
@@ -74,6 +74,18 @@ export default async function handler(req, res) {
     }
   }
 
+  // ── Public: current plan pricing (marketing Pricing page, no auth) ──
+  if (req.method === 'GET' && req.query.action === 'plans') {
+    try {
+      const sb = createClient(SUPABASE_URL, SUPABASE_KEY);
+      const { pricing, labels } = await getPlanPricing(sb);
+      return res.status(200).json({ pricing, labels });
+    } catch (e) {
+      console.error('[billing plans] error:', e);
+      return res.status(200).json({ pricing: PLAN_PRICING_MWK, labels: PLAN_LABEL });
+    }
+  }
+
   // ── Authenticated client actions ────────────────────────────────────
   let body = {};
   try { body = raw ? JSON.parse(raw) : {}; } catch { /* ignore */ }
@@ -98,7 +110,8 @@ export default async function handler(req, res) {
       const { data: txns } = await sb.from('transactions')
         .select('tx_ref, plan, amount, currency, status, created_at')
         .eq('workspace_id', workspaceId).order('created_at', { ascending: false }).limit(10);
-      return res.status(200).json({ ...profile, pricing: PLAN_PRICING_MWK, plan_labels: PLAN_LABEL, transactions: txns || [] });
+      const { pricing, labels } = await getPlanPricing(sb);
+      return res.status(200).json({ ...profile, pricing, plan_labels: labels, transactions: txns || [] });
     }
 
     // POST ?action=checkout — initiate PayChangu standard checkout
@@ -106,12 +119,13 @@ export default async function handler(req, res) {
       if (!isOwner && !isAdmin) return res.status(403).json({ error: 'Only admins can manage billing' });
       if (!PAYCHANGU_SECRET) return res.status(500).json({ error: 'Payments are not configured yet. Please contact support.' });
       const plan = body.plan;
-      if (!PLAN_PRICING_MWK[plan]) return res.status(400).json({ error: 'Unknown plan' });
+      const { pricing, labels } = await getPlanPricing(sb);
+      if (!pricing[plan]) return res.status(400).json({ error: 'Unknown plan' });
 
       const { data: authUser } = await sb.auth.admin.getUserById(callerId);
       const email = authUser?.user?.email || undefined;
       const txRef = `nyasa_${String(workspaceId).slice(0, 8)}_${Date.now()}`;
-      const amount = PLAN_PRICING_MWK[plan];
+      const amount = pricing[plan];
 
       const pcRes = await fetch('https://api.paychangu.com/payment', {
         method: 'POST',
@@ -123,7 +137,7 @@ export default async function handler(req, res) {
           callback_url: `${PROD_URL}/settings?tab=subscription`,
           return_url: `${PROD_URL}/settings?tab=subscription`,
           tx_ref: txRef,
-          customization: { title: `Nyasadesk ${PLAN_LABEL[plan]} plan`, description: 'Monthly subscription' },
+          customization: { title: `Nyasadesk ${labels[plan]} plan`, description: 'Monthly subscription' },
           meta: { workspace_id: workspaceId, plan },
         }),
       });

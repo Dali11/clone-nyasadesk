@@ -26,6 +26,7 @@ import AdminLayout     from "./pages/admin/AdminLayout";
 import AdminOverview   from "./pages/admin/AdminOverview";
 import AdminWorkspaces from "./pages/admin/AdminWorkspaces";
 import AdminAdmins     from "./pages/admin/AdminAdmins";
+import AdminPricing   from "./pages/admin/AdminPricing";
 import PrivacyPolicy   from './pages/PrivacyPolicy';
 import DataDeletion    from './pages/DataDeletion';
 import SupportPage     from './pages/SupportPage';
@@ -112,6 +113,7 @@ function AppRoutes() {
         <Route index             element={<AdminOverview />} />
         <Route path="workspaces" element={<AdminWorkspaces />} />
         <Route path="admins"     element={<AdminAdmins />} />
+        <Route path="pricing"    element={<AdminPricing />} />
       </Route>
       {/* Redirect /login and /register back to inbox when already logged in */}
       <Route path="/login"      element={<Navigate to="/" replace />} />

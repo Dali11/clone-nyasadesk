@@ -5,9 +5,9 @@ import { supabase } from '@/lib/supabase';
 import { useDocumentTitle } from '@/hooks/useDocumentTitle';
 
 const PLAN_INFO = {
-  starter: { label: 'Starter', price: 'K15,000/mo', seats: 2 },
-  growth:  { label: 'Growth',  price: 'K30,000/mo', seats: 5 },
-  scale:   { label: 'Scale',   price: 'K120,000/mo', seats: 'Unlimited' },
+  starter: { label: 'Starter', seats: 2 },
+  growth:  { label: 'Growth',  seats: 5 },
+  scale:   { label: 'Scale',   seats: 'Unlimited' },
 };
 
 const SUB_BADGE = {
@@ -26,6 +26,7 @@ export default function AdminWorkspaces() {
   const [loading, setLoading] = useState(true);
   const [deniedMsg, setDeniedMsg] = useState('');
   const [updating, setUpdating] = useState(null);
+  const [pricing, setPricing] = useState({}); // plan -> price_mwk, live from admin/pricing
 
   const authedHeaders = async () => {
     const { data: { session } } = await supabase.auth.getSession();
@@ -48,6 +49,13 @@ export default function AdminWorkspaces() {
       }
       if (!res.ok) throw new Error(data.error || 'Failed to load workspaces');
       setWorkspaces(data.workspaces || []);
+
+      // Live per-plan pricing for the plan-change dropdown -- best-effort,
+      // dropdown just omits prices if this fails for any reason.
+      fetch('/api/admin/workspaces?resource=pricing', { headers })
+        .then(r => r.json())
+        .then(d => setPricing(Object.fromEntries((d.plans || []).map(p => [p.plan, p.price_mwk]))))
+        .catch(() => {});
     } catch (e) {
       console.error('[AdminWorkspaces] load error:', e);
       setDeniedMsg(e.message || 'Failed to load admin data');
@@ -142,7 +150,9 @@ export default function AdminWorkspaces() {
                       className="bg-[#2A3942] text-white text-xs font-semibold rounded-xl px-3 py-2 focus:outline-none focus:ring-1 focus:ring-indigo-400 border-0 disabled:opacity-50"
                     >
                       {Object.entries(PLAN_INFO).map(([key, p]) => (
-                        <option key={key} value={key}>{p.label} — {p.price}</option>
+                        <option key={key} value={key}>
+                          {p.label}{pricing[key] != null ? ` — K${pricing[key].toLocaleString()}/mo` : ''}
+                        </option>
                       ))}
                     </select>
                     {updating === w.id && <Loader2 className="w-3.5 h-3.5 text-indigo-400 animate-spin" />}

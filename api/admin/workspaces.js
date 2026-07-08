@@ -1,5 +1,5 @@
 import { createClient } from '@supabase/supabase-js';
-import { requirePlatformAdmin, PLAN_LIMITS, PLAN_PRICING_MWK, PLAN_LABEL } from '../_lib/adminAuth.js';
+import { requirePlatformAdmin, PLAN_LIMITS, PLAN_PRICING_MWK, PLAN_LABEL, getPlanPricing } from '../_lib/adminAuth.js';
 
 const SUPABASE_URL = 'https://pfbaepibelomiutlotkn.supabase.co';
 const SUPABASE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY;
@@ -12,6 +12,7 @@ const SUPABASE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY;
 //   (default)          — GET workspace list, PATCH a workspace's plan
 //   ?resource=overview — GET platform-wide aggregate stats
 //   ?resource=admins   — GET/POST/DELETE the platform_admin_emails allowlist
+//   ?resource=pricing  — GET/PATCH the plan_pricing table (monthly price per plan)
 export default async function handler(req, res) {
   const sb = createClient(SUPABASE_URL, SUPABASE_KEY);
   const admin = await requirePlatformAdmin(req, sb);
@@ -21,6 +22,7 @@ export default async function handler(req, res) {
   if (resource === 'overview') return handleOverview(req, res, sb);
   if (resource === 'admins') return handleAdmins(req, res, sb, admin);
   if (resource === 'transactions') return handleTransactions(req, res, sb);
+  if (resource === 'pricing') return handlePricing(req, res, sb);
   return handleWorkspaces(req, res, sb, admin);
 }
 
@@ -30,6 +32,7 @@ export default async function handler(req, res) {
 async function handleWorkspaces(req, res, sb, admin) {
   if (req.method === 'GET') {
     try {
+      const livePricing = await getPlanPricing(sb);
       const { data: owners, error } = await sb
         .from('profiles')
         .select('id, full_name, workspace_name, plan, sla_hours, subscription_status, trial_ends_at, current_period_end, updated_at')
@@ -52,7 +55,8 @@ async function handleWorkspaces(req, res, sb, admin) {
           workspace_name: o.workspace_name,
           email: authUserRes?.data?.user?.email || null,
           plan,
-          plan_label: PLAN_LABEL[plan] || plan,
+          plan_label: livePricing.labels[plan] || plan,
+          plan_price_mwk: livePricing.pricing[plan] ?? null,
           seat_limit: limit === Infinity ? 'Unlimited' : limit,
           subscription_status: o.subscription_status || 'trialing',
           trial_ends_at: o.trial_ends_at,
@@ -117,11 +121,12 @@ async function handleOverview(req, res, sb) {
   if (req.method !== 'GET') return res.status(405).json({ error: 'Method not allowed' });
 
   try {
-    const [ownersRes, usersRes, convRes, msgRes] = await Promise.all([
+    const [ownersRes, usersRes, convRes, msgRes, livePricing] = await Promise.all([
       sb.from('profiles').select('id, workspace_name, plan, subscription_status, trial_ends_at, current_period_end, updated_at').is('workspace_id', null),
       sb.from('profiles').select('id', { count: 'exact', head: true }),
       sb.from('conversations').select('id', { count: 'exact', head: true }),
       sb.from('messages').select('id', { count: 'exact', head: true }),
+      getPlanPricing(sb),
     ]);
     if (ownersRes.error) throw ownersRes.error;
     if (usersRes.error) throw usersRes.error;
@@ -136,8 +141,8 @@ async function handleOverview(req, res, sb) {
     for (const o of owners) {
       const plan = plan_breakdown[o.plan] ? o.plan : 'starter';
       plan_breakdown[plan].count += 1;
-      plan_breakdown[plan].mrr += PLAN_PRICING_MWK[plan] || 0;
-      mrr += PLAN_PRICING_MWK[plan] || 0;
+      plan_breakdown[plan].mrr += livePricing.pricing[plan] || 0;
+      mrr += livePricing.pricing[plan] || 0;
     }
 
     const recent_workspaces = [...owners]
@@ -245,4 +250,40 @@ async function handleTransactions(req, res, sb) {
     console.error('[admin/transactions] GET error:', e);
     return res.status(500).json({ error: e.message || 'Internal server error' });
   }
+}
+// ── Pricing (?resource=pricing) ───────────────────────────────────────────
+// Admin-editable plan pricing, backed by the plan_pricing table. This is the
+// live source of truth read by billing.js (marketing page + checkout amount
+// charged) and this file's own MRR calc -- a price change here takes effect
+// everywhere immediately, no deploy needed.
+async function handlePricing(req, res, sb) {
+  if (req.method === 'GET') {
+    try {
+      const { data, error } = await sb.from('plan_pricing').select('plan, label, price_mwk, updated_at').order('price_mwk', { ascending: true });
+      if (error) throw error;
+      return res.status(200).json({ plans: data || [] });
+    } catch (e) {
+      console.error('[admin/pricing] GET error:', e);
+      return res.status(500).json({ error: e.message || 'Internal server error' });
+    }
+  }
+
+  if (req.method === 'PATCH') {
+    try {
+      const { plan, price_mwk } = req.body || {};
+      if (!plan || !Object.keys(PLAN_LIMITS).includes(plan)) return res.status(400).json({ error: 'Invalid plan' });
+      const price = Number(price_mwk);
+      if (!Number.isFinite(price) || price < 0 || !Number.isInteger(price)) {
+        return res.status(400).json({ error: 'price_mwk must be a whole number >= 0' });
+      }
+      const { error } = await sb.from('plan_pricing').update({ price_mwk: price, updated_at: new Date().toISOString() }).eq('plan', plan);
+      if (error) throw error;
+      return res.status(200).json({ success: true });
+    } catch (e) {
+      console.error('[admin/pricing] PATCH error:', e);
+      return res.status(500).json({ error: e.message || 'Internal server error' });
+    }
+  }
+
+  return res.status(405).json({ error: 'Method not allowed' });
 }

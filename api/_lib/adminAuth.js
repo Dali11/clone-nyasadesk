@@ -32,9 +32,30 @@ export async function requirePlatformAdmin(req, sbServiceRole) {
 // panel (display) and /api/team/invite (actual enforcement).
 export const PLAN_LIMITS = { starter: 2, growth: 5, scale: Infinity };
 
-// Single source of truth for plan → monthly price in MWK (Malawi Kwacha).
-// Nyasadesk targets Malawi first, billed via PayChangu (Airtel Money / TNM Mpamba / cards).
+// Hardcoded fallback only -- the real, admin-editable source of truth is the
+// `plan_pricing` DB table (see getPlanPricing below). These constants exist
+// purely so pricing/checkout never hard-fails if that table is ever empty
+// or briefly unreachable.
 export const PLAN_PRICING_MWK = { starter: 15000, growth: 30000, scale: 120000 };
 export const PLAN_LABEL = { starter: 'Starter', growth: 'Growth', scale: 'Scale' };
 // Legacy alias kept for any older imports that haven't been updated yet.
 export const PLAN_PRICING = PLAN_PRICING_MWK;
+
+// Live pricing, editable by platform admins via /api/admin/workspaces?resource=pricing
+// (see AdminPricing.jsx). Read by billing.js (marketing page + checkout amount)
+// and admin/workspaces.js (MRR calc) so a price change takes effect everywhere
+// immediately, with zero deploys. Falls back to the hardcoded constants above
+// if the table is empty or the query fails for any reason.
+export async function getPlanPricing(sbServiceRole) {
+  try {
+    const { data, error } = await sbServiceRole.from('plan_pricing').select('plan, label, price_mwk');
+    if (error || !data || data.length === 0) throw error || new Error('empty plan_pricing table');
+    const pricing = { ...PLAN_PRICING_MWK };
+    const labels = { ...PLAN_LABEL };
+    for (const row of data) { pricing[row.plan] = row.price_mwk; labels[row.plan] = row.label; }
+    return { pricing, labels };
+  } catch (e) {
+    console.error('[getPlanPricing] falling back to hardcoded defaults:', e?.message || e);
+    return { pricing: PLAN_PRICING_MWK, labels: PLAN_LABEL };
+  }
+}

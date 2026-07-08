@@ -1,12 +1,13 @@
 import { Outlet, Link, useLocation, useNavigate } from 'react-router-dom';
 import { useEffect } from 'react';
-import { ShieldCheck, LayoutGrid, Building2, Users2, ArrowLeftCircle } from 'lucide-react';
+import { ShieldCheck, LayoutGrid, Building2, Users2, DollarSign, ArrowLeftCircle } from 'lucide-react';
 import { useNyasaAuth } from '@/lib/NyasaAuth';
 import { useDocumentTitle } from '@/hooks/useDocumentTitle';
 
 const ADMIN_NAV = [
   { path: '/admin',            icon: LayoutGrid, label: 'Overview',   end: true },
   { path: '/admin/workspaces', icon: Building2,  label: 'Workspaces' },
+  { path: '/admin/pricing',    icon: DollarSign, label: 'Pricing'    },
   { path: '/admin/admins',     icon: Users2,     label: 'Admins'     },
 ];
 
