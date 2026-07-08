@@ -110,22 +110,52 @@ export default function ContactPanel({ conversation, onUpdate = () => {}, onClos
         )}
       </div>
 
-      {/* Ad attribution — only shows for contacts whose first message came from a Click-to-WhatsApp ad */}
+      {/* Ad attribution — only shows for contacts whose first message came from a Click-to-WhatsApp ad.
+          Shows the actual ad creative (image/video thumbnail) plus headline/body/ad ID, so it's
+          immediately obvious which specific ad this lead came from — not just "some ad". */}
       {contact?.ad_attribution && (
         <div className="px-4 py-3 border-b border-white/10 bg-[#25D366]/5">
-          <div className="flex items-center gap-1.5 mb-1.5">
+          <div className="flex items-center gap-1.5 mb-2">
             <Megaphone className="w-3 h-3 text-[#25D366]" />
             <p className="text-[10px] font-semibold text-[#25D366] uppercase tracking-wide">From an ad</p>
           </div>
+          {(contact.ad_attribution.image_url || contact.ad_attribution.thumbnail_url) && (
+            <div className="relative mb-2 rounded-lg overflow-hidden bg-black/20">
+              <img
+                src={contact.ad_attribution.image_url || contact.ad_attribution.thumbnail_url}
+                alt="Ad creative"
+                className="w-full max-h-40 object-cover"
+                onError={e => { e.currentTarget.style.display = 'none'; }}
+              />
+              {contact.ad_attribution.video_url && (
+                <span className="absolute bottom-1.5 right-1.5 bg-black/70 text-white text-[9px] font-semibold px-1.5 py-0.5 rounded">
+                  ▶ Video ad
+                </span>
+              )}
+            </div>
+          )}
           {contact.ad_attribution.headline && (
             <p className="text-xs text-white font-medium truncate">{contact.ad_attribution.headline}</p>
           )}
           {contact.ad_attribution.body && (
             <p className="text-xs text-gray-500 mt-0.5 line-clamp-2">{contact.ad_attribution.body}</p>
           )}
-          <p className="text-[10px] text-gray-600 mt-1">
-            {contact.ad_attribution.captured_at ? new Date(contact.ad_attribution.captured_at).toLocaleDateString() : ''}
-          </p>
+          <div className="flex items-center justify-between mt-1.5">
+            <p className="text-[10px] text-gray-600">
+              {contact.ad_attribution.captured_at ? new Date(contact.ad_attribution.captured_at).toLocaleDateString() : ''}
+            </p>
+            {contact.ad_attribution.source_id && (
+              <p className="text-[10px] text-gray-600 truncate max-w-[140px]" title={contact.ad_attribution.source_id}>
+                Ad ID: {contact.ad_attribution.source_id}
+              </p>
+            )}
+          </div>
+          {contact.ad_attribution.source_url && (
+            <a href={contact.ad_attribution.source_url} target="_blank" rel="noopener noreferrer"
+              className="block mt-1 text-[10px] text-[#25D366] hover:underline truncate">
+              View ad source ↗
+            </a>
+          )}
         </div>
       )}
 

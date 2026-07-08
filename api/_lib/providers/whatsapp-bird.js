@@ -307,6 +307,12 @@ export class WhatsAppBirdProvider extends MessagingProvider {
         source_url: adReferral.metadata?.source_url || null,
         headline: adReferral.title || null,
         body: adReferral.text || null,
+        // Bird's referral shape for the ad creative itself isn't clearly documented
+        // (unlike the official Cloud API's image_url/video_url/thumbnail_url) --
+        // best-effort fallback across the field names Bird's payloads have used.
+        image_url: adReferral.mediaUrl || adReferral.metadata?.image_url || null,
+        video_url: adReferral.metadata?.video_url || null,
+        thumbnail_url: adReferral.metadata?.thumbnail_url || null,
         ctwa_clid: adReferral.metadata?.tracking_id || null,
         captured_at: ts,
       };

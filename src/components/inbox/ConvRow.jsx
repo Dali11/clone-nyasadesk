@@ -61,8 +61,13 @@ export default function ConvRow({ conv, active, onClick }) {
           </div>
         )}
         {conv.contact_ad_attribution && (
-          <div className="flex items-center gap-1 mb-1">
-            <Megaphone className="w-2.5 h-2.5 text-[#25D366] shrink-0" />
+          <div className="flex items-center gap-1.5 mb-1">
+            {(conv.contact_ad_attribution.image_url || conv.contact_ad_attribution.thumbnail_url) ? (
+              <img src={conv.contact_ad_attribution.image_url || conv.contact_ad_attribution.thumbnail_url}
+                alt="" className="w-3.5 h-3.5 rounded object-cover shrink-0" onError={e => { e.currentTarget.style.display = 'none'; }} />
+            ) : (
+              <Megaphone className="w-2.5 h-2.5 text-[#25D366] shrink-0" />
+            )}
             <span className="text-[10px] text-[#25D366] truncate">
               {conv.contact_ad_attribution.headline || 'Started from an ad'}
             </span>

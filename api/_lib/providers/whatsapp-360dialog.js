@@ -232,6 +232,13 @@ export class WhatsApp360DialogProvider extends MessagingProvider {
               headline: adReferral.headline || null,
               body: adReferral.body || null,
               media_type: adReferral.media_type || null,
+              // The actual ad creative -- Meta sends whichever of these applies
+              // (image ads carry image_url, video ads carry video_url + a still
+              // thumbnail_url). This is what lets us actually SHOW the specific ad,
+              // not just its text.
+              image_url: adReferral.image_url || null,
+              video_url: adReferral.video_url || null,
+              thumbnail_url: adReferral.thumbnail_url || null,
               ctwa_clid: adReferral.ctwa_clid || null,
               captured_at: ts,
             };

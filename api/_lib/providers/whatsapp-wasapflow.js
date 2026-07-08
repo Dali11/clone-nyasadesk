@@ -274,6 +274,9 @@ export class WhatsAppWasapFlowProvider extends MessagingProvider {
           headline: adReferral.headline || null,
           body: adReferral.body || null,
           media_type: adReferral.media_type || null,
+          image_url: adReferral.image_url || null,
+          video_url: adReferral.video_url || null,
+          thumbnail_url: adReferral.thumbnail_url || null,
           ctwa_clid: adReferral.ctwa_clid || null,
           captured_at: ts,
         };
