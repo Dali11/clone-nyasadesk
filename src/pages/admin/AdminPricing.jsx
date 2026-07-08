@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Loader2, DollarSign, Check } from 'lucide-react';
-import { supabase } from '@/lib/supabase';
+import { adminFetch } from '@/lib/adminApi';
 import { useDocumentTitle } from '@/hooks/useDocumentTitle';
 
 // Admin-editable monthly pricing per plan, backed by the plan_pricing DB
@@ -18,19 +18,10 @@ export default function AdminPricing() {
   const [saving, setSaving] = useState(null); // plan currently saving
   const [savedFlash, setSavedFlash] = useState(null); // plan that just saved (brief checkmark)
 
-  const authedHeaders = async () => {
-    const { data: { session } } = await supabase.auth.getSession();
-    return {
-      'Content-Type': 'application/json',
-      ...(session?.access_token ? { Authorization: `Bearer ${session.access_token}` } : {}),
-    };
-  };
-
   const load = async () => {
     setLoading(true);
     try {
-      const headers = await authedHeaders();
-      const res = await fetch('/api/admin/workspaces?resource=pricing', { headers });
+      const res = await adminFetch('/api/admin/workspaces?resource=pricing');
       const data = await res.json();
       if (res.status === 403) {
         setDeniedMsg(data.error || 'Admin access required');
@@ -58,9 +49,8 @@ export default function AdminPricing() {
     }
     setSaving(plan);
     try {
-      const headers = await authedHeaders();
-      const res = await fetch('/api/admin/workspaces?resource=pricing', {
-        method: 'PATCH', headers, body: JSON.stringify({ plan, price_mwk }),
+      const res = await adminFetch('/api/admin/workspaces?resource=pricing', {
+        method: 'PATCH', body: JSON.stringify({ plan, price_mwk }),
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || 'Failed to save');

@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { Loader2, ShieldCheck, Trash2, Plus } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
+import { adminFetch } from '@/lib/adminApi';
 import { useDocumentTitle } from '@/hooks/useDocumentTitle';
 
 // Manage the platform_admin_emails allowlist that api/_lib/adminAuth.js
@@ -16,24 +17,14 @@ export default function AdminAdmins() {
   const [removing, setRemoving] = useState(null);
   const [myEmail, setMyEmail] = useState('');
 
-  const authedFetch = async (path, opts = {}) => {
-    const { data: { session } } = await supabase.auth.getSession();
-    return fetch(path, {
-      ...opts,
-      headers: {
-        'Content-Type': 'application/json',
-        ...(session?.access_token ? { Authorization: `Bearer ${session.access_token}` } : {}),
-        ...(opts.headers || {}),
-      },
-    });
-  };
+
 
   const load = async () => {
     setLoading(true);
     try {
       const { data: { user } } = await supabase.auth.getUser();
       setMyEmail(user?.email || '');
-      const res = await authedFetch('/api/admin/workspaces?resource=admins');
+      const res = await adminFetch('/api/admin/workspaces?resource=admins');
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || 'Failed to load admins');
       setAdmins(data.admins || []);
@@ -53,7 +44,7 @@ export default function AdminAdmins() {
     setSaving(true);
     setError('');
     try {
-      const res = await authedFetch('/api/admin/workspaces?resource=admins', {
+      const res = await adminFetch('/api/admin/workspaces?resource=admins', {
         method: 'POST',
         body: JSON.stringify({ email: newEmail.trim().toLowerCase() }),
       });
@@ -72,7 +63,7 @@ export default function AdminAdmins() {
   const removeAdmin = async (email) => {
     setRemoving(email);
     try {
-      const res = await authedFetch('/api/admin/workspaces?resource=admins', {
+      const res = await adminFetch('/api/admin/workspaces?resource=admins', {
         method: 'DELETE',
         body: JSON.stringify({ email }),
       });

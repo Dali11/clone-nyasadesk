@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { Loader2, Bot, DollarSign } from 'lucide-react';
-import { supabase } from '@/lib/supabase';
+import { adminFetch } from '@/lib/adminApi';
 import { useDocumentTitle } from '@/hooks/useDocumentTitle';
 
 // Platform-wide AI cost monitoring — Scale plan is flat-rate to the
@@ -16,9 +16,7 @@ export default function AdminAiUsage() {
   useEffect(() => {
     (async () => {
       try {
-        const { data: { session } } = await supabase.auth.getSession();
-        const headers = { Authorization: `Bearer ${session?.access_token || ''}` };
-        const res = await fetch('/api/admin/workspaces?resource=ai-usage', { headers });
+        const res = await adminFetch('/api/admin/workspaces?resource=ai-usage');
         const data = await res.json();
         if (!res.ok) throw new Error(data.error || 'Failed to load');
         setUsage(data.usage || []);

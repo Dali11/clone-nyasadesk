@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { Loader2, Building2, Users, MessageSquare, DollarSign, TrendingUp } from 'lucide-react';
 import { Link } from 'react-router-dom';
-import { supabase } from '@/lib/supabase';
+import { adminFetch } from '@/lib/adminApi';
 
 const PLAN_LABEL = { starter: 'Starter', growth: 'Growth', scale: 'Scale' };
 
@@ -25,10 +25,7 @@ export default function AdminOverview() {
   useEffect(() => {
     (async () => {
       try {
-        const { data: { session } } = await supabase.auth.getSession();
-        const res = await fetch('/api/admin/workspaces?resource=overview', {
-          headers: session?.access_token ? { Authorization: `Bearer ${session.access_token}` } : {},
-        });
+        const res = await adminFetch('/api/admin/workspaces?resource=overview');
         const json = await res.json();
         if (!res.ok) throw new Error(json.error || 'Failed to load overview');
         setData(json);

@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Loader2, Users, MessageSquare, Calendar, Clock, Crown, Plus, Lock, Unlock, Eye } from 'lucide-react';
-import { supabase } from '@/lib/supabase';
+import { adminFetch } from '@/lib/adminApi';
 import { useDocumentTitle } from '@/hooks/useDocumentTitle';
 
 const PLAN_INFO = {
@@ -30,19 +30,10 @@ export default function AdminWorkspaces() {
   const [pricing, setPricing] = useState({}); // plan -> price_mwk, live from admin/pricing
   const [viewingId, setViewingId] = useState(null); // workspace_id currently open in the detail modal
 
-  const authedHeaders = async () => {
-    const { data: { session } } = await supabase.auth.getSession();
-    return {
-      'Content-Type': 'application/json',
-      ...(session?.access_token ? { Authorization: `Bearer ${session.access_token}` } : {}),
-    };
-  };
-
   const load = async () => {
     setLoading(true);
     try {
-      const headers = await authedHeaders();
-      const res = await fetch('/api/admin/workspaces', { headers });
+      const res = await adminFetch('/api/admin/workspaces');
       const data = await res.json();
       if (res.status === 403) {
         setDeniedMsg(data.error || 'Admin access required');
@@ -54,7 +45,7 @@ export default function AdminWorkspaces() {
 
       // Live per-plan pricing for the plan-change dropdown -- best-effort,
       // dropdown just omits prices if this fails for any reason.
-      fetch('/api/admin/workspaces?resource=pricing', { headers })
+      adminFetch('/api/admin/workspaces?resource=pricing')
         .then(r => r.json())
         .then(d => setPricing(Object.fromEntries((d.plans || []).map(p => [p.plan, p.price_mwk]))))
         .catch(() => {});
@@ -71,9 +62,8 @@ export default function AdminWorkspaces() {
   const patchWorkspace = async (workspaceId, updates) => {
     setUpdating(workspaceId);
     try {
-      const headers = await authedHeaders();
-      const res = await fetch('/api/admin/workspaces', {
-        method: 'PATCH', headers,
+      const res = await adminFetch('/api/admin/workspaces', {
+        method: 'PATCH',
         body: JSON.stringify({ workspace_id: workspaceId, ...updates }),
       });
       if (!res.ok) throw new Error((await res.json()).error || 'Failed to update');
@@ -241,9 +231,7 @@ function WorkspaceDetailModal({ workspaceId, onClose }) {
     (async () => {
       setLoading(true);
       try {
-        const { data: { session } } = await supabase.auth.getSession();
-        const headers = { Authorization: `Bearer ${session?.access_token || ''}` };
-        const res = await fetch(`/api/admin/workspaces?resource=workspace-detail&workspace_id=${workspaceId}`, { headers });
+        const res = await adminFetch(`/api/admin/workspaces?resource=workspace-detail&workspace_id=${workspaceId}`);
         const json = await res.json();
         if (!res.ok) throw new Error(json.error || 'Failed to load workspace detail');
         setData(json);

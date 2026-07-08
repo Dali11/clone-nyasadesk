@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { Loader2, ScrollText } from 'lucide-react';
-import { supabase } from '@/lib/supabase';
+import { adminFetch } from '@/lib/adminApi';
 import { useDocumentTitle } from '@/hooks/useDocumentTitle';
 
 const ACTION_LABEL = {
@@ -33,9 +33,7 @@ export default function AdminAuditLog() {
   useEffect(() => {
     (async () => {
       try {
-        const { data: { session } } = await supabase.auth.getSession();
-        const headers = { Authorization: `Bearer ${session?.access_token || ''}` };
-        const res = await fetch('/api/admin/workspaces?resource=audit-log', { headers });
+        const res = await adminFetch('/api/admin/workspaces?resource=audit-log');
         const data = await res.json();
         if (!res.ok) throw new Error(data.error || 'Failed to load');
         setEntries(data.entries || []);
