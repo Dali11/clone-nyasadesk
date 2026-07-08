@@ -133,6 +133,21 @@ const ANTI_HALLUCINATION_RULE = 'CRITICAL RULE: only state specific facts (servi
 // never actually tracked anywhere despite the workspace-billed AI model --
 // this is the one place both draft mode and full-automation mode funnel
 // through, so logging here covers 100% of AI spend in a single spot.
+function stripRedundantLinks(text) {
+  if (!text) return text;
+  let cleaned = text
+    // markdown links: [label](https://...)
+    .replace(/\[([^\]]*)\]\(https?:\/\/[^\s)]+\)/gi, '')
+    // bare URLs
+    .replace(/https?:\/\/\S+/gi, '')
+    // leftover "here ." / "here!" artifacts left behind after stripping a link
+    .replace(/\b(here|this link|link)\b\s*([.!,]|$)/gi, '$2')
+    .replace(/[ \t]{2,}/g, ' ')
+    .replace(/\s+([.,!?])/g, '$1')
+    .trim();
+  return cleaned;
+}
+
 export async function generateDraftReply(agent, recentMessages, contact, knowledge, ctx = {}) {
   if (!OPENAI_API_KEY) throw new Error('OPENAI_API_KEY is not configured on the server');
 
@@ -151,6 +166,9 @@ export async function generateDraftReply(agent, recentMessages, contact, knowled
       : 'You are drafting a reply for a human staff member to review before sending -- write it as the final message text only, no preamble, no explanation of what you are doing.',
     knowledgeBlock,
     ANTI_HALLUCINATION_RULE,
+    (Array.isArray(ctx.tools) && ctx.tools.length)
+      ? 'You can create a real quotation/invoice PDF using the create_quotation/create_invoice tools -- the document is automatically shown/sent to the customer the moment you call the tool, so after calling it just acknowledge naturally in plain language (e.g. confirm what you just sent and ask a relevant follow-up). Never paste the PDF URL, a markdown link, or technical file details in your text reply -- the customer already sees the document itself.'
+      : '',
   ].filter(Boolean);
 
   const history = (recentMessages || []).slice(-12).map(m => ({
@@ -164,35 +182,87 @@ export async function generateDraftReply(agent, recentMessages, contact, knowled
     ...history,
   ];
 
-  const res = await fetch('https://api.openai.com/v1/chat/completions', {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      Authorization: 'Bearer ' + OPENAI_API_KEY,
-    },
-    body: JSON.stringify({
-      model: agent.model || DEFAULT_MODEL,
-      messages,
-      temperature: 0.6,
-      max_tokens: 400,
-    }),
-  });
+  const modelUsed = agent.model || DEFAULT_MODEL;
+  // Phase 2 of the Quotation & Invoice Builder: when the caller wires up
+  // ctx.tools + ctx.executeTool (currently only the fully-automated auto-
+  // reply path -- see aiAutoReply.js -- deliberately NOT the human-reviewed
+  // draft path, since that would create/send real documents before a human
+  // ever sees the reply), the agent can call create_quotation/create_invoice
+  // mid-conversation instead of ever hand-typing one. This runs a bounded
+  // tool-calling loop: ask the model, execute any tool calls it requests,
+  // feed the results back, repeat until it produces plain text.
+  const hasTools = Array.isArray(ctx.tools) && ctx.tools.length && typeof ctx.executeTool === 'function';
+  let promptTokens = 0, completionTokens = 0;
+  let finalText = null;
+  let lastToolResult = null;
+  const MAX_ITERATIONS = 4;
 
-  if (!res.ok) {
-    const errBody = await res.text().catch(() => '');
-    throw new Error('OpenAI request failed (' + res.status + '): ' + errBody.slice(0, 300));
+  for (let i = 0; i < MAX_ITERATIONS; i++) {
+    const res = await fetch('https://api.openai.com/v1/chat/completions', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: 'Bearer ' + OPENAI_API_KEY,
+      },
+      body: JSON.stringify({
+        model: modelUsed,
+        messages,
+        temperature: 0.6,
+        max_tokens: 400,
+        ...(hasTools ? { tools: ctx.tools, tool_choice: 'auto' } : {}),
+      }),
+    });
+
+    if (!res.ok) {
+      const errBody = await res.text().catch(() => '');
+      throw new Error('OpenAI request failed (' + res.status + '): ' + errBody.slice(0, 300));
+    }
+
+    const data = await res.json();
+    promptTokens += data.usage?.prompt_tokens || 0;
+    completionTokens += data.usage?.completion_tokens || 0;
+
+    const msg = data.choices?.[0]?.message;
+    if (!msg) throw new Error('OpenAI returned an empty response');
+
+    if (msg.tool_calls?.length) {
+      messages.push(msg);
+      for (const call of msg.tool_calls) {
+        let result;
+        try {
+          const args = JSON.parse(call.function.arguments || '{}');
+          result = await ctx.executeTool(call.function.name, args);
+          lastToolResult = result;
+        } catch (e) {
+          result = { ok: false, error: e.message };
+        }
+        messages.push({ role: 'tool', tool_call_id: call.id, content: JSON.stringify(result) });
+      }
+      continue; // let the model see the tool result(s) and respond
+    }
+
+    finalText = msg.content?.trim();
+    break;
   }
 
-  const data = await res.json();
-  const draft = data.choices?.[0]?.message?.content?.trim();
-  if (!draft) throw new Error('OpenAI returned an empty response');
+  // If the model called a tool but then returned no closing text (can happen
+  // when it treats the tool call itself as "done"), don't leave the customer
+  // hanging with a blank message -- acknowledge the document that was just sent.
+  if (!finalText && lastToolResult?.ok) {
+    const label = lastToolResult.document_type === 'invoice' ? 'invoice' : 'quotation';
+    finalText = `Here's your ${label} (#${lastToolResult.number}) -- let me know if you'd like any changes!`;
+  }
+  if (!finalText) throw new Error('OpenAI returned an empty response');
+
+  // Belt-and-braces: the system prompt tells the model not to paste the PDF
+  // link (the document already arrives as its own attachment), but models
+  // don't always comply -- strip any link it adds anyway rather than relying
+  // on prompting alone. Cheap and can never make a reply worse.
+  if (lastToolResult?.ok) finalText = stripRedundantLinks(finalText);
 
   // Fire-and-forget usage logging -- never let a logging failure break the
   // actual reply that's already been generated successfully.
-  if (ctx.sb && ctx.workspaceId && data.usage) {
-    const modelUsed = agent.model || DEFAULT_MODEL;
-    const promptTokens = data.usage.prompt_tokens || 0;
-    const completionTokens = data.usage.completion_tokens || 0;
+  if (ctx.sb && ctx.workspaceId && (promptTokens || completionTokens)) {
     ctx.sb.from('ai_usage_logs').insert({
       workspace_id: ctx.workspaceId,
       agent_id: agent.id || null,
@@ -201,12 +271,12 @@ export async function generateDraftReply(agent, recentMessages, contact, knowled
       automation_mode: agent.automation_mode || null,
       prompt_tokens: promptTokens,
       completion_tokens: completionTokens,
-      total_tokens: data.usage.total_tokens || (promptTokens + completionTokens),
+      total_tokens: promptTokens + completionTokens,
       estimated_cost_usd: estimateCostUsd(modelUsed, promptTokens, completionTokens),
     }).then(({ error }) => { if (error) console.error('[aiAgents] usage log insert failed:', error); });
   }
 
-  return draft;
+  return finalText;
 }
 
 // Pricing per 1M tokens, USD (OpenAI published rates). Only gpt-4o-mini is
