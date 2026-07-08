@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef, Fragment } from 'react';
 import { Send, StickyNote, Loader2, Check, CheckCheck, X, Zap, Bot, Sparkles, Paperclip, Mic, Square, Play, Pause,
-         ChevronDown, Copy, Share2, Pin, PinOff, Trash2, Ban, Reply, Palette } from 'lucide-react';
+         ChevronDown, Copy, Share2, Pin, PinOff, Trash2, Ban, Reply, Palette, Download, Maximize2 } from 'lucide-react';
 import { formatDistanceToNow, isToday, isYesterday, format as formatDate } from 'date-fns';
 import { motion, AnimatePresence } from 'framer-motion';
 import { getMessages, sendMessage, sendMediaMessage, addNote, deleteMessage, setMessagePinned, subscribeToMessages, getCannedResponses, setChatBackground, getAiAgents, generateAiDraft } from '@/lib/channels';
@@ -193,12 +193,69 @@ function AudioPlayer({ url }) {
   );
 }
 
-function MediaAttachment({ att }) {
+function MediaAttachment({ att, onOpen }) {
   if (!att) return null;
-  if (att.type === 'image') return <img src={att.url} alt="attachment" className="rounded-lg max-w-[240px] max-h-[240px] object-cover mb-1" />;
-  if (att.type === 'video') return <video src={att.url} controls className="rounded-lg max-w-[240px] max-h-[240px] mb-1" />;
+  if (att.type === 'image') return (
+    <button type="button" onClick={() => onOpen?.(att)} className="group relative block mb-1 rounded-lg overflow-hidden">
+      <img src={att.url} alt="attachment" className="rounded-lg max-w-[240px] max-h-[240px] object-cover" />
+      <span className="absolute inset-0 bg-black/0 group-hover:bg-black/20 transition-colors flex items-center justify-center">
+        <Maximize2 className="w-4 h-4 text-white opacity-0 group-hover:opacity-90 transition-opacity" />
+      </span>
+    </button>
+  );
+  if (att.type === 'video') return (
+    <button type="button" onClick={() => onOpen?.(att)} className="group relative block mb-1 rounded-lg overflow-hidden max-w-[240px]">
+      <video src={att.url} className="rounded-lg max-w-[240px] max-h-[240px] w-full pointer-events-none" />
+      <span className="absolute inset-0 bg-black/25 group-hover:bg-black/40 transition-colors flex items-center justify-center">
+        <span className="w-9 h-9 rounded-full bg-black/50 flex items-center justify-center">
+          <Play className="w-4 h-4 text-white fill-white ml-0.5" />
+        </span>
+      </span>
+    </button>
+  );
   if (att.type === 'audio') return <AudioPlayer url={att.url} />;
   return null;
+}
+
+// Fullscreen media viewer -- opened by tapping any image/video thumbnail in
+// the thread. Click backdrop or X (or Escape) to close; Download saves the
+// original file. Video autoplays with real native controls at full size.
+function MediaLightbox({ att, onClose }) {
+  useEffect(() => {
+    const onKey = (e) => { if (e.key === 'Escape') onClose(); };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [onClose]);
+
+  if (!att) return null;
+  return (
+    <div
+      className="fixed inset-0 z-[100] bg-black/90 flex items-center justify-center p-4"
+      onClick={onClose}
+    >
+      <div className="absolute top-4 right-4 flex items-center gap-2">
+        <a
+          href={att.url} download onClick={e => e.stopPropagation()}
+          className="w-9 h-9 rounded-full bg-white/10 hover:bg-white/20 flex items-center justify-center text-white transition-colors"
+          title="Download"
+        >
+          <Download className="w-4 h-4" />
+        </a>
+        <button
+          onClick={e => { e.stopPropagation(); onClose(); }}
+          className="w-9 h-9 rounded-full bg-white/10 hover:bg-white/20 flex items-center justify-center text-white transition-colors"
+          title="Close"
+        >
+          <X className="w-4 h-4" />
+        </button>
+      </div>
+      {att.type === 'image' ? (
+        <img src={att.url} alt="attachment" className="max-w-full max-h-full object-contain rounded-md" onClick={e => e.stopPropagation()} />
+      ) : (
+        <video src={att.url} controls autoPlay className="max-w-full max-h-full rounded-md" onClick={e => e.stopPropagation()} />
+      )}
+    </div>
+  );
 }
 
 // WhatsApp-style action menu: a small always-reachable "chevron" button, a
@@ -242,7 +299,7 @@ function MessageActionsMenu({ msg, isOut, open, onOpenChange, onCopy, onShare, o
   );
 }
 
-function Bubble({ msg, menuOpenId, onOpenMenu, onCopy, onShare, onDelete, onTogglePin, onReply, onJumpToReply, bubbleRef }) {
+function Bubble({ msg, menuOpenId, onOpenMenu, onCopy, onShare, onDelete, onTogglePin, onReply, onJumpToReply, bubbleRef, onOpenMedia }) {
   const isNote     = msg.direction === 'note';
   const isActivity = msg.direction === 'activity';
   const isOut      = msg.direction === 'outbound';
@@ -336,7 +393,7 @@ function Bubble({ msg, menuOpenId, onOpenMenu, onCopy, onShare, onDelete, onTogg
           <p className="italic text-gray-500 flex items-center gap-1.5"><Ban className="w-3.5 h-3.5" />This message was deleted</p>
         ) : (
           <>
-            {attachment && <MediaAttachment att={attachment} />}
+            {attachment && <MediaAttachment att={attachment} onOpen={onOpenMedia} />}
             {(!attachment || (msg.body && !['📷 Photo','🎥 Video','🎤 Voice message'].includes(msg.body))) && (
               <p className="whitespace-pre-wrap break-words">{msg.body}</p>
             )}
@@ -380,6 +437,7 @@ export default function MessageThread({ conversation, workspaceId }) {
   const [aiDrafting, setAiDrafting] = useState(false);
   const [menuOpenId, setMenuOpenId] = useState(null);
   const [replyingTo, setReplyingTo] = useState(null);
+  const [lightboxMedia, setLightboxMedia] = useState(null); // { url, type } or null
   const bottomRef = useRef(null);
   const inputRef  = useRef(null);
   const fileInputRef = useRef(null);
@@ -695,6 +753,7 @@ export default function MessageThread({ conversation, workspaceId }) {
                   onDelete={handleDeleteMessage}
                   onReply={handleReplyMessage}
                   onJumpToReply={scrollToMessage}
+                  onOpenMedia={setLightboxMedia}
                 />
               </Fragment>
             );
@@ -839,6 +898,8 @@ export default function MessageThread({ conversation, workspaceId }) {
           </div>
         )}
       </div>
+
+      {lightboxMedia && <MediaLightbox att={lightboxMedia} onClose={() => setLightboxMedia(null)} />}
     </div>
   );
 }
