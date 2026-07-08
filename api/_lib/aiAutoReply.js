@@ -36,8 +36,17 @@ export async function autoReplyIfEnabled(sb, { workspaceId, conversationId, chan
     if (cfgErr) { console.error('[aiAutoReply] channel_configs query failed:', cfgErr); return; }
     if (!cfg?.enabled) return; // channel not actually connected -- nothing to send through
 
-    const { data: messages } = await sb.from('messages').select('direction,body,attachments')
-      .eq('conversation_id', conversationId).order('created_at', { ascending: true }).limit(12);
+    // BUG FIX: ordering ascending with a limit fetches the OLDEST 12 messages,
+    // not the most recent 12 -- for any conversation past ~12 messages, the AI
+    // was permanently frozen looking at ancient history and never saw anything
+    // the customer said afterwards (why it kept repeating the same question --
+    // e.g. asking "What business are you in?" again right after the customer
+    // answered it, because that answer was never in the fetched window at all).
+    // Fetch the most recent 12 by ordering DESC, then reverse back to
+    // chronological order before handing to generateDraftReply.
+    const { data: recentDesc } = await sb.from('messages').select('direction,body,attachments')
+      .eq('conversation_id', conversationId).order('created_at', { ascending: false }).limit(12);
+    const messages = (recentDesc || []).slice().reverse();
 
     const { data: knowledge } = await sb.from('ai_knowledge').select('title,content')
       .eq('workspace_id', workspaceId).or('agent_id.eq.' + agent.id + ',agent_id.is.null')
