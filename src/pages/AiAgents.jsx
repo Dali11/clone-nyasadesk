@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import { Link } from 'react-router-dom';
-import { Plus, Bot, Trash2, Loader2, Sparkles, X, BookOpen, Pencil, Link2, Upload, Lock } from 'lucide-react';
+import { Plus, Bot, Trash2, Loader2, Sparkles, X, BookOpen, Pencil, Link2, Upload, Lock, Pause, Play } from 'lucide-react';
 import Sidebar from '@/components/Sidebar';
 import { useNyasaAuth } from '@/lib/NyasaAuth';
 import { getAiAgents, saveAiAgent, deleteAiAgent, getAiAgentTemplates, getAiKnowledge, saveAiKnowledge, deleteAiKnowledge, addKnowledgeFromUrl, addKnowledgeFromFile, getAiUsageSummary } from '@/lib/channels';
@@ -177,7 +177,7 @@ export default function AiAgents() {
   };
 
   const del = async (id) => {
-    if (!window.confirm('Delete this AI agent? This cannot be undone.')) return;
+    if (!window.confirm('Delete this AI agent permanently? This cannot be undone -- its config and knowledge base will be lost.\n\nJust want to stop it from replying for now? Cancel this and use the Pause button instead.')) return;
     try {
       await deleteAiAgent(id);
       setAgents(prev => prev.filter(a => a.id !== id));
@@ -284,10 +284,10 @@ export default function AiAgents() {
                         <p className="text-gray-500 text-[11px] truncate">{agent.role || 'AI Agent'}</p>
                       </div>
                     </div>
-                    <button onClick={() => toggleStatus(agent)}
-                      className={`text-[10px] font-bold px-2 py-1 rounded-full shrink-0 ${agent.status === 'active' ? 'bg-[#25D366]/20 text-[#25D366]' : 'bg-white/10 text-gray-500'}`}>
-                      {agent.status === 'active' ? 'Active' : 'Disabled'}
-                    </button>
+                    <span
+                      className={`text-[10px] font-bold px-2 py-1 rounded-full shrink-0 ${agent.status === 'active' ? 'bg-[#25D366]/20 text-[#25D366]' : 'bg-yellow-500/20 text-yellow-400'}`}>
+                      {agent.status === 'active' ? 'Active' : 'Paused'}
+                    </span>
                   </div>
                   {agent.description && <p className="text-gray-400 text-xs line-clamp-2">{agent.description}</p>}
                   <div className="flex items-center gap-1.5 flex-wrap mt-1">
@@ -304,11 +304,22 @@ export default function AiAgents() {
                     </p>
                   )}
                   <div className="flex gap-2 mt-2">
+                    <button onClick={() => toggleStatus(agent)}
+                      disabled={agent.status !== 'active' && !hasAiAccess}
+                      title={agent.status === 'active' ? 'Pause this agent -- it will stop replying, nothing is deleted' : 'Resume this agent'}
+                      className={`flex items-center justify-center gap-1.5 text-xs font-semibold rounded-lg py-1.5 px-2.5 transition-colors disabled:opacity-40 disabled:cursor-not-allowed ${
+                        agent.status === 'active'
+                          ? 'text-yellow-400 bg-yellow-500/10 hover:bg-yellow-500/20'
+                          : 'text-[#25D366] bg-[#25D366]/10 hover:bg-[#25D366]/20'
+                      }`}>
+                      {agent.status === 'active' ? <><Pause className="w-3.5 h-3.5" /> Pause</> : <><Play className="w-3.5 h-3.5" /> Resume</>}
+                    </button>
                     <button onClick={() => startEdit(agent)}
                       className="flex-1 text-xs font-semibold text-gray-300 hover:text-white bg-white/5 hover:bg-white/10 rounded-lg py-1.5 transition-colors">
                       Configure
                     </button>
                     <button onClick={() => del(agent.id)}
+                      title="Delete permanently -- use Pause instead if you just want to stop it temporarily"
                       className="text-gray-500 hover:text-red-400 bg-white/5 hover:bg-red-500/10 rounded-lg px-2.5 transition-colors">
                       <Trash2 className="w-3.5 h-3.5" />
                     </button>
