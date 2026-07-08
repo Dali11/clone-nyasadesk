@@ -52,7 +52,7 @@ export async function autoReplyIfEnabled(sb, { workspaceId, conversationId, chan
       .eq('workspace_id', workspaceId).or('agent_id.eq.' + agent.id + ',agent_id.is.null')
       .order('created_at', { ascending: true });
 
-    const replyText = await generateDraftReply(agent, messages || [], contact, knowledge || []);
+    const replyText = await generateDraftReply(agent, messages || [], contact, knowledge || [], { sb, workspaceId, conversationId });
 
     // Website live-chat has no outbound provider -- same special-case as
     // handleSend() in channels/index.js: the widget just reads straight from

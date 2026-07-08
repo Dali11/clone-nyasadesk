@@ -2,7 +2,7 @@ import { useState, useEffect, useRef } from 'react';
 import { Plus, Bot, Trash2, Loader2, Sparkles, X, BookOpen, Pencil, Link2, Upload } from 'lucide-react';
 import Sidebar from '@/components/Sidebar';
 import { useNyasaAuth } from '@/lib/NyasaAuth';
-import { getAiAgents, saveAiAgent, deleteAiAgent, getAiAgentTemplates, getAiKnowledge, saveAiKnowledge, deleteAiKnowledge, addKnowledgeFromUrl, addKnowledgeFromFile } from '@/lib/channels';
+import { getAiAgents, saveAiAgent, deleteAiAgent, getAiAgentTemplates, getAiKnowledge, saveAiKnowledge, deleteAiKnowledge, addKnowledgeFromUrl, addKnowledgeFromFile, getAiUsageSummary } from '@/lib/channels';
 import { useDocumentTitle } from '@/hooks/useDocumentTitle';
 
 const CHANNEL_OPTIONS = ['whatsapp', 'website', 'instagram', 'telegram', 'messenger'];
@@ -19,6 +19,7 @@ export default function AiAgents() {
   const { workspaceOwnerId, isWorkspaceAdmin } = useNyasaAuth();
 
   const [agents, setAgents] = useState([]);
+  const [usage, setUsage] = useState({}); // agent_id -> { cost, count } (last 30 days)
   const [templates, setTemplates] = useState([]);
   const [loading, setLoading] = useState(true);
   const [editing, setEditing] = useState(null); // 'new' | agent.id | null
@@ -39,6 +40,9 @@ export default function AiAgents() {
       const [a, t] = await Promise.all([getAiAgents(workspaceOwnerId), getAiAgentTemplates()]);
       setAgents(a);
       setTemplates(t);
+      // Best-effort -- non-admins get an RLS-blocked empty result, not an error,
+      // so this never needs to block the page if it fails for any other reason.
+      getAiUsageSummary(workspaceOwnerId).then(setUsage).catch(() => {});
     } catch (e) {
       console.error('[AiAgents] load error:', e);
     } finally {
@@ -261,6 +265,11 @@ export default function AiAgents() {
                       <span className="text-[10px] text-gray-600">No channels enabled yet</span>
                     )}
                   </div>
+                  {usage[agent.id] && (
+                    <p className="text-[10px] text-gray-600 mt-0.5">
+                      ${usage[agent.id].cost.toFixed(2)} · {usage[agent.id].count} repl{usage[agent.id].count === 1 ? 'y' : 'ies'} (30d)
+                    </p>
+                  )}
                   <div className="flex gap-2 mt-2">
                     <button onClick={() => startEdit(agent)}
                       className="flex-1 text-xs font-semibold text-gray-300 hover:text-white bg-white/5 hover:bg-white/10 rounded-lg py-1.5 transition-colors">

@@ -127,7 +127,13 @@ const ANTI_HALLUCINATION_RULE = 'CRITICAL RULE: only state specific facts (servi
 // Builds a reply suggestion from an agent's persona + knowledge base + recent
 // conversation history. Returns plain text (always a draft for a human to
 // review/edit/send from the composer -- never auto-sent).
-export async function generateDraftReply(agent, recentMessages, contact, knowledge) {
+// `ctx` is optional (sb + workspaceId + conversationId) purely for cost/usage
+// logging into ai_usage_logs -- callers that omit it still work exactly as
+// before, they just don't get a usage row. Real per-message OpenAI cost was
+// never actually tracked anywhere despite the workspace-billed AI model --
+// this is the one place both draft mode and full-automation mode funnel
+// through, so logging here covers 100% of AI spend in a single spot.
+export async function generateDraftReply(agent, recentMessages, contact, knowledge, ctx = {}) {
   if (!OPENAI_API_KEY) throw new Error('OPENAI_API_KEY is not configured on the server');
 
   const knowledgeBlock = buildKnowledgeBlock(knowledge);
@@ -180,5 +186,38 @@ export async function generateDraftReply(agent, recentMessages, contact, knowled
   const data = await res.json();
   const draft = data.choices?.[0]?.message?.content?.trim();
   if (!draft) throw new Error('OpenAI returned an empty response');
+
+  // Fire-and-forget usage logging -- never let a logging failure break the
+  // actual reply that's already been generated successfully.
+  if (ctx.sb && ctx.workspaceId && data.usage) {
+    const modelUsed = agent.model || DEFAULT_MODEL;
+    const promptTokens = data.usage.prompt_tokens || 0;
+    const completionTokens = data.usage.completion_tokens || 0;
+    ctx.sb.from('ai_usage_logs').insert({
+      workspace_id: ctx.workspaceId,
+      agent_id: agent.id || null,
+      conversation_id: ctx.conversationId || null,
+      model: modelUsed,
+      automation_mode: agent.automation_mode || null,
+      prompt_tokens: promptTokens,
+      completion_tokens: completionTokens,
+      total_tokens: data.usage.total_tokens || (promptTokens + completionTokens),
+      estimated_cost_usd: estimateCostUsd(modelUsed, promptTokens, completionTokens),
+    }).then(({ error }) => { if (error) console.error('[aiAgents] usage log insert failed:', error); });
+  }
+
   return draft;
+}
+
+// Pricing per 1M tokens, USD (OpenAI published rates). Only gpt-4o-mini is
+// actually offered today (DEFAULT_MODEL) -- kept as a map so adding a
+// plan-tiered model later (e.g. full gpt-4o) is a one-line addition here.
+const MODEL_PRICING_PER_1M = {
+  'gpt-4o-mini': { input: 0.15, output: 0.60 },
+  'gpt-4o': { input: 2.50, output: 10.00 },
+};
+
+function estimateCostUsd(model, promptTokens, completionTokens) {
+  const rate = MODEL_PRICING_PER_1M[model] || MODEL_PRICING_PER_1M[DEFAULT_MODEL];
+  return (promptTokens / 1e6) * rate.input + (completionTokens / 1e6) * rate.output;
 }

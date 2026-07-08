@@ -623,6 +623,28 @@ export async function setChatBackground(userId, bg) {
 // Only draft generation needs the backend, since that's the one operation
 // that touches the server-side OpenAI key.
 
+// Usage/cost summary for the last 30 days, grouped by agent -- powers the
+// small "$X.XX · N replies" line on each agent card. RLS on ai_usage_logs
+// only allows workspace admins to read it (only service-role backend code
+// writes rows), matching who's allowed to see billing-relevant AI spend.
+export async function getAiUsageSummary(workspaceId) {
+  const since = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString();
+  const { data, error } = await supabase
+    .from('ai_usage_logs')
+    .select('agent_id, estimated_cost_usd')
+    .eq('workspace_id', workspaceId)
+    .gte('created_at', since);
+  if (error) { console.error('Failed to load AI usage summary:', error); return {}; }
+  const byAgent = {};
+  for (const row of data || []) {
+    if (!row.agent_id) continue;
+    if (!byAgent[row.agent_id]) byAgent[row.agent_id] = { cost: 0, count: 0 };
+    byAgent[row.agent_id].cost += Number(row.estimated_cost_usd) || 0;
+    byAgent[row.agent_id].count += 1;
+  }
+  return byAgent;
+}
+
 export async function getAiAgents(workspaceId) {
   const { data, error } = await supabase
     .from('ai_agents')

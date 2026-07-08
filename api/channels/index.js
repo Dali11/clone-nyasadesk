@@ -134,7 +134,7 @@ async function handleAiDraft(req, res) {
       .eq('workspace_id', workspace_id).or('agent_id.eq.' + agent_id + ',agent_id.is.null')
       .order('created_at', { ascending: true });
 
-    const draft = await generateDraftReply(agent, messages || [], contact, knowledge || []);
+    const draft = await generateDraftReply(agent, messages || [], contact, knowledge || [], { sb, workspaceId: workspace_id, conversationId: conversation_id });
     return res.status(200).json({ ok: true, draft });
   } catch (e) {
     console.error('[ai-draft] error:', e);
