@@ -261,7 +261,15 @@ async function handleDocumentSend(req, res) {
         method: 'POST',
         headers: { Authorization: `Bearer ${RESEND_API_KEY}`, 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          from: settings.email ? `${settings.company_name || 'NyasaDesk'} <${settings.email}>` : 'NyasaDesk <onboarding@resend.dev>',
+          // Resend only allows sending "from" a domain it has verified for
+          // THIS Resend account (nyasadesk.com) -- a workspace's own business
+          // email (e.g. hello@brandfletch.com) is on a domain we don't
+          // control and Resend would reject it. So we always send from our
+          // own verified address, with the workspace's brand as the display
+          // name, and set reply_to to their real inbox so customer replies
+          // land in the right place.
+          from: `${settings.company_name || 'NyasaDesk'} <documents@nyasadesk.com>`,
+          reply_to: settings.email || undefined,
           to: doc.customer_email,
           subject: `${doc_type === 'invoice' ? 'Invoice' : 'Quotation'} ${doc.number} from ${settings.company_name || 'us'}`,
           html: `<p>Hi ${doc.customer_name},</p><p>Please find attached your ${doc_type} <b>${doc.number}</b>.</p>`,
