@@ -1,15 +1,9 @@
 import { Link } from 'react-router-dom';
 import { Check, ArrowRight } from 'lucide-react';
 import { useDocumentTitle } from '@/hooks/useDocumentTitle';
-
-const WA_GREEN      = '#25D366';
-const WA_DARK_GREEN = '#128C7E';
-const WA_NAVY       = '#075E54';
-const BG            = '#111B21';
-const SURFACE       = '#1F2C34';
-const SURFACE2      = '#2A3942';
-const TEXT          = '#E9EDF0';
-const MUTED         = '#8696A0';
+import MarketingHeader from '@/components/marketing/MarketingHeader';
+import MarketingFooter from '@/components/marketing/MarketingFooter';
+import { WA_GREEN, WA_DARK_GREEN, WA_NAVY, BG, SURFACE, SURFACE2, TEXT, MUTED } from '@/lib/marketingTheme';
 
 const PLANS = [
   {
@@ -19,7 +13,7 @@ const PLANS = [
   },
   {
     key: 'growth', name: 'Growth', price: 'K30,000', period: '/mo', seats: '5 team members', highlight: true,
-    features: ['Everything in Starter', 'Broadcast campaigns', 'SLA tracking & alerts', 'Round-robin & smart assignment rules', 'Priority email support'],
+    features: ['Everything in Starter', 'AI Agent (draft or fully automated)', 'Quotes & invoices with payment tracking', 'Broadcast campaigns', 'SLA tracking & alerts', 'Round-robin & smart assignment rules'],
     cta: 'Get started',
   },
   {
@@ -34,23 +28,7 @@ export default function Pricing() {
 
   return (
     <div style={{ background: BG, color: TEXT, fontFamily: "'Inter', sans-serif", minHeight: '100vh' }}>
-      {/* NAV */}
-      <nav style={{ background: SURFACE, borderBottom: `1px solid ${SURFACE2}`, position: 'sticky', top: 0, zIndex: 50 }}>
-        <div style={{ maxWidth: 1100, margin: '0 auto', padding: '0 24px', height: 60, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-          <Link to="/" style={{ display: 'flex', alignItems: 'center', gap: 10, textDecoration: 'none' }}>
-            <div style={{ width: 36, height: 36, borderRadius: 10, background: WA_GREEN, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-              <span style={{ color: '#fff', fontWeight: 900, fontSize: 18 }}>N</span>
-            </div>
-            <span style={{ fontWeight: 700, fontSize: 18, color: TEXT }}>Nyasadesk</span>
-          </Link>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 20 }}>
-            <Link to="/" style={{ color: MUTED, textDecoration: 'none', fontSize: 14, fontWeight: 600 }}>Home</Link>
-            <Link to="/register" style={{ background: WA_GREEN, color: '#fff', textDecoration: 'none', fontSize: 14, fontWeight: 600, padding: '8px 18px', borderRadius: 8 }}>
-              Get started
-            </Link>
-          </div>
-        </div>
-      </nav>
+      <MarketingHeader />
 
       {/* HEADER */}
       <section style={{ maxWidth: 1100, margin: '0 auto', padding: '72px 24px 24px', textAlign: 'center' }}>
@@ -105,13 +83,7 @@ export default function Pricing() {
         </p>
       </section>
 
-      {/* FOOTER */}
-      <div style={{ borderTop: `1px solid ${SURFACE2}`, padding: '32px 24px', display: 'flex', justifyContent: 'center', gap: 32, flexWrap: 'wrap' }}>
-        <Link to="/" style={{ fontSize: 13, color: MUTED, textDecoration: 'none' }}>Home</Link>
-        <Link to="/privacy" style={{ fontSize: 13, color: MUTED, textDecoration: 'none' }}>Privacy Policy</Link>
-        <Link to="/data-deletion" style={{ fontSize: 13, color: MUTED, textDecoration: 'none' }}>Data Deletion</Link>
-        <span style={{ fontSize: 13, color: MUTED }}>© 2026 Nyasadesk</span>
-      </div>
+      <MarketingFooter />
     </div>
   );
 }

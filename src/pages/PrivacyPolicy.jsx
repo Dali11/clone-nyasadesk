@@ -1,19 +1,13 @@
+import MarketingHeader from '@/components/marketing/MarketingHeader';
+import MarketingFooter from '@/components/marketing/MarketingFooter';
+
 export default function PrivacyPolicy() {
   return (
     <div className="min-h-screen bg-[#111B21] text-white">
+      <MarketingHeader />
       <div className="max-w-3xl mx-auto px-6 py-12">
-        {/* Header */}
-        <div className="flex items-center gap-3 mb-10">
-          <div className="w-10 h-10 rounded-xl flex items-center justify-center text-xl font-black"
-            style={{ background: "linear-gradient(135deg,#25D366,#128C7E)" }}>N</div>
-          <div>
-            <p className="text-lg font-bold text-white">Nyasadesk</p>
-            <p className="text-xs text-gray-500">Privacy Policy</p>
-          </div>
-        </div>
-
         <h1 className="text-2xl font-black text-white mb-1">Privacy Policy</h1>
-        <p className="text-xs text-gray-500 mb-8">Last updated: July 1, 2026</p>
+        <p className="text-xs text-gray-500 mb-8">Last updated: July 8, 2026</p>
 
         <div className="space-y-8 text-sm text-gray-300 leading-relaxed">
 
@@ -22,7 +16,7 @@ export default function PrivacyPolicy() {
             <p>
               Nyasadesk ("we", "our", or "us") is a team inbox platform operated by Brandfletch.
               This Privacy Policy explains how we collect, use, and protect information when you use
-              our service at <a href="https://nyasadesk1.vercel.app" className="text-[#25D366]">nyasadesk1.vercel.app</a>.
+              our service at <a href="https://nyasadesk.com" className="text-[#25D366]">nyasadesk.com</a>.
             </p>
           </section>
 
@@ -127,10 +121,8 @@ export default function PrivacyPolicy() {
 
         </div>
 
-        <div className="mt-12 pt-6 border-t border-white/10 text-center text-xs text-gray-600">
-          © 2026 Brandfletch · Nyasadesk · All rights reserved
-        </div>
       </div>
+      <MarketingFooter />
     </div>
   );
 }

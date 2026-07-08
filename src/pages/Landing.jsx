@@ -1,22 +1,18 @@
 import { Link } from 'react-router-dom';
-import { MessageSquare, Users, Zap, Shield, Globe, Clock, ArrowRight } from 'lucide-react';
-
-const WA_GREEN      = '#25D366';
-const WA_DARK_GREEN = '#128C7E';
-const WA_NAVY       = '#075E54';
-const BG            = '#111B21';
-const SURFACE       = '#1F2C34';
-const SURFACE2      = '#2A3942';
-const TEXT          = '#E9EDF0';
-const MUTED         = '#8696A0';
+import { MessageSquare, Users, Zap, Shield, Megaphone, Tags, Smartphone, MessageCircleReply, ArrowRight, Bot, FileText, Check, Sparkles } from 'lucide-react';
+import MarketingHeader from '@/components/marketing/MarketingHeader';
+import MarketingFooter from '@/components/marketing/MarketingFooter';
+import { WA_GREEN, WA_DARK_GREEN, WA_NAVY, BG, SURFACE, SURFACE2, TEXT, MUTED } from '@/lib/marketingTheme';
 
 const FEATURES = [
-  { icon: MessageSquare, title: 'Omnichannel Inbox',    desc: 'WhatsApp, Facebook Messenger, email, and your website chat — all in one shared inbox.' },
-  { icon: Users,         title: 'Team Collaboration',   desc: 'Invite your team, assign conversations, and see who\u2019s handling what in real time.' },
-  { icon: Zap,           title: 'Smart Auto-Assignment',desc: 'Round-robin, by channel, or by lead source — incoming chats route straight to the right agent.' },
-  { icon: Clock,         title: 'SLA Tracking',         desc: 'Set a response-time target and get a live countdown on every open conversation.' },
-  { icon: Shield,        title: 'Built for Sales',      desc: 'Deal stages, contact CRM, canned responses, and broadcast campaigns — your sales context lives here.' },
-  { icon: Globe,         title: 'Any Channel, One Setup',desc: 'Connect WhatsApp Business, Messenger, email, or embed a website widget in minutes.' },
+  { icon: MessageSquare,       title: 'Omnichannel Inbox',      desc: 'WhatsApp, Messenger, Instagram, Telegram, email, and your website chat — all in one shared inbox.' },
+  { icon: Users,               title: 'Team Collaboration',     desc: 'Invite your team, assign conversations, and see who\u2019s handling what in real time.' },
+  { icon: Zap,                 title: 'Smart Auto-Assignment',  desc: 'Round-robin, by channel, or by lead source — incoming chats route straight to the right agent.' },
+  { icon: Shield,               title: 'SLA Tracking',          desc: 'Set a response-time target and get a live countdown + breach alerts on every open conversation.' },
+  { icon: Megaphone,           title: 'Broadcast Campaigns',    desc: 'Send WhatsApp template messages to your whole list, with honest sent/failed reporting.' },
+  { icon: Tags,                title: 'Contact CRM & Ad Attribution', desc: 'Deal stages, canned responses, and automatic click-to-WhatsApp ad tracking on every lead.' },
+  { icon: Smartphone,          title: 'Installable & Push',     desc: 'A real installable app (PWA) with WhatsApp-style push notifications on every new message.' },
+  { icon: MessageCircleReply,  title: 'Canned Responses',       desc: 'Save your best replies once, reuse them across every conversation and every channel.' },
 ];
 
 const MOCK_MSGS = [
@@ -26,27 +22,24 @@ const MOCK_MSGS = [
   { from: 'Carlos Mendez', msg: 'Contract signed — thanks for the follow up!', time: '09:15', unread: false },
 ];
 
+const AI_POINTS = [
+  'Trained on your own knowledge base — PDFs, docs, and web pages',
+  'Draft-and-approve mode, or fully autonomous replies',
+  'Can generate and send a real quote or invoice mid-conversation',
+  'Hands off to a human the moment someone takes over the chat',
+];
+
+const DOC_POINTS = [
+  'Branded PDF quotes & invoices, generated in seconds',
+  'One click converts an accepted quote into an invoice',
+  'Partial payments tracked automatically — draft → partial → paid',
+  'Share by WhatsApp, email, or straight into the chat thread',
+];
+
 export default function Landing() {
   return (
     <div style={{ background: BG, color: TEXT, fontFamily: "'Inter', sans-serif", minHeight: '100vh' }}>
-
-      {/* NAV */}
-      <nav style={{ background: SURFACE, borderBottom: `1px solid ${SURFACE2}`, position: 'sticky', top: 0, zIndex: 50 }}>
-        <div style={{ maxWidth: 1100, margin: '0 auto', padding: '0 24px', height: 60, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-            <img src="/icon-192.png" alt="Nyasadesk" style={{ width: 36, height: 36, borderRadius: 10 }} />
-            <span style={{ fontWeight: 700, fontSize: 18, color: TEXT }}>Nyasadesk</span>
-          </div>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 20 }}>
-            <Link to="/pricing" style={{ color: MUTED, textDecoration: 'none', fontSize: 14, fontWeight: 600 }}>
-              Pricing
-            </Link>
-            <Link to="/register" style={{ background: WA_GREEN, color: '#fff', textDecoration: 'none', fontSize: 14, fontWeight: 600, padding: '8px 18px', borderRadius: 8 }}>
-              Get started
-            </Link>
-          </div>
-        </div>
-      </nav>
+      <MarketingHeader />
 
       {/* HERO */}
       <section style={{ maxWidth: 1100, margin: '0 auto', padding: '80px 24px 60px', display: 'flex', alignItems: 'center', gap: 60, flexWrap: 'wrap' }}>
@@ -56,13 +49,13 @@ export default function Landing() {
             <span style={{ color: WA_GREEN }}>sales inbox.</span>
           </h1>
           <p style={{ fontSize: 16, color: MUTED, lineHeight: 1.7, marginBottom: 36, maxWidth: 460 }}>
-            Nyasadesk brings WhatsApp, Messenger, email, and live chat into one inbox your whole team can work from — with contacts, deal stages, and automatic assignment built in.
+            Nyasadesk brings WhatsApp, Messenger, email, and live chat into one inbox your whole team can work from — with an AI agent, contact CRM, and quote &amp; invoice builder built right in.
           </p>
           <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap' }}>
             <Link to="/register" style={{ background: WA_GREEN, color: '#fff', textDecoration: 'none', fontWeight: 700, fontSize: 15, padding: '14px 28px', borderRadius: 12, display: 'flex', alignItems: 'center', gap: 8 }}>
               Get started <ArrowRight size={18} />
             </Link>
-            <a href="#features" style={{ background: SURFACE2, color: TEXT, textDecoration: 'none', fontWeight: 600, fontSize: 15, padding: '14px 28px', borderRadius: 12 }}>
+            <a href="#product" style={{ background: SURFACE2, color: TEXT, textDecoration: 'none', fontWeight: 600, fontSize: 15, padding: '14px 28px', borderRadius: 12 }}>
               See how it works
             </a>
           </div>
@@ -110,13 +103,13 @@ export default function Landing() {
       </section>
 
       {/* FEATURES */}
-      <section id="features" style={{ borderTop: `1px solid ${SURFACE2}`, padding: '80px 24px' }}>
+      <section id="product" style={{ borderTop: `1px solid ${SURFACE2}`, padding: '80px 24px', scrollMarginTop: 64 }}>
         <div style={{ maxWidth: 1100, margin: '0 auto' }}>
           <div style={{ textAlign: 'center', marginBottom: 56 }}>
             <h2 style={{ fontSize: 36, fontWeight: 800, color: TEXT, marginBottom: 12 }}>Everything your team needs</h2>
             <p style={{ color: MUTED, fontSize: 16 }}>Built from the ground up for teams that close deals over messaging.</p>
           </div>
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: 24 }}>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(260px, 1fr))', gap: 24 }}>
             {FEATURES.map(({ icon: Icon, title, desc }) => (
               <div key={title} style={{ background: SURFACE, borderRadius: 16, padding: '28px 24px', border: `1px solid ${SURFACE2}` }}>
                 <div style={{ width: 44, height: 44, borderRadius: 12, background: `${WA_GREEN}20`, display: 'flex', alignItems: 'center', justifyContent: 'center', marginBottom: 16 }}>
@@ -130,11 +123,103 @@ export default function Landing() {
         </div>
       </section>
 
+      {/* AI AGENTS SPOTLIGHT */}
+      <section id="ai-agents" style={{ borderTop: `1px solid ${SURFACE2}`, padding: '80px 24px', background: SURFACE, scrollMarginTop: 64 }}>
+        <div style={{ maxWidth: 1100, margin: '0 auto', display: 'flex', alignItems: 'center', gap: 56, flexWrap: 'wrap' }}>
+          <div style={{ flex: '1 1 380px' }}>
+            <div style={{ display: 'inline-flex', alignItems: 'center', gap: 8, background: `${WA_GREEN}20`, color: WA_GREEN, fontSize: 12, fontWeight: 700, padding: '6px 14px', borderRadius: 999, marginBottom: 18 }}>
+              <Sparkles size={13} /> AI AGENTS
+            </div>
+            <h2 style={{ fontSize: 32, fontWeight: 800, color: TEXT, marginBottom: 16, lineHeight: 1.2 }}>Your AI teammate that never sleeps</h2>
+            <p style={{ color: MUTED, fontSize: 15, lineHeight: 1.7, marginBottom: 24, maxWidth: 460 }}>
+              Set up an AI agent once — receptionist, sales, support, whatever your team needs — and let it handle conversations across every channel while you sleep.
+            </p>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+              {AI_POINTS.map(p => (
+                <div key={p} style={{ display: 'flex', gap: 10, alignItems: 'flex-start' }}>
+                  <Check size={17} color={WA_GREEN} style={{ flexShrink: 0, marginTop: 2 }} />
+                  <span style={{ fontSize: 14.5, color: TEXT }}>{p}</span>
+                </div>
+              ))}
+            </div>
+          </div>
+          <div style={{ flex: '1 1 320px', maxWidth: 380 }}>
+            <div style={{ background: BG, borderRadius: 20, padding: 20, border: `1px solid ${SURFACE2}`, boxShadow: '0 24px 64px rgba(0,0,0,0.4)' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 16 }}>
+                <div style={{ width: 34, height: 34, borderRadius: 10, background: WA_GREEN, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                  <Bot size={18} color="#fff" />
+                </div>
+                <div>
+                  <p style={{ margin: 0, fontSize: 13.5, fontWeight: 700, color: TEXT }}>Sales Agent</p>
+                  <p style={{ margin: 0, fontSize: 11.5, color: WA_GREEN }}>● Fully automated</p>
+                </div>
+              </div>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+                <div style={{ alignSelf: 'flex-start', background: SURFACE2, color: TEXT, fontSize: 13, padding: '10px 14px', borderRadius: '14px 14px 14px 4px', maxWidth: '85%' }}>
+                  Hi, do you have a package for a 5-person team?
+                </div>
+                <div style={{ alignSelf: 'flex-end', background: WA_DARK_GREEN, color: '#fff', fontSize: 13, padding: '10px 14px', borderRadius: '14px 14px 4px 14px', maxWidth: '85%' }}>
+                  Yes — that's our Growth plan at K30,000/mo. Want me to send over a quotation?
+                </div>
+                <div style={{ alignSelf: 'flex-start', background: SURFACE2, color: TEXT, fontSize: 13, padding: '10px 14px', borderRadius: '14px 14px 14px 4px', maxWidth: '85%' }}>
+                  Yes please
+                </div>
+                <div style={{ alignSelf: 'flex-end', background: WA_DARK_GREEN, color: '#fff', fontSize: 13, padding: '10px 14px', borderRadius: '14px 14px 4px 14px', maxWidth: '88%', display: 'flex', alignItems: 'center', gap: 8 }}>
+                  <FileText size={16} /> Quotation QUO-2026-0142 sent ✅
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      {/* QUOTES & INVOICES SPOTLIGHT */}
+      <section id="documents" style={{ borderTop: `1px solid ${SURFACE2}`, padding: '80px 24px', scrollMarginTop: 64 }}>
+        <div style={{ maxWidth: 1100, margin: '0 auto', display: 'flex', alignItems: 'center', gap: 56, flexWrap: 'wrap-reverse' }}>
+          <div style={{ flex: '1 1 320px', maxWidth: 380 }}>
+            <div style={{ background: SURFACE, borderRadius: 20, padding: 24, border: `1px solid ${SURFACE2}`, boxShadow: '0 24px 64px rgba(0,0,0,0.4)' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 18 }}>
+                <span style={{ fontWeight: 700, fontSize: 15, color: TEXT }}>Invoice INV-2026-0087</span>
+                <span style={{ background: `${WA_GREEN}20`, color: WA_GREEN, fontSize: 11, fontWeight: 700, padding: '4px 10px', borderRadius: 999 }}>PAID</span>
+              </div>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 10, marginBottom: 18 }}>
+                {[ ['Growth plan — 3 months', 'K90,000'], ['Onboarding assistance', 'K15,000'] ].map(([label, amt]) => (
+                  <div key={label} style={{ display: 'flex', justifyContent: 'space-between', fontSize: 13, color: MUTED }}>
+                    <span>{label}</span><span style={{ color: TEXT }}>{amt}</span>
+                  </div>
+                ))}
+              </div>
+              <div style={{ borderTop: `1px solid ${SURFACE2}`, paddingTop: 14, display: 'flex', justifyContent: 'space-between' }}>
+                <span style={{ fontWeight: 700, color: TEXT }}>Total</span>
+                <span style={{ fontWeight: 800, color: WA_GREEN, fontSize: 17 }}>K105,000</span>
+              </div>
+            </div>
+          </div>
+          <div style={{ flex: '1 1 380px' }}>
+            <div style={{ display: 'inline-flex', alignItems: 'center', gap: 8, background: `${WA_GREEN}20`, color: WA_GREEN, fontSize: 12, fontWeight: 700, padding: '6px 14px', borderRadius: 999, marginBottom: 18 }}>
+              <FileText size={13} /> QUOTES &amp; INVOICES
+            </div>
+            <h2 style={{ fontSize: 32, fontWeight: 800, color: TEXT, marginBottom: 16, lineHeight: 1.2 }}>Quotes and invoices, sent from the same chat</h2>
+            <p style={{ color: MUTED, fontSize: 15, lineHeight: 1.7, marginBottom: 24, maxWidth: 460 }}>
+              No separate accounting tool needed. Build a branded quote, send it, and once it's accepted convert it to an invoice in one click — right from the conversation.
+            </p>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+              {DOC_POINTS.map(p => (
+                <div key={p} style={{ display: 'flex', gap: 10, alignItems: 'flex-start' }}>
+                  <Check size={17} color={WA_GREEN} style={{ flexShrink: 0, marginTop: 2 }} />
+                  <span style={{ fontSize: 14.5, color: TEXT }}>{p}</span>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+      </section>
+
       {/* PRICING TEASER — full tiers live on /pricing */}
       <section style={{ borderTop: `1px solid ${SURFACE2}`, padding: '64px 24px', background: SURFACE, textAlign: 'center' }}>
         <div style={{ maxWidth: 640, margin: '0 auto' }}>
           <h2 style={{ fontSize: 28, fontWeight: 800, color: TEXT, marginBottom: 12 }}>Simple, transparent pricing</h2>
-          <p style={{ color: MUTED, fontSize: 15, marginBottom: 28 }}>Plans starting at $10/month — pick the one that fits your team.</p>
+          <p style={{ color: MUTED, fontSize: 15, marginBottom: 28 }}>Plans starting at K15,000/month — pick the one that fits your team.</p>
           <Link to="/pricing" style={{
             display: 'inline-flex', alignItems: 'center', gap: 8, textDecoration: 'none',
             background: WA_GREEN, color: '#fff', fontWeight: 700, fontSize: 15,
@@ -145,7 +230,7 @@ export default function Landing() {
         </div>
       </section>
 
-      {/* CTA FOOTER */}
+      {/* CTA */}
       <section style={{ borderTop: `1px solid ${SURFACE2}`, padding: '80px 24px', textAlign: 'center' }}>
         <div style={{ maxWidth: 600, margin: '0 auto' }}>
           <div style={{ width: 64, height: 64, borderRadius: 20, background: WA_GREEN, display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 24px' }}>
@@ -159,13 +244,9 @@ export default function Landing() {
             Get started <ArrowRight size={20} />
           </Link>
         </div>
-        <div style={{ borderTop: `1px solid ${SURFACE2}`, marginTop: 80, paddingTop: 32, display: 'flex', justifyContent: 'center', gap: 32, flexWrap: 'wrap' }}>
-          <Link to="/pricing" style={{ fontSize: 13, color: MUTED, textDecoration: 'none' }}>Pricing</Link>
-          <Link to="/privacy" style={{ fontSize: 13, color: MUTED, textDecoration: 'none' }}>Privacy Policy</Link>
-          <Link to="/data-deletion" style={{ fontSize: 13, color: MUTED, textDecoration: 'none' }}>Data Deletion</Link>
-          <span style={{ fontSize: 13, color: MUTED }}>© 2026 Nyasadesk</span>
-        </div>
       </section>
+
+      <MarketingFooter />
     </div>
   );
 }
