@@ -645,6 +645,126 @@ export async function getAiUsageSummary(workspaceId) {
   return byAgent;
 }
 
+// ── Quotation & Invoice Builder ──────────────────────────────────────────
+export async function getDocSettings(workspaceId) {
+  const res = await fetch(`/api/channels?action=doc-settings-get&workspace_id=${encodeURIComponent(workspaceId)}`);
+  const json = await res.json();
+  if (!res.ok || !json.ok) throw new Error(json.error || 'Failed to load document settings');
+  return json.settings;
+}
+
+export async function saveDocSettings(workspaceId, patch) {
+  const res = await fetch('/api/channels?action=doc-settings-save', {
+    method: 'POST', headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ workspace_id: workspaceId, ...patch }),
+  });
+  const json = await res.json();
+  if (!res.ok || !json.ok) throw new Error(json.error || 'Failed to save document settings');
+  return json.settings;
+}
+
+export async function listQuotations(workspaceId, status) {
+  const q = new URLSearchParams({ workspace_id: workspaceId, ...(status ? { status } : {}) });
+  const res = await fetch(`/api/channels?action=quotation-list&${q}`);
+  const json = await res.json();
+  if (!res.ok || !json.ok) throw new Error(json.error || 'Failed to load quotations');
+  return json.quotations;
+}
+
+export async function getQuotation(workspaceId, id) {
+  const q = new URLSearchParams({ workspace_id: workspaceId, id });
+  const res = await fetch(`/api/channels?action=quotation-get&${q}`);
+  const json = await res.json();
+  if (!res.ok || !json.ok) throw new Error(json.error || 'Failed to load quotation');
+  return json;
+}
+
+export async function createQuotation(workspaceId, input) {
+  const res = await fetch('/api/channels?action=quotation-create', {
+    method: 'POST', headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ workspace_id: workspaceId, ...input }),
+  });
+  const json = await res.json();
+  if (!res.ok || !json.ok) throw new Error(json.error || 'Failed to create quotation');
+  return json.quotation;
+}
+
+export async function updateQuotation(workspaceId, id, patch) {
+  const res = await fetch('/api/channels?action=quotation-update', {
+    method: 'POST', headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ workspace_id: workspaceId, id, ...patch }),
+  });
+  const json = await res.json();
+  if (!res.ok || !json.ok) throw new Error(json.error || 'Failed to update quotation');
+  return json.quotation;
+}
+
+export async function convertQuotationToInvoice(workspaceId, id, overrides = {}) {
+  const res = await fetch('/api/channels?action=quotation-convert', {
+    method: 'POST', headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ workspace_id: workspaceId, id, ...overrides }),
+  });
+  const json = await res.json();
+  if (!res.ok || !json.ok) throw new Error(json.error || 'Failed to convert quotation');
+  return json.invoice;
+}
+
+export async function listInvoices(workspaceId, status) {
+  const q = new URLSearchParams({ workspace_id: workspaceId, ...(status ? { status } : {}) });
+  const res = await fetch(`/api/channels?action=invoice-list&${q}`);
+  const json = await res.json();
+  if (!res.ok || !json.ok) throw new Error(json.error || 'Failed to load invoices');
+  return json.invoices;
+}
+
+export async function getInvoice(workspaceId, id) {
+  const q = new URLSearchParams({ workspace_id: workspaceId, id });
+  const res = await fetch(`/api/channels?action=invoice-get&${q}`);
+  const json = await res.json();
+  if (!res.ok || !json.ok) throw new Error(json.error || 'Failed to load invoice');
+  return json;
+}
+
+export async function createInvoice(workspaceId, input) {
+  const res = await fetch('/api/channels?action=invoice-create', {
+    method: 'POST', headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ workspace_id: workspaceId, ...input }),
+  });
+  const json = await res.json();
+  if (!res.ok || !json.ok) throw new Error(json.error || 'Failed to create invoice');
+  return json.invoice;
+}
+
+export async function updateInvoice(workspaceId, id, patch) {
+  const res = await fetch('/api/channels?action=invoice-update', {
+    method: 'POST', headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ workspace_id: workspaceId, id, ...patch }),
+  });
+  const json = await res.json();
+  if (!res.ok || !json.ok) throw new Error(json.error || 'Failed to update invoice');
+  return json.invoice;
+}
+
+export async function recordInvoicePayment(workspaceId, id, payment) {
+  const res = await fetch('/api/channels?action=invoice-record-payment', {
+    method: 'POST', headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ workspace_id: workspaceId, id, ...payment }),
+  });
+  const json = await res.json();
+  if (!res.ok || !json.ok) throw new Error(json.error || 'Failed to record payment');
+  return json.invoice;
+}
+
+export async function sendDocument(workspaceId, { doc_type, id, conversation_id, via }) {
+  const res = await fetch('/api/channels?action=document-send', {
+    method: 'POST', headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ workspace_id: workspaceId, doc_type, id, conversation_id, via }),
+  });
+  const json = await res.json();
+  if (!res.ok || !json.ok) throw new Error(json.error || 'Failed to send document');
+  return json;
+}
+
 export async function getAiAgents(workspaceId) {
   const { data, error } = await supabase
     .from('ai_agents')

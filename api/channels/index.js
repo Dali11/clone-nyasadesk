@@ -12,6 +12,10 @@ import { createClient } from '@supabase/supabase-js';
 import { getProvider } from '../_lib/providers/index.js';
 import { AI_AGENT_TEMPLATES, generateDraftReply } from '../_lib/aiAgents.js';
 import { ingestUrl, ingestFile } from '../_lib/knowledgeIngest.js';
+import {
+  getOrCreateSettings, saveSettings, createQuotation, updateQuotation, convertQuotationToInvoice,
+  createInvoice, updateInvoice, recordInvoicePayment, getOrGeneratePdfUrl,
+} from '../_lib/documents.js';
 
 const SUPABASE_URL = 'https://pfbaepibelomiutlotkn.supabase.co';
 const SUPABASE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY;
@@ -23,7 +27,10 @@ export default async function handler(req, res) {
   // Vercel Hobby (see AGENTS.md), so new modules get added as actions on an
   // existing route rather than new files. Logic itself lives in
   // api/_lib/aiAgents.js, this file just dispatches.
-  const getActions = ['hosted-connect', 'templates', 'ai-agents-list', 'ai-templates'];
+  // Quotation/Invoice Builder actions live here too, same reasoning as AI
+  // Agents above -- logic itself lives in api/_lib/documents.js.
+  const getActions = ['hosted-connect', 'templates', 'ai-agents-list', 'ai-templates',
+    'doc-settings-get', 'quotation-list', 'quotation-get', 'invoice-list', 'invoice-get'];
   if (req.method !== 'POST' && !getActions.includes(req.query.action)) return res.status(405).json({ error: 'Method Not Allowed' });
   const action = req.query.action || 'send';
 
@@ -43,7 +50,258 @@ export default async function handler(req, res) {
   if (action === 'ai-draft')       return handleAiDraft(req, res);
   if (action === 'ai-knowledge-from-url')  return handleAiKnowledgeFromUrl(req, res);
   if (action === 'ai-knowledge-from-file') return handleAiKnowledgeFromFile(req, res);
+  if (action === 'doc-settings-get')   return handleDocSettingsGet(req, res);
+  if (action === 'doc-settings-save')  return handleDocSettingsSave(req, res);
+  if (action === 'quotation-create')   return handleQuotationCreate(req, res);
+  if (action === 'quotation-update')   return handleQuotationUpdate(req, res);
+  if (action === 'quotation-list')     return handleQuotationList(req, res);
+  if (action === 'quotation-get')      return handleQuotationGet(req, res);
+  if (action === 'quotation-convert')  return handleQuotationConvert(req, res);
+  if (action === 'invoice-create')     return handleInvoiceCreate(req, res);
+  if (action === 'invoice-update')     return handleInvoiceUpdate(req, res);
+  if (action === 'invoice-list')       return handleInvoiceList(req, res);
+  if (action === 'invoice-get')        return handleInvoiceGet(req, res);
+  if (action === 'invoice-record-payment') return handleInvoiceRecordPayment(req, res);
+  if (action === 'document-send')      return handleDocumentSend(req, res);
   return handleSend(req, res);
+}
+
+// ── Document Settings ────────────────────────────────────────────────────
+async function handleDocSettingsGet(req, res) {
+  try {
+    const workspace_id = req.query.workspace_id;
+    if (!workspace_id) return res.status(400).json({ error: 'workspace_id is required' });
+    const sb = createClient(SUPABASE_URL, SUPABASE_KEY);
+    const settings = await getOrCreateSettings(sb, workspace_id);
+    return res.status(200).json({ ok: true, settings });
+  } catch (e) {
+    console.error('[doc-settings-get] error:', e);
+    return res.status(500).json({ ok: false, error: e.message });
+  }
+}
+
+async function handleDocSettingsSave(req, res) {
+  try {
+    const { workspace_id, ...patch } = req.body || {};
+    if (!workspace_id) return res.status(400).json({ error: 'workspace_id is required' });
+    const sb = createClient(SUPABASE_URL, SUPABASE_KEY);
+    const settings = await saveSettings(sb, workspace_id, patch);
+    return res.status(200).json({ ok: true, settings });
+  } catch (e) {
+    console.error('[doc-settings-save] error:', e);
+    return res.status(500).json({ ok: false, error: e.message });
+  }
+}
+
+// ── Quotations ───────────────────────────────────────────────────────────
+async function handleQuotationCreate(req, res) {
+  try {
+    const { workspace_id, ...input } = req.body || {};
+    if (!workspace_id) return res.status(400).json({ error: 'workspace_id is required' });
+    const sb = createClient(SUPABASE_URL, SUPABASE_KEY);
+    const quotation = await createQuotation(sb, workspace_id, input);
+    return res.status(200).json({ ok: true, quotation });
+  } catch (e) {
+    console.error('[quotation-create] error:', e);
+    return res.status(400).json({ ok: false, error: e.message });
+  }
+}
+
+async function handleQuotationUpdate(req, res) {
+  try {
+    const { workspace_id, id, ...patch } = req.body || {};
+    if (!workspace_id || !id) return res.status(400).json({ error: 'workspace_id and id are required' });
+    const sb = createClient(SUPABASE_URL, SUPABASE_KEY);
+    const quotation = await updateQuotation(sb, workspace_id, id, patch);
+    return res.status(200).json({ ok: true, quotation });
+  } catch (e) {
+    console.error('[quotation-update] error:', e);
+    return res.status(400).json({ ok: false, error: e.message });
+  }
+}
+
+async function handleQuotationList(req, res) {
+  try {
+    const { workspace_id, status } = req.query;
+    if (!workspace_id) return res.status(400).json({ error: 'workspace_id is required' });
+    const sb = createClient(SUPABASE_URL, SUPABASE_KEY);
+    let q = sb.from('quotations').select('*').eq('workspace_id', workspace_id).order('created_at', { ascending: false });
+    if (status) q = q.eq('status', status);
+    const { data, error } = await q;
+    if (error) throw error;
+    return res.status(200).json({ ok: true, quotations: data });
+  } catch (e) {
+    console.error('[quotation-list] error:', e);
+    return res.status(500).json({ ok: false, error: e.message });
+  }
+}
+
+async function handleQuotationGet(req, res) {
+  try {
+    const { workspace_id, id } = req.query;
+    if (!workspace_id || !id) return res.status(400).json({ error: 'workspace_id and id are required' });
+    const sb = createClient(SUPABASE_URL, SUPABASE_KEY);
+    const { pdfUrl, doc } = await getOrGeneratePdfUrl(sb, workspace_id, 'quotation', id);
+    return res.status(200).json({ ok: true, quotation: doc, pdf_url: pdfUrl });
+  } catch (e) {
+    console.error('[quotation-get] error:', e);
+    return res.status(404).json({ ok: false, error: e.message });
+  }
+}
+
+async function handleQuotationConvert(req, res) {
+  try {
+    const { workspace_id, id, ...overrides } = req.body || {};
+    if (!workspace_id || !id) return res.status(400).json({ error: 'workspace_id and id are required' });
+    const sb = createClient(SUPABASE_URL, SUPABASE_KEY);
+    const invoice = await convertQuotationToInvoice(sb, workspace_id, id, overrides);
+    return res.status(200).json({ ok: true, invoice });
+  } catch (e) {
+    console.error('[quotation-convert] error:', e);
+    return res.status(400).json({ ok: false, error: e.message });
+  }
+}
+
+// ── Invoices ─────────────────────────────────────────────────────────────
+async function handleInvoiceCreate(req, res) {
+  try {
+    const { workspace_id, ...input } = req.body || {};
+    if (!workspace_id) return res.status(400).json({ error: 'workspace_id is required' });
+    const sb = createClient(SUPABASE_URL, SUPABASE_KEY);
+    const invoice = await createInvoice(sb, workspace_id, input);
+    return res.status(200).json({ ok: true, invoice });
+  } catch (e) {
+    console.error('[invoice-create] error:', e);
+    return res.status(400).json({ ok: false, error: e.message });
+  }
+}
+
+async function handleInvoiceUpdate(req, res) {
+  try {
+    const { workspace_id, id, ...patch } = req.body || {};
+    if (!workspace_id || !id) return res.status(400).json({ error: 'workspace_id and id are required' });
+    const sb = createClient(SUPABASE_URL, SUPABASE_KEY);
+    const invoice = await updateInvoice(sb, workspace_id, id, patch);
+    return res.status(200).json({ ok: true, invoice });
+  } catch (e) {
+    console.error('[invoice-update] error:', e);
+    return res.status(400).json({ ok: false, error: e.message });
+  }
+}
+
+async function handleInvoiceList(req, res) {
+  try {
+    const { workspace_id, status } = req.query;
+    if (!workspace_id) return res.status(400).json({ error: 'workspace_id is required' });
+    const sb = createClient(SUPABASE_URL, SUPABASE_KEY);
+    let q = sb.from('invoices').select('*').eq('workspace_id', workspace_id).order('created_at', { ascending: false });
+    if (status) q = q.eq('status', status);
+    const { data, error } = await q;
+    if (error) throw error;
+    return res.status(200).json({ ok: true, invoices: data });
+  } catch (e) {
+    console.error('[invoice-list] error:', e);
+    return res.status(500).json({ ok: false, error: e.message });
+  }
+}
+
+async function handleInvoiceGet(req, res) {
+  try {
+    const { workspace_id, id } = req.query;
+    if (!workspace_id || !id) return res.status(400).json({ error: 'workspace_id and id are required' });
+    const sb = createClient(SUPABASE_URL, SUPABASE_KEY);
+    const { pdfUrl, doc } = await getOrGeneratePdfUrl(sb, workspace_id, 'invoice', id);
+    const { data: payments } = await sb.from('invoice_payments').select('*').eq('invoice_id', id).order('paid_at', { ascending: false });
+    return res.status(200).json({ ok: true, invoice: doc, pdf_url: pdfUrl, payments: payments || [] });
+  } catch (e) {
+    console.error('[invoice-get] error:', e);
+    return res.status(404).json({ ok: false, error: e.message });
+  }
+}
+
+async function handleInvoiceRecordPayment(req, res) {
+  try {
+    const { workspace_id, id, ...payment } = req.body || {};
+    if (!workspace_id || !id) return res.status(400).json({ error: 'workspace_id and id are required' });
+    const sb = createClient(SUPABASE_URL, SUPABASE_KEY);
+    const invoice = await recordInvoicePayment(sb, workspace_id, id, payment);
+    return res.status(200).json({ ok: true, invoice });
+  } catch (e) {
+    console.error('[invoice-record-payment] error:', e);
+    return res.status(400).json({ ok: false, error: e.message });
+  }
+}
+
+// ── Share a generated document: attach to chat, and/or push out the
+// conversation's channel (WhatsApp today; email once RESEND_API_KEY is
+// configured). "Download" needs no backend action -- the frontend just
+// links straight to pdf_url from quotation-get/invoice-get.
+async function handleDocumentSend(req, res) {
+  try {
+    const { workspace_id, doc_type, id, conversation_id, via } = req.body || {};
+    if (!workspace_id || !doc_type || !id || !conversation_id) {
+      return res.status(400).json({ error: 'workspace_id, doc_type, id, and conversation_id are required' });
+    }
+    const sb = createClient(SUPABASE_URL, SUPABASE_KEY);
+    const { doc, pdfUrl } = await getOrGeneratePdfUrl(sb, workspace_id, doc_type, id);
+    const filename = `${doc.number}.pdf`;
+    const table = doc_type === 'invoice' ? 'invoices' : 'quotations';
+
+    const { data: conv } = await sb.from('conversations').select('external_id, channel').eq('id', conversation_id).single();
+    if (!conv) return res.status(404).json({ error: 'Conversation not found' });
+    const channel = via === 'email' ? 'email' : conv.channel;
+
+    if (channel === 'email') {
+      const RESEND_API_KEY = process.env.RESEND_API_KEY;
+      if (!RESEND_API_KEY) return res.status(400).json({ ok: false, error: 'Email sending is not configured yet (needs a Resend API key).' });
+      const settings = await getOrCreateSettings(sb, workspace_id);
+      const pdfRes = await fetch(pdfUrl);
+      const pdfBase64 = Buffer.from(await pdfRes.arrayBuffer()).toString('base64');
+      const r = await fetch('https://api.resend.com/emails', {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${RESEND_API_KEY}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          from: settings.email ? `${settings.company_name || 'NyasaDesk'} <${settings.email}>` : 'NyasaDesk <onboarding@resend.dev>',
+          to: doc.customer_email,
+          subject: `${doc_type === 'invoice' ? 'Invoice' : 'Quotation'} ${doc.number} from ${settings.company_name || 'us'}`,
+          html: `<p>Hi ${doc.customer_name},</p><p>Please find attached your ${doc_type} <b>${doc.number}</b>.</p>`,
+          attachments: [{ filename, content: pdfBase64 }],
+        }),
+      });
+      const json = await r.json();
+      if (!r.ok) return res.status(500).json({ ok: false, error: json.message || 'Failed to send email' });
+    } else if (channel !== 'website') {
+      const { data: cfg } = await sb.from('channel_configs').select('*').eq('workspace_id', workspace_id).eq('channel', channel).single();
+      if (!cfg?.enabled) return res.status(400).json({ ok: false, error: 'Channel not configured' });
+      const providerKey = channel === 'whatsapp'
+        ? (cfg.config?.provider === 'wasapflow' ? 'whatsapp:wasapflow'
+           : cfg.config?.bird_workspace_id ? 'whatsapp:bird'
+           : cfg.config?.d360_api_key ? 'whatsapp:360dialog' : 'whatsapp:cloud')
+        : channel;
+      const provider = getProvider(providerKey);
+      await provider.sendMessage(cfg.config, {
+        to: conv.external_id, media: { type: 'document', url: pdfUrl, filename },
+        conversation_id, workspace_id,
+      }, { sb });
+    }
+
+    // Always attach to the chat thread itself so there's a record + the
+    // customer sees it in-app even on the website channel.
+    await sb.from('messages').insert({
+      workspace_id, conversation_id, direction: 'outbound', channel: conv.channel,
+      body: '', attachments: [{ type: 'document', url: pdfUrl, filename, mime: 'application/pdf' }],
+      sender_name: 'System', status: 'sent',
+    });
+    await sb.from('conversations').update({ last_message: `[${doc_type === 'invoice' ? 'Invoice' : 'Quotation'}] ${filename}`, last_message_at: new Date().toISOString() }).eq('id', conversation_id);
+
+    // First time a draft document actually goes out, mark it "sent".
+    if (doc.status === 'draft') await sb.from(table).update({ status: 'sent' }).eq('id', id);
+
+    return res.status(200).json({ ok: true, pdf_url: pdfUrl });
+  } catch (e) {
+    console.error('[document-send] error:', e);
+    return res.status(500).json({ ok: false, error: e.message });
+  }
 }
 
 // ── AI Agents: list built-in templates ─────────────────────────────────────

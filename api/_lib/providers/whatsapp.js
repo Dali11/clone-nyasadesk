@@ -237,7 +237,7 @@ export class WhatsAppCloudProvider extends MessagingProvider {
       return { ok: true, external_id: json.messages?.[0]?.id };
     }
 
-    const WA_TYPE = { image: 'image', video: 'video', audio: 'audio' };
+    const WA_TYPE = { image: 'image', video: 'video', audio: 'audio', document: 'document' };
     let payload;
 
     // WhatsApp Cloud API only accepts specific audio containers/codecs:
@@ -256,7 +256,13 @@ export class WhatsAppCloudProvider extends MessagingProvider {
       const waType = WA_TYPE[media.type];
       payload = {
         messaging_product: 'whatsapp', to, type: waType,
-        [waType]: { link: media.url, ...(waType !== 'audio' && text ? { caption: text } : {}) },
+        [waType]: {
+          link: media.url,
+          ...(waType !== 'audio' && text ? { caption: text } : {}),
+          // Documents (e.g. generated quotation/invoice PDFs) need a filename
+          // or WhatsApp shows a generic/blank name in the chat.
+          ...(waType === 'document' && media.filename ? { filename: media.filename } : {}),
+        },
       };
     } else {
       payload = { messaging_product: 'whatsapp', to, type: 'text', text: { body: text } };

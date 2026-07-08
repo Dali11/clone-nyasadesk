@@ -20,6 +20,7 @@ import Broadcasts      from "./pages/Broadcasts";
 import Rules           from "./pages/Rules";
 import CannedResponses from "./pages/CannedResponses";
 import AiAgents        from "./pages/AiAgents";
+import Documents       from "./pages/Documents";
 import Settings        from "./pages/Settings";
 import AdminLayout     from "./pages/admin/AdminLayout";
 import AdminOverview   from "./pages/admin/AdminOverview";
@@ -101,6 +102,7 @@ function AppRoutes() {
       <Route path="/rules"      element={<Rules />} />
       <Route path="/canned"     element={<CannedResponses />} />
       <Route path="/ai-agents"  element={<AiAgents />} />
+      <Route path="/documents"  element={<Documents />} />
       <Route path="/privacy"        element={<PrivacyPolicy />} />
       <Route path="/data-deletion"   element={<DataDeletion />} />
       <Route path="/settings"   element={<Settings />} />
