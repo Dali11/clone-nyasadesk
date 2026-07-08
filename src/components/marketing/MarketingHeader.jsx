@@ -19,7 +19,7 @@ export default function MarketingHeader() {
   useEffect(() => {
     setMobileOpen(false);
     setProductOpen(false);
-  }, [location.pathname]);
+  }, [location.pathname, location.hash]);
 
   useEffect(() => {
     function onClickOutside(e) {
