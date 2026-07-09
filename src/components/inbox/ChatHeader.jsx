@@ -31,7 +31,7 @@ export default function ChatHeader({ conversation, users = [], onUpdate, onBack,
         </button>
       )}
       <button onClick={onOpenContact} className="flex items-center gap-3 flex-1 min-w-0 text-left hover:opacity-80 transition-opacity">
-        <Avatar name={conversation.contact_name || '?'} size="md" />
+        <Avatar name={conversation.contact_name || '?'} src={conversation.contact_avatar_url} size="md" />
         <div className="flex-1 min-w-0">
           <p className="text-sm font-semibold text-white truncate">{conversation.contact_name}</p>
           <div className="flex items-center gap-1.5 text-xs text-gray-500">

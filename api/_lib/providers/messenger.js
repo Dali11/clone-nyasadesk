@@ -55,6 +55,23 @@ export class MessengerProvider extends MessagingProvider {
     return { ok: true };
   }
 
+  // Messenger (unlike WhatsApp's Cloud API, which deliberately never exposes
+  // a customer's profile photo) DOES let a Page fetch the sender's real name
+  // + profile picture via the Graph API, given the PSID. Only bother calling
+  // this for contacts we haven't already captured a name/photo for, so we're
+  // not making an extra Graph API round-trip on every single message.
+  async fetchSenderProfile(senderId, pageToken) {
+    try {
+      const r = await fetch(`${GRAPH}/${senderId}?fields=first_name,last_name,profile_pic&access_token=${pageToken}`);
+      const data = await r.json();
+      if (data.error) return null;
+      const name = [data.first_name, data.last_name].filter(Boolean).join(' ').trim();
+      return { name: name || null, profilePic: data.profile_pic || null };
+    } catch {
+      return null;
+    }
+  }
+
   async handleInbound(payload, config, ctx) {
     const { sb, workspaceId, applyAssignmentRules } = ctx;
 
@@ -80,12 +97,26 @@ export class MessengerProvider extends MessagingProvider {
           }
         }
 
-        const contactName = messaging.sender?.id || 'Messenger User';
+        let contactName = messaging.sender?.id || 'Messenger User';
+        let avatarUrl = null;
+
+        const { data: existingContact } = await sb.from('contacts')
+          .select('full_name, avatar_url')
+          .eq('workspace_id', workspaceId).eq('channel', 'messenger').eq('external_id', senderId)
+          .maybeSingle();
+
+        if (!existingContact?.avatar_url && config.page_token) {
+          const profile = await this.fetchSenderProfile(senderId, config.page_token);
+          if (profile?.name) contactName = profile.name;
+          if (profile?.profilePic) avatarUrl = profile.profilePic;
+        } else if (existingContact?.full_name) {
+          contactName = existingContact.full_name;
+        }
 
         const { conversation: conv } = await persistInboundMessage(sb, workspaceId, {
           channel: 'messenger', externalId: senderId, contactName,
           body, attachments, externalMsgId: msgId, senderId, senderName: contactName,
-          timestamp: ts,
+          timestamp: ts, avatarUrl,
         });
 
         if (conv?.id && !conv.assigned_to) {

@@ -38,7 +38,7 @@ export default function ConvRow({ conv, active, onClick }) {
       className={`flex items-start gap-3 px-4 py-3 cursor-pointer border-b border-white/5 transition-colors
         ${active ? 'bg-white/10' : 'hover:bg-white/5'}`}>
       <div className="relative shrink-0 mt-0.5">
-        <Avatar name={conv.contact_name || '?'} size="md" />
+        <Avatar name={conv.contact_name || '?'} src={conv.contact_avatar_url} size="md" />
         <span className={`absolute -bottom-0.5 -right-0.5 w-4 h-4 rounded-full ${cfg.bg} flex items-center justify-center`}>
           <Icon className="w-2.5 h-2.5 text-white" />
         </span>

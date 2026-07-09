@@ -82,7 +82,7 @@ export default function ContactPanel({ conversation, onUpdate = () => {}, onClos
 
       {/* Header */}
       <div className="px-4 pt-5 pb-4 border-b border-white/10 text-center">
-        <Avatar name={conversation.contact_name || '?'} size="lg" />
+        <Avatar name={conversation.contact_name || '?'} src={conversation.contact_avatar_url} size="lg" />
         {editing ? (
           <div className="mt-3 space-y-2">
             {[['full_name','Name'],['company','Company'],['phone','Phone']].map(([k,ph]) => (

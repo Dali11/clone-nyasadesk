@@ -54,6 +54,20 @@ export class InstagramProvider extends MessagingProvider {
     return { ok: true };
   }
 
+  // Instagram Messaging's Graph API can return the sender's real name +
+  // profile picture off their IGSID (unlike WhatsApp's Cloud API, which
+  // never exposes this for privacy reasons). Only fetch it once per contact.
+  async fetchSenderProfile(senderId, pageToken) {
+    try {
+      const r = await fetch(`${GRAPH}/${senderId}?fields=name,profile_pic&access_token=${pageToken}`);
+      const data = await r.json();
+      if (data.error) return null;
+      return { name: data.name || null, profilePic: data.profile_pic || null };
+    } catch {
+      return null;
+    }
+  }
+
   async handleInbound(payload, config, ctx) {
     const { sb, workspaceId, applyAssignmentRules } = ctx;
 
@@ -77,12 +91,26 @@ export class InstagramProvider extends MessagingProvider {
           }
         }
 
-        const contactName = messaging.sender?.id || 'Instagram User';
+        let contactName = messaging.sender?.id || 'Instagram User';
+        let avatarUrl = null;
+
+        const { data: existingContact } = await sb.from('contacts')
+          .select('full_name, avatar_url')
+          .eq('workspace_id', workspaceId).eq('channel', 'instagram').eq('external_id', senderId)
+          .maybeSingle();
+
+        if (!existingContact?.avatar_url && config.page_access_token) {
+          const profile = await this.fetchSenderProfile(senderId, config.page_access_token);
+          if (profile?.name) contactName = profile.name;
+          if (profile?.profilePic) avatarUrl = profile.profilePic;
+        } else if (existingContact?.full_name) {
+          contactName = existingContact.full_name;
+        }
 
         const { conversation: conv } = await persistInboundMessage(sb, workspaceId, {
           channel: 'instagram', externalId: senderId, contactName,
           body, attachments, externalMsgId: msgId, senderId, senderName: contactName,
-          timestamp: ts, leadSource: 'instagram',
+          timestamp: ts, leadSource: 'instagram', avatarUrl,
         });
 
         if (conv?.id && !conv.assigned_to) {

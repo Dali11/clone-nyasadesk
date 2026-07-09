@@ -71,10 +71,28 @@ export default function Inbox() {
     })();
   }, [workspaceOwnerId]);
 
-  // Realtime subscription
+  // Realtime subscription. IMPORTANT: don't blindly refetch the whole list
+  // on every event -- opening a chat itself writes unread_count/last_read_at
+  // (see handleSelect below), which fires this exact subscription right as
+  // you tap into a conversation. A full loadConversations() there re-fetches
+  // + re-renders (with AnimatePresence fade) the ENTIRE list at that exact
+  // moment, which is what caused chats to visibly "jam"/flash open instead
+  // of opening instantly. For UPDATE events we just merge the changed row
+  // into local state directly (the raw DB row still has every field the
+  // list/header render off -- contact_name etc. come from the join done at
+  // load time, and merging only overwrites matching keys, so they're kept).
+  // Full reloads are reserved for INSERT/DELETE, which are rare and do need
+  // the joined contact data (or removal) a merge can't provide.
   useEffect(() => {
     if (!workspaceOwnerId) return;
-    const sub = subscribeToConversations(workspaceOwnerId, () => loadConversations());
+    const sub = subscribeToConversations(workspaceOwnerId, (payload) => {
+      if (payload?.eventType === 'UPDATE' && payload.new?.id) {
+        setConversations(prev => prev.map(c => c.id === payload.new.id ? { ...c, ...payload.new } : c));
+        setActiveConv(prev => (prev?.id === payload.new.id ? { ...prev, ...payload.new } : prev));
+      } else {
+        loadConversations();
+      }
+    });
     return () => sub?.unsubscribe?.();
   }, [workspaceOwnerId, loadConversations]);
 

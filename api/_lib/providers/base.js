@@ -28,7 +28,7 @@ export async function persistInboundMessage(sb, workspaceId, params) {
   const {
     channel, externalId, contactName, phone, email,
     body, attachments, externalMsgId, senderId, senderName,
-    timestamp, leadSource, adAttribution,
+    timestamp, leadSource, adAttribution, avatarUrl,
   } = params;
 
   const { data: contact } = await sb.from('contacts')
@@ -39,6 +39,11 @@ export async function persistInboundMessage(sb, workspaceId, params) {
       ...(email ? { email } : {}),
       ...(leadSource ? { lead_source: leadSource } : {}),
       ...(adAttribution ? { ad_attribution: adAttribution } : {}),
+      // Only set avatar_url when we actually have one this round — never
+      // overwrite a previously-captured photo with null on a later message
+      // that didn't carry one (mirrors the phone/email/leadSource pattern
+      // above).
+      ...(avatarUrl ? { avatar_url: avatarUrl } : {}),
     }, { onConflict: 'workspace_id,channel,external_id' })
     .select('*').single();
 
