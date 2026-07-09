@@ -138,3 +138,71 @@ export async function connectWaba(sb, { workspaceId, accessToken, wabaId, phoneN
   if (error) throw new Error(error.message);
   return config;
 }
+
+// ── Start from scratch: create a brand new WABA + register a brand new ──
+// number, entirely via Graph API (no Meta dashboard visit needed). Only
+// works for a business creating assets under ITS OWN Business ID — no
+// App Review / Advanced Access required for that case (only accessing
+// someone ELSE's WABA needs Advanced Access).
+
+export async function createWaba(accessToken, businessId, name) {
+  if (!accessToken || !businessId || !name) throw new Error('accessToken, businessId and name are required');
+  const res = await fetch(`${GRAPH}/${businessId}/owned_whatsapp_business_accounts`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ access_token: accessToken, name }),
+  });
+  const data = await res.json();
+  if (data.error) throw new Error(data.error.message || 'Failed to create a new WhatsApp Business Account. Make sure the Business ID is correct and the token has business_management permission on it.');
+  return { waba_id: data.id };
+}
+
+export async function addPhoneNumber(accessToken, wabaId, { cc, phoneNumber, verifiedName }) {
+  if (!accessToken || !wabaId || !cc || !phoneNumber || !verifiedName) {
+    throw new Error('accessToken, wabaId, cc, phoneNumber and verifiedName are all required');
+  }
+  const res = await fetch(`${GRAPH}/${wabaId}/phone_numbers`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ access_token: accessToken, cc, phone_number: phoneNumber, verified_name: verifiedName }),
+  });
+  const data = await res.json();
+  if (data.error) throw new Error(data.error.message || 'Failed to add this phone number. It may already be registered elsewhere (including the regular WhatsApp Business App) — remove it there first.');
+  return { phone_number_id: data.id };
+}
+
+export async function requestVerificationCode(accessToken, phoneNumberId, codeMethod) {
+  if (!accessToken || !phoneNumberId) throw new Error('accessToken and phoneNumberId are required');
+  const res = await fetch(`${GRAPH}/${phoneNumberId}/request_code`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ access_token: accessToken, code_method: codeMethod === 'VOICE' ? 'VOICE' : 'SMS', language: 'en_US' }),
+  });
+  const data = await res.json();
+  if (data.error) throw new Error(data.error.message || 'Failed to send a verification code to this number.');
+  return { ok: true };
+}
+
+export async function verifyPhoneCode(accessToken, phoneNumberId, code) {
+  if (!accessToken || !phoneNumberId || !code) throw new Error('accessToken, phoneNumberId and code are required');
+  const res = await fetch(`${GRAPH}/${phoneNumberId}/verify_code`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ access_token: accessToken, code }),
+  });
+  const data = await res.json();
+  if (data.error) throw new Error(data.error.message || 'That verification code was rejected — check it and try again.');
+  return { ok: true };
+}
+
+export async function registerPhoneNumber(accessToken, phoneNumberId, pin) {
+  if (!accessToken || !phoneNumberId || !pin) throw new Error('accessToken, phoneNumberId and pin are required');
+  const res = await fetch(`${GRAPH}/${phoneNumberId}/register`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ access_token: accessToken, messaging_product: 'whatsapp', pin }),
+  });
+  const data = await res.json();
+  if (data.error) throw new Error(data.error.message || 'Failed to register this number for Cloud API use.');
+  return { ok: true };
+}

@@ -16,7 +16,7 @@ import {
   getOrCreateSettings, saveSettings, createQuotation, updateQuotation, convertQuotationToInvoice,
   createInvoice, updateInvoice, recordInvoicePayment, getOrGeneratePdfUrl,
 } from '../_lib/documents.js';
-import { discoverWabas, connectWaba } from '../_lib/whatsappGuidedSetup.js';
+import { discoverWabas, connectWaba, createWaba, addPhoneNumber, requestVerificationCode, verifyPhoneCode, registerPhoneNumber } from '../_lib/whatsappGuidedSetup.js';
 
 const SUPABASE_URL = 'https://pfbaepibelomiutlotkn.supabase.co';
 const SUPABASE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY;
@@ -66,6 +66,11 @@ export default async function handler(req, res) {
   if (action === 'document-send')      return handleDocumentSend(req, res);
   if (action === 'whatsapp-guided-discover') return handleWhatsappGuidedDiscover(req, res);
   if (action === 'whatsapp-guided-connect') return handleWhatsappGuidedConnect(req, res);
+  if (action === 'whatsapp-guided-create-waba')   return handleWhatsappGuidedCreateWaba(req, res);
+  if (action === 'whatsapp-guided-add-phone')      return handleWhatsappGuidedAddPhone(req, res);
+  if (action === 'whatsapp-guided-request-code')   return handleWhatsappGuidedRequestCode(req, res);
+  if (action === 'whatsapp-guided-verify-code')    return handleWhatsappGuidedVerifyCode(req, res);
+  if (action === 'whatsapp-guided-register-phone') return handleWhatsappGuidedRegisterPhone(req, res);
   return handleSend(req, res);
 }
 
@@ -520,6 +525,68 @@ async function handleWhatsappGuidedConnect(req, res) {
   } catch (e) {
     console.error('[channels/whatsapp-guided-connect] error:', e);
     return res.status(400).json({ ok: false, error: e.message || 'Connect failed' });
+  }
+}
+
+async function handleWhatsappGuidedCreateWaba(req, res) {
+  try {
+    const { access_token, business_id, name } = req.body || {};
+    if (!access_token || !business_id || !name) return res.status(400).json({ ok: false, error: 'access_token, business_id and name are required' });
+    const result = await createWaba(access_token, business_id, name);
+    return res.status(200).json({ ok: true, ...result });
+  } catch (e) {
+    console.error('[channels/whatsapp-guided-create-waba] error:', e);
+    return res.status(400).json({ ok: false, error: e.message });
+  }
+}
+
+async function handleWhatsappGuidedAddPhone(req, res) {
+  try {
+    const { access_token, waba_id, cc, phone_number, verified_name } = req.body || {};
+    if (!access_token || !waba_id || !cc || !phone_number || !verified_name) {
+      return res.status(400).json({ ok: false, error: 'access_token, waba_id, cc, phone_number and verified_name are required' });
+    }
+    const result = await addPhoneNumber(access_token, waba_id, { cc, phoneNumber: phone_number, verifiedName: verified_name });
+    return res.status(200).json({ ok: true, ...result });
+  } catch (e) {
+    console.error('[channels/whatsapp-guided-add-phone] error:', e);
+    return res.status(400).json({ ok: false, error: e.message });
+  }
+}
+
+async function handleWhatsappGuidedRequestCode(req, res) {
+  try {
+    const { access_token, phone_number_id, code_method } = req.body || {};
+    if (!access_token || !phone_number_id) return res.status(400).json({ ok: false, error: 'access_token and phone_number_id are required' });
+    const result = await requestVerificationCode(access_token, phone_number_id, code_method);
+    return res.status(200).json({ ok: true, ...result });
+  } catch (e) {
+    console.error('[channels/whatsapp-guided-request-code] error:', e);
+    return res.status(400).json({ ok: false, error: e.message });
+  }
+}
+
+async function handleWhatsappGuidedVerifyCode(req, res) {
+  try {
+    const { access_token, phone_number_id, code } = req.body || {};
+    if (!access_token || !phone_number_id || !code) return res.status(400).json({ ok: false, error: 'access_token, phone_number_id and code are required' });
+    const result = await verifyPhoneCode(access_token, phone_number_id, code);
+    return res.status(200).json({ ok: true, ...result });
+  } catch (e) {
+    console.error('[channels/whatsapp-guided-verify-code] error:', e);
+    return res.status(400).json({ ok: false, error: e.message });
+  }
+}
+
+async function handleWhatsappGuidedRegisterPhone(req, res) {
+  try {
+    const { access_token, phone_number_id, pin } = req.body || {};
+    if (!access_token || !phone_number_id || !pin) return res.status(400).json({ ok: false, error: 'access_token, phone_number_id and pin are required' });
+    const result = await registerPhoneNumber(access_token, phone_number_id, pin);
+    return res.status(200).json({ ok: true, ...result });
+  } catch (e) {
+    console.error('[channels/whatsapp-guided-register-phone] error:', e);
+    return res.status(400).json({ ok: false, error: e.message });
   }
 }
 
