@@ -15,6 +15,14 @@ const STAGE_COLORS = {
   'Closed Lost': 'text-red-400 bg-red-900/20',
 };
 
+const SORT_OPTIONS = [
+  { value: 'name_asc', label: 'Name A→Z' },
+  { value: 'name_desc', label: 'Name Z→A' },
+  { value: 'newest', label: 'Newest first' },
+  { value: 'oldest', label: 'Oldest first' },
+  { value: 'company_asc', label: 'Company A→Z' },
+];
+
 function ContactDrawer({ contact, workspaceId, onClose, onSave }) {
   const [editData, setEditData] = useState({ ...contact });
   const [conversations, setConversations] = useState([]);
@@ -48,7 +56,7 @@ function ContactDrawer({ contact, workspaceId, onClose, onSave }) {
           <p className="text-[10px] font-semibold text-gray-500 uppercase tracking-wide mb-2">Deal Stage</p>
           <select value={editData.deal_stage || 'New Lead'} onChange={e => set('deal_stage', e.target.value)}
             className="w-full bg-[#2A3942] text-white text-sm rounded-xl px-4 py-2.5 focus:outline-none border-0">
-            {STAGES.slice(1).map(s => <option key={s} value={s}>{s}</option>)}
+            {STAGES.slice(1).map(s => <option key={s} value={s}>{s}</option>) }
           </select>
         </div>
         <div className="px-5 py-4 border-b border-white/10">
@@ -85,14 +93,17 @@ function ContactDrawer({ contact, workspaceId, onClose, onSave }) {
 
 export default function Contacts() {
   useDocumentTitle('Contacts');
-  const { user, profile } = useNyasaAuth();
+  const { user, profile, isWorkspaceAdmin } = useNyasaAuth();
+  const canManage = isWorkspaceAdmin || profile?.role === 'sales_manager';
   const workspaceId = profile?.workspace_id || user?.id;
 
   const [contacts, setContacts] = useState([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
   const [stageFilter, setStageFilter] = useState('All');
-  const [selected, setSelected] = useState(null);
+  const [sort, setSort] = useState('name_asc');
+  const [drawerContact, setDrawerContact] = useState(null);
+  const [selected, setSelected] = useState(() => new Set());
   const [showNew, setShowNew] = useState(false);
   const [newForm, setNewForm] = useState({ full_name: '', email: '', phone: '', company: '' });
   const [saving, setSaving] = useState(false);
@@ -120,13 +131,42 @@ export default function Contacts() {
     return true;
   });
 
+  const sorted = [...filtered].sort((a, b) => {
+    switch (sort) {
+      case 'name_desc': return (b.full_name || '').localeCompare(a.full_name || '');
+      case 'newest': return new Date(b.created_at || 0) - new Date(a.created_at || 0);
+      case 'oldest': return new Date(a.created_at || 0) - new Date(b.created_at || 0);
+      case 'company_asc': return (a.company || '').localeCompare(b.company || '');
+      case 'name_asc':
+      default: return (a.full_name || '').localeCompare(b.full_name || '');
+    }
+  });
+
+  const toggleSelect = (id) =>
+    setSelected(prev => { const n = new Set(prev); n.has(id) ? n.delete(id) : n.add(id); return n; });
+
+  const allSelected = canManage && filtered.length > 0 && filtered.every(c => selected.has(c.id));
+  const toggleSelectAll = () =>
+    setSelected(prev => { const n = new Set(prev); if (filtered.every(c => n.has(c.id))) filtered.forEach(c => n.delete(c.id)); else filtered.forEach(c => n.add(c.id)); return n; });
+
+  const bulkDelete = async () => {
+    const count = selected.size;
+    if (!count) return;
+    if (!window.confirm(`Delete ${count} contacts? This cannot be undone.`)) return;
+    const ids = [...selected];
+    await Promise.all(ids.map(id => deleteContact(id).catch(e => console.error('[Contacts] delete error:', e))));
+    const removed = new Set(ids);
+    setContacts(prev => prev.filter(c => !removed.has(c.id)));
+    setSelected(new Set());
+  };
+
   const saveContact = async (data) => {
     try {
       await updateContact(data.id, {
         full_name: data.full_name, email: data.email, phone: data.phone,
         company: data.company, deal_stage: data.deal_stage, notes: data.notes,
       });
-      setSelected(null);
+      setDrawerContact(null);
       await load();
     } catch (e) {
       console.error('[Contacts] save error:', e);
@@ -151,7 +191,8 @@ export default function Contacts() {
   const handleDelete = async (id) => {
     try {
       await deleteContact(id);
-      if (selected?.id === id) setSelected(null);
+      if (drawerContact?.id === id) setDrawerContact(null);
+      setSelected(prev => { const n = new Set(prev); n.delete(id); return n; });
       setContacts(prev => prev.filter(c => c.id !== id));
     } catch (e) {
       console.error('[Contacts] delete error:', e);
@@ -174,6 +215,10 @@ export default function Contacts() {
             <input value={search} onChange={e => setSearch(e.target.value)} placeholder="Search contacts…"
               className="w-full pl-8 pr-3 py-2 text-xs bg-[#2A3942] rounded-lg border-0 text-white placeholder:text-gray-600 focus:outline-none focus:ring-1 focus:ring-[#25D366]" />
           </div>
+          <select value={sort} onChange={e => setSort(e.target.value)}
+            className="bg-[#2A3942] text-white text-xs rounded-lg px-3 py-2 border-0 focus:outline-none focus:ring-1 focus:ring-[#25D366]">
+            {SORT_OPTIONS.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
+          </select>
           <button onClick={() => setShowNew(true)}
             className="ml-auto flex items-center gap-1.5 px-4 py-2 bg-[#25D366] text-white text-sm font-semibold rounded-xl hover:bg-[#20BA5A] transition-colors">
             <Plus className="w-4 h-4" /> New Contact
@@ -195,15 +240,28 @@ export default function Contacts() {
             <table className="w-full">
               <thead>
                 <tr className="border-b border-white/10">
-                  {['Name','Company','Stage',''].map(h => (
-                    <th key={h} className="text-left px-6 py-3 text-[10px] font-semibold text-gray-500 uppercase tracking-wide">{h}</th>
-                  ))}
+                  {canManage && (
+                    <th className="px-4 py-3 w-8">
+                      <input type="checkbox" checked={allSelected} onChange={toggleSelectAll}
+                        className="accent-[#25D366] cursor-pointer" />
+                    </th>
+                  )}
+                  <th className="text-left px-6 py-3 text-[10px] font-semibold text-gray-500 uppercase tracking-wide">Name</th>
+                  <th className="hidden md:table-cell text-left px-6 py-3 text-[10px] font-semibold text-gray-500 uppercase tracking-wide">Company</th>
+                  <th className="hidden md:table-cell text-left px-6 py-3 text-[10px] font-semibold text-gray-500 uppercase tracking-wide">Stage</th>
+                  <th className="text-right px-6 py-3 text-[10px] font-semibold text-gray-500 uppercase tracking-wide w-12"></th>
                 </tr>
               </thead>
               <tbody>
-                {filtered.map(c => (
-                  <tr key={c.id} onClick={() => setSelected(c)}
+                {sorted.map(c => (
+                  <tr key={c.id} onClick={() => setDrawerContact(c)}
                     className="border-b border-white/5 hover:bg-white/5 cursor-pointer transition-colors group">
+                    {canManage && (
+                      <td className="px-4 py-3" onClick={e => e.stopPropagation()}>
+                        <input type="checkbox" checked={selected.has(c.id)} onChange={() => toggleSelect(c.id)}
+                          className="accent-[#25D366] cursor-pointer" />
+                      </td>
+                    )}
                     <td className="px-6 py-3">
                       <div className="flex items-center gap-3">
                         <Avatar name={c.full_name} src={c.avatar_url} size="sm" />
@@ -213,28 +271,44 @@ export default function Contacts() {
                         </div>
                       </div>
                     </td>
-                    <td className="px-6 py-3 text-sm text-gray-400">{c.company}</td>
-                    <td className="px-6 py-3">
+                    <td className="hidden md:table-cell px-6 py-3 text-sm text-gray-400">{c.company}</td>
+                    <td className="hidden md:table-cell px-6 py-3">
                       <span className={`text-[10px] font-semibold px-2 py-0.5 rounded-full ${STAGE_COLORS[c.deal_stage] || 'text-gray-400 bg-white/5'}`}>
                         {c.deal_stage || 'New Lead'}
                       </span>
                     </td>
-                    <td className="px-4 py-3">
-                      <button onClick={e => { e.stopPropagation(); handleDelete(c.id); }}
-                        className="opacity-0 group-hover:opacity-100 p-1.5 hover:bg-red-900/30 hover:text-red-400 text-gray-600 rounded-lg transition-all">
-                        <Trash2 className="w-3.5 h-3.5" />
-                      </button>
+                    <td className="px-4 py-3 text-right">
+                      {canManage && (
+                        <button onClick={e => { e.stopPropagation(); handleDelete(c.id); }}
+                          className="md:opacity-0 md:group-hover:opacity-100 p-1.5 hover:bg-red-900/30 hover:text-red-400 text-gray-600 rounded-lg transition-all">
+                          <Trash2 className="w-3.5 h-3.5" />
+                        </button>
+                      )}
                     </td>
                   </tr>
                 ))}
-                {!filtered.length && (
-                  <tr><td colSpan={4} className="py-16 text-center text-sm text-gray-500">No contacts found</td></tr>
+                {!sorted.length && (
+                  <tr><td colSpan={canManage ? 5 : 4} className="py-16 text-center text-sm text-gray-500">No contacts found</td></tr>
                 )}
               </tbody>
             </table>
           )}
         </div>
       </div>
+
+      {canManage && selected.size > 0 && (
+        <div className="fixed bottom-14 md:bottom-0 left-0 right-0 z-40 flex items-center justify-between px-6 py-3 bg-[#202C33] border-t border-white/10 shadow-lg">
+          <span className="text-sm text-white font-medium">{selected.size} selected</span>
+          <div className="flex items-center gap-2">
+            <button onClick={() => setSelected(new Set())}
+              className="px-4 py-2 text-sm text-gray-300 hover:text-white transition-colors">Cancel</button>
+            <button onClick={bulkDelete}
+              className="flex items-center gap-1.5 px-4 py-2 bg-red-600 hover:bg-red-500 text-white text-sm font-semibold rounded-xl transition-colors">
+              <Trash2 className="w-4 h-4" /> Delete selected
+            </button>
+          </div>
+        </div>
+      )}
 
       {showNew && (
         <div className="fixed inset-0 z-50 flex items-center justify-center">
@@ -254,7 +328,7 @@ export default function Contacts() {
           </div>
         </div>
       )}
-      {selected && <ContactDrawer contact={selected} workspaceId={workspaceId} onClose={() => setSelected(null)} onSave={saveContact} />}
+      {drawerContact && <ContactDrawer contact={drawerContact} workspaceId={workspaceId} onClose={() => setDrawerContact(null)} onSave={saveContact} />}
     </div>
   );
 }
