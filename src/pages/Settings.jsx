@@ -99,6 +99,13 @@ function ManualFields({ fields, setFields, fieldDefs }) {
 function WhatsAppCard({ saved, workspaceId, onSave, onDelete }) {
   const fbReady = useFacebookSDK(FB_APP_ID);
   const [metaConfigId, setMetaConfigId] = useState(null);
+  // ── Guided Setup (direct Graph API, replaces the flaky FB.login popup) ──
+  const [guidedToken, setGuidedToken] = useState('');
+  const [guidedDiscovering, setGuidedDiscovering] = useState(false);
+  const [guidedError, setGuidedError] = useState('');
+  const [guidedWabas, setGuidedWabas] = useState(null);
+  const [guidedSelection, setGuidedSelection] = useState({ waba_id: '', phone_number_id: '' });
+  const [guidedConnecting, setGuidedConnecting] = useState(false);
   const [embeddedLoading, setEmbeddedLoading] = useState(false);
   const [error, setError] = useState('');
   const [manualFields, setManualFields] = useState({});
@@ -135,6 +142,58 @@ function WhatsAppCard({ saved, workspaceId, onSave, onDelete }) {
       if (onDelete) await onDelete('whatsapp');
     } catch (e) {
       setError('Disconnect failed: ' + e.message);
+    }
+  };
+
+  // ── Guided Setup handlers ────────────────────────────────────────────────
+  const handleGuidedDiscover = async () => {
+    if (!guidedToken.trim()) { setGuidedError('Paste your System User access token first'); return; }
+    setGuidedDiscovering(true);
+    setGuidedError('');
+    setGuidedWabas(null);
+    try {
+      const res = await fetch('/api/channels?action=whatsapp-guided-discover', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ access_token: guidedToken.trim() }),
+      });
+      const data = await res.json();
+      if (!data.ok) { setGuidedError(data.error || 'Discovery failed'); return; }
+      setGuidedWabas(data.wabas || []);
+      const firstWaba = data.wabas?.[0];
+      const firstPhone = firstWaba?.phone_numbers?.[0];
+      setGuidedSelection({ waba_id: firstWaba?.waba_id || '', phone_number_id: firstPhone?.phone_number_id || '' });
+    } catch (e) {
+      setGuidedError(e.message);
+    } finally {
+      setGuidedDiscovering(false);
+    }
+  };
+
+  const handleGuidedConnect = async () => {
+    if (!guidedSelection.waba_id || !guidedSelection.phone_number_id) {
+      setGuidedError('Pick a WhatsApp Business Account and phone number first');
+      return;
+    }
+    setGuidedConnecting(true);
+    setGuidedError('');
+    try {
+      const res = await fetch('/api/channels?action=whatsapp-guided-connect', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          workspace_id: workspaceId, access_token: guidedToken.trim(),
+          waba_id: guidedSelection.waba_id, phone_number_id: guidedSelection.phone_number_id,
+        }),
+      });
+      const data = await res.json();
+      if (!data.ok) { setGuidedError(data.error || 'Connect failed'); return; }
+      if (onSave) onSave('whatsapp', data.config);
+      setGuidedToken(''); setGuidedWabas(null);
+    } catch (e) {
+      setGuidedError(e.message);
+    } finally {
+      setGuidedConnecting(false);
     }
   };
 
@@ -322,6 +381,72 @@ function WhatsAppCard({ saved, workspaceId, onSave, onDelete }) {
               <p className="text-xs text-gray-400 leading-relaxed text-center">
                 Connect your WhatsApp Business number via the official WhatsApp Cloud API to send and receive messages in Nyasadesk.
               </p>
+
+              {/* ── Guided Setup: direct Graph API, no Facebook popup at all ── */}
+              <div className="bg-[#25D36615] border border-[#25D36630] rounded-xl p-4 space-y-3">
+                <div>
+                  <p className="text-sm font-bold text-white">Guided setup (recommended)</p>
+                  <p className="text-[11px] text-gray-400 leading-relaxed mt-1">
+                    No Facebook popup, no domain errors. Paste a System User access token from your own Meta
+                    Business Manager (Business Settings → Users → System Users → Add Assets → your WhatsApp
+                    Account with "Manage" permission → Generate New Token, with whatsapp_business_management +
+                    whatsapp_business_messaging checked) — we'll auto-detect the rest.
+                  </p>
+                </div>
+                <input type="password" value={guidedToken} onChange={e => setGuidedToken(e.target.value)}
+                  placeholder="EAAG... (your System User access token)"
+                  className="w-full bg-[#0B141A] text-white text-xs rounded-lg p-2.5 border border-white/10" />
+                <button onClick={handleGuidedDiscover} disabled={guidedDiscovering || !guidedToken.trim()}
+                  className="w-full py-2.5 rounded-xl text-sm font-medium text-white bg-[#25D366] hover:bg-[#20BD5A] disabled:opacity-50 flex items-center justify-center gap-2">
+                  {guidedDiscovering ? <Loader2 className="w-4 h-4 animate-spin" /> : null}
+                  {guidedDiscovering ? 'Looking up your WhatsApp accounts…' : 'Find my WhatsApp accounts'}
+                </button>
+
+                {guidedWabas && guidedWabas.length > 0 && (
+                  <div className="space-y-2.5 pt-1">
+                    <div className="space-y-2">
+                      <label className="text-[11px] text-gray-500">WhatsApp Business Account</label>
+                      <select value={guidedSelection.waba_id}
+                        onChange={e => {
+                          const wabaId = e.target.value;
+                          const waba = guidedWabas.find(w => w.waba_id === wabaId);
+                          setGuidedSelection({ waba_id: wabaId, phone_number_id: waba?.phone_numbers?.[0]?.phone_number_id || '' });
+                        }}
+                        className="w-full bg-[#0B141A] text-white text-xs rounded-lg p-2.5 border border-white/10">
+                        {guidedWabas.map(w => <option key={w.waba_id} value={w.waba_id}>{w.name} ({w.waba_id})</option>)}
+                      </select>
+                    </div>
+                    {(() => {
+                      const selectedWaba = guidedWabas.find(w => w.waba_id === guidedSelection.waba_id);
+                      const phones = selectedWaba?.phone_numbers || [];
+                      if (!phones.length) {
+                        return <p className="text-[11px] text-amber-400">No phone numbers found on this account yet — add one in Meta's WhatsApp Manager first, then run "Find my WhatsApp accounts" again.</p>;
+                      }
+                      return (
+                        <div className="space-y-2">
+                          <label className="text-[11px] text-gray-500">Phone Number</label>
+                          <select value={guidedSelection.phone_number_id}
+                            onChange={e => setGuidedSelection(s => ({ ...s, phone_number_id: e.target.value }))}
+                            className="w-full bg-[#0B141A] text-white text-xs rounded-lg p-2.5 border border-white/10">
+                            {phones.map(p => (
+                              <option key={p.phone_number_id} value={p.phone_number_id}>
+                                {p.display_phone_number || p.phone_number_id} {p.verified_name ? `· ${p.verified_name}` : ''}
+                              </option>
+                            ))}
+                          </select>
+                        </div>
+                      );
+                    })()}
+                    <button onClick={handleGuidedConnect} disabled={guidedConnecting || !guidedSelection.phone_number_id}
+                      className="w-full py-2.5 rounded-xl text-sm font-bold text-white bg-[#25D366] hover:bg-[#20BD5A] disabled:opacity-50 flex items-center justify-center gap-2">
+                      {guidedConnecting ? <Loader2 className="w-4 h-4 animate-spin" /> : <ShieldCheck className="w-4 h-4" />}
+                      {guidedConnecting ? 'Connecting…' : 'Connect this number'}
+                    </button>
+                  </div>
+                )}
+                {guidedError && <p className="text-[11px] text-red-400 leading-relaxed">{guidedError}</p>}
+              </div>
+
               {metaConfigId && (
                 <div className="space-y-2.5">
                   <button

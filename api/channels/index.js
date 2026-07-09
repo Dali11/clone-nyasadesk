@@ -16,6 +16,7 @@ import {
   getOrCreateSettings, saveSettings, createQuotation, updateQuotation, convertQuotationToInvoice,
   createInvoice, updateInvoice, recordInvoicePayment, getOrGeneratePdfUrl,
 } from '../_lib/documents.js';
+import { discoverWabas, connectWaba } from '../_lib/whatsappGuidedSetup.js';
 
 const SUPABASE_URL = 'https://pfbaepibelomiutlotkn.supabase.co';
 const SUPABASE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY;
@@ -63,6 +64,8 @@ export default async function handler(req, res) {
   if (action === 'invoice-get')        return handleInvoiceGet(req, res);
   if (action === 'invoice-record-payment') return handleInvoiceRecordPayment(req, res);
   if (action === 'document-send')      return handleDocumentSend(req, res);
+  if (action === 'whatsapp-guided-discover') return handleWhatsappGuidedDiscover(req, res);
+  if (action === 'whatsapp-guided-connect') return handleWhatsappGuidedConnect(req, res);
   return handleSend(req, res);
 }
 
@@ -489,6 +492,34 @@ async function handleConnect(req, res) {
   } catch (e) {
     console.error('[channels/connect] error:', e);
     return res.status(500).json({ ok: false, error: e.message || 'Internal server error' });
+  }
+}
+
+// ── WhatsApp Guided Setup (direct Graph API, no FB.login popup) ──────────
+async function handleWhatsappGuidedDiscover(req, res) {
+  try {
+    const { access_token } = req.body || {};
+    if (!access_token) return res.status(400).json({ ok: false, error: 'access_token is required' });
+    const wabas = await discoverWabas(access_token);
+    return res.status(200).json({ ok: true, wabas });
+  } catch (e) {
+    console.error('[channels/whatsapp-guided-discover] error:', e);
+    return res.status(400).json({ ok: false, error: e.message || 'Discovery failed' });
+  }
+}
+
+async function handleWhatsappGuidedConnect(req, res) {
+  try {
+    const { workspace_id, access_token, waba_id, phone_number_id } = req.body || {};
+    if (!workspace_id || !access_token || !waba_id || !phone_number_id) {
+      return res.status(400).json({ ok: false, error: 'workspace_id, access_token, waba_id and phone_number_id are required' });
+    }
+    const sb = createClient(SUPABASE_URL, SUPABASE_KEY);
+    const config = await connectWaba(sb, { workspaceId: workspace_id, accessToken: access_token, wabaId: waba_id, phoneNumberId: phone_number_id });
+    return res.status(200).json({ ok: true, config });
+  } catch (e) {
+    console.error('[channels/whatsapp-guided-connect] error:', e);
+    return res.status(400).json({ ok: false, error: e.message || 'Connect failed' });
   }
 }
 
