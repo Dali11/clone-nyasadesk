@@ -84,8 +84,17 @@ export async function freshSetup(accessToken, businessId, cc, phoneNumber) {
     }),
   });
   const codeData = await codeRes.json();
-  // Non-fatal: code delivery failure shown on next screen with resend option
   const codeSent = !codeData.error;
 
-  return { waba_id: wabaId, phone_number_id: phoneNumberId, business_name: bizName, code_sent: codeSent };
+  // Detect if the number is active on the WhatsApp Business App —
+  // in that case SMS will never arrive; coexistence via Embedded Signup is required.
+  const errorMsg = codeData.error?.message || '';
+  const isAppNumber =
+    !codeSent &&
+    (errorMsg.includes('132000') ||
+      errorMsg.toLowerCase().includes('already registered') ||
+      errorMsg.toLowerCase().includes('currently registered') ||
+      errorMsg.toLowerCase().includes('registered on whatsapp'));
+
+  return { waba_id: wabaId, phone_number_id: phoneNumberId, business_name: bizName, code_sent: codeSent, is_app_number: isAppNumber };
 }

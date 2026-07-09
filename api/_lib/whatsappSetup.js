@@ -338,14 +338,41 @@ export async function requestVerificationCode(accessToken, phoneNumberId, codeMe
 
   const method = codeMethod === 'VOICE' ? 'VOICE' : 'SMS';
 
+  let rawError = null;
   try {
     await graphPost(
       `${GRAPH}/${phoneNumberId}/request_code?access_token=${encodeURIComponent(accessToken)}`,
       { code_method: method, language: 'en_US' }
     );
   } catch (e) {
+    rawError = e.message || '';
+  }
+
+  // Meta error 132000 / "already registered" / "currently registered on WhatsApp"
+  // means the number is active on the WhatsApp Business App. SMS will never
+  // arrive in that state — the only way to connect it without losing the app
+  // is Embedded Signup's coexistence flow (QR-code handshake inside the app).
+  const isCoexistenceCase =
+    rawError &&
+    (rawError.includes('132000') ||
+      rawError.toLowerCase().includes('already registered') ||
+      rawError.toLowerCase().includes('currently registered') ||
+      rawError.toLowerCase().includes('registered on whatsapp'));
+
+  if (isCoexistenceCase) {
+    const err = new Error(
+      'This number is currently active on the WhatsApp Business App. ' +
+      'SMS verification will not work for active app numbers. ' +
+      'To connect it without losing the app, use Embedded Signup (Connect with Facebook) — ' +
+      'Meta will walk you through a QR-code scan inside the app to link both.'
+    );
+    err.code = 'WHATSAPP_APP_NUMBER';
+    throw err;
+  }
+
+  if (rawError) {
     throw new Error(
-      e.message ||
+      rawError ||
         'Failed to send a verification code to this number. Check that the number is correct and capable of receiving SMS/voice calls.'
     );
   }

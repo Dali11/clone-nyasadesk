@@ -566,7 +566,7 @@ async function handleWhatsappGuidedRequestCode(req, res) {
     return res.status(200).json({ ok: true, ...result });
   } catch (e) {
     console.error('[channels/whatsapp-guided-request-code] error:', e);
-    return res.status(400).json({ ok: false, error: e.message });
+    return res.status(400).json({ ok: false, error: e.message, error_code: e.code || null });
   }
 }
 

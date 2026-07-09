@@ -128,6 +128,7 @@ function WhatsAppCard({ saved, workspaceId, onSave, onDelete }) {
   const [regPin, setRegPin] = useState('');
   const [regBusy, setRegBusy] = useState(false);
   const [regError, setRegError] = useState('');
+  const [regIsAppNumber, setRegIsAppNumber] = useState(false);
   const [activeToken, setActiveToken] = useState(''); // token used for the current manual connect
 
   // Register new number state
@@ -138,6 +139,7 @@ function WhatsAppCard({ saved, workspaceId, onSave, onDelete }) {
   const [freshBusinessId, setFreshBusinessId] = useState('');
   const [freshCc, setFreshCc] = useState('');
   const [freshPhone, setFreshPhone] = useState('');
+  const [freshIsAppNumber, setFreshIsAppNumber] = useState(false);
   const [freshCode, setFreshCode] = useState('');
   const [freshPin, setFreshPin] = useState('');
   const [freshWabaId, setFreshWabaId] = useState('');
@@ -281,9 +283,12 @@ function WhatsAppCard({ saved, workspaceId, onSave, onDelete }) {
       if (data.needs_registration) {
         setActiveToken(manualToken.trim());
         setRegWizard({ waba_id: data.waba_id, phone_number_id: data.phone_number_id, phone_number: data.phone_number, verified_name: data.verified_name });
-        setRegStep('code'); setRegCode(''); setRegPin(''); setRegError('');
-        // Immediately fire the SMS code
-        await apiCall('whatsapp-guided-request-code', { access_token: manualToken.trim(), phone_number_id: data.phone_number_id, code_method: 'SMS' });
+        setRegStep('code'); setRegCode(''); setRegPin(''); setRegError(''); setRegIsAppNumber(false);
+        // Immediately fire the SMS code — detect if it's a WhatsApp App number
+        const codeRes = await apiCall('whatsapp-guided-request-code', { access_token: manualToken.trim(), phone_number_id: data.phone_number_id, code_method: 'SMS' });
+        if (codeRes.error_code === 'WHATSAPP_APP_NUMBER' || (codeRes.error && codeRes.error.includes('WhatsApp Business App'))) {
+          setRegIsAppNumber(true);
+        }
       } else {
         if (onSave) onSave('whatsapp', data.config);
         setManualToken(''); setManualWabaId(''); setManualPhoneId('');
@@ -323,12 +328,24 @@ function WhatsAppCard({ saved, workspaceId, onSave, onDelete }) {
   };
   const handleFreshStart = async () => {
     if (!token.trim() || !freshBusinessId.trim() || !freshCc.trim() || !freshPhone.trim()) { setFreshError('All fields are required'); return; }
-    setFreshBusy(true); setFreshError('');
+    setFreshBusy(true); setFreshError(''); setFreshIsAppNumber(false);
     try {
       const data = await freshApiCall('whatsapp-guided-fresh-setup', { access_token: token.trim(), business_id: freshBusinessId.trim(), cc: freshCc.trim(), phone_number: freshPhone.trim() });
       setFreshWabaId(data.waba_id); setFreshPhoneId(data.phone_number_id);
+      // freshSetup fires request_code immediately — check if it flagged an app-number
+      if (data.error_code === 'WHATSAPP_APP_NUMBER' || data.is_app_number) {
+        setFreshIsAppNumber(true);
+      }
       setFreshStep('code');
-    } catch (e) { setFreshError(e.message); } finally { setFreshBusy(false); }
+    } catch (e) {
+      // If the error is the app-number coexistence case, go to the redirect screen instead
+      if (e.message && e.message.includes('WhatsApp Business App')) {
+        setFreshIsAppNumber(true);
+        setFreshStep('code');
+      } else {
+        setFreshError(e.message);
+      }
+    } finally { setFreshBusy(false); }
   };
   const handleFreshResend = async (method) => {
     setFreshBusy(true); setFreshError('');
@@ -434,7 +451,7 @@ function WhatsAppCard({ saved, workspaceId, onSave, onDelete }) {
               <div>
                 <p className="text-sm font-bold text-white">Connect with Facebook</p>
                 <p className="text-[11px] text-gray-400 mt-1 leading-relaxed">
-                  The official Meta onboarding experience. Select or create your Meta Business Portfolio, WhatsApp Business Account, and phone number — all in one flow. Supports coexistence (keep using the WhatsApp Business app alongside Nyasadesk).
+                  The easiest way to connect. You'll keep using WhatsApp Business App on your phone — Nyasadesk adds a parallel connection so messages flow to both. Just log in with Facebook and follow the steps.
                 </p>
               </div>
               {embeddedSetupPin && (
@@ -447,7 +464,7 @@ function WhatsAppCard({ saved, workspaceId, onSave, onDelete }) {
               <button onClick={handleEmbeddedSignup} disabled={embeddedLoading}
                 className="w-full py-3 rounded-xl text-sm font-bold text-white bg-[#1877F2] hover:bg-[#166FE5] disabled:opacity-50 flex items-center justify-center gap-2">
                 {embeddedLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : null}
-                {embeddedLoading ? 'Connecting…' : 'Connect with Facebook'}
+                {embeddedLoading ? 'Connecting…' : '  Connect with Facebook — keep WhatsApp app working'}
               </button>
             </div>
           )}
@@ -566,7 +583,7 @@ function WhatsAppCard({ saved, workspaceId, onSave, onDelete }) {
                     </div>
                   )}
 
-                  {freshStep === 'code' && (
+                  {freshStep === 'code' && !freshIsAppNumber && (
                     <div className="space-y-2.5">
                       <p className="text-[11px] text-[#25D366]">✓ Number added — verification code sent via SMS</p>
                       <input value={freshCode} onChange={e => setFreshCode(e.target.value.replace(/\D/g, '').slice(0, 6))} placeholder="123456" maxLength={6}
@@ -579,6 +596,25 @@ function WhatsAppCard({ saved, workspaceId, onSave, onDelete }) {
                         className="w-full py-2.5 rounded-xl text-sm font-medium text-white bg-[#25D366] hover:bg-[#20BD5A] disabled:opacity-50 flex items-center justify-center gap-2">
                         {freshBusy ? <Loader2 className="w-4 h-4 animate-spin" /> : null}
                         {freshBusy ? 'Verifying…' : 'Verify code'}
+                      </button>
+                    </div>
+                  )}
+
+                  {freshStep === 'code' && freshIsAppNumber && (
+                    <div className="space-y-3">
+                      <div className="bg-blue-500/10 border border-blue-500/30 rounded-xl p-4 space-y-2">
+                        <p className="text-sm font-bold text-white">This number is on WhatsApp Business App</p>
+                        <p className="text-[11px] text-blue-200/80 leading-relaxed">
+                          SMS verification doesn't work for numbers that are active on the WhatsApp Business App — Meta blocks it by design.
+                          The good news: you can connect it <strong>without losing the app</strong> using Coexistence.
+                        </p>
+                        <p className="text-[11px] text-blue-200/60 leading-relaxed">
+                          Use "Connect with Facebook" on the Recommended tab — Meta will ask you to scan a QR code inside your WhatsApp Business App, then both Nyasadesk and the app work together on the same number.
+                        </p>
+                      </div>
+                      <button onClick={() => { setFreshMode(false); setFreshStep('input'); setFreshIsAppNumber(false); setFreshError(''); setTab('recommended'); }}
+                        className="w-full py-3 rounded-xl text-sm font-bold text-white bg-[#1877F2] hover:bg-[#166FE5] flex items-center justify-center gap-2">
+                        Switch to Recommended — Connect with Facebook →
                       </button>
                     </div>
                   )}
@@ -638,7 +674,28 @@ function WhatsAppCard({ saved, workspaceId, onSave, onDelete }) {
                   <p className="text-sm font-bold text-white">Register {regWizard.phone_number || regWizard.phone_number_id}</p>
                   <p className="text-[11px] text-gray-400">This number isn't registered for Cloud API yet. Complete the steps below to activate it.</p>
 
-                  {regStep === 'code' && (
+                  {regStep === 'code' && regIsAppNumber && (
+                    <div className="space-y-3">
+                      <div className="bg-blue-500/10 border border-blue-500/30 rounded-xl p-4 space-y-2">
+                        <p className="text-sm font-bold text-white">This number is on WhatsApp Business App</p>
+                        <p className="text-[11px] text-blue-200/80 leading-relaxed">
+                          SMS verification won't arrive — Meta blocks it for numbers active on the WhatsApp Business App.
+                          The good news: you can connect it <strong>without losing the app</strong>.
+                        </p>
+                        <p className="text-[11px] text-blue-200/60 leading-relaxed">
+                          Use "Connect with Facebook" — Meta will ask you to scan a QR code inside your WhatsApp Business App.
+                          After that, both the app and Nyasadesk work on the same number simultaneously.
+                        </p>
+                      </div>
+                      <button onClick={() => { setRegWizard(null); setRegIsAppNumber(false); setTab('recommended'); }}
+                        className="w-full py-3 rounded-xl text-sm font-bold text-white bg-[#1877F2] hover:bg-[#166FE5] flex items-center justify-center gap-2">
+                        Switch to Recommended — Connect with Facebook →
+                      </button>
+                      <button onClick={() => { setRegWizard(null); setRegIsAppNumber(false); }} className="w-full text-center text-[11px] text-gray-500 hover:text-gray-300">← Back</button>
+                    </div>
+                  )}
+
+                  {regStep === 'code' && !regIsAppNumber && (
                     <div className="space-y-2.5">
                       <p className="text-[11px] text-[#25D366]">✓ Verification code sent via SMS</p>
                       <input value={regCode} onChange={e => setRegCode(e.target.value.replace(/\D/g, '').slice(0, 6))} placeholder="123456" maxLength={6}
