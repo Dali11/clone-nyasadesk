@@ -24,7 +24,7 @@ const APP_SECRET    = process.env.FACEBOOK_APP_SECRET;
 // Accept requests from either the canonical custom domain or the underlying
 // Vercel domain (both serve the exact same deployment) instead of hardcoding
 // one — avoids this silently breaking again the next time a domain changes.
-const ALLOWED_ORIGINS = ['https://nyasadesk.com', 'https://nyasadesk1.vercel.app'];
+const ALLOWED_ORIGINS = ['https://nyasadesk.com', 'https://nyasadesk.com'];
 
 export default async function handler(req, res) {
   const origin = req.headers.origin;

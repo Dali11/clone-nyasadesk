@@ -27,7 +27,7 @@ const app = express();
 app.use(express.json({ limit: '50mb' }));
 
 const PORT = process.env.PORT || 3000;
-const WEBHOOK_BASE = process.env.WEBHOOK_BASE || 'https://nyasadesk1.vercel.app';
+const WEBHOOK_BASE = process.env.WEBHOOK_BASE || 'https://nyasadesk.com';
 const AUTH_DIR = process.env.AUTH_DIR || './auth_state';
 const SUPABASE_URL = process.env.SUPABASE_URL || 'https://pfbaepibelomiutlotkn.supabase.co';
 const SUPABASE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY || '';
