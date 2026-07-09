@@ -742,6 +742,26 @@ export default function MessageThread({ conversation, workspaceId }) {
             return (
               <Fragment key={msg.id}>
                 {showSeparator && <DateSeparator label={dayLabel(ts)} />}
+                {i === 0 && msg.direction === 'inbound' && conversation?.contact_ad_attribution && (
+                  <div className="flex justify-start px-3 pt-2 pb-0.5">
+                    <div className="flex items-center gap-1.5 bg-[#1a2530] border border-[#25D366]/30 rounded-full px-2.5 py-1 max-w-[75%]">
+                      {(conversation.contact_ad_attribution.image_url || conversation.contact_ad_attribution.thumbnail_url) ? (
+                        <img
+                          src={conversation.contact_ad_attribution.image_url || conversation.contact_ad_attribution.thumbnail_url}
+                          alt="" className="w-4 h-4 rounded object-cover shrink-0"
+                          onError={e => { e.currentTarget.style.display = 'none'; }}
+                        />
+                      ) : (
+                        <svg className="w-3 h-3 text-[#25D366] shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M22 12h-4l-3 9L9 3l-3 9H2"/></svg>
+                      )}
+                      <span className="text-[11px] text-[#25D366] font-medium truncate">
+                        {conversation.contact_ad_attribution.headline
+                          ? `Via: ${conversation.contact_ad_attribution.headline}`
+                          : 'Started from an ad'}
+                      </span>
+                    </div>
+                  </div>
+                )}
                 <Bubble
                   msg={msg}
                   bubbleRef={el => { if (el) messageRefs.current[msg.id] = el; }}
