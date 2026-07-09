@@ -75,6 +75,10 @@ export default async function handler(req, res) {
   if (action === 'whatsapp-guided-register-phone') return handleWhatsappGuidedRegisterPhone(req, res);
   if (action === 'whatsapp-guided-fresh-setup')   return handleWhatsappGuidedFreshSetup(req, res);
   if (action === 'whatsapp-manual-connect') return handleWhatsappManualConnect(req, res);
+  if (action === 'sales-create')  return handleSalesCreate(req, res);
+  if (action === 'sales-list')    return handleSalesList(req, res);
+  if (action === 'sales-verify')  return handleSalesVerify(req, res);
+  if (action === 'sales-delete')  return handleSalesDelete(req, res);
   return handleSend(req, res);
 }
 
@@ -1050,5 +1054,107 @@ async function handleWhatsappManualConnect(req, res) {
   } catch (e) {
     console.error('[channels/whatsapp-manual-connect]', e);
     return res.status(400).json({ ok: false, error: e.message });
+  }
+}
+
+// ── Sales Tracking ────────────────────────────────────────────────────────
+
+async function handleSalesCreate(req, res) {
+  try {
+    const { user, sb } = await requireAuth(req, res);
+    if (!user) return;
+    const { workspace_id, conversation_id, contact_name, contact_phone,
+            document_id, document_type, document_number,
+            sale_value, currency, notes } = req.body || {};
+    if (!workspace_id || !sale_value) return res.status(400).json({ error: 'workspace_id and sale_value are required' });
+
+    // Resolve agent display name from profile
+    const { data: profile } = await sb.from('profiles').select('full_name').eq('id', user.id).maybeSingle();
+    const agent_name = profile?.full_name || user.email || 'Unknown';
+
+    const { data, error } = await sb.from('sales').insert({
+      workspace_id,
+      agent_id: user.id,
+      agent_name,
+      conversation_id: conversation_id || null,
+      contact_name: contact_name || null,
+      contact_phone: contact_phone || null,
+      document_id: document_id || null,
+      document_type: document_type || null,
+      document_number: document_number || null,
+      sale_value: Number(sale_value),
+      currency: currency || 'MWK',
+      notes: notes || null,
+      status: 'claimed',
+    }).select().single();
+    if (error) throw new Error(error.message);
+    return res.status(200).json({ ok: true, sale: data });
+  } catch (e) {
+    console.error('[sales-create]', e);
+    return res.status(500).json({ ok: false, error: e.message });
+  }
+}
+
+async function handleSalesList(req, res) {
+  try {
+    const { user, sb } = await requireAuth(req, res);
+    if (!user) return;
+    const { workspace_id, agent_id, from_date, to_date } = req.query;
+    if (!workspace_id) return res.status(400).json({ error: 'workspace_id required' });
+
+    let q = sb.from('sales').select('*').eq('workspace_id', workspace_id).order('created_at', { ascending: false });
+    if (agent_id) q = q.eq('agent_id', agent_id);
+    if (from_date) q = q.gte('created_at', from_date);
+    if (to_date) q = q.lte('created_at', to_date);
+
+    const { data, error } = await q.limit(500);
+    if (error) throw new Error(error.message);
+    return res.status(200).json({ ok: true, sales: data || [] });
+  } catch (e) {
+    return res.status(500).json({ ok: false, error: e.message });
+  }
+}
+
+async function handleSalesVerify(req, res) {
+  try {
+    const { user, sb } = await requireAuth(req, res);
+    if (!user) return;
+    const { sale_id, status } = req.body || {};
+    if (!sale_id || !status) return res.status(400).json({ error: 'sale_id and status required' });
+    // Only admins can verify/dispute
+    const { data: profile } = await sb.from('profiles').select('role, workspace_id').eq('id', user.id).maybeSingle();
+    if (profile?.role !== 'admin' && profile?.workspace_id) {
+      // Check if workspace owner
+      const isOwner = !profile.workspace_id;
+      if (!isOwner) return res.status(403).json({ error: 'Only admins can verify sales' });
+    }
+    const { data, error } = await sb.from('sales')
+      .update({ status, verified_by: user.id, verified_at: new Date().toISOString() })
+      .eq('id', sale_id).select().single();
+    if (error) throw new Error(error.message);
+    return res.status(200).json({ ok: true, sale: data });
+  } catch (e) {
+    return res.status(500).json({ ok: false, error: e.message });
+  }
+}
+
+async function handleSalesDelete(req, res) {
+  try {
+    const { user, sb } = await requireAuth(req, res);
+    if (!user) return;
+    const { sale_id } = req.body || {};
+    if (!sale_id) return res.status(400).json({ error: 'sale_id required' });
+    // Only the agent who created it (if still 'claimed') or an admin can delete
+    const { data: sale } = await sb.from('sales').select('agent_id, status').eq('id', sale_id).maybeSingle();
+    if (!sale) return res.status(404).json({ error: 'Not found' });
+    const { data: profile } = await sb.from('profiles').select('role').eq('id', user.id).maybeSingle();
+    const isAdmin = !profile?.workspace_id || profile?.role === 'admin';
+    if (!isAdmin && (sale.agent_id !== user.id || sale.status !== 'claimed')) {
+      return res.status(403).json({ error: 'Cannot delete a verified sale' });
+    }
+    await sb.from('sales').delete().eq('id', sale_id);
+    return res.status(200).json({ ok: true });
+  } catch (e) {
+    return res.status(500).json({ ok: false, error: e.message });
   }
 }

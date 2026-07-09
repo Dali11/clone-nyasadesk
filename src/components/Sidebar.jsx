@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
-import { MessageSquare, BarChart2, Users, Megaphone, Settings, Zap, BookOpen, ShieldCheck, LogOut, MoreHorizontal, Bell, BellOff, Bot, FileText } from 'lucide-react';
+import { MessageSquare, BarChart2, Users, Megaphone, Settings, Zap, BookOpen, ShieldCheck, LogOut, MoreHorizontal, Bell, BellOff, Bot, FileText, TrendingUp } from 'lucide-react';
 import Avatar from './Avatar';
 import { useNyasaAuth } from '@/lib/NyasaAuth';
 import { useAuth } from '@/lib/AuthContext';
@@ -15,6 +15,7 @@ const NAV = [
   { path: '/broadcasts', icon: Megaphone,     label: 'Broadcasts'},
   { path: '/ai-agents',  icon: Bot,           label: 'AI Agents' },
   { path: '/documents',  icon: FileText,      label: 'Quotes & Invoices' },
+  { path: '/sales',      icon: TrendingUp,    label: 'Sales'     },
   { path: '/rules',      icon: Zap,           label: 'Rules'     },
   { path: '/canned',     icon: BookOpen,      label: 'Responses' },
   { path: '/settings',   icon: Settings,      label: 'Settings'  },
@@ -32,6 +33,7 @@ const MOBILE_MORE_NAV = [
   { path: '/broadcasts', icon: Megaphone, label: 'Broadcasts' },
   { path: '/ai-agents',  icon: Bot,       label: 'AI Agents'  },
   { path: '/documents',  icon: FileText,  label: 'Quotes & Invoices' },
+  { path: '/sales',      icon: TrendingUp, label: 'Sales'     },
   { path: '/rules',      icon: Zap,       label: 'Rules'      },
   { path: '/canned',     icon: BookOpen,  label: 'Responses'  },
   { path: '/settings',   icon: Settings,  label: 'Settings'   },

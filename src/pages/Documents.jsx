@@ -238,11 +238,17 @@ export default function Documents() {
                           cramming it into one row with Qty/Price/delete left it a
                           near-unusable sliver a few px wide. From sm: up (tablet+)
                           there's enough width to go back to a single row. */}
-                      <input className={inputCls + ' w-full mb-2 sm:mb-0'} placeholder="Description" value={it.description} onChange={e => setItem(idx, 'description', e.target.value)} />
-                      <div className="flex gap-2 items-center sm:mt-2">
-                        <input className={inputCls + ' w-20'} type="number" min="0" placeholder="Qty" value={it.quantity} onChange={e => setItem(idx, 'quantity', e.target.value)} />
-                        <input className={inputCls + ' flex-1'} type="number" min="0" placeholder="Price" value={it.unit_price} onChange={e => setItem(idx, 'unit_price', e.target.value)} />
-                        <button onClick={() => removeItem(idx)} className="p-2 text-gray-500 hover:text-red-400 shrink-0"><Trash2 className="w-3.5 h-3.5" /></button>
+                      <input className={inputCls + ' w-full mb-2'} placeholder="Description" value={it.description} onChange={e => setItem(idx, 'description', e.target.value)} />
+                      <div className="grid grid-cols-[1fr_2fr_auto] gap-2 items-center">
+                        <div>
+                          <label className="text-[10px] text-gray-500 mb-0.5 block">Qty</label>
+                          <input className={inputCls + ' w-full'} type="number" min="0" placeholder="1" value={it.quantity} onChange={e => setItem(idx, 'quantity', e.target.value)} />
+                        </div>
+                        <div>
+                          <label className="text-[10px] text-gray-500 mb-0.5 block">Unit price</label>
+                          <input className={inputCls + ' w-full'} type="number" min="0" placeholder="0.00" value={it.unit_price} onChange={e => setItem(idx, 'unit_price', e.target.value)} />
+                        </div>
+                        <button onClick={() => removeItem(idx)} className="p-2 text-gray-500 hover:text-red-400 shrink-0 mt-4"><Trash2 className="w-3.5 h-3.5" /></button>
                       </div>
                     </div>
                   ))}
