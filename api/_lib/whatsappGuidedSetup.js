@@ -167,7 +167,7 @@ export async function addPhoneNumber(accessToken, wabaId, { cc, phoneNumber, ver
     body: JSON.stringify({ access_token: accessToken, cc, phone_number: phoneNumber, verified_name: verifiedName }),
   });
   const data = await res.json();
-  if (data.error) throw new Error(data.error.message || 'Failed to add this phone number. It may already be registered elsewhere (including the regular WhatsApp Business App) — remove it there first.');
+  if (data.error) throw new Error(data.error.message || 'Failed to add this phone number. If it\'s currently active on the regular WhatsApp Business App, that\'s why — this path only works for a free number. Use "Connect with Facebook" above for coexistence (keeping the app), or delete the WhatsApp account from the app on your phone first for a full migration.');
   return { phone_number_id: data.id };
 }
 

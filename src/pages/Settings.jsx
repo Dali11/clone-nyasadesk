@@ -546,7 +546,18 @@ function WhatsAppCard({ saved, workspaceId, onSave, onDelete }) {
                             placeholder="My Business Ltd"
                             className="w-full bg-[#111B21] text-white text-xs rounded-lg p-2.5 border border-white/10" />
                         </div>
-                        <p className="text-[11px] text-amber-400">This number can't already be active on the regular WhatsApp Business App or personal WhatsApp — remove it there first if it is.</p>
+                        <div className="bg-amber-500/10 rounded-lg p-2.5 space-y-1">
+                          <p className="text-[11px] font-semibold text-amber-400">Already using this number in the WhatsApp Business App?</p>
+                          <p className="text-[11px] text-amber-200/80 leading-relaxed">
+                            You have two real options — this is a Meta platform limit, not something we can route around:
+                          </p>
+                          <p className="text-[11px] text-amber-200/80 leading-relaxed">
+                            <strong>Keep the app too (coexistence):</strong> only possible via the "Connect with Facebook" button below — Meta requires scanning a QR code inside the app, which only their signup flow can generate.
+                          </p>
+                          <p className="text-[11px] text-amber-200/80 leading-relaxed">
+                            <strong>Full migration:</strong> on your phone, delete the WhatsApp account from the Business App first (Settings → Account → Delete my account), then this number is free to register here.
+                          </p>
+                        </div>
                         <button onClick={handleAddPhone} disabled={freshBusy}
                           className="w-full py-2.5 rounded-xl text-sm font-medium text-white bg-[#25D366] hover:bg-[#20BD5A] disabled:opacity-50 flex items-center justify-center gap-2">
                           {freshBusy ? <Loader2 className="w-4 h-4 animate-spin" /> : null}
