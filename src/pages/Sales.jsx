@@ -17,6 +17,7 @@ export default function Sales() {
   const { user, workspaceOwnerId, isWorkspaceAdmin } = useAuth();
   const [sales, setSales] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState('');
   const [showModal, setShowModal] = useState(false);
   const [showCommissionModal, setShowCommissionModal] = useState(false);
   const [agentFilter, setAgentFilter] = useState('all');
@@ -24,7 +25,8 @@ export default function Sales() {
   const [agents, setAgents] = useState([]);
 
   const load = useCallback(async () => {
-    setLoading(true);
+    if (!workspaceOwnerId) { setLoading(false); return; }
+    setLoading(true); setLoadError('');
     try {
       const params = new URLSearchParams({ action: 'sales-list', workspace_id: workspaceOwnerId });
       const { data: { session } } = await supabase.auth.getSession();
@@ -32,15 +34,19 @@ export default function Sales() {
       const d = await r.json();
       if (d.ok) {
         setSales(d.sales);
-        // Extract unique agents
         const seen = {};
         d.sales.forEach(s => { if (!seen[s.agent_id]) seen[s.agent_id] = s.agent_name; });
         setAgents(Object.entries(seen).map(([id, name]) => ({ id, name })));
+      } else {
+        setLoadError(d.error || 'Failed to load sales');
       }
+    } catch (e) {
+      setLoadError(e.message || 'Network error loading sales');
     } finally { setLoading(false); }
   }, [workspaceOwnerId]);
 
-  useEffect(() => { if (workspaceOwnerId) load(); }, [load, workspaceOwnerId]);
+  // Re-run whenever workspaceOwnerId changes (null → real id after auth loads)
+  useEffect(() => { load(); }, [load]);
 
   const verify = async (sale_id, status) => {
     const { data: { session } } = await supabase.auth.getSession();
@@ -126,7 +132,7 @@ export default function Sales() {
       {/* List */}
       <div className="flex-1 overflow-y-auto px-4 sm:px-6 space-y-3 pb-4">
         {loading ? (
-          <div className="flex items-center justify-center py-16 text-gray-500"><Loader2 className="w-5 h-5 animate-spin mr-2" /> Loading…</div>
+          {loadError             ? <div className="flex flex-col items-center justify-center py-16 gap-2"><p className="text-red-400 text-sm font-medium">Failed to load sales</p><p className="text-gray-500 text-xs">{loadError}</p><button onClick={load} className="mt-2 text-xs text-[#25D366] underline">Try again</button></div>            : <div className="flex items-center justify-center py-16 text-gray-500"><Loader2 className="w-5 h-5 animate-spin mr-2" /> Loading…</div>}
         ) : filtered.length === 0 ? (
           <div className="flex flex-col items-center justify-center py-16 text-center gap-3">
             <TrendingUp className="w-10 h-10 text-gray-700" />
