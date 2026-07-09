@@ -17,6 +17,7 @@ import {
   createInvoice, updateInvoice, recordInvoicePayment, getOrGeneratePdfUrl,
 } from '../_lib/documents.js';
 import { discoverWabas, connectWaba, createWaba, addPhoneNumber, requestVerificationCode, verifyPhoneCode, registerPhoneNumber } from '../_lib/whatsappGuidedSetup.js';
+import { freshSetup } from '../_lib/freshSetup.js';
 
 const SUPABASE_URL = 'https://pfbaepibelomiutlotkn.supabase.co';
 const SUPABASE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY;
@@ -71,6 +72,7 @@ export default async function handler(req, res) {
   if (action === 'whatsapp-guided-request-code')   return handleWhatsappGuidedRequestCode(req, res);
   if (action === 'whatsapp-guided-verify-code')    return handleWhatsappGuidedVerifyCode(req, res);
   if (action === 'whatsapp-guided-register-phone') return handleWhatsappGuidedRegisterPhone(req, res);
+  if (action === 'whatsapp-guided-fresh-setup')   return handleWhatsappGuidedFreshSetup(req, res);
   return handleSend(req, res);
 }
 
@@ -586,6 +588,20 @@ async function handleWhatsappGuidedRegisterPhone(req, res) {
     return res.status(200).json({ ok: true, ...result });
   } catch (e) {
     console.error('[channels/whatsapp-guided-register-phone] error:', e);
+    return res.status(400).json({ ok: false, error: e.message });
+  }
+}
+
+async function handleWhatsappGuidedFreshSetup(req, res) {
+  try {
+    const { access_token, business_id, cc, phone_number } = req.body || {};
+    if (!access_token || !business_id || !cc || !phone_number) {
+      return res.status(400).json({ ok: false, error: 'access_token, business_id, cc and phone_number are required' });
+    }
+    const result = await freshSetup(access_token, business_id, cc, phone_number);
+    return res.status(200).json({ ok: true, ...result });
+  } catch (e) {
+    console.error('[channels/whatsapp-guided-fresh-setup] error:', e);
     return res.status(400).json({ ok: false, error: e.message });
   }
 }

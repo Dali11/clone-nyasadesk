@@ -106,12 +106,16 @@ function WhatsAppCard({ saved, workspaceId, onSave, onDelete }) {
   const [guidedWabas, setGuidedWabas] = useState(null);
   const [guidedSelection, setGuidedSelection] = useState({ waba_id: '', phone_number_id: '' });
   const [guidedConnecting, setGuidedConnecting] = useState(false);
-  // ── Guided Setup: "start from scratch" sub-wizard (new WABA + new number) ─
+  // ── Guided Setup: "start from scratch" (Business ID + phone number only) ─
   const [freshMode, setFreshMode] = useState(false);
-  const [freshStep, setFreshStep] = useState('business'); // business -> waba_created -> phone -> code -> pin -> done
+  const [freshStep, setFreshStep] = useState('input'); // input -> code -> pin -> done
   const [freshBusy, setFreshBusy] = useState(false);
   const [freshError, setFreshError] = useState('');
-  const [freshFields, setFreshFields] = useState({ business_id: '', waba_name: '', cc: '', phone_number: '', verified_name: '', code_method: 'SMS', code: '', pin: '' });
+  const [freshBusinessId, setFreshBusinessId] = useState('');
+  const [freshCc, setFreshCc] = useState('');
+  const [freshPhone, setFreshPhone] = useState('');
+  const [freshCode, setFreshCode] = useState('');
+  const [freshPin, setFreshPin] = useState('');
   const [freshWabaId, setFreshWabaId] = useState('');
   const [freshPhoneId, setFreshPhoneId] = useState('');
   const [embeddedLoading, setEmbeddedLoading] = useState(false);
@@ -206,7 +210,7 @@ function WhatsAppCard({ saved, workspaceId, onSave, onDelete }) {
   };
 
   // ── "Start from scratch" wizard handlers ─────────────────────────────────
-  const freshCall = async (action, body) => {
+  const freshApiCall = async (action, body) => {
     const res = await fetch(`/api/channels?action=${action}`, {
       method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body),
     });
@@ -215,67 +219,51 @@ function WhatsAppCard({ saved, workspaceId, onSave, onDelete }) {
     return data;
   };
 
-  const handleCreateWaba = async () => {
+  const handleFreshStart = async () => {
     setFreshError('');
-    if (!guidedToken.trim() || !freshFields.business_id.trim() || !freshFields.waba_name.trim()) {
-      setFreshError('Access token, Business ID and a name are all required'); return;
+    if (!guidedToken.trim() || !freshBusinessId.trim() || !freshCc.trim() || !freshPhone.trim()) {
+      setFreshError('All fields are required'); return;
     }
     setFreshBusy(true);
     try {
-      const data = await freshCall('whatsapp-guided-create-waba', {
-        access_token: guidedToken.trim(), business_id: freshFields.business_id.trim(), name: freshFields.waba_name.trim(),
+      const data = await freshApiCall('whatsapp-guided-fresh-setup', {
+        access_token: guidedToken.trim(), business_id: freshBusinessId.trim(),
+        cc: freshCc.trim(), phone_number: freshPhone.trim(),
       });
       setFreshWabaId(data.waba_id);
-      setFreshStep('phone');
-    } catch (e) { setFreshError(e.message); } finally { setFreshBusy(false); }
-  };
-
-  const handleAddPhone = async () => {
-    setFreshError('');
-    if (!freshFields.cc.trim() || !freshFields.phone_number.trim() || !freshFields.verified_name.trim()) {
-      setFreshError('Country code, phone number and business display name are all required'); return;
-    }
-    setFreshBusy(true);
-    try {
-      const data = await freshCall('whatsapp-guided-add-phone', {
-        access_token: guidedToken.trim(), waba_id: freshWabaId,
-        cc: freshFields.cc.trim(), phone_number: freshFields.phone_number.trim(), verified_name: freshFields.verified_name.trim(),
-      });
       setFreshPhoneId(data.phone_number_id);
-      await freshCall('whatsapp-guided-request-code', { access_token: guidedToken.trim(), phone_number_id: data.phone_number_id, code_method: freshFields.code_method });
       setFreshStep('code');
     } catch (e) { setFreshError(e.message); } finally { setFreshBusy(false); }
   };
 
-  const handleResendCode = async (method) => {
+  const handleFreshResend = async (method) => {
     setFreshError(''); setFreshBusy(true);
     try {
-      await freshCall('whatsapp-guided-request-code', { access_token: guidedToken.trim(), phone_number_id: freshPhoneId, code_method: method });
-      setFreshFields(f => ({ ...f, code_method: method }));
+      await freshApiCall('whatsapp-guided-request-code', { access_token: guidedToken.trim(), phone_number_id: freshPhoneId, code_method: method });
     } catch (e) { setFreshError(e.message); } finally { setFreshBusy(false); }
   };
 
-  const handleVerifyCode = async () => {
+  const handleFreshVerify = async () => {
     setFreshError('');
-    if (!freshFields.code.trim()) { setFreshError('Enter the code you received'); return; }
+    if (!freshCode.trim()) { setFreshError('Enter the code you received'); return; }
     setFreshBusy(true);
     try {
-      await freshCall('whatsapp-guided-verify-code', { access_token: guidedToken.trim(), phone_number_id: freshPhoneId, code: freshFields.code.trim() });
+      await freshApiCall('whatsapp-guided-verify-code', { access_token: guidedToken.trim(), phone_number_id: freshPhoneId, code: freshCode.trim() });
       setFreshStep('pin');
     } catch (e) { setFreshError(e.message); } finally { setFreshBusy(false); }
   };
 
-  const handleRegisterAndConnect = async () => {
+  const handleFreshRegisterAndConnect = async () => {
     setFreshError('');
-    if (!/^\d{6}$/.test(freshFields.pin.trim())) { setFreshError('PIN must be exactly 6 digits'); return; }
+    if (!/^\d{6}$/.test(freshPin.trim())) { setFreshError('PIN must be exactly 6 digits'); return; }
     setFreshBusy(true);
     try {
-      await freshCall('whatsapp-guided-register-phone', { access_token: guidedToken.trim(), phone_number_id: freshPhoneId, pin: freshFields.pin.trim() });
-      const data = await freshCall('whatsapp-guided-connect', {
+      await freshApiCall('whatsapp-guided-register-phone', { access_token: guidedToken.trim(), phone_number_id: freshPhoneId, pin: freshPin.trim() });
+      const data = await freshApiCall('whatsapp-guided-connect', {
         workspace_id: workspaceId, access_token: guidedToken.trim(), waba_id: freshWabaId, phone_number_id: freshPhoneId,
       });
       if (onSave) onSave('whatsapp', data.config);
-      setFreshStep('business'); setFreshMode(false); setGuidedToken('');
+      setFreshStep('input'); setFreshMode(false); setGuidedToken('');
     } catch (e) { setFreshError(e.message); } finally { setFreshBusy(false); }
   };
 
@@ -485,101 +473,71 @@ function WhatsAppCard({ saved, workspaceId, onSave, onDelete }) {
                 </button>
 
                 {!freshMode && (
-                  <button onClick={() => { setFreshMode(true); setFreshError(''); }}
+                  <button onClick={() => { setFreshMode(true); setFreshError(''); setFreshStep('input'); }}
                     className="w-full text-center text-[11px] text-gray-500 hover:text-gray-300 underline underline-offset-2">
-                    Don't have a WhatsApp Business Account yet? Set one up from scratch →
+                    Register a brand new number →
                   </button>
                 )}
 
                 {freshMode && (
                   <div className="bg-[#0B141A] rounded-xl p-3.5 space-y-3 border border-white/10">
                     <div className="flex items-center justify-between">
-                      <p className="text-xs font-bold text-white">Set up from scratch</p>
-                      <button onClick={() => { setFreshMode(false); setFreshStep('business'); setFreshError(''); }} className="text-[11px] text-gray-500 hover:text-gray-300">Cancel</button>
+                      <p className="text-xs font-bold text-white">Register a new number</p>
+                      <button onClick={() => { setFreshMode(false); setFreshStep('input'); setFreshError(''); }} className="text-[11px] text-gray-500 hover:text-gray-300">Cancel</button>
                     </div>
-                    <p className="text-[11px] text-gray-500 leading-relaxed">
-                      Uses the same access token above. Requires your Business ID (find it in Business Settings → Business Info).
-                    </p>
 
-                    {freshStep === 'business' && (
+                    {freshStep === 'input' && (
                       <div className="space-y-2.5">
+                        <p className="text-[11px] text-gray-500 leading-relaxed">
+                          Enter your Meta Business ID (Business Settings → Business Info) and the number you want to connect. We handle the rest.
+                        </p>
                         <div className="space-y-1.5">
                           <label className="text-[11px] text-gray-500">Business ID</label>
-                          <input value={freshFields.business_id} onChange={e => setFreshFields(f => ({ ...f, business_id: e.target.value }))}
+                          <input value={freshBusinessId} onChange={e => setFreshBusinessId(e.target.value)}
                             placeholder="123456789012345"
                             className="w-full bg-[#111B21] text-white text-xs rounded-lg p-2.5 border border-white/10" />
                         </div>
-                        <div className="space-y-1.5">
-                          <label className="text-[11px] text-gray-500">Business name (shown as the WABA name)</label>
-                          <input value={freshFields.waba_name} onChange={e => setFreshFields(f => ({ ...f, waba_name: e.target.value }))}
-                            placeholder="My Business Ltd"
-                            className="w-full bg-[#111B21] text-white text-xs rounded-lg p-2.5 border border-white/10" />
-                        </div>
-                        <button onClick={handleCreateWaba} disabled={freshBusy}
-                          className="w-full py-2.5 rounded-xl text-sm font-medium text-white bg-[#25D366] hover:bg-[#20BD5A] disabled:opacity-50 flex items-center justify-center gap-2">
-                          {freshBusy ? <Loader2 className="w-4 h-4 animate-spin" /> : null}
-                          {freshBusy ? 'Creating…' : 'Create WhatsApp Business Account'}
-                        </button>
-                      </div>
-                    )}
-
-                    {freshStep === 'phone' && (
-                      <div className="space-y-2.5">
-                        <p className="text-[11px] text-[#25D366]">✓ WhatsApp Business Account created</p>
                         <div className="grid grid-cols-3 gap-2">
                           <div className="space-y-1.5">
                             <label className="text-[11px] text-gray-500">Country code</label>
-                            <input value={freshFields.cc} onChange={e => setFreshFields(f => ({ ...f, cc: e.target.value }))}
+                            <input value={freshCc} onChange={e => setFreshCc(e.target.value.replace(/\D/g, ''))}
                               placeholder="265"
                               className="w-full bg-[#111B21] text-white text-xs rounded-lg p-2.5 border border-white/10" />
                           </div>
                           <div className="col-span-2 space-y-1.5">
-                            <label className="text-[11px] text-gray-500">Phone number (no country code)</label>
-                            <input value={freshFields.phone_number} onChange={e => setFreshFields(f => ({ ...f, phone_number: e.target.value }))}
+                            <label className="text-[11px] text-gray-500">Phone number</label>
+                            <input value={freshPhone} onChange={e => setFreshPhone(e.target.value.replace(/\D/g, ''))}
                               placeholder="9800114467"
                               className="w-full bg-[#111B21] text-white text-xs rounded-lg p-2.5 border border-white/10" />
                           </div>
                         </div>
-                        <div className="space-y-1.5">
-                          <label className="text-[11px] text-gray-500">Business display name customers will see</label>
-                          <input value={freshFields.verified_name} onChange={e => setFreshFields(f => ({ ...f, verified_name: e.target.value }))}
-                            placeholder="My Business Ltd"
-                            className="w-full bg-[#111B21] text-white text-xs rounded-lg p-2.5 border border-white/10" />
+                        <div className="bg-amber-500/10 rounded-lg p-2.5 space-y-1.5">
+                          <p className="text-[11px] font-semibold text-amber-400">Number still active on the WhatsApp Business App?</p>
+                          <p className="text-[11px] text-amber-200/80 leading-relaxed"><strong>Keep both (coexistence):</strong> use "Connect with Facebook" above — Meta requires a QR-code scan inside the app, only possible through their signup flow.</p>
+                          <p className="text-[11px] text-amber-200/80 leading-relaxed"><strong>Full move to Cloud API:</strong> delete the WhatsApp account from the app first (Settings → Account → Delete my account), then come back here.</p>
                         </div>
-                        <div className="bg-amber-500/10 rounded-lg p-2.5 space-y-1">
-                          <p className="text-[11px] font-semibold text-amber-400">Already using this number in the WhatsApp Business App?</p>
-                          <p className="text-[11px] text-amber-200/80 leading-relaxed">
-                            You have two real options — this is a Meta platform limit, not something we can route around:
-                          </p>
-                          <p className="text-[11px] text-amber-200/80 leading-relaxed">
-                            <strong>Keep the app too (coexistence):</strong> only possible via the "Connect with Facebook" button below — Meta requires scanning a QR code inside the app, which only their signup flow can generate.
-                          </p>
-                          <p className="text-[11px] text-amber-200/80 leading-relaxed">
-                            <strong>Full migration:</strong> on your phone, delete the WhatsApp account from the Business App first (Settings → Account → Delete my account), then this number is free to register here.
-                          </p>
-                        </div>
-                        <button onClick={handleAddPhone} disabled={freshBusy}
+                        <button onClick={handleFreshStart} disabled={freshBusy}
                           className="w-full py-2.5 rounded-xl text-sm font-medium text-white bg-[#25D366] hover:bg-[#20BD5A] disabled:opacity-50 flex items-center justify-center gap-2">
                           {freshBusy ? <Loader2 className="w-4 h-4 animate-spin" /> : null}
-                          {freshBusy ? 'Adding & sending code…' : 'Add number & send verification code'}
+                          {freshBusy ? 'Setting up…' : 'Continue'}
                         </button>
                       </div>
                     )}
 
                     {freshStep === 'code' && (
                       <div className="space-y-2.5">
-                        <p className="text-[11px] text-[#25D366]">✓ Verification code sent via {freshFields.code_method}</p>
+                        <p className="text-[11px] text-[#25D366]">✓ Number added — verification code sent via SMS</p>
                         <div className="space-y-1.5">
                           <label className="text-[11px] text-gray-500">Enter the code you received</label>
-                          <input value={freshFields.code} onChange={e => setFreshFields(f => ({ ...f, code: e.target.value }))}
-                            placeholder="123456"
+                          <input value={freshCode} onChange={e => setFreshCode(e.target.value.replace(/\D/g, '').slice(0, 6))}
+                            placeholder="123456" maxLength={6}
                             className="w-full bg-[#111B21] text-white text-xs rounded-lg p-2.5 border border-white/10" />
                         </div>
                         <div className="flex gap-2">
-                          <button onClick={() => handleResendCode('SMS')} disabled={freshBusy} className="flex-1 py-2 rounded-lg text-[11px] text-gray-400 bg-white/5 hover:bg-white/10 disabled:opacity-50">Resend via SMS</button>
-                          <button onClick={() => handleResendCode('VOICE')} disabled={freshBusy} className="flex-1 py-2 rounded-lg text-[11px] text-gray-400 bg-white/5 hover:bg-white/10 disabled:opacity-50">Call me instead</button>
+                          <button onClick={() => handleFreshResend('SMS')} disabled={freshBusy} className="flex-1 py-2 rounded-lg text-[11px] text-gray-400 bg-white/5 hover:bg-white/10 disabled:opacity-50">Resend SMS</button>
+                          <button onClick={() => handleFreshResend('VOICE')} disabled={freshBusy} className="flex-1 py-2 rounded-lg text-[11px] text-gray-400 bg-white/5 hover:bg-white/10 disabled:opacity-50">Call me instead</button>
                         </div>
-                        <button onClick={handleVerifyCode} disabled={freshBusy}
+                        <button onClick={handleFreshVerify} disabled={freshBusy}
                           className="w-full py-2.5 rounded-xl text-sm font-medium text-white bg-[#25D366] hover:bg-[#20BD5A] disabled:opacity-50 flex items-center justify-center gap-2">
                           {freshBusy ? <Loader2 className="w-4 h-4 animate-spin" /> : null}
                           {freshBusy ? 'Verifying…' : 'Verify code'}
@@ -591,15 +549,15 @@ function WhatsAppCard({ saved, workspaceId, onSave, onDelete }) {
                       <div className="space-y-2.5">
                         <p className="text-[11px] text-[#25D366]">✓ Number verified</p>
                         <div className="space-y-1.5">
-                          <label className="text-[11px] text-gray-500">Choose a 6-digit PIN (for two-step verification — save it, you may need it later)</label>
-                          <input value={freshFields.pin} onChange={e => setFreshFields(f => ({ ...f, pin: e.target.value.replace(/\D/g, '').slice(0, 6) }))}
+                          <label className="text-[11px] text-gray-500">Set a 6-digit PIN (two-step verification — save this somewhere safe)</label>
+                          <input value={freshPin} onChange={e => setFreshPin(e.target.value.replace(/\D/g, '').slice(0, 6))}
                             placeholder="123456" maxLength={6}
                             className="w-full bg-[#111B21] text-white text-xs rounded-lg p-2.5 border border-white/10" />
                         </div>
-                        <button onClick={handleRegisterAndConnect} disabled={freshBusy}
+                        <button onClick={handleFreshRegisterAndConnect} disabled={freshBusy}
                           className="w-full py-2.5 rounded-xl text-sm font-bold text-white bg-[#25D366] hover:bg-[#20BD5A] disabled:opacity-50 flex items-center justify-center gap-2">
                           {freshBusy ? <Loader2 className="w-4 h-4 animate-spin" /> : <ShieldCheck className="w-4 h-4" />}
-                          {freshBusy ? 'Registering & connecting…' : 'Register number & connect'}
+                          {freshBusy ? 'Registering & connecting…' : 'Activate & connect'}
                         </button>
                       </div>
                     )}
@@ -608,7 +566,7 @@ function WhatsAppCard({ saved, workspaceId, onSave, onDelete }) {
                   </div>
                 )}
 
-                {guidedWabas && guidedWabas.length > 0 && (
+                                {guidedWabas && guidedWabas.length > 0 && (
                   <div className="space-y-2.5 pt-1">
                     <div className="space-y-2">
                       <label className="text-[11px] text-gray-500">WhatsApp Business Account</label>
