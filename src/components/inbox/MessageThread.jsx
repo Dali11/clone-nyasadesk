@@ -580,9 +580,8 @@ export default function MessageThread({ conversation, workspaceId }) {
   };
 
   const handleSendMedia = async (file, kind) => {
-    if (!file || !conversation || uploading) return;
-    setUploading(true);
-    const tempId = `temp-${Date.now()}`;
+    if (!file || !conversation) return;
+    const tempId = `temp-${Date.now()}-${Math.random().toString(36).slice(2)}`;
     const localUrl = URL.createObjectURL(file);
     setMessages(prev => [...prev, {
       id: tempId, conversation_id: conversation.id, direction: 'outbound',
@@ -594,23 +593,31 @@ export default function MessageThread({ conversation, workspaceId }) {
       const msg = await sendMediaMessage(wId, conversation.id, file, kind, user?.full_name || 'You', '', user?.id || null);
       setMessages(prev => prev.map(m => m.id === tempId ? { ...msg, direction: 'outbound' } : m));
     } catch (e) {
-      // Was previously a silent failure -- the temp bubble just flipped to
-      // "failed" with zero indication of *why* (upload rejected, network
-      // drop, storage quota, etc). Now logs the real error and surfaces it.
       console.error('[MessageThread] media send failed:', e);
       setMessages(prev => prev.map(m => m.id === tempId ? { ...m, status: 'failed' } : m));
       toast({ title: `Failed to send ${kind}`, description: e?.message || 'Unknown error', variant: 'destructive' });
+    }
+  };
+
+  // Queue for multi-file uploads — processes files one at a time so the
+  // UI shows each optimistic bubble before the next upload starts.
+  const sendMediaQueue = async (files) => {
+    setUploading(true);
+    try {
+      for (const file of files) {
+        const kind = file.type.startsWith('video/') ? 'video' : 'image';
+        await handleSendMedia(file, kind);
+      }
     } finally {
       setUploading(false);
     }
   };
 
   const onFilePicked = (e) => {
-    const file = e.target.files?.[0];
+    const files = Array.from(e.target.files || []);
     e.target.value = '';
-    if (!file) return;
-    const kind = file.type.startsWith('video/') ? 'video' : 'image';
-    handleSendMedia(file, kind);
+    if (!files.length) return;
+    sendMediaQueue(files);
   };
 
   const startRecording = async () => {
@@ -629,7 +636,7 @@ export default function MessageThread({ conversation, workspaceId }) {
         setRecordSecs(0);
         if (blob.size > 0) {
           const file = new File([blob], `voice-note-${Date.now()}.${extForMime(actualMime)}`, { type: actualMime });
-          handleSendMedia(file, 'audio');
+          sendMediaQueue([file]);
         }
       };
       mediaRecorderRef.current = recorder;
@@ -888,7 +895,7 @@ export default function MessageThread({ conversation, workspaceId }) {
           </div>
         ) : (
           <div className="flex items-end gap-2">
-            <input ref={fileInputRef} type="file" accept="image/*,video/*" className="hidden" onChange={onFilePicked} />
+            <input ref={fileInputRef} type="file" accept="image/*,video/*" multiple className="hidden" onChange={onFilePicked} />
             <button onClick={() => fileInputRef.current?.click()} disabled={uploading || tab === 'note'}
               className="w-10 h-10 rounded-full flex items-center justify-center shrink-0 text-gray-400 hover:text-gray-200 hover:bg-white/5 transition-colors disabled:opacity-30">
               <Paperclip className="w-4.5 h-4.5" />
