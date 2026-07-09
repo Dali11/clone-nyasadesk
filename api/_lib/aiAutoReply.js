@@ -38,6 +38,38 @@ export async function autoReplyIfEnabled(sb, { workspaceId, conversationId, chan
     const hasAccess = await workspaceHasAiAgentAccess(sb, workspaceId);
     if (!hasAccess) { console.warn('[aiAutoReply] workspace', workspaceId, 'no longer has AI Agent access (plan downgrade) -- skipping'); return; }
 
+    // ── message_cap enforcement ────────────────────────────────────────────
+    // Some agent types (notably the Receptionist) are deliberately short-lived
+    // in a conversation: after a fixed number of outbound AI replies they must
+    // STOP and hand the conversation to a human, instead of endlessly looping
+    // greetings. Count how many outbound AI messages this agent has already
+    // sent in this conversation; if it has reached its cap, apply the agent's
+    // configured handoff assignment rule (if any) and bail without replying.
+    if (agent.message_cap) {
+      const { count } = await sb.from('messages')
+        .select('id', { count: 'exact', head: true })
+        .eq('conversation_id', conversationId)
+        .eq('direction', 'outbound')
+        .like('sender_id', 'ai:%');
+
+      if (count >= agent.message_cap) {
+        if (agent.handoff_assignment_rule_id) {
+          const { data: rule } = await sb.from('rules')
+            .select('assigned_to_ids, assigned_to_names')
+            .eq('id', agent.handoff_assignment_rule_id).single();
+          if (rule?.assigned_to_ids?.[0]) {
+            await sb.from('conversations').update({
+              assigned_to: rule.assigned_to_ids[0],
+              assigned_to_name: rule.assigned_to_names?.[0] || null,
+              status: 'open',
+            }).eq('id', conversationId);
+          }
+        }
+        console.log('[aiAutoReply] message_cap reached for agent', agent.id, 'on conversation', conversationId);
+        return; // Cap reached — don't send another AI message, let a human take over.
+      }
+    }
+
     const { data: cfg, error: cfgErr } = await sb.from('channel_configs').select('*')
       .eq('workspace_id', workspaceId).eq('channel', channel).single();
     if (cfgErr) { console.error('[aiAutoReply] channel_configs query failed:', cfgErr); return; }

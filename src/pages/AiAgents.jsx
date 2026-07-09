@@ -3,7 +3,7 @@ import { Link } from 'react-router-dom';
 import { Plus, Bot, Trash2, Loader2, Sparkles, X, BookOpen, Pencil, Link2, Upload, Lock, Pause, Play } from 'lucide-react';
 import Sidebar from '@/components/Sidebar';
 import { useNyasaAuth } from '@/lib/NyasaAuth';
-import { getAiAgents, saveAiAgent, deleteAiAgent, getAiAgentTemplates, getAiKnowledge, saveAiKnowledge, deleteAiKnowledge, addKnowledgeFromUrl, addKnowledgeFromFile, getAiUsageSummary } from '@/lib/channels';
+import { getAiAgents, saveAiAgent, deleteAiAgent, getAiAgentTemplates, getAiKnowledge, saveAiKnowledge, deleteAiKnowledge, addKnowledgeFromUrl, addKnowledgeFromFile, getAiUsageSummary, getRules } from '@/lib/channels';
 import { useDocumentTitle } from '@/hooks/useDocumentTitle';
 
 const CHANNEL_OPTIONS = ['whatsapp', 'website', 'instagram', 'telegram', 'messenger'];
@@ -13,6 +13,13 @@ const BLANK_FORM = {
   name: '', description: '', role: '', template_key: null,
   system_instructions: '', personality: '', tone: '',
   languages: ['English'], enabled_channels: [], automation_mode: 'draft', status: 'active',
+  agent_type: 'general', message_cap: null, handoff_assignment_rule_id: null,
+};
+
+const AGENT_TYPE_BADGES = {
+  receptionist: { label: 'Receptionist', cls: 'bg-purple-500/20 text-purple-400' },
+  finance_manager: { label: 'Finance Mgr', cls: 'bg-blue-500/20 text-blue-400' },
+  followup: { label: 'Follow-up', cls: 'bg-orange-500/20 text-orange-400' },
 };
 
 export default function AiAgents() {
@@ -22,6 +29,7 @@ export default function AiAgents() {
 
   const [agents, setAgents] = useState([]);
   const [usage, setUsage] = useState({}); // agent_id -> { cost, count } (last 30 days)
+  const [rules, setRules] = useState([]); // assignment rules for handoff selector
   const [templates, setTemplates] = useState([]);
   const [loading, setLoading] = useState(true);
   const [editing, setEditing] = useState(null); // 'new' | agent.id | null
@@ -42,6 +50,8 @@ export default function AiAgents() {
       const [a, t] = await Promise.all([getAiAgents(workspaceOwnerId), getAiAgentTemplates()]);
       setAgents(a);
       setTemplates(t);
+      // Best-effort: load assignment rules for the handoff-rule selector.
+      getRules(workspaceOwnerId).then(setRules).catch(() => {});
       // Best-effort -- non-admins get an RLS-blocked empty result, not an error,
       // so this never needs to block the page if it fails for any other reason.
       getAiUsageSummary(workspaceOwnerId).then(setUsage).catch(() => {});
@@ -66,6 +76,8 @@ export default function AiAgents() {
       system_instructions: tpl.system_instructions,
       personality: tpl.personality,
       tone: tpl.tone,
+      agent_type: tpl.agent_type || 'general',
+      message_cap: tpl.message_cap ?? null,
     });
     setShowTemplates(false);
     setEditing('new');
@@ -282,6 +294,9 @@ export default function AiAgents() {
                       <div className="min-w-0">
                         <p className="text-white text-sm font-semibold truncate">{agent.name}</p>
                         <p className="text-gray-500 text-[11px] truncate">{agent.role || 'AI Agent'}</p>
+                        {agent.agent_type && agent.agent_type !== 'general' && AGENT_TYPE_BADGES[agent.agent_type] && (
+                          <span className={`mt-0.5 inline-block text-[10px] font-bold px-1.5 py-0.5 rounded-full ${AGENT_TYPE_BADGES[agent.agent_type].cls}`}>{AGENT_TYPE_BADGES[agent.agent_type].label}</span>
+                        )}
                       </div>
                     </div>
                     <span
@@ -420,6 +435,37 @@ export default function AiAgents() {
                     </button>
                   ))}
                 </div>
+              </Field>
+              <Field label="Agent type">
+                <div className="flex gap-1.5 flex-wrap">
+                  {[['general','General'],['receptionist','Receptionist'],['finance_manager','Finance Manager'],['followup','Follow-up']].map(([val,label]) => (
+                    <button key={val} onClick={() => {
+                      set('agent_type', val);
+                      // Auto-set message_cap default when switching to receptionist
+                      if (val === 'receptionist' && (form.message_cap === null || form.message_cap === undefined)) set('message_cap', 4);
+                      if (val !== 'receptionist') set('message_cap', null);
+                    }}
+                      className={`text-xs px-2.5 py-1 rounded-full transition-colors ${(form.agent_type || 'general') === val ? 'bg-[#25D366]/20 text-[#25D366]' : 'bg-white/5 text-gray-500'}`}>
+                      {label}
+                    </button>
+                  ))}
+                </div>
+              </Field>
+              <Field label="Message cap (max AI replies before handoff)">
+                <input type="number" min="1" value={form.message_cap ?? ''} onChange={e => set('message_cap', e.target.value === '' ? null : Math.max(1, parseInt(e.target.value, 10) || null))}
+                  placeholder={form.agent_type === 'receptionist' ? '4 (receptionist default)' : 'Leave blank for unlimited'}
+                  className="w-full bg-[#202C33] text-white text-sm rounded-lg px-3 py-2 focus:outline-none focus:ring-1 focus:ring-[#25D366]" />
+                <p className="text-[11px] text-gray-600 mt-1">Max messages this agent sends in a conversation before handing off to a human. Leave blank for unlimited.</p>
+              </Field>
+              <Field label="Handoff rule (route to rule after cap)">
+                <select value={form.handoff_assignment_rule_id || ''} onChange={e => set('handoff_assignment_rule_id', e.target.value || null)}
+                  className="w-full bg-[#202C33] text-white text-sm rounded-lg px-3 py-2 focus:outline-none focus:ring-1 focus:ring-[#25D366]">
+                  <option value="">None — leave unassigned for humans</option>
+                  {rules.map(r => (
+                    <option key={r.id} value={r.id}>{r.name}</option>
+                  ))}
+                </select>
+                <p className="text-[11px] text-gray-600 mt-1">When the message cap is reached, apply this assignment rule to route the conversation to a human. Optional.</p>
               </Field>
               <Field label="Automation mode">
                 <div className="flex gap-1.5">

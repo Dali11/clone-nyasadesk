@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
-import { TrendingUp, Plus, CheckCircle, AlertCircle, Clock, ExternalLink, Trash2, Loader2, X, ChevronDown } from 'lucide-react';
+import { TrendingUp, Plus, CheckCircle, AlertCircle, Clock, ExternalLink, Trash2, Loader2, X, ChevronDown, FileText, Download, DollarSign } from 'lucide-react';
 import { useAuth } from '@/lib/AuthContext';
 import { supabase } from '@/lib/supabase';
 
@@ -18,6 +18,7 @@ export default function Sales() {
   const [sales, setSales] = useState([]);
   const [loading, setLoading] = useState(true);
   const [showModal, setShowModal] = useState(false);
+  const [showCommissionModal, setShowCommissionModal] = useState(false);
   const [agentFilter, setAgentFilter] = useState('all');
   const [statusFilter, setStatusFilter] = useState('all');
   const [agents, setAgents] = useState([]);
@@ -78,10 +79,16 @@ export default function Sales() {
         <h1 className="text-white font-bold text-lg flex items-center gap-2">
           <TrendingUp className="w-5 h-5 text-[#25D366]" /> Sales
         </h1>
-        <button onClick={() => setShowModal(true)}
-          className="flex items-center gap-1.5 bg-[#25D366] text-black text-sm font-semibold px-3.5 py-2 rounded-xl hover:bg-[#20b859]">
-          <Plus className="w-4 h-4" /> Record sale
-        </button>
+        <div className="flex items-center gap-2">
+          <button onClick={() => setShowCommissionModal(true)}
+            className="flex items-center gap-1.5 bg-[#202C33] text-white text-sm font-semibold px-3.5 py-2 rounded-xl border border-white/10 hover:bg-[#2a3a42]">
+            <FileText className="w-4 h-4 text-[#25D366]" /> Commission Report
+          </button>
+          <button onClick={() => setShowModal(true)}
+            className="flex items-center gap-1.5 bg-[#25D366] text-black text-sm font-semibold px-3.5 py-2 rounded-xl hover:bg-[#20b859]">
+            <Plus className="w-4 h-4" /> Record sale
+          </button>
+        </div>
       </div>
 
       {/* Stats */}
@@ -181,6 +188,16 @@ export default function Sales() {
           currency={currency}
           onClose={() => setShowModal(false)}
           onSaved={() => { setShowModal(false); load(); }}
+        />
+      )}
+
+      {showCommissionModal && (
+        <CommissionReportModal
+          workspaceId={workspaceOwnerId}
+          agents={agents}
+          currency={currency}
+          isWorkspaceAdmin={isWorkspaceAdmin}
+          onClose={() => setShowCommissionModal(false)}
         />
       )}
     </div>
@@ -286,6 +303,228 @@ function RecordSaleModal({ workspaceId, currency, onClose, onSaved, prefillConve
             {saving && <Loader2 className="w-4 h-4 animate-spin" />}
             {saving ? 'Saving…' : 'Record sale'}
           </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function CommissionReportModal({ workspaceId, agents, currency, isWorkspaceAdmin, onClose }) {
+  const today = new Date().toISOString().slice(0, 10);
+  const firstOfMonth = new Date(); firstOfMonth.setDate(1);
+  const [form, setForm] = useState({
+    date_from: firstOfMonth.toISOString().slice(0, 10),
+    date_to: today,
+    commission_rate: '10',
+    agent_id: 'all',
+    business_name: '',
+    report_title: 'Sales Commission Report',
+  });
+  const [report, setReport] = useState(null);
+  const [loading, setLoading] = useState(false);
+  const [downloading, setDownloading] = useState(false);
+  const [error, setError] = useState('');
+
+  // Pre-fill business name from doc settings
+  useEffect(() => {
+    if (!workspaceId) return;
+    (async () => {
+      try {
+        const { data: { session } } = await supabase.auth.getSession();
+        const r = await fetch(`/api/channels?action=doc-settings-get&workspace_id=${workspaceId}`, {
+          headers: { Authorization: `Bearer ${session?.access_token}` },
+        });
+        const d = await r.json();
+        if (d.ok && d.settings?.company_name) {
+          setForm(f => ({ ...f, business_name: d.settings.company_name }));
+        }
+      } catch { /* ignore — optional */ }
+    })();
+  }, [workspaceId]);
+
+  // Fetch preview data (debounced via simple effect)
+  useEffect(() => {
+    if (!workspaceId) return;
+    const timer = setTimeout(() => { fetchReport(); }, 350);
+    return () => clearTimeout(timer);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [form.date_from, form.date_to, form.commission_rate, form.agent_id, workspaceId]);
+
+  const fetchReport = async () => {
+    setLoading(true); setError('');
+    try {
+      const params = new URLSearchParams({
+        action: 'sales-commission-report',
+        workspace_id: workspaceId,
+        commission_rate: (parseFloat(form.commission_rate) / 100).toString(),
+      });
+      if (form.date_from) params.set('date_from', form.date_from);
+      if (form.date_to) params.set('date_to', form.date_to + 'T23:59:59');
+      if (form.agent_id !== 'all') params.set('agent_id', form.agent_id);
+
+      const { data: { session } } = await supabase.auth.getSession();
+      const r = await fetch(`${API}?${params}`, {
+        headers: { Authorization: `Bearer ${session?.access_token}` },
+      });
+      const d = await r.json();
+      if (d.ok) setReport(d);
+      else setError(d.error || 'Failed to load report');
+    } catch (e) { setError(e.message); } finally { setLoading(false); }
+  };
+
+  const downloadPdf = async () => {
+    setDownloading(true); setError('');
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      const r = await fetch('/api/channels?action=sales-commission-pdf', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${session?.access_token}` },
+        body: JSON.stringify({
+          workspace_id: workspaceId,
+          date_from: form.date_from || undefined,
+          date_to: form.date_to ? form.date_to + 'T23:59:59' : undefined,
+          commission_rate: parseFloat(form.commission_rate) / 100,
+          agent_id: form.agent_id !== 'all' ? form.agent_id : undefined,
+          business_name: form.business_name || undefined,
+          report_title: form.report_title || undefined,
+        }),
+      });
+      const d = await r.json();
+      if (!d.ok) throw new Error(d.error);
+      // Trigger browser download
+      const a = window.document.createElement('a');
+      a.href = d.pdf_url;
+      a.download = `commission-report-${form.date_from || 'all'}-${form.date_to || 'now'}.pdf`;
+      a.target = '_blank';
+      window.document.body.appendChild(a);
+      a.click();
+      window.document.body.removeChild(a);
+    } catch (e) { setError(e.message); } finally { setDownloading(false); }
+  };
+
+  const inputCls = 'w-full bg-[#0B141A] text-white text-sm rounded-xl px-3 py-2.5 border border-white/10 outline-none focus:border-[#25D366]/50 placeholder-gray-600';
+  const labelCls = 'block text-xs text-gray-400 mb-1.5 font-medium';
+  const ratePct = parseFloat(form.commission_rate) || 0;
+  const rptCur = report?.currency || currency;
+
+  return (
+    <div className="fixed inset-0 z-50 bg-black/70 flex items-end sm:items-center justify-center p-0 sm:p-4" onClick={onClose}>
+      <div className="bg-[#111B21] rounded-t-2xl sm:rounded-2xl w-full sm:max-w-2xl max-h-[92vh] overflow-y-auto" onClick={e => e.stopPropagation()}>
+        {/* Header */}
+        <div className="flex items-center justify-between px-5 py-4 border-b border-white/5 sticky top-0 bg-[#111B21] z-10">
+          <h2 className="text-white font-bold text-base flex items-center gap-2">
+            <DollarSign className="w-4 h-4 text-[#25D366]" /> Commission Report
+          </h2>
+          <button onClick={onClose} className="text-gray-500 hover:text-white"><X className="w-5 h-5" /></button>
+        </div>
+
+        <div className="p-5 space-y-4">
+          {/* Filters */}
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className={labelCls}>Date from</label>
+              <input type="date" className={inputCls} value={form.date_from}
+                onChange={e => setForm(f => ({ ...f, date_from: e.target.value }))} />
+            </div>
+            <div>
+              <label className={labelCls}>Date to</label>
+              <input type="date" className={inputCls} value={form.date_to}
+                onChange={e => setForm(f => ({ ...f, date_to: e.target.value }))} />
+            </div>
+          </div>
+
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className={labelCls}>Commission rate (%)</label>
+              <input type="number" min="0" step="0.5" className={inputCls} value={form.commission_rate}
+                onChange={e => setForm(f => ({ ...f, commission_rate: e.target.value }))} />
+            </div>
+            <div>
+              <label className={labelCls}>Agent</label>
+              <select className={inputCls} value={form.agent_id}
+                onChange={e => setForm(f => ({ ...f, agent_id: e.target.value }))}>
+                <option value="all">All agents</option>
+                {agents.map(a => <option key={a.id} value={a.id}>{a.name}</option>)}
+              </select>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className={labelCls}>Business name</label>
+              <input className={inputCls} placeholder="Your Business Ltd" value={form.business_name}
+                onChange={e => setForm(f => ({ ...f, business_name: e.target.value }))} />
+            </div>
+            <div>
+              <label className={labelCls}>Report title</label>
+              <input className={inputCls} value={form.report_title}
+                onChange={e => setForm(f => ({ ...f, report_title: e.target.value }))} />
+            </div>
+          </div>
+
+          {/* Preview */}
+          <div className="bg-[#1F2C34] rounded-xl border border-white/5 overflow-hidden">
+            <div className="px-4 py-3 border-b border-white/5 flex items-center justify-between">
+              <span className="text-xs text-gray-400 font-semibold uppercase tracking-wide">Preview</span>
+              {loading && <Loader2 className="w-4 h-4 text-[#25D366] animate-spin" />}
+            </div>
+            {error ? (
+              <div className="px-4 py-6 text-center text-red-400 text-sm">{error}</div>
+            ) : !report ? (
+              <div className="px-4 py-6 text-center text-gray-600 text-sm">Adjust filters to preview commission…</div>
+            ) : report.agent_summaries.length === 0 ? (
+              <div className="px-4 py-6 text-center text-gray-600 text-sm">No verified sales in this period.</div>
+            ) : (
+              <div className="overflow-x-auto">
+                <table className="w-full text-sm">
+                  <thead>
+                    <tr className="text-xs text-gray-500 border-b border-white/5">
+                      <th className="text-left font-medium px-4 py-2.5">Agent</th>
+                      <th className="text-right font-medium px-2 py-2.5">Sales</th>
+                      <th className="text-right font-medium px-2 py-2.5">Total Value</th>
+                      <th className="text-right font-medium px-2 py-2.5">Rate</th>
+                      <th className="text-right font-medium px-4 py-2.5">Commission</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {report.agent_summaries.map((a, i) => (
+                      <tr key={i} className="border-b border-white/5">
+                        <td className="px-4 py-2.5 text-white font-medium">{a.agent_name}</td>
+                        <td className="px-2 py-2.5 text-right text-gray-300">{a.total_sales_count}</td>
+                        <td className="px-2 py-2.5 text-right text-gray-300">{fmt(a.total_value, rptCur)}</td>
+                        <td className="px-2 py-2.5 text-right text-gray-500">{ratePct.toFixed(1)}%</td>
+                        <td className="px-4 py-2.5 text-right text-[#25D366] font-semibold">{fmt(a.commission_amount, rptCur)}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                  <tfoot>
+                    <tr className="bg-[#25D366]/5">
+                      <td className="px-4 py-3 text-white font-bold" colSpan={1}>Grand Total</td>
+                      <td className="px-2 py-3 text-right text-gray-300 font-semibold">{report.agent_summaries.reduce((s, a) => s + a.total_sales_count, 0)}</td>
+                      <td className="px-2 py-3 text-right text-white font-bold">{fmt(report.grand_total_value, rptCur)}</td>
+                      <td className="px-2 py-3"></td>
+                      <td className="px-4 py-3 text-right text-[#25D366] font-bold">{fmt(report.grand_total_commission, rptCur)}</td>
+                    </tr>
+                  </tfoot>
+                </table>
+              </div>
+            )}
+          </div>
+
+          {error && <p className="text-xs text-red-400">{error}</p>}
+
+          {/* Actions */}
+          <div className="flex gap-3 pt-1">
+            <button onClick={onClose}
+              className="flex-1 text-sm font-semibold text-gray-400 px-4 py-2.5 rounded-xl border border-white/10 hover:bg-white/5">
+              Close
+            </button>
+            <button onClick={downloadPdf} disabled={downloading || !report || report.agent_summaries.length === 0}
+              className="flex-1 flex items-center justify-center gap-2 text-sm font-semibold bg-[#25D366] text-black px-4 py-2.5 rounded-xl hover:bg-[#20b859] disabled:opacity-40 disabled:cursor-not-allowed">
+              {downloading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Download className="w-4 h-4" />}
+              {downloading ? 'Generating…' : 'Download PDF'}
+            </button>
+          </div>
         </div>
       </div>
     </div>
