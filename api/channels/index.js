@@ -17,6 +17,7 @@ import {
   createInvoice, updateInvoice, recordInvoicePayment, getOrGeneratePdfUrl,
 } from '../_lib/documents.js';
 import { discoverWabas, connectWaba, createWaba, addPhoneNumber, requestVerificationCode, verifyPhoneCode, registerPhoneNumber } from '../_lib/whatsappGuidedSetup.js';
+import { validateToken, discoverWabas as discoverWabasManual, getWabaInfo, listPhoneNumbers, getPhoneDetails, isPhoneRegistered, autoSetup } from '../_lib/whatsappSetup.js';
 import { freshSetup } from '../_lib/freshSetup.js';
 
 const SUPABASE_URL = 'https://pfbaepibelomiutlotkn.supabase.co';
@@ -73,6 +74,7 @@ export default async function handler(req, res) {
   if (action === 'whatsapp-guided-verify-code')    return handleWhatsappGuidedVerifyCode(req, res);
   if (action === 'whatsapp-guided-register-phone') return handleWhatsappGuidedRegisterPhone(req, res);
   if (action === 'whatsapp-guided-fresh-setup')   return handleWhatsappGuidedFreshSetup(req, res);
+  if (action === 'whatsapp-manual-connect') return handleWhatsappManualConnect(req, res);
   return handleSend(req, res);
 }
 
@@ -963,5 +965,90 @@ async function handleSend(req, res) {
       await sb2.from('messages').update({ status: 'failed', error_reason: (err.message || 'Unknown error').slice(0, 500) }).eq('id', req.body.message_id);
     }
     return res.status(500).json({ error: err.message });
+  }
+}
+
+// ── WhatsApp Manual Connect (Cloud API) ──────────────────────────────────
+async function handleWhatsappManualConnect(req, res) {
+  // Validate token, discover/validate WABA + phone, check registration status,
+  // auto-setup if possible, return connected or needs_registration.
+  try {
+    const { workspace_id, access_token, waba_id, phone_number_id } = req.body || {};
+    if (!workspace_id || !access_token) {
+      return res.status(400).json({ ok: false, error: 'workspace_id and access_token are required' });
+    }
+
+    // Step 1: validate token (throws with user-friendly message on failure)
+    await validateToken(access_token);
+
+    // Step 2: resolve WABA
+    let resolvedWabaId = waba_id || null;
+    let wabas = null;
+    if (!resolvedWabaId) {
+      wabas = await discoverWabasManual(access_token);
+      resolvedWabaId = wabas[0]?.waba_id;
+      if (!resolvedWabaId) {
+        return res.status(400).json({ ok: false, error: 'No WhatsApp Business Account found for this token. Assign the System User to a WABA with Manage permission in Business Settings > System Users > Add Assets.' });
+      }
+    }
+
+    // Step 3: resolve phone number
+    let resolvedPhoneId = phone_number_id || null;
+    if (!resolvedPhoneId) {
+      const phones = await listPhoneNumbers(access_token, resolvedWabaId);
+      resolvedPhoneId = phones[0]?.id;
+      if (!resolvedPhoneId) {
+        return res.status(400).json({ ok: false, error: 'No phone numbers found on this WhatsApp Business Account. Add one in Meta Business Manager first.' });
+      }
+    }
+
+    // Step 4: get full phone details
+    const phone = await getPhoneDetails(access_token, resolvedPhoneId);
+
+    // Step 5: check if registered for Cloud API
+    if (!isPhoneRegistered(phone)) {
+      // Not registered — tell frontend to launch the registration wizard
+      return res.status(200).json({
+        ok: true,
+        needs_registration: true,
+        phone_number_id: resolvedPhoneId,
+        waba_id: resolvedWabaId,
+        phone_number: phone.display_phone_number,
+        verified_name: phone.verified_name,
+      });
+    }
+
+    // Step 6: fully set up (subscribe webhooks, fetch limits, etc.)
+    const setup = await autoSetup(access_token, resolvedWabaId, resolvedPhoneId);
+
+    const config = {
+      provider: 'cloud',
+      access_token,
+      phone_number_id: resolvedPhoneId,
+      waba_id: resolvedWabaId,
+      verify_token: 'nyasa_' + resolvedWabaId.slice(-8),
+      phone_number: setup.phone.display_phone_number,
+      verified_name: setup.phone.verified_name,
+      quality_rating: setup.phone.quality_rating,
+      name_status: setup.phone.name_status,
+      account_mode: setup.phone.account_mode,
+      connected_via: 'manual_cloud_api',
+      connected_at: new Date().toISOString(),
+    };
+
+    const { createClient } = await import('@supabase/supabase-js');
+    const sb = createClient(
+      'https://pfbaepibelomiutlotkn.supabase.co',
+      process.env.SUPABASE_SERVICE_ROLE_KEY
+    );
+    await sb.from('channel_configs').upsert({
+      workspace_id, channel: 'whatsapp', enabled: true, config,
+      updated_at: new Date().toISOString(),
+    }, { onConflict: 'workspace_id,channel' });
+
+    return res.status(200).json({ ok: true, config });
+  } catch (e) {
+    console.error('[channels/whatsapp-manual-connect]', e);
+    return res.status(400).json({ ok: false, error: e.message });
   }
 }

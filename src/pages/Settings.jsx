@@ -97,18 +97,42 @@ function ManualFields({ fields, setFields, fieldDefs }) {
 }
 
 function WhatsAppCard({ saved, workspaceId, onSave, onDelete }) {
-  const fbReady = useFacebookSDK(FB_APP_ID);
-  const [metaConfigId, setMetaConfigId] = useState(null);
-  // ── Guided Setup (direct Graph API, replaces the flaky FB.login popup) ──
-  const [guidedToken, setGuidedToken] = useState('');
-  const [guidedDiscovering, setGuidedDiscovering] = useState(false);
-  const [guidedError, setGuidedError] = useState('');
-  const [guidedWabas, setGuidedWabas] = useState(null);
-  const [guidedSelection, setGuidedSelection] = useState({ waba_id: '', phone_number_id: '' });
-  const [guidedConnecting, setGuidedConnecting] = useState(false);
-  // ── Guided Setup: "start from scratch" (Business ID + phone number only) ─
+  const [tab, setTab] = useState('recommended'); // recommended | advanced
+  const [advMode, setAdvMode] = useState('discover'); // discover | manual
+
+  // Embedded Signup state
+  const [embeddedLoading, setEmbeddedLoading] = useState(false);
+  const [embeddedError, setEmbeddedError] = useState('');
+  const [embeddedSetupPin, setEmbeddedSetupPin] = useState(null); // set if auto-registered
+
+  // Advanced / discover state
+  const [token, setToken] = useState('');
+  const [discovering, setDiscovering] = useState(false);
+  const [discoverError, setDiscoverError] = useState('');
+  const [wabas, setWabas] = useState(null); // null = not yet discovered
+  const [selectedWabaId, setSelectedWabaId] = useState('');
+  const [selectedPhoneId, setSelectedPhoneId] = useState('');
+  const [connecting, setConnecting] = useState(false);
+
+  // Manual entry state
+  const [manualToken, setManualToken] = useState('');
+  const [manualWabaId, setManualWabaId] = useState('');
+  const [manualPhoneId, setManualPhoneId] = useState('');
+  const [manualConnecting, setManualConnecting] = useState(false);
+  const [manualError, setManualError] = useState('');
+
+  // Registration wizard (triggered after manual connect when phone not registered)
+  const [regWizard, setRegWizard] = useState(null); // null | { waba_id, phone_number_id, phone_number, verified_name }
+  const [regStep, setRegStep] = useState('code'); // code | pin
+  const [regCode, setRegCode] = useState('');
+  const [regPin, setRegPin] = useState('');
+  const [regBusy, setRegBusy] = useState(false);
+  const [regError, setRegError] = useState('');
+  const [activeToken, setActiveToken] = useState(''); // token used for the current manual connect
+
+  // Register new number state
   const [freshMode, setFreshMode] = useState(false);
-  const [freshStep, setFreshStep] = useState('input'); // input -> code -> pin -> done
+  const [freshStep, setFreshStep] = useState('input');
   const [freshBusy, setFreshBusy] = useState(false);
   const [freshError, setFreshError] = useState('');
   const [freshBusinessId, setFreshBusinessId] = useState('');
@@ -118,585 +142,543 @@ function WhatsAppCard({ saved, workspaceId, onSave, onDelete }) {
   const [freshPin, setFreshPin] = useState('');
   const [freshWabaId, setFreshWabaId] = useState('');
   const [freshPhoneId, setFreshPhoneId] = useState('');
-  const [embeddedLoading, setEmbeddedLoading] = useState(false);
-  const [error, setError] = useState('');
-  const [manualFields, setManualFields] = useState({});
-  const [savingManual, setSavingManual] = useState(false);
+
   const [verifying, setVerifying] = useState(false);
   const [verifyResult, setVerifyResult] = useState(null);
-  const [showSlowHint, setShowSlowHint] = useState(false);
+  const [error, setError] = useState('');
+
+  const embeddedSignupDataRef = useState({ current: null })[0];
+  const { loadFacebookSDK, sdkReady } = useFacebookSDK();
 
   const isLive = !!(saved && saved.enabled && saved.config &&
     (saved.config.waba_id || saved.config.access_token || saved.config.phone_number_id));
 
-  // ── Verify connection actually works (token valid + webhook subscribed) ─
+  const apiCall = async (action, body) => {
+    const res = await fetch(`/api/channels?action=${action}`, {
+      method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body),
+    });
+    return res.json();
+  };
+
+  // ── Verify ────────────────────────────────────────────────────────────────
   const handleVerify = async () => {
-    setVerifying(true);
-    setVerifyResult(null);
+    setVerifying(true); setVerifyResult(null);
     try {
       const res = await fetch('/api/channels?action=verify', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ workspace_id: workspaceId, channel: 'whatsapp' }),
       });
       const data = await res.json();
       setVerifyResult(data);
-    } catch (e) {
-      setVerifyResult({ ok: false, error: e.message });
-    } finally {
-      setVerifying(false);
-    }
+    } catch (e) { setVerifyResult({ ok: false, error: e.message }); } finally { setVerifying(false); }
   };
 
-  // ── Disconnect ────────────────────────────────────────────────────────
+  // ── Disconnect ────────────────────────────────────────────────────────────
   const handleDisconnect = async () => {
-    try {
-      if (onDelete) await onDelete('whatsapp');
-    } catch (e) {
-      setError('Disconnect failed: ' + e.message);
-    }
+    try { if (onDelete) await onDelete('whatsapp'); } catch (e) { setError('Disconnect failed: ' + e.message); }
   };
 
-  // ── Guided Setup handlers ────────────────────────────────────────────────
-  const handleGuidedDiscover = async () => {
-    if (!guidedToken.trim()) { setGuidedError('Paste your System User access token first'); return; }
-    setGuidedDiscovering(true);
-    setGuidedError('');
-    setGuidedWabas(null);
-    try {
-      const res = await fetch('/api/channels?action=whatsapp-guided-discover', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ access_token: guidedToken.trim() }),
-      });
-      const data = await res.json();
-      if (!data.ok) { setGuidedError(data.error || 'Discovery failed'); return; }
-      setGuidedWabas(data.wabas || []);
-      const firstWaba = data.wabas?.[0];
-      const firstPhone = firstWaba?.phone_numbers?.[0];
-      setGuidedSelection({ waba_id: firstWaba?.waba_id || '', phone_number_id: firstPhone?.phone_number_id || '' });
-    } catch (e) {
-      setGuidedError(e.message);
-    } finally {
-      setGuidedDiscovering(false);
-    }
-  };
-
-  const handleGuidedConnect = async () => {
-    if (!guidedSelection.waba_id || !guidedSelection.phone_number_id) {
-      setGuidedError('Pick a WhatsApp Business Account and phone number first');
+  // ── Embedded Signup ───────────────────────────────────────────────────────
+  const handleEmbeddedSignup = async () => {
+    setEmbeddedError(''); setEmbeddedSetupPin(null);
+    const configRes = await fetch('/api/auth/whatsapp-embedded', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ _action: 'get_config' }),
+    });
+    const configData = await configRes.json();
+    if (!configData.config_id || !configData.app_id) {
+      setEmbeddedError("Facebook signup isn't configured yet. Use the Advanced option below.");
       return;
     }
-    setGuidedConnecting(true);
-    setGuidedError('');
-    try {
-      const res = await fetch('/api/channels?action=whatsapp-guided-connect', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          workspace_id: workspaceId, access_token: guidedToken.trim(),
-          waba_id: guidedSelection.waba_id, phone_number_id: guidedSelection.phone_number_id,
-        }),
-      });
-      const data = await res.json();
-      if (!data.ok) { setGuidedError(data.error || 'Connect failed'); return; }
-      if (onSave) onSave('whatsapp', data.config);
-      setGuidedToken(''); setGuidedWabas(null);
-    } catch (e) {
-      setGuidedError(e.message);
-    } finally {
-      setGuidedConnecting(false);
-    }
+    await loadFacebookSDK();
+    if (!window.FB) { setEmbeddedError('Facebook SDK failed to load. Try refreshing the page.'); return; }
+    window.FB.init({ appId: configData.app_id, version: 'v19.0', cookie: true });
+
+    window.removeEventListener('message', window._nyasaWAListener);
+    window._nyasaWAListener = (e) => {
+      try {
+        const data = typeof e.data === 'string' ? JSON.parse(e.data) : e.data;
+        if (data?.type === 'WA_EMBEDDED_SIGNUP' && data?.event === 'FINISH') {
+          embeddedSignupDataRef.current = data.data || null;
+        }
+      } catch {}
+    };
+    window.addEventListener('message', window._nyasaWAListener);
+
+    setEmbeddedLoading(true);
+    window.FB.login(async (response) => {
+      window.removeEventListener('message', window._nyasaWAListener);
+      if (!response?.authResponse?.code) {
+        setEmbeddedLoading(false);
+        setEmbeddedError('Login was cancelled or did not complete. Please try again.');
+        return;
+      }
+      try {
+        const captured = embeddedSignupDataRef.current || {};
+        const res = await fetch('/api/auth/whatsapp-embedded', {
+          method: 'POST', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            code: response.authResponse.code, workspace_id: workspaceId,
+            waba_id: captured.waba_id || null, phone_number_id: captured.phone_number_id || null,
+          }),
+        });
+        const d = await res.json();
+        if (d.ok) {
+          if (d.setup_pin) setEmbeddedSetupPin(d.setup_pin);
+          if (onSave) onSave('whatsapp', d.config || { connected_via: 'embedded_signup' });
+        } else {
+          setEmbeddedError(d.error || 'Connection failed. Please try again.');
+        }
+      } catch (e) {
+        setEmbeddedError(e.message);
+      } finally { setEmbeddedLoading(false); }
+    }, {
+      config_id: configData.config_id,
+      response_type: 'code',
+      override_default_response_type: true,
+      extras: { setup: { solutionID: configData.config_id }, featureType: '', sessionInfoVersion: '3' },
+    });
   };
 
-  // ── "Start from scratch" wizard handlers ─────────────────────────────────
+  // ── Advanced: discover ────────────────────────────────────────────────────
+  const handleDiscover = async () => {
+    if (!token.trim()) { setDiscoverError('Paste your access token first'); return; }
+    setDiscovering(true); setDiscoverError(''); setWabas(null);
+    try {
+      const data = await apiCall('whatsapp-guided-discover', { access_token: token.trim() });
+      if (!data.ok) { setDiscoverError(data.error || 'Discovery failed'); return; }
+      setWabas(data.wabas || []);
+      const first = data.wabas?.[0];
+      setSelectedWabaId(first?.waba_id || '');
+      setSelectedPhoneId(first?.phone_numbers?.[0]?.phone_number_id || '');
+    } catch (e) { setDiscoverError(e.message); } finally { setDiscovering(false); }
+  };
+
+  const handleDiscoverConnect = async () => {
+    if (!selectedWabaId || !selectedPhoneId) { setDiscoverError('Select a WABA and phone number first'); return; }
+    setConnecting(true); setDiscoverError('');
+    try {
+      const data = await apiCall('whatsapp-guided-connect', {
+        workspace_id: workspaceId, access_token: token.trim(),
+        waba_id: selectedWabaId, phone_number_id: selectedPhoneId,
+      });
+      if (!data.ok) { setDiscoverError(data.error || 'Connect failed'); return; }
+      if (onSave) onSave('whatsapp', data.config);
+      setToken(''); setWabas(null);
+    } catch (e) { setDiscoverError(e.message); } finally { setConnecting(false); }
+  };
+
+  // ── Advanced: manual ──────────────────────────────────────────────────────
+  const handleManualConnect = async () => {
+    if (!manualToken.trim()) { setManualError('Access token is required'); return; }
+    setManualConnecting(true); setManualError('');
+    try {
+      const data = await apiCall('whatsapp-manual-connect', {
+        workspace_id: workspaceId, access_token: manualToken.trim(),
+        waba_id: manualWabaId.trim() || undefined, phone_number_id: manualPhoneId.trim() || undefined,
+      });
+      if (!data.ok) { setManualError(data.error || 'Connection failed'); return; }
+      if (data.needs_registration) {
+        setActiveToken(manualToken.trim());
+        setRegWizard({ waba_id: data.waba_id, phone_number_id: data.phone_number_id, phone_number: data.phone_number, verified_name: data.verified_name });
+        setRegStep('code'); setRegCode(''); setRegPin(''); setRegError('');
+        // Immediately fire the SMS code
+        await apiCall('whatsapp-guided-request-code', { access_token: manualToken.trim(), phone_number_id: data.phone_number_id, code_method: 'SMS' });
+      } else {
+        if (onSave) onSave('whatsapp', data.config);
+        setManualToken(''); setManualWabaId(''); setManualPhoneId('');
+      }
+    } catch (e) { setManualError(e.message); } finally { setManualConnecting(false); }
+  };
+
+  // ── Registration wizard ───────────────────────────────────────────────────
+  const handleRegVerify = async () => {
+    if (!regCode.trim()) { setRegError('Enter the code you received'); return; }
+    setRegBusy(true); setRegError('');
+    try {
+      const data = await apiCall('whatsapp-guided-verify-code', { access_token: activeToken, phone_number_id: regWizard.phone_number_id, code: regCode.trim() });
+      if (!data.ok) { setRegError(data.error || 'Verification failed'); return; }
+      setRegStep('pin');
+    } catch (e) { setRegError(e.message); } finally { setRegBusy(false); }
+  };
+
+  const handleRegComplete = async () => {
+    if (!/^\d{6}$/.test(regPin.trim())) { setRegError('PIN must be exactly 6 digits'); return; }
+    setRegBusy(true); setRegError('');
+    try {
+      const regData = await apiCall('whatsapp-guided-register-phone', { access_token: activeToken, phone_number_id: regWizard.phone_number_id, pin: regPin.trim() });
+      if (!regData.ok) { setRegError(regData.error || 'Registration failed'); return; }
+      const connectData = await apiCall('whatsapp-guided-connect', { workspace_id: workspaceId, access_token: activeToken, waba_id: regWizard.waba_id, phone_number_id: regWizard.phone_number_id });
+      if (!connectData.ok) { setRegError(connectData.error || 'Connect failed after registration'); return; }
+      if (onSave) onSave('whatsapp', connectData.config);
+      setRegWizard(null); setManualToken(''); setManualWabaId(''); setManualPhoneId('');
+    } catch (e) { setRegError(e.message); } finally { setRegBusy(false); }
+  };
+
+  // ── Fresh number wizard ───────────────────────────────────────────────────
   const freshApiCall = async (action, body) => {
-    const res = await fetch(`/api/channels?action=${action}`, {
-      method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body),
-    });
-    const data = await res.json();
+    const data = await apiCall(action, body);
     if (!data.ok) throw new Error(data.error || 'Something went wrong');
     return data;
   };
-
   const handleFreshStart = async () => {
-    setFreshError('');
-    if (!guidedToken.trim() || !freshBusinessId.trim() || !freshCc.trim() || !freshPhone.trim()) {
-      setFreshError('All fields are required'); return;
-    }
-    setFreshBusy(true);
+    if (!token.trim() || !freshBusinessId.trim() || !freshCc.trim() || !freshPhone.trim()) { setFreshError('All fields are required'); return; }
+    setFreshBusy(true); setFreshError('');
     try {
-      const data = await freshApiCall('whatsapp-guided-fresh-setup', {
-        access_token: guidedToken.trim(), business_id: freshBusinessId.trim(),
-        cc: freshCc.trim(), phone_number: freshPhone.trim(),
-      });
-      setFreshWabaId(data.waba_id);
-      setFreshPhoneId(data.phone_number_id);
+      const data = await freshApiCall('whatsapp-guided-fresh-setup', { access_token: token.trim(), business_id: freshBusinessId.trim(), cc: freshCc.trim(), phone_number: freshPhone.trim() });
+      setFreshWabaId(data.waba_id); setFreshPhoneId(data.phone_number_id);
       setFreshStep('code');
     } catch (e) { setFreshError(e.message); } finally { setFreshBusy(false); }
   };
-
   const handleFreshResend = async (method) => {
-    setFreshError(''); setFreshBusy(true);
-    try {
-      await freshApiCall('whatsapp-guided-request-code', { access_token: guidedToken.trim(), phone_number_id: freshPhoneId, code_method: method });
-    } catch (e) { setFreshError(e.message); } finally { setFreshBusy(false); }
+    setFreshBusy(true); setFreshError('');
+    try { await freshApiCall('whatsapp-guided-request-code', { access_token: token.trim(), phone_number_id: freshPhoneId, code_method: method }); }
+    catch (e) { setFreshError(e.message); } finally { setFreshBusy(false); }
   };
-
   const handleFreshVerify = async () => {
-    setFreshError('');
-    if (!freshCode.trim()) { setFreshError('Enter the code you received'); return; }
-    setFreshBusy(true);
+    if (!freshCode.trim()) { setFreshError('Enter the code'); return; }
+    setFreshBusy(true); setFreshError('');
     try {
-      await freshApiCall('whatsapp-guided-verify-code', { access_token: guidedToken.trim(), phone_number_id: freshPhoneId, code: freshCode.trim() });
+      await freshApiCall('whatsapp-guided-verify-code', { access_token: token.trim(), phone_number_id: freshPhoneId, code: freshCode.trim() });
       setFreshStep('pin');
     } catch (e) { setFreshError(e.message); } finally { setFreshBusy(false); }
   };
-
   const handleFreshRegisterAndConnect = async () => {
-    setFreshError('');
     if (!/^\d{6}$/.test(freshPin.trim())) { setFreshError('PIN must be exactly 6 digits'); return; }
-    setFreshBusy(true);
+    setFreshBusy(true); setFreshError('');
     try {
-      await freshApiCall('whatsapp-guided-register-phone', { access_token: guidedToken.trim(), phone_number_id: freshPhoneId, pin: freshPin.trim() });
-      const data = await freshApiCall('whatsapp-guided-connect', {
-        workspace_id: workspaceId, access_token: guidedToken.trim(), waba_id: freshWabaId, phone_number_id: freshPhoneId,
-      });
+      await freshApiCall('whatsapp-guided-register-phone', { access_token: token.trim(), phone_number_id: freshPhoneId, pin: freshPin.trim() });
+      const data = await freshApiCall('whatsapp-guided-connect', { workspace_id: workspaceId, access_token: token.trim(), waba_id: freshWabaId, phone_number_id: freshPhoneId });
       if (onSave) onSave('whatsapp', data.config);
-      setFreshStep('input'); setFreshMode(false); setGuidedToken('');
+      setFreshMode(false); setFreshStep('input'); setToken('');
     } catch (e) { setFreshError(e.message); } finally { setFreshBusy(false); }
   };
 
-  // ── Manual Cloud API save (fallback when Embedded Signup isn't usable) ─
-  const handleManualSave = async () => {
-    if (!manualFields.access_token || !manualFields.phone_number_id) {
-      setError('Access Token and Phone Number ID are required');
-      return;
-    }
-    setSavingManual(true);
-    try {
-      const res = await fetch('/api/channels?action=connect', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          channel: 'whatsapp', workspace_id: workspaceId, provider_key: 'cloud', mode: 'manual',
-          access_token: manualFields.access_token, phone_number_id: manualFields.phone_number_id,
-          waba_id: manualFields.waba_id || null, verify_token: manualFields.verify_token || 'nyasadesk_verify',
-        }),
-      });
-      const data = await res.json();
-      if (data.ok) {
-        if (onSave) onSave('whatsapp', data.config?.config || { access_token: manualFields.access_token, phone_number_id: manualFields.phone_number_id });
-        setError('');
-      } else {
-        setError(data.error || 'Failed to save');
-      }
-    } catch (e) { setError(e.message); } finally { setSavingManual(false); }
+  const connectedViaLabel = {
+    embedded_signup: 'Connected via Facebook Login',
+    guided_graph_api: 'Connected via Guided Setup',
+    manual_cloud_api: 'Connected via Manual Cloud API',
   };
 
-  // ── Embedded Signup (official Meta 1-click flow) ──────────────────────
-  useEffect(() => {
-    fetch('/api/auth/whatsapp-embedded', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ _action: 'get_config', workspace_id: workspaceId }),
-    })
-      .then(r => r.json())
-      .then(d => { if (d.config_id) setMetaConfigId(d.config_id); })
-      .catch(() => {});
-  }, [workspaceId]);
-
-  // Meta's Embedded Signup wizard (the WABA/phone-number picker UI) is
-  // rendered by the JS SDK itself — a plain OAuth redirect only ever shows
-  // the generic login screen and can't render the picker at all. So this
-  // has to be FB.login(), not a link. Meta broadcasts the chosen WABA/phone
-  // number via postMessage during the flow; we capture it as a hint for the
-  // backend (which also double-checks via the granted token's scopes).
-  const embeddedSignupDataRef = useState({ current: null })[0];
-  useEffect(() => {
-    const handler = (event) => {
-      if (!event.origin?.endsWith('facebook.com')) return;
-      try {
-        const data = JSON.parse(event.data);
-        if (data.type === 'WA_EMBEDDED_SIGNUP' && data.event === 'FINISH') {
-          embeddedSignupDataRef.current = data.data || null;
-        }
-      } catch (e) { /* not our message */ }
-    };
-    window.addEventListener('message', handler);
-    return () => window.removeEventListener('message', handler);
-  }, []);
-
-  const handleEmbeddedSignup = () => {
-    if (!window.FB || !metaConfigId) {
-      setError("Facebook signup isn't configured yet. Use the manual connection below.");
-      return;
-    }
-    setError('');
-    setShowSlowHint(false);
-    setEmbeddedLoading(true);
-
-    // If nothing has come back after a while, the popup was very likely
-    // blocked silently (privacy/tracking-protection browsers, blocked
-    // third-party cookies) rather than the user just taking their time —
-    // Meta's own dialog is fast. Surface a concrete, actionable hint
-    // instead of leaving a non-technical user staring at a spinner.
-    const slowTimer = setTimeout(() => setShowSlowHint(true), 8000);
-
-    window.FB.login((response) => {
-      clearTimeout(slowTimer);
-      setShowSlowHint(false);
-      if (response.authResponse?.code) {
-        const captured = embeddedSignupDataRef.current || {};
-        fetch('/api/auth/whatsapp-embedded', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            code: response.authResponse.code,
-            workspace_id: workspaceId,
-            phone_number_id: captured.phone_number_id || null,
-            waba_id: captured.waba_id || null,
-          }),
-        })
-          .then(r => r.json())
-          .then(d => {
-            setEmbeddedLoading(false);
-            if (d.ok) {
-              if (onSave) onSave('whatsapp', d.config || { connected_via: 'embedded_signup' });
-            } else {
-              setError(d.error || 'Could not finish connecting WhatsApp');
-            }
-          })
-          .catch(e => { setEmbeddedLoading(false); setError(e.message); });
-      } else {
-        setEmbeddedLoading(false);
-        console.warn('[FB.login] no authResponse.code — full response:', response);
-        setError(
-          "The Facebook popup closed without finishing — usually caused by a browser blocking cookies " +
-          "for facebook.com. Try: (1) use Chrome or Safari instead of a privacy-focused browser, " +
-          "(2) tap the shield/lock icon near your address bar and allow cookies for this site, then try again. " +
-          "Or use the manual connection below instead."
-        );
-      }
-    }, {
-      config_id: metaConfigId,
-      response_type: 'code',
-      override_default_response_type: true,
-      extras: { setup: {}, featureType: '', sessionInfoVersion: '3' },
-    });
-  };
+  const qualityColors = { GREEN: 'text-emerald-400', YELLOW: 'text-amber-400', RED: 'text-red-400' };
 
   const subtitle = isLive
-    ? ('Connected' + (saved?.config?.phone_number ? ' · ' + saved.config.phone_number : ''))
+    ? (saved.config?.verified_name || saved.config?.phone_number || 'Connected')
     : 'Connect your WhatsApp Business number';
 
   return (
     <ChannelCard iconUrl="https://upload.wikimedia.org/wikipedia/commons/6/6b/WhatsApp.svg" title="WhatsApp" subtitle={subtitle}
       accentColor="#25D366" isLive={isLive}>
-      <div className="space-y-4">
-        {/* ── Connected state ────────────────────────────────────────────── */}
-        {isLive && (
-          <div className="space-y-3">
-            <div className="bg-[#111B21] rounded-xl p-4 space-y-2">
-              <div className="flex items-center gap-2">
-                <CheckCircle2 className="w-5 h-5 text-[#25D366]" />
-                <p className="text-sm font-bold text-white">WhatsApp is connected</p>
-              </div>
-              {saved?.config?.phone_number && (
-                <p className="text-xs text-gray-400">Number: {saved.config.phone_number}</p>
-              )}
-              <p className="text-[11px] text-gray-500 pt-1">
-                Connected via the official WhatsApp Cloud API. Messages route automatically.
-              </p>
+
+      {/* ── Connected state ── */}
+      {isLive && (
+        <div className="space-y-3">
+          <div className="bg-[#111B21] rounded-xl p-4 space-y-2">
+            <div className="flex items-center justify-between">
+              <p className="text-sm font-bold text-white">WhatsApp is connected</p>
+              <span className="text-[10px] px-2 py-0.5 rounded-full bg-[#25D36620] text-[#25D366] font-medium">
+                {connectedViaLabel[saved.config?.connected_via] || 'Connected'}
+              </span>
             </div>
-            {verifyResult && (
-              <div className={`rounded-xl p-3 text-[11px] space-y-1 ${verifyResult.healthy ? 'bg-[#25D366]/10' : 'bg-amber-500/10'}`}>
-                {verifyResult.ok ? (
-                  <>
-                    <p className={`font-semibold ${verifyResult.healthy ? 'text-[#25D366]' : 'text-amber-400'}`}>
-                      {verifyResult.healthy ? 'Connection is healthy — messages will arrive.' : 'Found an issue.'}
-                    </p>
-                    <p className="text-gray-400">
-                      Access token: {verifyResult.checks?.token_valid ? 'valid' : (verifyResult.checks?.token_error || 'invalid')}
-                    </p>
-                    <p className="text-gray-400">
-                      Webhook subscribed to Meta: {verifyResult.checks?.webhook_subscribed ? 'yes' : 'no'}
-                      {verifyResult.checks?.auto_fixed ? ' (just fixed automatically)' : ''}
-                    </p>
-                    {verifyResult.checks?.webhook_note && (
-                      <p className="text-amber-400">{verifyResult.checks.webhook_note}</p>
-                    )}
-                  </>
-                ) : (
-                  <p className="text-amber-400">{verifyResult.error || 'Could not verify connection'}</p>
-                )}
+            {saved.config?.phone_number && <p className="text-xs text-gray-400">{saved.config.phone_number}{saved.config?.verified_name ? ` · ${saved.config.verified_name}` : ''}</p>}
+            {saved.config?.quality_rating && (
+              <p className={`text-xs font-medium ${qualityColors[saved.config.quality_rating] || 'text-gray-400'}`}>
+                Quality: {saved.config.quality_rating}
+              </p>
+            )}
+            {embeddedSetupPin && (
+              <div className="bg-amber-500/10 border border-amber-500/30 rounded-lg p-3">
+                <p className="text-[11px] font-semibold text-amber-400">Save your 2FA PIN: <span className="font-mono text-white">{embeddedSetupPin}</span></p>
+                <p className="text-[11px] text-amber-200/70 mt-0.5">Meta set this as your two-step verification PIN when registering the number. Keep it safe — you may need it later.</p>
               </div>
             )}
+            <p className="text-[11px] text-gray-500">Connected via the official WhatsApp Cloud API. Messages route automatically.</p>
+          </div>
+
+          {verifyResult && (
+            <div className={`rounded-lg p-3 text-xs ${verifyResult.ok ? 'bg-emerald-500/10 text-emerald-400' : 'bg-red-500/10 text-red-400'}`}>
+              {verifyResult.ok ? 'Webhook verified — messages are routing correctly.' : `Verification failed: ${verifyResult.error}`}
+            </div>
+          )}
+          {error && <p className="text-xs text-red-400">{error}</p>}
+
+          <div className="flex gap-2">
             <button onClick={handleVerify} disabled={verifying}
-              className="w-full py-2.5 rounded-xl text-sm font-medium text-[#25D366] bg-[#25D366]/10 hover:bg-[#25D366]/20 disabled:opacity-50 flex items-center justify-center gap-2">
-              {verifying ? <Loader2 className="w-4 h-4 animate-spin" /> : null}
-              {verifying ? 'Checking…' : 'Verify Connection'}
+              className="flex-1 py-2.5 rounded-xl text-xs font-medium text-white bg-white/8 hover:bg-white/12 disabled:opacity-50">
+              {verifying ? 'Verifying…' : 'Verify webhook'}
             </button>
             <button onClick={handleDisconnect}
-              className="w-full py-2.5 rounded-xl text-sm font-medium text-red-400 bg-red-500/10 hover:bg-red-500/20">
-              Disconnect WhatsApp
+              className="flex-1 py-2.5 rounded-xl text-xs font-medium text-red-400 bg-red-500/10 hover:bg-red-500/20">
+              Disconnect
             </button>
           </div>
-        )}
+        </div>
+      )}
 
-        {/* ── Not connected ──────────────────────────────────────────────── */}
-        {!isLive && (
-          <div className="space-y-3">
-            <div className="bg-[#111B21] rounded-xl p-4 space-y-4">
-              <p className="text-xs text-gray-400 leading-relaxed text-center">
-                Connect your WhatsApp Business number via the official WhatsApp Cloud API to send and receive messages in Nyasadesk.
-              </p>
+      {/* ── Connect state ── */}
+      {!isLive && (
+        <div className="space-y-3">
+          {/* Tab switcher */}
+          <div className="flex rounded-xl bg-[#0B141A] p-1 gap-1">
+            {[['recommended', 'Recommended'], ['advanced', 'Advanced']].map(([key, label]) => (
+              <button key={key} onClick={() => { setTab(key); setEmbeddedError(''); setDiscoverError(''); setManualError(''); }}
+                className={`flex-1 py-2 rounded-lg text-xs font-medium transition-colors ${
+                  tab === key ? 'bg-[#25D366] text-white' : 'text-gray-400 hover:text-gray-200'
+                }`}>{label}</button>
+            ))}
+          </div>
 
-              {/* ── Guided Setup: direct Graph API, no Facebook popup at all ── */}
-              <div className="bg-[#25D36615] border border-[#25D36630] rounded-xl p-4 space-y-3">
-                <div>
-                  <p className="text-sm font-bold text-white">Guided setup (recommended)</p>
-                  <p className="text-[11px] text-gray-400 leading-relaxed mt-1">
-                    No Facebook popup, no domain errors. Paste a System User access token from your own Meta
-                    Business Manager (Business Settings → Users → System Users → Add Assets → your WhatsApp
-                    Account with "Manage" permission → Generate New Token, with whatsapp_business_management +
-                    whatsapp_business_messaging checked) — we'll auto-detect the rest.
-                  </p>
+          {/* ── Recommended tab: Embedded Signup ── */}
+          {tab === 'recommended' && (
+            <div className="bg-[#111B21] rounded-xl p-4 space-y-3">
+              <div>
+                <p className="text-sm font-bold text-white">Connect with Facebook</p>
+                <p className="text-[11px] text-gray-400 mt-1 leading-relaxed">
+                  The official Meta onboarding experience. Select or create your Meta Business Portfolio, WhatsApp Business Account, and phone number — all in one flow. Supports coexistence (keep using the WhatsApp Business app alongside Nyasadesk).
+                </p>
+              </div>
+              {embeddedSetupPin && (
+                <div className="bg-amber-500/10 border border-amber-500/30 rounded-lg p-3">
+                  <p className="text-[11px] font-semibold text-amber-400">Save your 2FA PIN: <span className="font-mono text-white">{embeddedSetupPin}</span></p>
+                  <p className="text-[11px] text-amber-200/70 mt-0.5">Meta set this during registration. Keep it safe.</p>
                 </div>
-                <input type="password" value={guidedToken} onChange={e => setGuidedToken(e.target.value)}
-                  placeholder="EAAG... (your System User access token)"
-                  className="w-full bg-[#0B141A] text-white text-xs rounded-lg p-2.5 border border-white/10" />
-                <button onClick={handleGuidedDiscover} disabled={guidedDiscovering || !guidedToken.trim()}
-                  className="w-full py-2.5 rounded-xl text-sm font-medium text-white bg-[#25D366] hover:bg-[#20BD5A] disabled:opacity-50 flex items-center justify-center gap-2">
-                  {guidedDiscovering ? <Loader2 className="w-4 h-4 animate-spin" /> : null}
-                  {guidedDiscovering ? 'Looking up your WhatsApp accounts…' : 'Find my WhatsApp accounts'}
-                </button>
+              )}
+              {embeddedError && <p className="text-[11px] text-red-400 leading-relaxed">{embeddedError}</p>}
+              <button onClick={handleEmbeddedSignup} disabled={embeddedLoading}
+                className="w-full py-3 rounded-xl text-sm font-bold text-white bg-[#1877F2] hover:bg-[#166FE5] disabled:opacity-50 flex items-center justify-center gap-2">
+                {embeddedLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : null}
+                {embeddedLoading ? 'Connecting…' : 'Connect with Facebook'}
+              </button>
+            </div>
+          )}
 
-                {!freshMode && (
-                  <button onClick={() => { setFreshMode(true); setFreshError(''); setFreshStep('input'); }}
-                    className="w-full text-center text-[11px] text-gray-500 hover:text-gray-300 underline underline-offset-2">
-                    Register a brand new number →
-                  </button>
-                )}
-
-                {freshMode && (
-                  <div className="bg-[#0B141A] rounded-xl p-3.5 space-y-3 border border-white/10">
-                    <div className="flex items-center justify-between">
-                      <p className="text-xs font-bold text-white">Register a new number</p>
-                      <button onClick={() => { setFreshMode(false); setFreshStep('input'); setFreshError(''); }} className="text-[11px] text-gray-500 hover:text-gray-300">Cancel</button>
-                    </div>
-
-                    {freshStep === 'input' && (
-                      <div className="space-y-2.5">
-                        <p className="text-[11px] text-gray-500 leading-relaxed">
-                          Enter your Meta Business ID (Business Settings → Business Info) and the number you want to connect. We handle the rest.
-                        </p>
-                        <div className="space-y-1.5">
-                          <label className="text-[11px] text-gray-500">Business ID</label>
-                          <input value={freshBusinessId} onChange={e => setFreshBusinessId(e.target.value)}
-                            placeholder="123456789012345"
-                            className="w-full bg-[#111B21] text-white text-xs rounded-lg p-2.5 border border-white/10" />
-                        </div>
-                        <div className="grid grid-cols-3 gap-2">
-                          <div className="space-y-1.5">
-                            <label className="text-[11px] text-gray-500">Country code</label>
-                            <input value={freshCc} onChange={e => setFreshCc(e.target.value.replace(/\D/g, ''))}
-                              placeholder="265"
-                              className="w-full bg-[#111B21] text-white text-xs rounded-lg p-2.5 border border-white/10" />
-                          </div>
-                          <div className="col-span-2 space-y-1.5">
-                            <label className="text-[11px] text-gray-500">Phone number</label>
-                            <input value={freshPhone} onChange={e => setFreshPhone(e.target.value.replace(/\D/g, ''))}
-                              placeholder="9800114467"
-                              className="w-full bg-[#111B21] text-white text-xs rounded-lg p-2.5 border border-white/10" />
-                          </div>
-                        </div>
-                        <div className="bg-amber-500/10 rounded-lg p-2.5 space-y-1.5">
-                          <p className="text-[11px] font-semibold text-amber-400">Number still active on the WhatsApp Business App?</p>
-                          <p className="text-[11px] text-amber-200/80 leading-relaxed"><strong>Keep both (coexistence):</strong> use "Connect with Facebook" above — Meta requires a QR-code scan inside the app, only possible through their signup flow.</p>
-                          <p className="text-[11px] text-amber-200/80 leading-relaxed"><strong>Full move to Cloud API:</strong> delete the WhatsApp account from the app first (Settings → Account → Delete my account), then come back here.</p>
-                        </div>
-                        <button onClick={handleFreshStart} disabled={freshBusy}
-                          className="w-full py-2.5 rounded-xl text-sm font-medium text-white bg-[#25D366] hover:bg-[#20BD5A] disabled:opacity-50 flex items-center justify-center gap-2">
-                          {freshBusy ? <Loader2 className="w-4 h-4 animate-spin" /> : null}
-                          {freshBusy ? 'Setting up…' : 'Continue'}
-                        </button>
-                      </div>
-                    )}
-
-                    {freshStep === 'code' && (
-                      <div className="space-y-2.5">
-                        <p className="text-[11px] text-[#25D366]">✓ Number added — verification code sent via SMS</p>
-                        <div className="space-y-1.5">
-                          <label className="text-[11px] text-gray-500">Enter the code you received</label>
-                          <input value={freshCode} onChange={e => setFreshCode(e.target.value.replace(/\D/g, '').slice(0, 6))}
-                            placeholder="123456" maxLength={6}
-                            className="w-full bg-[#111B21] text-white text-xs rounded-lg p-2.5 border border-white/10" />
-                        </div>
-                        <div className="flex gap-2">
-                          <button onClick={() => handleFreshResend('SMS')} disabled={freshBusy} className="flex-1 py-2 rounded-lg text-[11px] text-gray-400 bg-white/5 hover:bg-white/10 disabled:opacity-50">Resend SMS</button>
-                          <button onClick={() => handleFreshResend('VOICE')} disabled={freshBusy} className="flex-1 py-2 rounded-lg text-[11px] text-gray-400 bg-white/5 hover:bg-white/10 disabled:opacity-50">Call me instead</button>
-                        </div>
-                        <button onClick={handleFreshVerify} disabled={freshBusy}
-                          className="w-full py-2.5 rounded-xl text-sm font-medium text-white bg-[#25D366] hover:bg-[#20BD5A] disabled:opacity-50 flex items-center justify-center gap-2">
-                          {freshBusy ? <Loader2 className="w-4 h-4 animate-spin" /> : null}
-                          {freshBusy ? 'Verifying…' : 'Verify code'}
-                        </button>
-                      </div>
-                    )}
-
-                    {freshStep === 'pin' && (
-                      <div className="space-y-2.5">
-                        <p className="text-[11px] text-[#25D366]">✓ Number verified</p>
-                        <div className="space-y-1.5">
-                          <label className="text-[11px] text-gray-500">Set a 6-digit PIN (two-step verification — save this somewhere safe)</label>
-                          <input value={freshPin} onChange={e => setFreshPin(e.target.value.replace(/\D/g, '').slice(0, 6))}
-                            placeholder="123456" maxLength={6}
-                            className="w-full bg-[#111B21] text-white text-xs rounded-lg p-2.5 border border-white/10" />
-                        </div>
-                        <button onClick={handleFreshRegisterAndConnect} disabled={freshBusy}
-                          className="w-full py-2.5 rounded-xl text-sm font-bold text-white bg-[#25D366] hover:bg-[#20BD5A] disabled:opacity-50 flex items-center justify-center gap-2">
-                          {freshBusy ? <Loader2 className="w-4 h-4 animate-spin" /> : <ShieldCheck className="w-4 h-4" />}
-                          {freshBusy ? 'Registering & connecting…' : 'Activate & connect'}
-                        </button>
-                      </div>
-                    )}
-
-                    {freshError && <p className="text-[11px] text-red-400 leading-relaxed">{freshError}</p>}
-                  </div>
-                )}
-
-                                {guidedWabas && guidedWabas.length > 0 && (
-                  <div className="space-y-2.5 pt-1">
-                    <div className="space-y-2">
-                      <label className="text-[11px] text-gray-500">WhatsApp Business Account</label>
-                      <select value={guidedSelection.waba_id}
-                        onChange={e => {
-                          const wabaId = e.target.value;
-                          const waba = guidedWabas.find(w => w.waba_id === wabaId);
-                          setGuidedSelection({ waba_id: wabaId, phone_number_id: waba?.phone_numbers?.[0]?.phone_number_id || '' });
-                        }}
-                        className="w-full bg-[#0B141A] text-white text-xs rounded-lg p-2.5 border border-white/10">
-                        {guidedWabas.map(w => <option key={w.waba_id} value={w.waba_id}>{w.name} ({w.waba_id})</option>)}
-                      </select>
-                    </div>
-                    {(() => {
-                      const selectedWaba = guidedWabas.find(w => w.waba_id === guidedSelection.waba_id);
-                      const phones = selectedWaba?.phone_numbers || [];
-                      if (!phones.length) {
-                        return <p className="text-[11px] text-amber-400">No phone numbers found on this account yet — add one in Meta's WhatsApp Manager first, then run "Find my WhatsApp accounts" again.</p>;
-                      }
-                      return (
-                        <div className="space-y-2">
-                          <label className="text-[11px] text-gray-500">Phone Number</label>
-                          <select value={guidedSelection.phone_number_id}
-                            onChange={e => setGuidedSelection(s => ({ ...s, phone_number_id: e.target.value }))}
-                            className="w-full bg-[#0B141A] text-white text-xs rounded-lg p-2.5 border border-white/10">
-                            {phones.map(p => (
-                              <option key={p.phone_number_id} value={p.phone_number_id}>
-                                {p.display_phone_number || p.phone_number_id} {p.verified_name ? `· ${p.verified_name}` : ''}
-                              </option>
-                            ))}
-                          </select>
-                        </div>
-                      );
-                    })()}
-                    <button onClick={handleGuidedConnect} disabled={guidedConnecting || !guidedSelection.phone_number_id}
-                      className="w-full py-2.5 rounded-xl text-sm font-bold text-white bg-[#25D366] hover:bg-[#20BD5A] disabled:opacity-50 flex items-center justify-center gap-2">
-                      {guidedConnecting ? <Loader2 className="w-4 h-4 animate-spin" /> : <ShieldCheck className="w-4 h-4" />}
-                      {guidedConnecting ? 'Connecting…' : 'Connect this number'}
-                    </button>
-                  </div>
-                )}
-                {guidedError && <p className="text-[11px] text-red-400 leading-relaxed">{guidedError}</p>}
+          {/* ── Advanced tab ── */}
+          {tab === 'advanced' && (
+            <div className="space-y-3">
+              {/* Sub-mode toggle */}
+              <div className="flex rounded-lg bg-[#0B141A] p-0.5 gap-0.5">
+                {[['discover', 'Auto-detect'], ['manual', 'Manual entry']].map(([key, label]) => (
+                  <button key={key} onClick={() => { setAdvMode(key); setDiscoverError(''); setManualError(''); setWabas(null); setRegWizard(null); }}
+                    className={`flex-1 py-1.5 rounded-md text-[11px] font-medium transition-colors ${
+                      advMode === key ? 'bg-[#1a2530] text-white' : 'text-gray-500 hover:text-gray-300'
+                    }`}>{label}</button>
+                ))}
               </div>
 
-              {metaConfigId && (
-                <div className="space-y-2.5">
-                  <button
-                    onClick={handleEmbeddedSignup}
-                    disabled={!fbReady || embeddedLoading}
-                    className="w-full py-3 rounded-xl text-sm font-bold text-white bg-[#1877F2] hover:bg-[#166FE5] disabled:opacity-60 flex items-center justify-center gap-2">
-                    {embeddedLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : <ShieldCheck className="w-4 h-4" />}
-                    {!fbReady ? 'Loading secure connection…' : embeddedLoading ? 'Connecting...' : 'Connect with Facebook'}
-                  </button>
-                  <p className="text-[11px] text-gray-500 text-center">
-                    Official Meta signup — pick your WhatsApp Business number in a secure popup. Recommended.
+              {/* Auto-detect mode */}
+              {advMode === 'discover' && !freshMode && (
+                <div className="bg-[#111B21] rounded-xl p-4 space-y-3">
+                  <p className="text-[11px] text-gray-400 leading-relaxed">
+                    Paste a System User access token from Meta Business Settings → Users → System Users. Make sure it has <strong>whatsapp_business_management</strong> + <strong>whatsapp_business_messaging</strong> permissions and Manage access to the WABA.
                   </p>
-                  {showSlowHint && (
-                    <div className="bg-amber-500/10 rounded-xl p-3 space-y-1">
-                      <p className="text-[11px] font-semibold text-amber-400">Taking longer than usual?</p>
-                      <p className="text-[11px] text-amber-200/80 leading-relaxed">
-                        A popup should have appeared already. If you don't see one, your browser is probably
-                        blocking it. Try tapping the shield/lock icon next to your address bar and allowing
-                        cookies/popups for this site, or switch to Chrome and click "Connect with Facebook" again.
-                      </p>
+                  <input type="password" value={token} onChange={e => setToken(e.target.value)}
+                    placeholder="EAAG… (System User access token)"
+                    className="w-full bg-[#0B141A] text-white text-xs rounded-lg p-2.5 border border-white/10" />
+                  <button onClick={handleDiscover} disabled={discovering || !token.trim()}
+                    className="w-full py-2.5 rounded-xl text-sm font-medium text-white bg-[#25D366] hover:bg-[#20BD5A] disabled:opacity-50 flex items-center justify-center gap-2">
+                    {discovering ? <Loader2 className="w-4 h-4 animate-spin" /> : null}
+                    {discovering ? 'Looking up your accounts…' : 'Find my WhatsApp accounts'}
+                  </button>
+
+                  {wabas && wabas.length > 0 && (
+                    <div className="space-y-2.5 pt-1">
+                      <div className="space-y-1.5">
+                        <label className="text-[11px] text-gray-500">WhatsApp Business Account</label>
+                        <select value={selectedWabaId} onChange={e => {
+                          const w = wabas.find(w => w.waba_id === e.target.value);
+                          setSelectedWabaId(e.target.value);
+                          setSelectedPhoneId(w?.phone_numbers?.[0]?.phone_number_id || '');
+                        }} className="w-full bg-[#0B141A] text-white text-xs rounded-lg p-2.5 border border-white/10">
+                          {wabas.map(w => <option key={w.waba_id} value={w.waba_id}>{w.name} ({w.waba_id})</option>)}
+                        </select>
+                      </div>
+                      {(() => {
+                        const phones = wabas.find(w => w.waba_id === selectedWabaId)?.phone_numbers || [];
+                        if (!phones.length) return <p className="text-[11px] text-amber-400">No phone numbers found on this account. Add one in Meta's WhatsApp Manager first.</p>;
+                        return (
+                          <div className="space-y-1.5">
+                            <label className="text-[11px] text-gray-500">Phone Number</label>
+                            <select value={selectedPhoneId} onChange={e => setSelectedPhoneId(e.target.value)}
+                              className="w-full bg-[#0B141A] text-white text-xs rounded-lg p-2.5 border border-white/10">
+                              {phones.map(p => <option key={p.phone_number_id} value={p.phone_number_id}>{p.display_phone_number || p.phone_number_id}{p.verified_name ? ` · ${p.verified_name}` : ''}</option>)}
+                            </select>
+                          </div>
+                        );
+                      })()}
+                      <button onClick={handleDiscoverConnect} disabled={connecting || !selectedPhoneId}
+                        className="w-full py-2.5 rounded-xl text-sm font-bold text-white bg-[#25D366] hover:bg-[#20BD5A] disabled:opacity-50 flex items-center justify-center gap-2">
+                        {connecting ? <Loader2 className="w-4 h-4 animate-spin" /> : <ShieldCheck className="w-4 h-4" />}
+                        {connecting ? 'Connecting…' : 'Connect this number'}
+                      </button>
                     </div>
                   )}
-                  <details className="group">
-                    <summary className="text-[11px] text-gray-500 cursor-pointer select-none hover:text-gray-400 list-none flex items-center gap-1 justify-center">
-                      <ChevronDown className="w-3 h-3 group-open:rotate-180 transition-transform" />
-                      Nothing happening when you click?
-                    </summary>
-                    <div className="mt-2 text-[11px] text-gray-500 leading-relaxed space-y-1 px-1">
-                      <p>1. Use Chrome, Safari, or Edge — some privacy browsers block this by default.</p>
-                      <p>2. Look for a shield/lock icon near your address bar and allow cookies for this page.</p>
-                      <p>3. If you're on a work device, your IT admin may block third-party popups/cookies — try a personal device.</p>
-                      <p>4. Still stuck? Use the manual connection option below instead — no popup required.</p>
+
+                  {discoverError && <p className="text-[11px] text-red-400 leading-relaxed">{discoverError}</p>}
+
+                  {/* Register new number sub-flow */}
+                  {!freshMode && (
+                    <button onClick={() => { setFreshMode(true); setFreshError(''); setFreshStep('input'); }}
+                      className="w-full text-center text-[11px] text-gray-500 hover:text-gray-300 underline underline-offset-2">
+                      Register a brand new number →
+                    </button>
+                  )}
+                </div>
+              )}
+
+              {/* Fresh number wizard */}
+              {advMode === 'discover' && freshMode && (
+                <div className="bg-[#111B21] rounded-xl p-4 space-y-3">
+                  <div className="flex items-center justify-between">
+                    <p className="text-xs font-bold text-white">Register a new number</p>
+                    <button onClick={() => { setFreshMode(false); setFreshStep('input'); setFreshError(''); }} className="text-[11px] text-gray-500 hover:text-gray-300">Cancel</button>
+                  </div>
+
+                  {freshStep === 'input' && (
+                    <div className="space-y-2.5">
+                      <p className="text-[11px] text-gray-400 leading-relaxed">Uses the same token above. Your Business ID is in Meta Business Settings → Business Info.</p>
+                      <div className="space-y-1.5">
+                        <label className="text-[11px] text-gray-500">Business ID</label>
+                        <input value={freshBusinessId} onChange={e => setFreshBusinessId(e.target.value)} placeholder="123456789012345"
+                          className="w-full bg-[#0B141A] text-white text-xs rounded-lg p-2.5 border border-white/10" />
+                      </div>
+                      <div className="grid grid-cols-3 gap-2">
+                        <div className="space-y-1.5">
+                          <label className="text-[11px] text-gray-500">Country code</label>
+                          <input value={freshCc} onChange={e => setFreshCc(e.target.value.replace(/\D/g, ''))} placeholder="265"
+                            className="w-full bg-[#0B141A] text-white text-xs rounded-lg p-2.5 border border-white/10" />
+                        </div>
+                        <div className="col-span-2 space-y-1.5">
+                          <label className="text-[11px] text-gray-500">Phone number</label>
+                          <input value={freshPhone} onChange={e => setFreshPhone(e.target.value.replace(/\D/g, ''))} placeholder="9800114467"
+                            className="w-full bg-[#0B141A] text-white text-xs rounded-lg p-2.5 border border-white/10" />
+                        </div>
+                      </div>
+                      <div className="bg-amber-500/10 rounded-lg p-2.5 space-y-1">
+                        <p className="text-[11px] font-semibold text-amber-400">Number still on WhatsApp Business App?</p>
+                        <p className="text-[11px] text-amber-200/70 leading-relaxed"><strong>Keep both (coexistence):</strong> use the Recommended tab — Meta's QR-code flow is the only way to do this.</p>
+                        <p className="text-[11px] text-amber-200/70 leading-relaxed"><strong>Full migration:</strong> delete the WhatsApp account from the app (Settings → Account → Delete my account) then come back here.</p>
+                      </div>
+                      <button onClick={handleFreshStart} disabled={freshBusy}
+                        className="w-full py-2.5 rounded-xl text-sm font-medium text-white bg-[#25D366] hover:bg-[#20BD5A] disabled:opacity-50 flex items-center justify-center gap-2">
+                        {freshBusy ? <Loader2 className="w-4 h-4 animate-spin" /> : null}
+                        {freshBusy ? 'Setting up…' : 'Continue'}
+                      </button>
                     </div>
-                  </details>
+                  )}
+
+                  {freshStep === 'code' && (
+                    <div className="space-y-2.5">
+                      <p className="text-[11px] text-[#25D366]">✓ Number added — verification code sent via SMS</p>
+                      <input value={freshCode} onChange={e => setFreshCode(e.target.value.replace(/\D/g, '').slice(0, 6))} placeholder="123456" maxLength={6}
+                        className="w-full bg-[#0B141A] text-white text-xs rounded-lg p-2.5 border border-white/10" />
+                      <div className="flex gap-2">
+                        <button onClick={() => handleFreshResend('SMS')} disabled={freshBusy} className="flex-1 py-2 rounded-lg text-[11px] text-gray-400 bg-white/5 hover:bg-white/10 disabled:opacity-50">Resend SMS</button>
+                        <button onClick={() => handleFreshResend('VOICE')} disabled={freshBusy} className="flex-1 py-2 rounded-lg text-[11px] text-gray-400 bg-white/5 hover:bg-white/10 disabled:opacity-50">Call me instead</button>
+                      </div>
+                      <button onClick={handleFreshVerify} disabled={freshBusy}
+                        className="w-full py-2.5 rounded-xl text-sm font-medium text-white bg-[#25D366] hover:bg-[#20BD5A] disabled:opacity-50 flex items-center justify-center gap-2">
+                        {freshBusy ? <Loader2 className="w-4 h-4 animate-spin" /> : null}
+                        {freshBusy ? 'Verifying…' : 'Verify code'}
+                      </button>
+                    </div>
+                  )}
+
+                  {freshStep === 'pin' && (
+                    <div className="space-y-2.5">
+                      <p className="text-[11px] text-[#25D366]">✓ Number verified</p>
+                      <div className="space-y-1.5">
+                        <label className="text-[11px] text-gray-500">Set a 6-digit PIN (two-step verification — save this)</label>
+                        <input value={freshPin} onChange={e => setFreshPin(e.target.value.replace(/\D/g, '').slice(0, 6))} placeholder="123456" maxLength={6}
+                          className="w-full bg-[#0B141A] text-white text-xs rounded-lg p-2.5 border border-white/10" />
+                      </div>
+                      <button onClick={handleFreshRegisterAndConnect} disabled={freshBusy}
+                        className="w-full py-2.5 rounded-xl text-sm font-bold text-white bg-[#25D366] hover:bg-[#20BD5A] disabled:opacity-50 flex items-center justify-center gap-2">
+                        {freshBusy ? <Loader2 className="w-4 h-4 animate-spin" /> : <ShieldCheck className="w-4 h-4" />}
+                        {freshBusy ? 'Registering & connecting…' : 'Activate & connect'}
+                      </button>
+                    </div>
+                  )}
+                  {freshError && <p className="text-[11px] text-red-400">{freshError}</p>}
+                </div>
+              )}
+
+              {/* Manual entry mode */}
+              {advMode === 'manual' && !regWizard && (
+                <div className="bg-[#111B21] rounded-xl p-4 space-y-3">
+                  <p className="text-[11px] text-gray-400 leading-relaxed">Paste your credentials directly. WABA ID and Phone Number ID can be found in Meta Business Manager → WhatsApp Manager.</p>
+                  <div className="space-y-2">
+                    <div className="space-y-1">
+                      <label className="text-[11px] text-gray-500">Permanent Access Token *</label>
+                      <input type="password" value={manualToken} onChange={e => setManualToken(e.target.value)} placeholder="EAAG…"
+                        className="w-full bg-[#0B141A] text-white text-xs rounded-lg p-2.5 border border-white/10" />
+                    </div>
+                    <div className="space-y-1">
+                      <label className="text-[11px] text-gray-500">WhatsApp Business Account ID (optional — auto-detected if blank)</label>
+                      <input value={manualWabaId} onChange={e => setManualWabaId(e.target.value)} placeholder="916980661415765"
+                        className="w-full bg-[#0B141A] text-white text-xs rounded-lg p-2.5 border border-white/10" />
+                    </div>
+                    <div className="space-y-1">
+                      <label className="text-[11px] text-gray-500">Phone Number ID (optional — auto-detected if blank)</label>
+                      <input value={manualPhoneId} onChange={e => setManualPhoneId(e.target.value)} placeholder="1228643423663631"
+                        className="w-full bg-[#0B141A] text-white text-xs rounded-lg p-2.5 border border-white/10" />
+                    </div>
+                  </div>
+                  {manualError && <p className="text-[11px] text-red-400 leading-relaxed">{manualError}</p>}
+                  <button onClick={handleManualConnect} disabled={manualConnecting || !manualToken.trim()}
+                    className="w-full py-2.5 rounded-xl text-sm font-bold text-white bg-[#25D366] hover:bg-[#20BD5A] disabled:opacity-50 flex items-center justify-center gap-2">
+                    {manualConnecting ? <Loader2 className="w-4 h-4 animate-spin" /> : <ShieldCheck className="w-4 h-4" />}
+                    {manualConnecting ? 'Validating & connecting…' : 'Connect'}
+                  </button>
+                </div>
+              )}
+
+              {/* Registration wizard (triggered by manual connect when phone not yet registered) */}
+              {advMode === 'manual' && regWizard && (
+                <div className="bg-[#111B21] rounded-xl p-4 space-y-3">
+                  <p className="text-sm font-bold text-white">Register {regWizard.phone_number || regWizard.phone_number_id}</p>
+                  <p className="text-[11px] text-gray-400">This number isn't registered for Cloud API yet. Complete the steps below to activate it.</p>
+
+                  {regStep === 'code' && (
+                    <div className="space-y-2.5">
+                      <p className="text-[11px] text-[#25D366]">✓ Verification code sent via SMS</p>
+                      <input value={regCode} onChange={e => setRegCode(e.target.value.replace(/\D/g, '').slice(0, 6))} placeholder="123456" maxLength={6}
+                        className="w-full bg-[#0B141A] text-white text-xs rounded-lg p-2.5 border border-white/10" />
+                      <div className="flex gap-2">
+                        <button onClick={async () => { setRegBusy(true); try { await apiCall('whatsapp-guided-request-code', { access_token: activeToken, phone_number_id: regWizard.phone_number_id, code_method: 'SMS' }); } finally { setRegBusy(false); } }} disabled={regBusy} className="flex-1 py-2 rounded-lg text-[11px] text-gray-400 bg-white/5 hover:bg-white/10 disabled:opacity-50">Resend SMS</button>
+                        <button onClick={async () => { setRegBusy(true); try { await apiCall('whatsapp-guided-request-code', { access_token: activeToken, phone_number_id: regWizard.phone_number_id, code_method: 'VOICE' }); } finally { setRegBusy(false); } }} disabled={regBusy} className="flex-1 py-2 rounded-lg text-[11px] text-gray-400 bg-white/5 hover:bg-white/10 disabled:opacity-50">Call me instead</button>
+                      </div>
+                      <button onClick={handleRegVerify} disabled={regBusy}
+                        className="w-full py-2.5 rounded-xl text-sm font-medium text-white bg-[#25D366] hover:bg-[#20BD5A] disabled:opacity-50 flex items-center justify-center gap-2">
+                        {regBusy ? <Loader2 className="w-4 h-4 animate-spin" /> : null}
+                        {regBusy ? 'Verifying…' : 'Verify code'}
+                      </button>
+                    </div>
+                  )}
+
+                  {regStep === 'pin' && (
+                    <div className="space-y-2.5">
+                      <p className="text-[11px] text-[#25D366]">✓ Code verified</p>
+                      <div className="space-y-1.5">
+                        <label className="text-[11px] text-gray-500">Set a 6-digit PIN (two-step verification — save this)</label>
+                        <input value={regPin} onChange={e => setRegPin(e.target.value.replace(/\D/g, '').slice(0, 6))} placeholder="123456" maxLength={6}
+                          className="w-full bg-[#0B141A] text-white text-xs rounded-lg p-2.5 border border-white/10" />
+                      </div>
+                      <button onClick={handleRegComplete} disabled={regBusy}
+                        className="w-full py-2.5 rounded-xl text-sm font-bold text-white bg-[#25D366] hover:bg-[#20BD5A] disabled:opacity-50 flex items-center justify-center gap-2">
+                        {regBusy ? <Loader2 className="w-4 h-4 animate-spin" /> : <ShieldCheck className="w-4 h-4" />}
+                        {regBusy ? 'Registering & connecting…' : 'Activate & connect'}
+                      </button>
+                    </div>
+                  )}
+
+                  {regError && <p className="text-[11px] text-red-400">{regError}</p>}
+                  <button onClick={() => setRegWizard(null)} className="w-full text-center text-[11px] text-gray-500 hover:text-gray-300">← Back</button>
                 </div>
               )}
             </div>
-
-            {/* Error */}
-            {error && (
-              <p className="text-[11px] text-red-400 text-center px-2 leading-relaxed">{error}</p>
-            )}
-
-            {/* Manual Cloud API connection — the fallback/default path */}
-            <details className="group" open={!metaConfigId}>
-              <summary className="text-[11px] text-gray-500 cursor-pointer select-none hover:text-gray-400 list-none flex items-center gap-1">
-                <ChevronDown className="w-3 h-3 group-open:rotate-180 transition-transform" />
-                {metaConfigId ? 'Or connect manually with WhatsApp Cloud API credentials' : 'Connect with WhatsApp Cloud API credentials'}
-              </summary>
-              <div className="mt-3 bg-[#111B21] rounded-xl p-4 space-y-3">
-                <p className="text-xs text-gray-400 leading-relaxed">
-                  Use your Meta Business WhatsApp Cloud API credentials directly.
-                  Requires a registered phone number and a permanent access token from your Meta Business account.
-                </p>
-                <div className="space-y-2">
-                  <label className="text-[11px] text-gray-500">Access Token</label>
-                  <input type="password" value={manualFields.access_token || ''}
-                    onChange={e => setManualFields({...manualFields, access_token: e.target.value})}
-                    placeholder="EAAG..."
-                    className="w-full bg-[#0B141A] text-white text-xs rounded-lg p-2.5 border border-white/10" />
-                </div>
-                <div className="grid grid-cols-2 gap-2">
-                  <div className="space-y-2">
-                    <label className="text-[11px] text-gray-500">Phone Number ID</label>
-                    <input value={manualFields.phone_number_id || ''}
-                      onChange={e => setManualFields({...manualFields, phone_number_id: e.target.value})}
-                      placeholder="123456789"
-                      className="w-full bg-[#0B141A] text-white text-xs rounded-lg p-2.5 border border-white/10" />
-                  </div>
-                  <div className="space-y-2">
-                    <label className="text-[11px] text-gray-500">WABA ID</label>
-                    <input value={manualFields.waba_id || ''}
-                      onChange={e => setManualFields({...manualFields, waba_id: e.target.value})}
-                      placeholder="123456789"
-                      className="w-full bg-[#0B141A] text-white text-xs rounded-lg p-2.5 border border-white/10" />
-                  </div>
-                </div>
-                <button onClick={handleManualSave} disabled={savingManual}
-                  className="w-full py-2.5 rounded-xl text-sm font-medium text-white bg-[#25D366] hover:bg-[#20BD5A] disabled:opacity-50">
-                  {savingManual ? 'Saving…' : 'Save Cloud API Credentials'}
-                </button>
-              </div>
-            </details>
-          </div>
-        )}
-      </div>
+          )}
+        </div>
+      )}
     </ChannelCard>
   );
 }
