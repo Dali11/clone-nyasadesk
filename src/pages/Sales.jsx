@@ -132,7 +132,15 @@ export default function Sales() {
       {/* List */}
       <div className="flex-1 overflow-y-auto px-4 sm:px-6 space-y-3 pb-4">
         {loading ? (
-          {loadError             ? <div className="flex flex-col items-center justify-center py-16 gap-2"><p className="text-red-400 text-sm font-medium">Failed to load sales</p><p className="text-gray-500 text-xs">{loadError}</p><button onClick={load} className="mt-2 text-xs text-[#25D366] underline">Try again</button></div>            : <div className="flex items-center justify-center py-16 text-gray-500"><Loader2 className="w-5 h-5 animate-spin mr-2" /> Loading…</div>}
+          <div className="flex items-center justify-center py-16 text-gray-500">
+            <Loader2 className="w-5 h-5 animate-spin mr-2" /> Loading…
+          </div>
+        ) : loadError ? (
+          <div className="flex flex-col items-center justify-center py-16 gap-2">
+            <p className="text-red-400 text-sm font-medium">Failed to load sales</p>
+            <p className="text-gray-500 text-xs">{loadError}</p>
+            <button onClick={load} className="mt-2 text-xs text-[#25D366] underline">Try again</button>
+          </div>
         ) : filtered.length === 0 ? (
           <div className="flex flex-col items-center justify-center py-16 text-center gap-3">
             <TrendingUp className="w-10 h-10 text-gray-700" />
