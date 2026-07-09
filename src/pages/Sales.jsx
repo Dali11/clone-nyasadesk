@@ -81,19 +81,25 @@ export default function Sales() {
   return (
     <div className="flex flex-col h-full bg-[#0B141A] pt-14 md:pt-0 pb-[56px] md:pb-0">
       {/* Header */}
-      <div className="px-4 sm:px-6 py-4 border-b border-white/5 flex items-center justify-between">
-        <h1 className="text-white font-bold text-lg flex items-center gap-2">
-          <TrendingUp className="w-5 h-5 text-[#25D366]" /> Sales
-        </h1>
-        <div className="flex items-center gap-2">
-          <button onClick={() => setShowCommissionModal(true)}
-            className="flex items-center gap-1.5 bg-[#202C33] text-white text-sm font-semibold px-3.5 py-2 rounded-xl border border-white/10 hover:bg-[#2a3a42]">
-            <FileText className="w-4 h-4 text-[#25D366]" /> Commission Report
-          </button>
-          <button onClick={() => setShowModal(true)}
-            className="flex items-center gap-1.5 bg-[#25D366] text-black text-sm font-semibold px-3.5 py-2 rounded-xl hover:bg-[#20b859]">
-            <Plus className="w-4 h-4" /> Record sale
-          </button>
+      <div className="px-4 sm:px-6 py-3 border-b border-white/5">
+        <div className="flex items-center justify-between">
+          <h1 className="text-white font-bold text-lg flex items-center gap-2">
+            <TrendingUp className="w-5 h-5 text-[#25D366]" /> Sales
+          </h1>
+          <div className="flex items-center gap-2">
+            <button onClick={() => setShowCommissionModal(true)}
+              className="flex items-center gap-1.5 bg-[#202C33] text-white text-xs font-semibold px-2.5 py-2 rounded-xl border border-white/10 hover:bg-[#2a3a42]">
+              <FileText className="w-3.5 h-3.5 text-[#25D366] shrink-0" />
+              <span className="hidden sm:inline">Commission Report</span>
+              <span className="sm:hidden">Report</span>
+            </button>
+            <button onClick={() => setShowModal(true)}
+              className="flex items-center gap-1.5 bg-[#25D366] text-black text-xs font-semibold px-2.5 py-2 rounded-xl hover:bg-[#20b859]">
+              <Plus className="w-3.5 h-3.5 shrink-0" />
+              <span className="hidden sm:inline">Record sale</span>
+              <span className="sm:hidden">Record</span>
+            </button>
+          </div>
         </div>
       </div>
 
