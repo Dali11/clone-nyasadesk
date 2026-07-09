@@ -37,7 +37,7 @@ function ContactDrawer({ contact, workspaceId, onClose, onSave }) {
           <button onClick={onClose} className="p-1.5 hover:bg-white/10 rounded-lg transition-colors text-gray-400"><X className="w-4 h-4" /></button>
         </div>
         <div className="px-5 py-4 border-b border-white/10 text-center">
-          <Avatar name={editData.full_name} size="xl" />
+          <Avatar name={editData.full_name} src={editData.avatar_url} size="xl" />
           <div className="mt-3 space-y-2">
             {[['full_name','Name'],['email','Email'],['phone','Phone'],['company','Company']].map(([k, ph]) => (
               <input key={k} className={inputCls} placeholder={ph} value={editData[k] || ''} onChange={e => set(k, e.target.value)} />
@@ -206,7 +206,7 @@ export default function Contacts() {
                     className="border-b border-white/5 hover:bg-white/5 cursor-pointer transition-colors group">
                     <td className="px-6 py-3">
                       <div className="flex items-center gap-3">
-                        <Avatar name={c.full_name} size="sm" />
+                        <Avatar name={c.full_name} src={c.avatar_url} size="sm" />
                         <div>
                           <p className="text-sm font-medium text-white">{c.full_name}</p>
                           <p className="text-xs text-gray-500">{c.email}</p>
