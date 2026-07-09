@@ -239,7 +239,7 @@ export default function Documents() {
                           near-unusable sliver a few px wide. From sm: up (tablet+)
                           there's enough width to go back to a single row. */}
                       <input className={inputCls + ' w-full mb-2'} placeholder="Description" value={it.description} onChange={e => setItem(idx, 'description', e.target.value)} />
-                      <div className="grid grid-cols-[1fr_2fr_auto] gap-2 items-center">
+                      <div className="grid grid-cols-[56px_1fr_auto] gap-2 items-center">
                         <div>
                           <label className="text-[10px] text-gray-500 mb-0.5 block">Qty</label>
                           <input className={inputCls + ' w-full'} type="number" min="0" placeholder="1" value={it.quantity} onChange={e => setItem(idx, 'quantity', e.target.value)} />
