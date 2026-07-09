@@ -88,14 +88,17 @@ export default function TeamSection() {
     if (!window.confirm(`Remove ${member.full_name || member.email} from the team? They'll keep their account but lose access to this shared inbox.`)) return;
     setUsers(prev => prev.filter(u => u.id !== member.id));
     try {
-      // "Removing" someone just cuts them loose from this workspace — they
-      // become the owner of their own (empty) workspace again, rather than
-      // deleting their whole account.
-      const { error } = await supabase.from('profiles').update({ workspace_id: null, role: 'admin' }).eq('id', member.id);
-      if (error) throw error;
+      const { data: { session } } = await supabase.auth.getSession();
+      const r = await fetch('/api/team?action=remove', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${session?.access_token}` },
+        body: JSON.stringify({ member_id: member.id, workspace_id: workspaceOwnerId }),
+      });
+      const d = await r.json();
+      if (!d.success) throw new Error(d.error || 'Remove failed');
     } catch (e) {
       console.error('[TeamSection] remove member failed:', e);
-      setError('Failed to remove member — try again.');
+      setError('Failed to remove member: ' + e.message);
       await loadUsers();
     }
   };

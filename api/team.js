@@ -145,6 +145,34 @@ async function pushUnsubscribeHandler(req, res, sb, sbAnon) {
   return res.status(200).json({ success: true });
 }
 
+
+async function removeHandler(req, res, sb, sbAnon) {
+  const { member_id, workspace_id } = req.body || {};
+  if (!member_id || !workspace_id) return res.status(400).json({ error: 'member_id and workspace_id are required' });
+
+  const callerId = await verifyCaller(req, res, sb, sbAnon);
+  if (!callerId) return;
+
+  // Caller must be the workspace owner (their own id === workspace_id) or an admin
+  const { data: callerProfile } = await sb.from('profiles').select('role, workspace_id').eq('id', callerId).maybeSingle();
+  const callerWorkspace = callerProfile?.workspace_id || callerId;
+  const isOwner = String(callerId) === String(workspace_id);
+  const isAdmin = callerProfile?.role === 'admin' && String(callerWorkspace) === String(workspace_id);
+  if (!isOwner && !isAdmin) return res.status(403).json({ error: 'Only workspace admins can remove members' });
+
+  // Cannot remove yourself
+  if (String(member_id) === String(callerId)) return res.status(400).json({ error: 'You cannot remove yourself' });
+
+  // Detach member from this workspace — they become standalone again
+  const { error } = await sb.from('profiles')
+    .update({ workspace_id: null, role: 'admin' })
+    .eq('id', member_id)
+    .eq('workspace_id', workspace_id); // safety: only touch members of THIS workspace
+
+  if (error) return res.status(500).json({ error: error.message });
+  return res.status(200).json({ success: true });
+}
+
 export default async function handler(req, res) {
   try {
     const sb = createClient(SUPABASE_URL, SUPABASE_KEY);
@@ -154,6 +182,7 @@ export default async function handler(req, res) {
     if (action === 'push-subscribe' && req.method === 'POST') return await pushSubscribeHandler(req, res, sb, sbAnon);
     if (action === 'push-unsubscribe' && req.method === 'POST') return await pushUnsubscribeHandler(req, res, sb, sbAnon);
 
+    if (action === 'remove' && req.method === 'POST') return await removeHandler(req, res, sb, sbAnon);
     if (req.method === 'GET') return await listHandler(req, res, sb, sbAnon);
     if (req.method === 'POST') return await inviteHandler(req, res, sb, sbAnon);
     return res.status(405).json({ error: 'Method not allowed' });
