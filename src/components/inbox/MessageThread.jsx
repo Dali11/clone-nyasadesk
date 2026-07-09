@@ -394,9 +394,18 @@ function Bubble({ msg, menuOpenId, onOpenMenu, onCopy, onShare, onDelete, onTogg
         ) : (
           <>
             {attachment && <MediaAttachment att={attachment} onOpen={onOpenMedia} />}
-            {(!attachment || (msg.body && !['📷 Photo','🎥 Video','🎤 Voice message'].includes(msg.body))) && (
-              <p className="whitespace-pre-wrap break-words">{msg.body}</p>
-            )}
+            {(!attachment || (msg.body && !['📷 Photo','🎥 Video','🎤 Voice message'].includes(msg.body))) && (() => {
+              // Pure emoji reaction — render large with a subtle pill, no bubble chrome
+              const isEmojiOnly = msg.body && /^(\p{Emoji_Presentation}|\p{Extended_Pictographic})(\uFE0F|\u20E3)?$/u.test(msg.body.trim());
+              if (isEmojiOnly) {
+                return (
+                  <span className="text-3xl leading-none select-none" title="Reaction">
+                    {msg.body}
+                  </span>
+                );
+              }
+              return <p className="whitespace-pre-wrap break-words">{msg.body}</p>;
+            })()}
           </>
         )}
         <div className={`flex items-center gap-1 mt-1 ${isOut ? 'justify-end' : 'justify-start'}`}>

@@ -294,7 +294,32 @@ export class WhatsAppCloudProvider extends MessagingProvider {
           const contactName = value.contacts?.find(c => c.wa_id === from)?.profile?.name || from;
           const ts = new Date(parseInt(msg.timestamp || Date.now() / 1000) * 1000).toISOString();
 
-          let body = msg.text?.body || `[${msg.type}]`;
+          // Resolve body based on message type
+          let body;
+          if (msg.type === 'reaction') {
+            // msg.reaction = { message_id, emoji }  (emoji can be '' to remove a reaction)
+            const emoji = msg.reaction?.emoji || '';
+            body = emoji ? emoji : '[reaction removed]';
+          } else if (msg.type === 'sticker') {
+            body = '🪄 Sticker';
+          } else if (msg.type === 'location') {
+            const loc = msg.location || {};
+            body = `📍 Location${loc.name ? ': ' + loc.name : ''}${loc.address ? ' — ' + loc.address : ''}`;
+          } else if (msg.type === 'contacts') {
+            const names = (msg.contacts || []).map(ct => ct.name?.formatted_name || ct.name?.first_name || 'Contact').join(', ');
+            body = `👤 Contact${(msg.contacts || []).length > 1 ? 's' : ''}: ${names}`;
+          } else if (msg.type === 'button') {
+            // Quick-reply button tap
+            body = msg.button?.text || '[button]';
+          } else if (msg.type === 'interactive') {
+            body = msg.interactive?.button_reply?.title
+              || msg.interactive?.list_reply?.title
+              || '[interactive]';
+          } else if (msg.type === 'order') {
+            body = '🛒 Order received';
+          } else {
+            body = msg.text?.body || `[${msg.type}]`;
+          }
           let attachments = null;
           const mediaKindMap = { image: 'image', video: 'video', audio: 'audio' };
           const mediaKind = mediaKindMap[msg.type];
