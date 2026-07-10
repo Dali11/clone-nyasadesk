@@ -190,11 +190,11 @@ async function inviteHandler(req, res, sb, sbAnon) {
     try {
       await fetch('https://api.resend.com/emails', {
         method: 'POST',
-        headers: { Authorization: \`Bearer \${RESEND_KEY}\`, 'Content-Type': 'application/json' },
+        headers: { 'Authorization': 'Bearer ' + RESEND_KEY, 'Content-Type': 'application/json' },
         body: JSON.stringify({
           from: 'Nyasadesk <noreply@nyasadesk.com>',
           to: [email],
-          subject: \`You've been invited to join \${workspaceName}\`,
+          subject: "You've been invited to join " + workspaceName,
           html: emailHtml,
         }),
       });
