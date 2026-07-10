@@ -9,7 +9,7 @@
 
 import { MessagingProvider, persistInboundMessage } from './base.js';
 
-const GRAPH_VERSION = 'v19.0';
+const GRAPH_VERSION = 'v21.0';
 const GRAPH = `https://graph.facebook.com/${GRAPH_VERSION}`;
 
 export class WhatsAppCloudProvider extends MessagingProvider {

@@ -22,7 +22,7 @@
 // nothing here transfers ownership. We only get delegated API access
 // (same net effect Embedded Signup would have granted).
 
-const GRAPH_VERSION = 'v19.0';
+const GRAPH_VERSION = 'v21.0';
 const GRAPH = `https://graph.facebook.com/${GRAPH_VERSION}`;
 
 export async function discoverWabas(accessToken) {

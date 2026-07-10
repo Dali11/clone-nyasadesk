@@ -24,7 +24,7 @@ const APP_SECRET    = process.env.FACEBOOK_APP_SECRET;
 // Accept requests from either the canonical custom domain or the underlying
 // Vercel domain (both serve the exact same deployment) instead of hardcoding
 // one — avoids this silently breaking again the next time a domain changes.
-const ALLOWED_ORIGINS = ['https://nyasadesk.com', 'https://nyasadesk.com'];
+const ALLOWED_ORIGINS = ['https://nyasadesk.com', 'https://nyasadesk1.vercel.app'];
 
 export default async function handler(req, res) {
   const origin = req.headers.origin;
@@ -54,7 +54,7 @@ export default async function handler(req, res) {
   let shortToken;
   try {
     const tokenRes = await fetch(
-      `https://graph.facebook.com/v19.0/oauth/access_token?client_id=${APP_ID}&redirect_uri=&client_secret=${APP_SECRET}&code=${code}`
+      `https://graph.facebook.com/v21.0/oauth/access_token?client_id=${APP_ID}&redirect_uri=${encodeURIComponent("https://nyasadesk.com")}&client_secret=${APP_SECRET}&code=${code}`
     );
     const tokenData = await tokenRes.json();
     if (tokenData.error) throw new Error(tokenData.error.message);
@@ -68,7 +68,7 @@ export default async function handler(req, res) {
   let longToken;
   try {
     const longRes = await fetch(
-      `https://graph.facebook.com/v19.0/oauth/access_token?grant_type=fb_exchange_token&client_id=${APP_ID}&client_secret=${APP_SECRET}&fb_exchange_token=${shortToken}`
+      `https://graph.facebook.com/v21.0/oauth/access_token?grant_type=fb_exchange_token&client_id=${APP_ID}&client_secret=${APP_SECRET}&fb_exchange_token=${shortToken}`
     );
     const longData = await longRes.json();
     if (longData.error) throw new Error(longData.error.message);
@@ -87,7 +87,7 @@ export default async function handler(req, res) {
     try {
       const appToken = `${APP_ID}|${APP_SECRET}`;
       const debugRes = await fetch(
-        `https://graph.facebook.com/v19.0/debug_token?input_token=${longToken}&access_token=${appToken}`
+        `https://graph.facebook.com/v21.0/debug_token?input_token=${longToken}&access_token=${appToken}`
       );
       const debugData = await debugRes.json();
       const granular = debugData.data?.granular_scopes || [];
@@ -110,14 +110,14 @@ export default async function handler(req, res) {
   try {
     if (hintedPhoneId) {
       const phoneRes = await fetch(
-        `https://graph.facebook.com/v19.0/${hintedPhoneId}?fields=id,display_phone_number,verified_name,quality_rating,name_status,account_mode&access_token=${longToken}`
+        `https://graph.facebook.com/v21.0/${hintedPhoneId}?fields=id,display_phone_number,verified_name,quality_rating,name_status,account_mode&access_token=${longToken}`
       );
       const phoneData = await phoneRes.json();
       if (!phoneData.error) phone = phoneData;
     }
     if (!phone) {
       const phonesRes = await fetch(
-        `https://graph.facebook.com/v19.0/${wabaId}/phone_numbers?fields=id,display_phone_number,verified_name,quality_rating,name_status,account_mode&access_token=${longToken}`
+        `https://graph.facebook.com/v21.0/${wabaId}/phone_numbers?fields=id,display_phone_number,verified_name,quality_rating,name_status,account_mode&access_token=${longToken}`
       );
       const phonesData = await phonesRes.json();
       phone = phonesData.data?.[0] || null;
@@ -147,9 +147,15 @@ export default async function handler(req, res) {
   const richPhone = setupResult.phone || phone;
 
   // ── Step 6: Build the config object with all rich fields ───────────────
+  // Derive the same verify_token that subscribeWebhooks() sent to Meta
+  // (nyasa_ + last 8 chars of wabaId) and store it so the webhook handler
+  // can match Meta's GET verification ping instead of relying on the regex fallback.
+  const verifyToken = `nyasa_${wabaId.slice(-8)}`;
+
   const config = {
     waba_id:          wabaId,
     phone_number_id:  phone.id,
+    verify_token:     verifyToken,
     phone_number:     richPhone.display_phone_number || phone.display_phone_number,
     verified_name:    richPhone.verified_name || phone.verified_name || null,
     quality_rating:   richPhone.quality_rating || phone.quality_rating || null,

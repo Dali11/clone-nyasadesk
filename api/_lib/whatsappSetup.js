@@ -12,7 +12,7 @@
 //
 // Every error message is user-friendly and suggests the fix. Pure ESM, no require.
 
-const GRAPH_VERSION = 'v19.0';
+const GRAPH_VERSION = 'v21.0';
 const GRAPH = `https://graph.facebook.com/${GRAPH_VERSION}`;
 
 // ──────────────────────────────────────────────────────────────────────────
