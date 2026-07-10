@@ -1223,6 +1223,20 @@ export default function Settings() {
   const [pwSaving, setPwSaving] = useState(false);
   const [pwError, setPwError] = useState('');
   const [pwSaved, setPwSaved] = useState(false);
+  // Detect whether user was invited (no password yet) vs. has a password.
+  // Supabase stores last_sign_in_at only after an actual password login or
+  // after accepting an invite — a user who was invited but never set a password
+  // has identities[0].identity_data with no password provider.
+  const [hasPassword, setHasPassword] = useState(null); // null = loading
+  useEffect(() => {
+    supabase.auth.getUser().then(({ data }) => {
+      const identities = data?.user?.identities || [];
+      const emailIdentity = identities.find(i => i.provider === 'email');
+      // If no email identity exists at all, user logged in via Google/Facebook
+      // and has never set a password. Treat as "no password".
+      setHasPassword(!!emailIdentity);
+    }).catch(() => setHasPassword(true)); // fail safe: show current pw field
+  }, []);
 
   // ── Subscription state ────────────────────────────────────────────────
   const [subStatus, setSubStatus] = useState(null);
@@ -1278,6 +1292,14 @@ export default function Settings() {
   useEffect(() => {
     const tab = searchParams.get('tab');
     if (tab) setSection(tab);
+    // ?pw=1 → jump to profile section and scroll password form into view
+    if (searchParams.get('pw') === '1') {
+      setSection('profile');
+      setTimeout(() => {
+        const el = document.getElementById('pw-section');
+        if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      }, 300);
+    }
     if (searchParams.get('fb_connected')) {
       setBanner({ type: 'success', msg: 'Facebook Messenger connected!' });
       setTimeout(() => setBanner(null), 5000);
@@ -1360,11 +1382,12 @@ export default function Settings() {
     if (!pwForm.newPw) { setPwError('Enter a new password'); return; }
     if (pwForm.newPw.length < 8) { setPwError('Password must be at least 8 characters'); return; }
     if (pwForm.newPw !== pwForm.confirm) { setPwError('Passwords do not match'); return; }
+    // If the user HAS a password, require the current one to verify identity
+    if (hasPassword && !pwForm.current) { setPwError('Enter your current password to continue'); return; }
     setPwSaving(true);
     try {
-      // If user has a current password (not invited via magic link), verify it first
-      // by attempting a sign-in. If they have no password yet, skip this step.
-      if (pwForm.current) {
+      // Verify current password via re-auth (only if they actually have one)
+      if (hasPassword && pwForm.current) {
         const { error: signInErr } = await supabase.auth.signInWithPassword({
           email: user.email, password: pwForm.current
         });
@@ -1374,6 +1397,7 @@ export default function Settings() {
       if (error) throw new Error(error.message);
       setPwForm({ current: '', newPw: '', confirm: '' });
       setPwSaved(true);
+      setHasPassword(true); // they now have a password set
       setTimeout(() => setPwSaved(false), 3000);
     } catch (e) { setPwError(e.message); }
     finally { setPwSaving(false); }
@@ -1503,30 +1527,73 @@ export default function Settings() {
                   </button>
                 )}
 
-                {/* Password */}
-                <div className="mt-2 pt-4 border-t border-[var(--nyasa-border)]">
-                  <p className="text-sm font-bold text-white mb-3">Password</p>
+                {/* Password ── smart: "Create" for invited users, "Change" for existing */}
+                <div id="pw-section" className="mt-2 pt-4 border-t border-[var(--nyasa-border)]">
+                  <div className="flex items-center gap-2 mb-3">
+                    <p className="text-sm font-bold text-[var(--nyasa-text)] flex-1">
+                      {hasPassword === false ? 'Create a Password' : 'Change Password'}
+                    </p>
+                    {hasPassword === false && (
+                      <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-amber-500/15 text-amber-400">
+                        No password set
+                      </span>
+                    )}
+                  </div>
+
+                  {hasPassword === false && (
+                    <div className="flex items-start gap-2 bg-[#25D366]/8 border border-[#25D366]/20 rounded-xl px-3 py-2.5 mb-3">
+                      <span className="text-[#25D366] text-sm mt-0.5">🔑</span>
+                      <p className="text-[12px] text-[var(--nyasa-text-muted)] leading-relaxed">
+                        You signed up via an invite link. Set a password so you can log in with email next time — no current password needed.
+                      </p>
+                    </div>
+                  )}
+
                   <div className="space-y-3">
+                    {/* Only show "current password" if they already have one */}
+                    {hasPassword !== false && (
+                      <div>
+                        <label className="text-[11px] font-semibold text-[var(--nyasa-text-muted)] mb-1.5 block">
+                          Current password
+                        </label>
+                        <input type="password" className={inputCls} placeholder="Your current password"
+                          value={pwForm.current} onChange={e => setPwForm(f => ({...f, current: e.target.value}))} />
+                      </div>
+                    )}
                     <div>
-                      <label className="text-[11px] font-medium text-gray-400 mb-1.5 block">Current password <span className="text-gray-600">(leave blank if you signed up via invite link)</span></label>
-                      <input type="password" className={inputCls} placeholder="Current password" value={pwForm.current}
-                        onChange={e => setPwForm(f => ({...f, current: e.target.value}))} />
+                      <label className="text-[11px] font-semibold text-[var(--nyasa-text-muted)] mb-1.5 block">
+                        {hasPassword === false ? 'New password' : 'New password'}
+                      </label>
+                      <input type="password" className={inputCls} placeholder="At least 8 characters"
+                        value={pwForm.newPw} onChange={e => setPwForm(f => ({...f, newPw: e.target.value}))} />
                     </div>
                     <div>
-                      <label className="text-[11px] font-medium text-gray-400 mb-1.5 block">New password</label>
-                      <input type="password" className={inputCls} placeholder="At least 8 characters" value={pwForm.newPw}
-                        onChange={e => setPwForm(f => ({...f, newPw: e.target.value}))} />
+                      <label className="text-[11px] font-semibold text-[var(--nyasa-text-muted)] mb-1.5 block">
+                        Confirm new password
+                      </label>
+                      <input type="password" className={inputCls} placeholder="Repeat new password"
+                        value={pwForm.confirm} onChange={e => setPwForm(f => ({...f, confirm: e.target.value}))} />
                     </div>
-                    <div>
-                      <label className="text-[11px] font-medium text-gray-400 mb-1.5 block">Confirm new password</label>
-                      <input type="password" className={inputCls} placeholder="Repeat new password" value={pwForm.confirm}
-                        onChange={e => setPwForm(f => ({...f, confirm: e.target.value}))} />
-                    </div>
-                    {pwError && <p className="text-red-400 text-xs">{pwError}</p>}
-                    {pwSaved && <p className="text-[#25D366] text-xs font-semibold">✓ Password updated successfully!</p>}
-                    <button onClick={changePassword} disabled={pwSaving}
-                      className="w-full flex items-center justify-center gap-2 py-3 rounded-xl text-sm font-bold border border-[var(--nyasa-border)] text-white hover:bg-white/5 transition-colors disabled:opacity-40">
-                      {pwSaving ? 'Updating…' : (pwSaved ? '✓ Password updated!' : 'Update Password')}
+
+                    {pwError && (
+                      <div className="flex items-center gap-2 bg-red-500/10 border border-red-500/20 rounded-xl px-3 py-2 text-red-400 text-xs">
+                        <span>⚠️</span> {pwError}
+                      </div>
+                    )}
+                    {pwSaved && (
+                      <div className="flex items-center gap-2 bg-[#25D366]/10 border border-[#25D366]/20 rounded-xl px-3 py-2 text-[#25D366] text-xs font-semibold">
+                        <span>✓</span> Password {hasPassword === false ? 'created' : 'updated'} successfully!
+                      </div>
+                    )}
+
+                    <button onClick={changePassword} disabled={pwSaving || hasPassword === null}
+                      className="w-full flex items-center justify-center gap-2 py-3 rounded-xl text-sm font-bold text-white disabled:opacity-40 transition-colors"
+                      style={{ background: '#25D366' }}>
+                      {pwSaving
+                        ? 'Saving…'
+                        : pwSaved
+                          ? '✓ Done!'
+                          : hasPassword === false ? 'Create Password' : 'Update Password'}
                     </button>
                   </div>
                 </div>
