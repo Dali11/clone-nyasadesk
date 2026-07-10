@@ -36,7 +36,7 @@ async function listHandler(req, res, sb, sbAnon) {
 
   const { data, error } = await sb
     .from('profiles')
-    .select('id, full_name, role, avatar_url, workspace_id, updated_at')
+    .select('id, full_name, role, avatar_url, workspace_id, updated_at, email')
     .or(`workspace_id.eq.${workspace_id},id.eq.${workspace_id}`)
     .order('updated_at', { ascending: true });
 
@@ -46,7 +46,7 @@ async function listHandler(req, res, sb, sbAnon) {
   const users = await Promise.all((data || []).map(async (p) => {
     try {
       const { data: authUser } = await sb.auth.admin.getUserById(p.id);
-      return { ...p, email: authUser?.user?.email || null };
+      return { ...p, email: authUser?.user?.email || null, last_sign_in_at: authUser?.user?.last_sign_in_at || null };
     } catch {
       return { ...p, email: null };
     }
@@ -56,7 +56,7 @@ async function listHandler(req, res, sb, sbAnon) {
 }
 
 async function inviteHandler(req, res, sb, sbAnon) {
-  const { email, role = 'user', workspace_id, redirect_to } = req.body || {};
+  const { email, role = 'user', workspace_id, redirect_to, resend = false } = req.body || {};
   if (!email || !workspace_id) {
     return res.status(400).json({ error: 'email and workspace_id are required' });
   }
@@ -73,6 +73,35 @@ async function inviteHandler(req, res, sb, sbAnon) {
   }
   if (!isOwner && !isAdmin) {
     return res.status(403).json({ error: 'Only admins can invite new team members' });
+  }
+
+  // Resend path — skip seat check, just re-generate and re-send invite link
+  if (resend) {
+    const { data: ownerPr } = await sb.from('profiles').select('workspace_name, full_name').eq('id', workspace_id).maybeSingle();
+    const wName = ownerPr?.workspace_name || ownerPr?.full_name || 'Your workspace';
+    const { data: linkData, error: linkErr } = await sb.auth.admin.generateLink({
+      type: 'invite', email,
+      options: { redirectTo: redirect_to || `${process.env.NEXT_PUBLIC_SITE_URL || 'https://nyasadesk.com'}/` },
+    });
+    if (linkErr) return res.status(400).json({ error: linkErr.message || 'Failed to generate link' });
+    const inviteUrl = linkData?.properties?.action_link;
+    const RESEND_KEY = process.env.RESEND_API_KEY;
+    if (RESEND_KEY && inviteUrl) {
+      const { buildEmail } = await import('./_lib/emailTemplate.js');
+      const roleLabel = role === 'user' ? 'an Agent' : role === 'sales_manager' ? 'a Sales Manager' : 'an Admin';
+      const html = buildEmail({
+        preheader: `Your invite to join ${wName} on Nyasadesk`,
+        body: `<p style="color:#E9EDF0;font-size:15px;line-height:1.7;margin:0 0 16px">You've been invited to join <strong style="color:#25D366">${wName}</strong> as <strong>${roleLabel}</strong> on Nyasadesk.</p><p style="color:#8696A0;font-size:13px;margin:0">Use the button below to accept and set your password.</p>`,
+        cta: { label: 'Accept Invitation', url: inviteUrl },
+        footer: `© ${new Date().getFullYear()} Nyasadesk`,
+      });
+      await fetch('https://api.resend.com/emails', {
+        method: 'POST',
+        headers: { Authorization: 'Bearer ' + RESEND_KEY, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ from: 'Nyasadesk <no-reply@nyasadesk.com>', to: email, subject: `You're invited to join ${wName} on Nyasadesk`, html }),
+      }).catch(e => console.error('[team/resend] email error:', e));
+    }
+    return res.status(200).json({ success: true });
   }
 
   // Seat-limit enforcement — the workspace's plan actually caps team size.
