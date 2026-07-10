@@ -89,10 +89,10 @@ export default function Rules() {
     }
   };
 
-  const inputCls = 'w-full bg-[#2A3942] text-white text-sm rounded-xl px-4 py-2.5 focus:outline-none focus:ring-1 focus:ring-[#25D366] border-0 placeholder:text-gray-600';
+  const inputCls = 'w-full bg-[var(--nyasa-surface-4)] text-white text-sm rounded-xl px-4 py-2.5 focus:outline-none focus:ring-1 focus:ring-[#25D366] border-0 placeholder:text-gray-600';
 
   return (
-    <div className="flex h-screen overflow-hidden bg-[#111B21] pt-14 md:pt-0 pb-[56px] md:pb-0">
+    <div className="flex h-screen overflow-hidden bg-[var(--nyasa-surface-1)] pt-14 md:pt-0 pb-[56px] md:pb-0">
       <Sidebar />
       <div className="flex-1 overflow-y-auto scrollbar-thin bg-[#0D1418]">
         <div className="max-w-3xl mx-auto px-6 py-8">
@@ -116,11 +116,11 @@ export default function Rules() {
             </div>
           )}
 
-          <div className="bg-[#202C33] rounded-2xl border border-white/10 p-4 mb-6 space-y-3">
+          <div className="bg-[var(--nyasa-surface-2)] rounded-2xl border border-white/10 p-4 mb-6 space-y-3">
             <p className="text-xs font-bold text-gray-300 uppercase tracking-wide">How assignment works</p>
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
               {RULE_TYPES.map(rt => (
-                <div key={rt.value} className="bg-[#2A3942] rounded-xl p-3">
+                <div key={rt.value} className="bg-[var(--nyasa-surface-4)] rounded-xl p-3">
                   <p className="text-xs font-bold text-white mb-1">{rt.label}</p>
                   <p className="text-[11px] text-gray-400 leading-relaxed">{rt.desc}</p>
                 </div>
@@ -130,19 +130,19 @@ export default function Rules() {
           </div>
 
           {editing && (
-            <div className="bg-[#202C33] rounded-2xl border border-[#25D366]/40 p-5 mb-6 space-y-4">
+            <div className="bg-[var(--nyasa-surface-2)] rounded-2xl border border-[#25D366]/40 p-5 mb-6 space-y-4">
               <h3 className="font-semibold text-white text-sm">{editing === 'new' ? 'New Rule' : 'Edit Rule'}</h3>
               <input className={inputCls} placeholder="Rule name *" value={form.name} onChange={e => set('name', e.target.value)} />
               <div className="grid grid-cols-2 gap-3">
                 <div>
                   <label className="text-xs text-gray-500 mb-1 block">Type</label>
-                  <select value={form.type} onChange={e => set('type', e.target.value)} className="w-full bg-[#2A3942] text-white text-sm rounded-xl px-4 py-2.5 focus:outline-none border-0">
+                  <select value={form.type} onChange={e => set('type', e.target.value)} className="w-full bg-[var(--nyasa-surface-4)] text-white text-sm rounded-xl px-4 py-2.5 focus:outline-none border-0">
                     {RULE_TYPES.map(t => <option key={t.value} value={t.value}>{t.label}</option>)}
                   </select>
                 </div>
                 <div>
                   <label className="text-xs text-gray-500 mb-1 block">Channel</label>
-                  <select value={form.channel} onChange={e => set('channel', e.target.value)} className="w-full bg-[#2A3942] text-white text-sm rounded-xl px-4 py-2.5 focus:outline-none border-0">
+                  <select value={form.channel} onChange={e => set('channel', e.target.value)} className="w-full bg-[var(--nyasa-surface-4)] text-white text-sm rounded-xl px-4 py-2.5 focus:outline-none border-0">
                     {CHANNELS_ALL.map(c => <option key={c} value={c} className="capitalize">{c}</option>)}
                   </select>
                 </div>
@@ -184,7 +184,7 @@ export default function Rules() {
                 </div>
               )}
               {rules.map((r, idx) => (
-                <div key={r.id} className={`bg-[#202C33] rounded-2xl border px-5 py-4 ${r.is_active ? 'border-white/10' : 'border-white/5 opacity-60'} group`}>
+                <div key={r.id} className={`bg-[var(--nyasa-surface-2)] rounded-2xl border px-5 py-4 ${r.is_active ? 'border-white/10' : 'border-white/5 opacity-60'} group`}>
                   <div className="flex items-start gap-3">
                     <span className="text-xs text-gray-600 font-mono mt-0.5 w-4">#{idx + 1}</span>
                     <div className="flex-1 min-w-0">

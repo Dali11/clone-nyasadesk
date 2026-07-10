@@ -253,11 +253,11 @@ export default function Inbox() {
     // so drop the reserved space too, or you'd get a blank gap where the
     // Nyasadesk bar used to be, exactly like WhatsApp's own conversation view
     // has zero app-chrome above/below the open chat.
-    <div className={`flex h-screen overflow-hidden bg-[#111B21] md:pt-0 md:pb-0 ${showChat ? '' : 'pt-14 pb-[56px]'}`}>
+    <div className={`flex h-screen overflow-hidden bg-[var(--nyasa-surface-1)] md:pt-0 md:pb-0 ${showChat ? '' : 'pt-14 pb-[56px]'}`}>
       <Sidebar hideMobileChrome={showChat} />
 
       {/* Conversation list — hidden on mobile when chat is open */}
-      <div className={`flex flex-col bg-[#111B21] border-r border-white/10
+      <div className={`flex flex-col bg-[var(--nyasa-surface-1)] border-r border-white/10
         w-full md:w-80 lg:w-96 shrink-0 md:flex
         ${showChat ? 'hidden' : 'flex'}`}>
 
@@ -268,7 +268,7 @@ export default function Inbox() {
             <div className="flex items-center gap-2">
               {canViewAllChats && (
                 <button onClick={() => { handleLoadDmMembers(); setShowInternalMsg(true); }}
-                  className="w-8 h-8 rounded-full bg-[#202C33] flex items-center justify-center hover:bg-[#2A3942] transition-colors"
+                  className="w-8 h-8 rounded-full bg-[var(--nyasa-surface-2)] flex items-center justify-center hover:bg-[var(--nyasa-surface-4)] transition-colors"
                   title="New internal message">
                   <Pencil className="w-4 h-4 text-gray-300" />
                 </button>
@@ -282,7 +282,7 @@ export default function Inbox() {
           <div className="relative mb-3">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-500 pointer-events-none" />
             <input
-              className="w-full bg-[#202C33] text-white text-sm rounded-xl pl-9 pr-4 py-2 focus:outline-none focus:ring-1 focus:ring-[#25D366] placeholder:text-gray-600"
+              className="w-full bg-[var(--nyasa-surface-2)] text-white text-sm rounded-xl pl-9 pr-4 py-2 focus:outline-none focus:ring-1 focus:ring-[#25D366] placeholder:text-gray-600"
               placeholder="Search conversations…"
               value={search}
               onChange={e => setSearch(e.target.value)}
@@ -310,7 +310,7 @@ export default function Inbox() {
             {CHANNELS_FILTER.map(ch => (
               <button key={ch} onClick={() => setChannelFilter(ch)}
                 className={`px-2.5 py-1 rounded-lg text-[10px] font-semibold capitalize whitespace-nowrap transition-all
-                  ${channelFilter === ch ? 'bg-[#2A3942] text-white' : 'text-gray-600 hover:text-gray-400'}`}>
+                  ${channelFilter === ch ? 'bg-[var(--nyasa-surface-4)] text-white' : 'text-gray-600 hover:text-gray-400'}`}>
                 {ch}
               </button>
             ))}
@@ -393,7 +393,7 @@ export default function Inbox() {
           </>
         ) : (
           <div className="flex-1 flex flex-col items-center justify-center gap-3 text-center p-8">
-            <div className="w-16 h-16 rounded-2xl bg-[#202C33] flex items-center justify-center">
+            <div className="w-16 h-16 rounded-2xl bg-[var(--nyasa-surface-2)] flex items-center justify-center">
               <MessageSquareOff className="w-8 h-8 text-gray-600" />
             </div>
             <p className="text-sm font-medium text-gray-400">Select a conversation</p>
@@ -411,7 +411,7 @@ export default function Inbox() {
             <h2 className="text-base font-bold text-white mb-4">New Internal Message</h2>
             <label className="block text-xs text-gray-400 mb-1.5">Send to</label>
             <select
-              className="w-full bg-[#111B21] text-white text-sm rounded-xl px-3 py-2.5 mb-3 focus:outline-none focus:ring-1 focus:ring-[#25D366] border border-white/10"
+              className="w-full bg-[var(--nyasa-surface-1)] text-white text-sm rounded-xl px-3 py-2.5 mb-3 focus:outline-none focus:ring-1 focus:ring-[#25D366] border border-white/10"
               value={internalRecipient}
               onChange={e => setInternalRecipient(e.target.value)}
             >
@@ -422,7 +422,7 @@ export default function Inbox() {
             </select>
             <label className="block text-xs text-gray-400 mb-1.5">Message</label>
             <textarea
-              className="w-full bg-[#111B21] text-white text-sm rounded-xl px-3 py-2.5 mb-4 focus:outline-none focus:ring-1 focus:ring-[#25D366] resize-none border border-white/10"
+              className="w-full bg-[var(--nyasa-surface-1)] text-white text-sm rounded-xl px-3 py-2.5 mb-4 focus:outline-none focus:ring-1 focus:ring-[#25D366] resize-none border border-white/10"
               rows={3}
               placeholder="Type your message…"
               value={internalMessage}

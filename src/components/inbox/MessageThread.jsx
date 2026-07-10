@@ -18,7 +18,7 @@ const CHANNEL_COLOR = {
 // Per-agent chat background presets — purely personal/local to whoever's
 // viewing (stored on their own profile row), never shared with teammates.
 const CHAT_BACKGROUNDS = {
-  default: { label: 'Default', style: { background: '#0B141A', backgroundImage: 'radial-gradient(circle at 1px 1px, rgba(255,255,255,0.03) 1px, transparent 0)', backgroundSize: '20px 20px' } },
+  default: { label: 'Default', style: { background: 'var(--nyasa-bg)', backgroundImage: 'radial-gradient(circle at 1px 1px, rgba(255,255,255,0.03) 1px, transparent 0)', backgroundSize: '20px 20px' } },
   doodle:  { label: 'WhatsApp Doodle', style: { background: '#E9E3D7', backgroundImage: "url('https://user-images.githubusercontent.com/15075759/61976795-a6bc0100-af9f-11e9-8ba9-2ae1a4f6f42f.png')", backgroundSize: '400px' } },
   navy:    { label: 'Deep Navy', style: { background: '#0F1E33' } },
   black:   { label: 'Solid Black', style: { background: '#000000' } },
@@ -361,7 +361,7 @@ function Bubble({ msg, menuOpenId, onOpenMenu, onCopy, onShare, onDelete, onTogg
       className={`flex items-end gap-2 ${isOut ? 'flex-row-reverse' : 'flex-row'}`}
     >
       {!isOut && (
-        <div className="w-6 h-6 rounded-full bg-[#2A3942] flex items-center justify-center text-[9px] font-bold text-white shrink-0 mb-1">
+        <div className="w-6 h-6 rounded-full bg-[var(--nyasa-surface-4)] flex items-center justify-center text-[9px] font-bold text-white shrink-0 mb-1">
           {(msg.sender_name || '?')[0].toUpperCase()}
         </div>
       )}
@@ -732,7 +732,7 @@ export default function MessageThread({ conversation, workspaceId }) {
       {pinnedMessages.length > 0 && (
         <button
           onClick={() => scrollToMessage(pinnedMessages[pinnedMessages.length - 1].id)}
-          className="shrink-0 flex items-center gap-2 px-4 py-2 bg-[#1F2C34] border-b border-white/5 text-left hover:bg-[#243139] transition-colors"
+          className="shrink-0 flex items-center gap-2 px-4 py-2 bg-[var(--nyasa-surface-3)] border-b border-white/5 text-left hover:bg-[#243139] transition-colors"
         >
           <Pin className="w-3.5 h-3.5 text-[#25D366] shrink-0" />
           <p className="flex-1 min-w-0 text-xs text-gray-300 truncate">
@@ -802,7 +802,7 @@ export default function MessageThread({ conversation, workspaceId }) {
       </div>
 
       {/* Composer */}
-      <div className="shrink-0 border-t border-white/5 bg-[#202C33] px-3 py-2">
+      <div className="shrink-0 border-t border-white/5 bg-[var(--nyasa-surface-2)] px-3 py-2">
         {/* Reply preview bar */}
         {replyingTo && (
           <div className="flex items-center gap-2 bg-[#1a2530] rounded-lg pl-2 pr-1 py-1.5 mb-2 border-l-[3px] border-[#25D366]">
@@ -898,7 +898,7 @@ export default function MessageThread({ conversation, workspaceId }) {
 
         {/* Input row */}
         {recording ? (
-          <div className="flex items-center gap-3 bg-[#2A3942] rounded-xl px-4 py-2.5">
+          <div className="flex items-center gap-3 bg-[var(--nyasa-surface-4)] rounded-xl px-4 py-2.5">
             <div className="w-2 h-2 rounded-full bg-red-500 animate-pulse shrink-0" />
             <p className="flex-1 text-sm text-white">Recording voice note… {String(Math.floor(recordSecs / 60)).padStart(2,'0')}:{String(recordSecs % 60).padStart(2,'0')}</p>
             <button onClick={stopRecording} className="w-9 h-9 rounded-full bg-[#25D366] flex items-center justify-center shrink-0">
@@ -915,7 +915,7 @@ export default function MessageThread({ conversation, workspaceId }) {
             <textarea
               ref={inputRef}
               rows={1}
-              className="flex-1 bg-[#2A3942] text-white text-sm rounded-xl px-4 py-2.5 focus:outline-none focus:ring-1 focus:ring-[#25D366] resize-none placeholder:text-gray-600 leading-relaxed max-h-32"
+              className="flex-1 bg-[var(--nyasa-surface-4)] text-white text-sm rounded-xl px-4 py-2.5 focus:outline-none focus:ring-1 focus:ring-[#25D366] resize-none placeholder:text-gray-600 leading-relaxed max-h-32"
               style={{ scrollbarWidth: 'thin' }}
               placeholder={tab === 'note' ? 'Add an internal note…' : conversation.channel === 'internal' ? 'Reply via internal message…' : `Reply via ${conversation.channel}…`}
               value={body}
@@ -924,7 +924,7 @@ export default function MessageThread({ conversation, workspaceId }) {
             />
             {!body.trim() && tab !== 'note' ? (
               <button onClick={startRecording} disabled={uploading}
-                className="w-10 h-10 rounded-full flex items-center justify-center transition-all shrink-0 bg-[#2A3942] text-gray-300 hover:text-white disabled:opacity-30">
+                className="w-10 h-10 rounded-full flex items-center justify-center transition-all shrink-0 bg-[var(--nyasa-surface-4)] text-gray-300 hover:text-white disabled:opacity-30">
                 {uploading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Mic className="w-4 h-4" />}
               </button>
             ) : (

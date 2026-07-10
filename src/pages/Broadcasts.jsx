@@ -13,7 +13,7 @@ function BroadcastCard({ bc, contacts, sending, onDelete, onSend }) {
   const audience = contacts.filter(c => (bc.audience || []).includes(c.id));
   const isSending = sending === bc.id;
   return (
-    <div className="bg-[#202C33] rounded-2xl border border-white/10 p-5">
+    <div className="bg-[var(--nyasa-surface-2)] rounded-2xl border border-white/10 p-5">
       <div className="flex items-start justify-between mb-3">
         <div>
           <div className="flex items-center gap-2 mb-1">
@@ -29,14 +29,14 @@ function BroadcastCard({ bc, contacts, sending, onDelete, onSend }) {
           <Trash2 className="w-4 h-4" />
         </button>
       </div>
-      <p className="text-sm text-gray-400 bg-[#2A3942] rounded-xl px-4 py-3 mb-3 leading-relaxed">{bc.message}</p>
+      <p className="text-sm text-gray-400 bg-[var(--nyasa-surface-4)] rounded-xl px-4 py-3 mb-3 leading-relaxed">{bc.message}</p>
       <div className="flex items-center gap-2 mb-3">
         {audience.slice(0, 5).map(c => <Avatar key={c.id} name={c.full_name} size="xs" />)}
         {audience.length > 5 && <span className="text-xs text-gray-500">+{audience.length - 5}</span>}
       </div>
       {bc.status === 'sent' ? (
         <div className="flex gap-2">
-          <div className="flex-1 text-center bg-[#2A3942] rounded-xl py-2.5">
+          <div className="flex-1 text-center bg-[var(--nyasa-surface-4)] rounded-xl py-2.5">
             <p className="text-lg font-bold text-[#25D366]">{bc.sent_count}</p>
             <p className="text-[10px] text-gray-500">Accepted by API</p>
           </div>
@@ -151,10 +151,10 @@ export default function Broadcasts() {
     }
   };
 
-  const inputCls = 'w-full bg-[#2A3942] text-white text-sm rounded-xl px-4 py-2.5 focus:outline-none focus:ring-1 focus:ring-[#25D366] border-0 placeholder:text-gray-600';
+  const inputCls = 'w-full bg-[var(--nyasa-surface-4)] text-white text-sm rounded-xl px-4 py-2.5 focus:outline-none focus:ring-1 focus:ring-[#25D366] border-0 placeholder:text-gray-600';
 
   return (
-    <div className="flex h-screen overflow-hidden bg-[#111B21] pt-14 md:pt-0 pb-[56px] md:pb-0">
+    <div className="flex h-screen overflow-hidden bg-[var(--nyasa-surface-1)] pt-14 md:pt-0 pb-[56px] md:pb-0">
       <Sidebar />
       <div className="flex-1 overflow-y-auto scrollbar-thin bg-[#0D1418]">
         <div className="max-w-4xl mx-auto px-6 py-8">
@@ -191,7 +191,7 @@ export default function Broadcasts() {
       {showNew && (
         <div className="fixed inset-0 z-50 flex items-center justify-center">
           <div className="absolute inset-0 bg-black/70" onClick={() => setShowNew(false)} />
-          <div className="relative bg-[#202C33] rounded-2xl border border-white/10 p-6 w-[480px] max-h-[90vh] overflow-y-auto scrollbar-thin space-y-4">
+          <div className="relative bg-[var(--nyasa-surface-2)] rounded-2xl border border-white/10 p-6 w-[480px] max-h-[90vh] overflow-y-auto scrollbar-thin space-y-4">
             <div className="flex items-center justify-between">
               <h2 className="font-semibold text-white">New Broadcast</h2>
               <button onClick={() => setShowNew(false)} className="text-gray-400 hover:text-gray-200"><X className="w-4 h-4" /></button>
@@ -199,7 +199,7 @@ export default function Broadcasts() {
             <input className={inputCls} placeholder="Broadcast name *" value={form.name} onChange={e => set('name', e.target.value)} />
             <div>
               <label className="text-xs text-gray-500 mb-1.5 block">Channel</label>
-              <select value={form.channel} onChange={e => { set('channel', e.target.value); set('template_name', ''); }} className="w-full bg-[#2A3942] text-white text-sm rounded-xl px-4 py-2.5 focus:outline-none border-0">
+              <select value={form.channel} onChange={e => { set('channel', e.target.value); set('template_name', ''); }} className="w-full bg-[var(--nyasa-surface-4)] text-white text-sm rounded-xl px-4 py-2.5 focus:outline-none border-0">
                 {CHANNELS.map(c => <option key={c} value={c} className="capitalize">{c}</option>)}
               </select>
             </div>
@@ -212,7 +212,7 @@ export default function Broadcasts() {
                 <select
                   value={form.template_name ? `${form.template_name}|${form.template_language}` : ''}
                   onChange={e => selectTemplate(e.target.value)}
-                  className="w-full bg-[#2A3942] text-white text-sm rounded-xl px-4 py-2.5 focus:outline-none border-0"
+                  className="w-full bg-[var(--nyasa-surface-4)] text-white text-sm rounded-xl px-4 py-2.5 focus:outline-none border-0"
                 >
                   <option value="">Free text (24h window only)</option>
                   {templatesLoading && <option disabled>Loading templates…</option>}
@@ -251,7 +251,7 @@ export default function Broadcasts() {
             </div>
             <div>
               <label className="text-xs text-gray-500 mb-1.5 block">Recipients ({form.audience.length} selected)</label>
-              <div className="bg-[#2A3942] rounded-xl p-3 max-h-48 overflow-y-auto scrollbar-thin space-y-1">
+              <div className="bg-[var(--nyasa-surface-4)] rounded-xl p-3 max-h-48 overflow-y-auto scrollbar-thin space-y-1">
                 {contacts.length === 0 && <p className="text-xs text-gray-500 px-2 py-3 text-center">No contacts yet — add some in Contacts first.</p>}
                 {contacts.map(c => (
                   <button key={c.id} onClick={() => toggleAudience(c.id)}

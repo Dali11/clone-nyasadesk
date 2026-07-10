@@ -211,7 +211,7 @@ export default function AiAgents() {
   };
 
   return (
-    <div className="flex h-screen overflow-hidden bg-[#111B21] pt-14 md:pt-0 pb-[56px] md:pb-0">
+    <div className="flex h-screen overflow-hidden bg-[var(--nyasa-surface-1)] pt-14 md:pt-0 pb-[56px] md:pb-0">
       <Sidebar />
 
       <div className="flex-1 flex flex-col overflow-hidden">
@@ -232,7 +232,7 @@ export default function AiAgents() {
               {hasAiAccess ? (
                 <>
                   <button onClick={() => setShowTemplates(true)}
-                    className="flex items-center gap-1.5 bg-[#202C33] hover:bg-[#2A3942] text-white text-sm font-semibold px-3 py-2 rounded-lg transition-colors">
+                    className="flex items-center gap-1.5 bg-[var(--nyasa-surface-2)] hover:bg-[var(--nyasa-surface-4)] text-white text-sm font-semibold px-3 py-2 rounded-lg transition-colors">
                     <Sparkles className="w-4 h-4" /> From template
                   </button>
                   <button onClick={startBlank}
@@ -277,7 +277,7 @@ export default function AiAgents() {
           ) : (
             <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
               {!hasAiAccess && (
-                <div className="sm:col-span-2 lg:col-span-3 flex items-center gap-3 bg-[#202C33] border border-[#25D366]/20 rounded-xl p-4">
+                <div className="sm:col-span-2 lg:col-span-3 flex items-center gap-3 bg-[var(--nyasa-surface-2)] border border-[#25D366]/20 rounded-xl p-4">
                   <Lock className="w-4 h-4 text-[#25D366] shrink-0" />
                   <p className="text-xs text-gray-400 flex-1">
                     Your plan no longer includes AI Agents, so this one is paused. <Link to="/pricing" className="text-[#25D366] font-semibold">Upgrade to Scale</Link> to reactivate it — your setup is saved.
@@ -285,7 +285,7 @@ export default function AiAgents() {
                 </div>
               )}
               {agents.map(agent => (
-                <div key={agent.id} className="bg-[#202C33] rounded-xl p-4 flex flex-col gap-2 border border-white/5">
+                <div key={agent.id} className="bg-[var(--nyasa-surface-2)] rounded-xl p-4 flex flex-col gap-2 border border-white/5">
                   <div className="flex items-start justify-between gap-2">
                     <div className="flex items-center gap-2 min-w-0">
                       <div className="w-9 h-9 rounded-lg bg-[#25D366]/15 flex items-center justify-center shrink-0">
@@ -349,7 +349,7 @@ export default function AiAgents() {
       {/* Template picker modal */}
       {showTemplates && (
         <div className="fixed inset-0 z-50 bg-black/60 flex items-center justify-center p-4" onClick={() => setShowTemplates(false)}>
-          <div className="bg-[#111B21] rounded-2xl border border-white/10 w-full max-w-lg max-h-[80vh] overflow-y-auto p-5" onClick={e => e.stopPropagation()}>
+          <div className="bg-[var(--nyasa-surface-1)] rounded-2xl border border-white/10 w-full max-w-lg max-h-[80vh] overflow-y-auto p-5" onClick={e => e.stopPropagation()}>
             <div className="flex items-center justify-between mb-4">
               <h2 className="text-white font-bold">Choose a template</h2>
               <button onClick={() => setShowTemplates(false)}><X className="w-5 h-5 text-gray-500" /></button>
@@ -357,7 +357,7 @@ export default function AiAgents() {
             <div className="grid gap-2">
               {templates.map(tpl => (
                 <button key={tpl.key} onClick={() => startFromTemplate(tpl)}
-                  className="text-left bg-[#202C33] hover:bg-[#2A3942] rounded-xl p-3 transition-colors">
+                  className="text-left bg-[var(--nyasa-surface-2)] hover:bg-[var(--nyasa-surface-4)] rounded-xl p-3 transition-colors">
                   <p className="text-white text-sm font-semibold">{tpl.name}</p>
                   <p className="text-gray-500 text-xs mt-0.5">{tpl.description}</p>
                 </button>
@@ -370,7 +370,7 @@ export default function AiAgents() {
       {/* Configure agent modal */}
       {editing && (
         <div className="fixed inset-0 z-50 bg-black/60 flex items-center justify-center p-4" onClick={() => setEditing(null)}>
-          <div className="bg-[#111B21] rounded-2xl border border-white/10 w-full max-w-xl max-h-[85vh] overflow-y-auto p-5" onClick={e => e.stopPropagation()}>
+          <div className="bg-[var(--nyasa-surface-1)] rounded-2xl border border-white/10 w-full max-w-xl max-h-[85vh] overflow-y-auto p-5" onClick={e => e.stopPropagation()}>
             <div className="flex items-center justify-between mb-4">
               <h2 className="text-white font-bold">{editing === 'new' ? 'New AI agent' : 'Configure agent'}</h2>
               <button onClick={() => setEditing(null)}><X className="w-5 h-5 text-gray-500" /></button>
@@ -379,24 +379,24 @@ export default function AiAgents() {
             <div className="space-y-3">
               <Field label="Agent name">
                 <input value={form.name} onChange={e => set('name', e.target.value)}
-                  className="w-full bg-[#202C33] text-white text-sm rounded-lg px-3 py-2 focus:outline-none focus:ring-1 focus:ring-[#25D366]" />
+                  className="w-full bg-[var(--nyasa-surface-2)] text-white text-sm rounded-lg px-3 py-2 focus:outline-none focus:ring-1 focus:ring-[#25D366]" />
               </Field>
               <Field label="Description">
                 <input value={form.description} onChange={e => set('description', e.target.value)}
-                  className="w-full bg-[#202C33] text-white text-sm rounded-lg px-3 py-2 focus:outline-none focus:ring-1 focus:ring-[#25D366]" />
+                  className="w-full bg-[var(--nyasa-surface-2)] text-white text-sm rounded-lg px-3 py-2 focus:outline-none focus:ring-1 focus:ring-[#25D366]" />
               </Field>
               <Field label="Role">
                 <input value={form.role} onChange={e => set('role', e.target.value)} placeholder="e.g. Sales, Support, Receptionist"
-                  className="w-full bg-[#202C33] text-white text-sm rounded-lg px-3 py-2 focus:outline-none focus:ring-1 focus:ring-[#25D366]" />
+                  className="w-full bg-[var(--nyasa-surface-2)] text-white text-sm rounded-lg px-3 py-2 focus:outline-none focus:ring-1 focus:ring-[#25D366]" />
               </Field>
               <div className="grid grid-cols-2 gap-3">
                 <Field label="Personality">
                   <input value={form.personality} onChange={e => set('personality', e.target.value)}
-                    className="w-full bg-[#202C33] text-white text-sm rounded-lg px-3 py-2 focus:outline-none focus:ring-1 focus:ring-[#25D366]" />
+                    className="w-full bg-[var(--nyasa-surface-2)] text-white text-sm rounded-lg px-3 py-2 focus:outline-none focus:ring-1 focus:ring-[#25D366]" />
                 </Field>
                 <Field label="Tone">
                   <input value={form.tone} onChange={e => set('tone', e.target.value)}
-                    className="w-full bg-[#202C33] text-white text-sm rounded-lg px-3 py-2 focus:outline-none focus:ring-1 focus:ring-[#25D366]" />
+                    className="w-full bg-[var(--nyasa-surface-2)] text-white text-sm rounded-lg px-3 py-2 focus:outline-none focus:ring-1 focus:ring-[#25D366]" />
                 </Field>
               </div>
               <Field label={
@@ -409,7 +409,7 @@ export default function AiAgents() {
               }>
                 <textarea value={form.system_instructions} onChange={e => set('system_instructions', e.target.value)} rows={10}
                   placeholder="Tell the agent how to behave, what it knows, and what it should never do. Write as much as you need -- full policies, scripts, edge cases are all fine."
-                  className={`w-full bg-[#202C33] text-white text-sm rounded-lg px-3 py-2 focus:outline-none focus:ring-1 resize-y ${form.system_instructions.length > INSTRUCTIONS_MAX_CHARS ? 'ring-1 ring-red-500' : 'focus:ring-[#25D366]'}`} />
+                  className={`w-full bg-[var(--nyasa-surface-2)] text-white text-sm rounded-lg px-3 py-2 focus:outline-none focus:ring-1 resize-y ${form.system_instructions.length > INSTRUCTIONS_MAX_CHARS ? 'ring-1 ring-red-500' : 'focus:ring-[#25D366]'}`} />
                 {form.system_instructions.length > INSTRUCTIONS_MAX_CHARS && (
                   <p className="text-[10px] text-red-400 mt-1">
                     That's long -- trim it a bit. {INSTRUCTIONS_MAX_CHARS.toLocaleString()} characters is plenty of room for detailed instructions while keeping replies fast and cheap.
@@ -454,12 +454,12 @@ export default function AiAgents() {
               <Field label="Message cap (max AI replies before handoff)">
                 <input type="number" min="1" value={form.message_cap ?? ''} onChange={e => set('message_cap', e.target.value === '' ? null : Math.max(1, parseInt(e.target.value, 10) || null))}
                   placeholder={form.agent_type === 'receptionist' ? '4 (receptionist default)' : 'Leave blank for unlimited'}
-                  className="w-full bg-[#202C33] text-white text-sm rounded-lg px-3 py-2 focus:outline-none focus:ring-1 focus:ring-[#25D366]" />
+                  className="w-full bg-[var(--nyasa-surface-2)] text-white text-sm rounded-lg px-3 py-2 focus:outline-none focus:ring-1 focus:ring-[#25D366]" />
                 <p className="text-[11px] text-gray-600 mt-1">Max messages this agent sends in a conversation before handing off to a human. Leave blank for unlimited.</p>
               </Field>
               <Field label="Handoff rule (route to rule after cap)">
                 <select value={form.handoff_assignment_rule_id || ''} onChange={e => set('handoff_assignment_rule_id', e.target.value || null)}
-                  className="w-full bg-[#202C33] text-white text-sm rounded-lg px-3 py-2 focus:outline-none focus:ring-1 focus:ring-[#25D366]">
+                  className="w-full bg-[var(--nyasa-surface-2)] text-white text-sm rounded-lg px-3 py-2 focus:outline-none focus:ring-1 focus:ring-[#25D366]">
                   <option value="">None — leave unassigned for humans</option>
                   {rules.map(r => (
                     <option key={r.id} value={r.id}>{r.name}</option>
@@ -500,7 +500,7 @@ export default function AiAgents() {
                       <p className="text-xs text-gray-600 py-1">No knowledge added yet — teach this agent your FAQs, policies, or prices.</p>
                     ) : (
                       knowledgeItems.map(k => (
-                        <div key={k.id} className="flex items-start gap-2 bg-[#202C33] rounded-lg px-2.5 py-2">
+                        <div key={k.id} className="flex items-start gap-2 bg-[var(--nyasa-surface-2)] rounded-lg px-2.5 py-2">
                           <div className="flex-1 min-w-0">
                             <div className="flex items-center gap-1.5">
                               {k.source_type === 'url' && <Link2 className="w-3 h-3 text-gray-500 shrink-0" />}
@@ -520,7 +520,7 @@ export default function AiAgents() {
                     )}
 
                     {knowledgeForm ? (
-                      <div className="bg-[#202C33] rounded-lg p-2.5 space-y-1.5">
+                      <div className="bg-[var(--nyasa-surface-2)] rounded-lg p-2.5 space-y-1.5">
                         <input value={knowledgeForm.title || ''} onChange={e => setKnowledgeForm(f => ({ ...f, title: e.target.value }))}
                           placeholder="Title, e.g. Refund policy"
                           className="w-full bg-[#1a2530] text-white text-xs rounded-lg px-2.5 py-1.5 focus:outline-none focus:ring-1 focus:ring-[#25D366]" />

@@ -42,9 +42,9 @@ export default function AdminLayout() {
   if (!isPlatformAdmin) return null;
 
   return (
-    <div className="flex h-screen overflow-hidden bg-[#111B21] pt-14 md:pt-0 pb-[56px] md:pb-0">
+    <div className="flex h-screen overflow-hidden bg-[var(--nyasa-surface-1)] pt-14 md:pt-0 pb-[56px] md:pb-0">
       {/* ── Desktop rail ─────────────────────────────────────────────── */}
-      <div className="hidden lg:flex w-64 flex-col shrink-0 bg-[#111B21] border-r border-white/5">
+      <div className="hidden lg:flex w-64 flex-col shrink-0 bg-[var(--nyasa-surface-1)] border-r border-white/5">
         <div
           className="px-5 pt-5 pb-4 border-b border-white/5"
           style={{ background: 'linear-gradient(135deg, #3730A3 0%, #4F46E5 100%)' }}
@@ -110,7 +110,7 @@ export default function AdminLayout() {
       </div>
 
       {/* ── Mobile bottom nav ────────────────────────────────────────── */}
-      <div className="lg:hidden fixed bottom-0 inset-x-0 h-[56px] z-20 flex items-center justify-around bg-[#111B21] border-t border-white/5">
+      <div className="lg:hidden fixed bottom-0 inset-x-0 h-[56px] z-20 flex items-center justify-around bg-[var(--nyasa-surface-1)] border-t border-white/5">
         {mobilePrimaryNav.map(({ path, icon: Icon, label, end }) => {
           const active = end ? pathname === path : pathname.startsWith(path);
           return (
@@ -127,7 +127,7 @@ export default function AdminLayout() {
               <span className="text-[10px] font-medium">More</span>
             </button>
           </SheetTrigger>
-          <SheetContent side="bottom" className="bg-[#111B21] border-white/10 text-gray-200 rounded-t-2xl pb-8">
+          <SheetContent side="bottom" className="bg-[var(--nyasa-surface-1)] border-white/10 text-gray-200 rounded-t-2xl pb-8">
             <div className="grid grid-cols-4 gap-3 pt-2">
               {mobileMoreNav.map(({ path, icon: Icon, label }) => {
                 const active = pathname.startsWith(path);

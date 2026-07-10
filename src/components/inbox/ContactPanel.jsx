@@ -68,12 +68,12 @@ export default function ContactPanel({ conversation, onUpdate = () => {}, onClos
     onUpdate({ ...conversation, deal_stage: stage });
   };
 
-  const inputCls = 'w-full bg-[#2A3942] text-white text-xs rounded-lg px-3 py-1.5 focus:outline-none focus:ring-1 focus:ring-[#25D366] border-0 placeholder:text-gray-600';
+  const inputCls = 'w-full bg-[var(--nyasa-surface-4)] text-white text-xs rounded-lg px-3 py-1.5 focus:outline-none focus:ring-1 focus:ring-[#25D366] border-0 placeholder:text-gray-600';
 
   return (
-    <div className={`bg-[#111B21] flex-col overflow-y-auto scrollbar-thin ${className}`}>
+    <div className={`bg-[var(--nyasa-surface-1)] flex-col overflow-y-auto scrollbar-thin ${className}`}>
       {/* Mobile/tablet back bar — the panel is docked permanently at xl+, so this only shows below that */}
-      <div className="xl:hidden flex items-center gap-3 px-4 h-14 border-b border-white/10 shrink-0 sticky top-0 bg-[#111B21] z-10">
+      <div className="xl:hidden flex items-center gap-3 px-4 h-14 border-b border-white/10 shrink-0 sticky top-0 bg-[var(--nyasa-surface-1)] z-10">
         <button onClick={onClose} className="p-1.5 -ml-1.5 text-gray-400 hover:text-white transition-colors">
           <ArrowLeft className="w-5 h-5" />
         </button>
@@ -190,7 +190,7 @@ export default function ContactPanel({ conversation, onUpdate = () => {}, onClos
             <div className="flex items-center gap-1">
               <input autoFocus value={newTag} onChange={e => setNewTag(e.target.value)}
                 onKeyDown={e => { if (e.key === 'Enter') addTag(); if (e.key === 'Escape') { setAddingTag(false); setNewTag(''); } }}
-                placeholder="tag" className="text-xs bg-[#2A3942] text-white rounded-full px-2 py-0.5 w-16 focus:outline-none" />
+                placeholder="tag" className="text-xs bg-[var(--nyasa-surface-4)] text-white rounded-full px-2 py-0.5 w-16 focus:outline-none" />
               <button onClick={addTag}><Check className="w-3 h-3 text-[#25D366]" /></button>
             </div>
           )}
@@ -224,7 +224,7 @@ export default function ContactPanel({ conversation, onUpdate = () => {}, onClos
           <textarea rows={3} defaultValue={contact.notes || ''}
             onBlur={e => { updateContactRemote(contact.id, { notes: e.target.value }).catch(err => console.error('Failed to save notes:', err)); setContact(prev => ({ ...prev, notes: e.target.value })); }}
             placeholder="Add notes…"
-            className="w-full bg-[#2A3942] text-xs text-gray-300 placeholder:text-gray-600 rounded-lg px-3 py-2 resize-none focus:outline-none focus:ring-1 focus:ring-[#25D366] border-0" />
+            className="w-full bg-[var(--nyasa-surface-4)] text-xs text-gray-300 placeholder:text-gray-600 rounded-lg px-3 py-2 resize-none focus:outline-none focus:ring-1 focus:ring-[#25D366] border-0" />
         </div>
       )}
     </div>

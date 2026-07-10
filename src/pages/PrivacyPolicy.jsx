@@ -3,7 +3,7 @@ import MarketingFooter from '@/components/marketing/MarketingFooter';
 
 export default function PrivacyPolicy() {
   return (
-    <div className="min-h-screen bg-[#111B21] text-white">
+    <div className="min-h-screen bg-[var(--nyasa-surface-1)] text-white">
       <MarketingHeader />
       <div className="max-w-3xl mx-auto px-6 py-12">
         <h1 className="text-2xl font-black text-white mb-1">Privacy Policy</h1>

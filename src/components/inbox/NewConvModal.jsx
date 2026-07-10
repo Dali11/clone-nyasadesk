@@ -35,7 +35,7 @@ export default function NewConvModal({ open, onClose, onCreated, workspaceId }) 
     }
   };
 
-  const inputCls = 'w-full bg-[#2A3942] text-white text-sm rounded-xl px-4 py-2.5 focus:outline-none focus:ring-1 focus:ring-[#25D366] border-0 placeholder:text-gray-600';
+  const inputCls = 'w-full bg-[var(--nyasa-surface-4)] text-white text-sm rounded-xl px-4 py-2.5 focus:outline-none focus:ring-1 focus:ring-[#25D366] border-0 placeholder:text-gray-600';
 
   return (
     <Dialog open={open} onOpenChange={(v) => { if (!v) onClose(); }}>
@@ -50,13 +50,13 @@ export default function NewConvModal({ open, onClose, onCreated, workspaceId }) 
           <div className="grid grid-cols-2 gap-3">
             <div>
               <label className="text-xs text-gray-500 mb-1 block">Channel</label>
-              <select value={form.channel} onChange={e => set('channel', e.target.value)} className="w-full bg-[#2A3942] text-white text-sm rounded-xl px-3 py-2.5 focus:outline-none border-0">
+              <select value={form.channel} onChange={e => set('channel', e.target.value)} className="w-full bg-[var(--nyasa-surface-4)] text-white text-sm rounded-xl px-3 py-2.5 focus:outline-none border-0">
                 {CHANNELS.map(c => <option key={c} value={c} className="capitalize">{c}</option>)}
               </select>
             </div>
             <div>
               <label className="text-xs text-gray-500 mb-1 block">Priority</label>
-              <select value={form.priority} onChange={e => set('priority', e.target.value)} className="w-full bg-[#2A3942] text-white text-sm rounded-xl px-3 py-2.5 focus:outline-none border-0">
+              <select value={form.priority} onChange={e => set('priority', e.target.value)} className="w-full bg-[var(--nyasa-surface-4)] text-white text-sm rounded-xl px-3 py-2.5 focus:outline-none border-0">
                 {['low','normal','high','urgent'].map(p => <option key={p} value={p}>{p}</option>)}
               </select>
             </div>

@@ -15,7 +15,7 @@ export default function Avatar({ name = '', size = 'md', color = null, src = nul
         </div>
       )}
       {status && (
-        <span className={`absolute bottom-0 right-0 w-2.5 h-2.5 rounded-full border-2 border-[#111B21] ${statusColors[status] || 'bg-gray-400'}`} />
+        <span className={`absolute bottom-0 right-0 w-2.5 h-2.5 rounded-full border-2 border-[var(--nyasa-surface-1)] ${statusColors[status] || 'bg-gray-400'}`} />
       )}
     </div>
   );

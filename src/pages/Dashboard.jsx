@@ -153,7 +153,7 @@ export default function Dashboard() {
   const hasChannelData = channelData.some(d => d.value > 0);
 
   return (
-    <div className="flex h-screen overflow-hidden bg-[#111B21] pt-14 md:pt-0 pb-[56px] md:pb-0">
+    <div className="flex h-screen overflow-hidden bg-[var(--nyasa-surface-1)] pt-14 md:pt-0 pb-[56px] md:pb-0">
       <Sidebar />
       <div className="flex-1 overflow-y-auto scrollbar-thin bg-[#0D1418]">
         <div className="max-w-6xl mx-auto px-4 md:px-6 py-6 md:py-8">
@@ -212,7 +212,7 @@ export default function Dashboard() {
 
           {/* Charts */}
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 mb-6">
-            <div className="bg-[#202C33] rounded-2xl p-4 md:p-5 border border-white/10">
+            <div className="bg-[var(--nyasa-surface-2)] rounded-2xl p-4 md:p-5 border border-white/10">
               <h3 className="text-xs font-bold text-gray-300 uppercase tracking-wide mb-4">{isAgentView ? "My Chats by Channel" : "By Channel"}</h3>
               {hasChannelData ? (
                 <>
@@ -221,7 +221,7 @@ export default function Dashboard() {
                       <Pie data={channelData} dataKey="value" nameKey="name" cx="50%" cy="50%" outerRadius={60} innerRadius={30}>
                         {channelData.map((_, i) => <Cell key={i} fill={COLORS[i % COLORS.length]} />)}
                       </Pie>
-                      <Tooltip contentStyle={{ background: '#202C33', border: '1px solid #374151', borderRadius: 8, fontSize: 12 }} />
+                      <Tooltip contentStyle={{ background: 'var(--nyasa-surface-2)', border: '1px solid #374151', borderRadius: 8, fontSize: 12 }} />
                     </PieChart>
                   </ResponsiveContainer>
                   <div className="flex flex-wrap gap-2 mt-2">
@@ -238,13 +238,13 @@ export default function Dashboard() {
               )}
             </div>
 
-            <div className="bg-[#202C33] rounded-2xl p-4 md:p-5 border border-white/10">
+            <div className="bg-[var(--nyasa-surface-2)] rounded-2xl p-4 md:p-5 border border-white/10">
               <h3 className="text-xs font-bold text-gray-300 uppercase tracking-wide mb-4">{isAgentView ? "My Pipeline" : "Pipeline"}</h3>
               <ResponsiveContainer width="100%" height={180}>
                 <BarChart data={stageData} barSize={14}>
                   <XAxis dataKey="name" tick={{ fontSize: 9, fill: '#6B7280' }} axisLine={false} tickLine={false} />
                   <YAxis tick={{ fontSize: 9, fill: '#6B7280' }} axisLine={false} tickLine={false} />
-                  <Tooltip contentStyle={{ background: '#202C33', border: '1px solid #374151', borderRadius: 8, fontSize: 12 }} />
+                  <Tooltip contentStyle={{ background: 'var(--nyasa-surface-2)', border: '1px solid #374151', borderRadius: 8, fontSize: 12 }} />
                   <Bar dataKey="count" radius={[4, 4, 0, 0]}>
                     {stageData.map((_, i) => <Cell key={i} fill={COLORS[i % COLORS.length]} />)}
                   </Bar>
@@ -255,7 +255,7 @@ export default function Dashboard() {
 
           {/* SLA Breaches */}
           {slaData.length > 0 && (
-            <div className="bg-[#202C33] rounded-2xl p-4 md:p-5 border border-white/10 mb-6">
+            <div className="bg-[var(--nyasa-surface-2)] rounded-2xl p-4 md:p-5 border border-white/10 mb-6">
               <h3 className="text-xs font-bold text-gray-300 uppercase tracking-wide mb-4">{isAgentView ? "My SLA Watch" : "SLA At Risk"}</h3>
               <div className="space-y-2">
                 {slaData.map(c => (

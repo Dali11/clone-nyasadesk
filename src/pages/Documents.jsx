@@ -10,7 +10,7 @@ import {
   uploadChatMedia,
 } from '@/lib/channels';
 
-const inputCls = 'w-full bg-[#2A3942] text-white text-sm rounded-xl px-3 py-2.5 focus:outline-none focus:ring-1 focus:ring-[#25D366] border-0 placeholder:text-gray-600';
+const inputCls = 'w-full bg-[var(--nyasa-surface-4)] text-white text-sm rounded-xl px-3 py-2.5 focus:outline-none focus:ring-1 focus:ring-[#25D366] border-0 placeholder:text-gray-600';
 const labelCls = 'text-xs text-gray-500 mb-1 block';
 
 const QUOTE_STATUSES = ['draft', 'sent', 'accepted', 'rejected', 'expired'];
@@ -131,7 +131,7 @@ export default function Documents() {
   const list = tab === 'invoices' ? invoices : quotations;
 
   return (
-    <div className="flex h-screen overflow-hidden bg-[#111B21] pt-14 md:pt-0 pb-[56px] md:pb-0">
+    <div className="flex h-screen overflow-hidden bg-[var(--nyasa-surface-1)] pt-14 md:pt-0 pb-[56px] md:pb-0">
       <Sidebar />
       <div className="flex-1 flex flex-col overflow-hidden">
         <div className="px-4 sm:px-6 py-4 border-b border-white/5 flex items-center justify-between">
@@ -151,7 +151,7 @@ export default function Documents() {
           {[['quotations', 'Quotations'], ['invoices', 'Invoices'], ['settings', 'Settings']].map(([id, label]) => (
             (id !== 'settings' || isWorkspaceAdmin) && (
               <button key={id} onClick={() => setTab(id)}
-                className={`text-sm font-medium px-3.5 py-2 rounded-lg transition-colors ${tab === id ? 'bg-[#202C33] text-white' : 'text-gray-500 hover:text-gray-300'}`}>
+                className={`text-sm font-medium px-3.5 py-2 rounded-lg transition-colors ${tab === id ? 'bg-[var(--nyasa-surface-2)] text-white' : 'text-gray-500 hover:text-gray-300'}`}>
                 {label}
               </button>
             )
@@ -172,7 +172,7 @@ export default function Documents() {
           ) : (
             <div className="grid gap-2.5">
               {list.map(doc => (
-                <div key={doc.id} className="bg-[#202C33] rounded-xl p-4 flex flex-wrap items-center gap-3 border border-white/5">
+                <div key={doc.id} className="bg-[var(--nyasa-surface-2)] rounded-xl p-4 flex flex-wrap items-center gap-3 border border-white/5">
                   <div className="min-w-[160px] flex-1">
                     <div className="flex items-center gap-2">
                       <p className="text-white text-sm font-semibold">{doc.number}</p>
@@ -213,7 +213,7 @@ export default function Documents() {
 
       {showCreate && (
         <div className="fixed inset-0 z-50 bg-black/60 flex items-center justify-center p-4" onClick={closeModal}>
-          <div className="bg-[#111B21] rounded-2xl border border-white/10 w-full max-w-lg max-h-[85vh] overflow-y-auto p-5" onClick={e => e.stopPropagation()}>
+          <div className="bg-[var(--nyasa-surface-1)] rounded-2xl border border-white/10 w-full max-w-lg max-h-[85vh] overflow-y-auto p-5" onClick={e => e.stopPropagation()}>
             <div className="flex items-center justify-between mb-4">
               <h2 className="text-white font-bold">{editingDoc ? 'Edit' : 'New'} {tab === 'invoices' ? 'Invoice' : 'Quotation'} {editingDoc ? `· ${editingDoc.number}` : ''}</h2>
               <button onClick={closeModal}><X className="w-5 h-5 text-gray-500" /></button>
@@ -318,7 +318,7 @@ function SendModal({ workspaceId, target, onClose, onSent }) {
 
   return (
     <div className="fixed inset-0 z-50 bg-black/60 flex items-center justify-center p-4" onClick={onClose}>
-      <div className="bg-[#111B21] rounded-2xl border border-white/10 w-full max-w-sm p-5" onClick={e => e.stopPropagation()}>
+      <div className="bg-[var(--nyasa-surface-1)] rounded-2xl border border-white/10 w-full max-w-sm p-5" onClick={e => e.stopPropagation()}>
         <div className="flex items-center justify-between mb-3">
           <h2 className="text-white font-bold text-sm">Send document</h2>
           <button onClick={onClose}><X className="w-5 h-5 text-gray-500" /></button>
@@ -332,7 +332,7 @@ function SendModal({ workspaceId, target, onClose, onSent }) {
           {searching && <p className="text-gray-500 text-xs">Searching…</p>}
           {!searching && search && results.length === 0 && <p className="text-gray-500 text-xs">No matching conversations.</p>}
           {results.map(c => (
-            <div key={c.id} className="flex items-center justify-between bg-[#202C33] rounded-lg px-3 py-2">
+            <div key={c.id} className="flex items-center justify-between bg-[var(--nyasa-surface-2)] rounded-lg px-3 py-2">
               <div>
                 <p className="text-white text-sm">{c.contacts?.name || 'Unknown'}</p>
                 <p className="text-gray-500 text-[11px] capitalize">{c.channel}{c.contacts?.phone ? ` · ${c.contacts.phone}` : ''}</p>
@@ -372,7 +372,7 @@ function PaymentModal({ workspaceId, invoice, onClose, onRecorded }) {
 
   return (
     <div className="fixed inset-0 z-50 bg-black/60 flex items-center justify-center p-4" onClick={onClose}>
-      <div className="bg-[#111B21] rounded-2xl border border-white/10 w-full max-w-sm p-5" onClick={e => e.stopPropagation()}>
+      <div className="bg-[var(--nyasa-surface-1)] rounded-2xl border border-white/10 w-full max-w-sm p-5" onClick={e => e.stopPropagation()}>
         <div className="flex items-center justify-between mb-3">
           <h2 className="text-white font-bold text-sm">Record payment · {invoice.number}</h2>
           <button onClick={onClose}><X className="w-5 h-5 text-gray-500" /></button>
@@ -443,7 +443,7 @@ function DocSettingsForm({ workspaceId, settings, onSaved }) {
 
   return (
     <div className="max-w-2xl space-y-5">
-      <div className="bg-[#202C33] rounded-xl p-4 space-y-3">
+      <div className="bg-[var(--nyasa-surface-2)] rounded-xl p-4 space-y-3">
         <h3 className="text-white text-sm font-semibold">Company details</h3>
         <div className="grid grid-cols-2 gap-3">
           <div><label className={labelCls}>Company name</label><input className={inputCls} value={form.company_name || ''} onChange={e => set('company_name', e.target.value)} /></div>
@@ -451,7 +451,7 @@ function DocSettingsForm({ workspaceId, settings, onSaved }) {
           <div><label className={labelCls}>Phone</label><input className={inputCls} value={form.phone || ''} onChange={e => set('phone', e.target.value)} /></div>
           <div><label className={labelCls}>Email</label><input className={inputCls} value={form.email || ''} onChange={e => set('email', e.target.value)} /></div>
           <div><label className={labelCls}>Website</label><input className={inputCls} value={form.website || ''} onChange={e => set('website', e.target.value)} /></div>
-          <div><label className={labelCls}>Brand color</label><input type="color" className="w-full h-10 rounded-xl bg-[#2A3942] border-0" value={form.brand_color || '#25D366'} onChange={e => set('brand_color', e.target.value)} /></div>
+          <div><label className={labelCls}>Brand color</label><input type="color" className="w-full h-10 rounded-xl bg-[var(--nyasa-surface-4)] border-0" value={form.brand_color || '#25D366'} onChange={e => set('brand_color', e.target.value)} /></div>
         </div>
         <div><label className={labelCls}>Address</label><input className={inputCls} value={form.address || ''} onChange={e => set('address', e.target.value)} /></div>
         <div>
@@ -468,7 +468,7 @@ function DocSettingsForm({ workspaceId, settings, onSaved }) {
         <div><label className={labelCls}>Signature image URL</label><input className={inputCls} value={form.signature_url || ''} onChange={e => set('signature_url', e.target.value)} /></div>
       </div>
 
-      <div className="bg-[#202C33] rounded-xl p-4 space-y-3">
+      <div className="bg-[var(--nyasa-surface-2)] rounded-xl p-4 space-y-3">
         <h3 className="text-white text-sm font-semibold">Numbering & defaults</h3>
         <div className="grid grid-cols-2 gap-3">
           <div><label className={labelCls}>Quotation prefix</label><input className={inputCls} value={form.quotation_prefix || ''} onChange={e => set('quotation_prefix', e.target.value)} /></div>
@@ -481,7 +481,7 @@ function DocSettingsForm({ workspaceId, settings, onSaved }) {
         <p className="text-gray-600 text-[11px]">Changes the number the NEXT document will get (e.g. set to 100 to start at #0100) -- doesn't renumber ones already issued.</p>
       </div>
 
-      <div className="bg-[#202C33] rounded-xl p-4 space-y-3">
+      <div className="bg-[var(--nyasa-surface-2)] rounded-xl p-4 space-y-3">
         <h3 className="text-white text-sm font-semibold">Tax</h3>
         <label className="flex items-center gap-2 text-sm text-gray-300">
           <input type="checkbox" checked={!!form.tax_enabled} onChange={e => set('tax_enabled', e.target.checked)} /> Enable tax on documents
@@ -495,7 +495,7 @@ function DocSettingsForm({ workspaceId, settings, onSaved }) {
         )}
       </div>
 
-      <div className="bg-[#202C33] rounded-xl p-4 space-y-3">
+      <div className="bg-[var(--nyasa-surface-2)] rounded-xl p-4 space-y-3">
         <div className="flex items-center justify-between">
           <h3 className="text-white text-sm font-semibold">Bank accounts</h3>
           <button onClick={addBank} className="text-[#25D366] text-xs font-semibold">+ Add</button>
@@ -513,7 +513,7 @@ function DocSettingsForm({ workspaceId, settings, onSaved }) {
         ))}
       </div>
 
-      <div className="bg-[#202C33] rounded-xl p-4 space-y-3">
+      <div className="bg-[var(--nyasa-surface-2)] rounded-xl p-4 space-y-3">
         <div className="flex items-center justify-between">
           <h3 className="text-white text-sm font-semibold">Mobile money accounts</h3>
           <button onClick={addMomo} className="text-[#25D366] text-xs font-semibold">+ Add</button>
@@ -530,7 +530,7 @@ function DocSettingsForm({ workspaceId, settings, onSaved }) {
         ))}
       </div>
 
-      <div className="bg-[#202C33] rounded-xl p-4 space-y-3">
+      <div className="bg-[var(--nyasa-surface-2)] rounded-xl p-4 space-y-3">
         <h3 className="text-white text-sm font-semibold">Payment instructions & terms</h3>
         <div><label className={labelCls}>Default payment instructions</label><textarea className={inputCls} rows={2} value={form.default_payment_instructions || ''} onChange={e => set('default_payment_instructions', e.target.value)} /></div>
         <div><label className={labelCls}>Terms & conditions</label><textarea className={inputCls} rows={3} value={form.default_terms || ''} onChange={e => set('default_terms', e.target.value)} /></div>

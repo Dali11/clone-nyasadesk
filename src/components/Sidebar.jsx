@@ -1,12 +1,13 @@
 import { useState } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
-import { MessageSquare, BarChart2, Users, Megaphone, Settings, Zap, BookOpen, ShieldCheck, LogOut, MoreHorizontal, Bell, BellOff, Bot, FileText, TrendingUp, User, Lock, Moon, HelpCircle, Star, ExternalLink } from 'lucide-react';
+import { MessageSquare, BarChart2, Users, Megaphone, Settings, Zap, BookOpen, ShieldCheck, LogOut, MoreHorizontal, Bell, BellOff, Bot, FileText, TrendingUp, User, Lock, Moon, Sun, HelpCircle, Star, ExternalLink } from 'lucide-react';
 import Avatar from './Avatar';
 import { useNyasaAuth } from '@/lib/NyasaAuth';
 import { useAuth } from '@/lib/AuthContext';
 import { usePushNotifications } from '@/lib/usePushNotifications';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger, DropdownMenuSeparator, DropdownMenuLabel } from '@/components/ui/dropdown-menu';
 import { Sheet, SheetContent, SheetTrigger } from '@/components/ui/sheet';
+import { useTheme } from '@/lib/ThemeContext';
 
 const NAV = [
   { path: '/',           icon: MessageSquare, label: 'Inbox'     },
@@ -67,7 +68,7 @@ export default function Sidebar({ hideMobileChrome = false } = {}) {
   return (
     <>
       {/* ── Desktop (≥1024px): full labeled rail ──────────────────────── */}
-      <div className="hidden lg:flex w-64 flex-col shrink-0 bg-[#111B21] border-r border-white/5">
+      <div className="hidden lg:flex w-64 flex-col shrink-0 bg-[var(--nyasa-surface-1)] border-r border-white/5">
 
         {/* Header — matches onboarding style */}
         <div
@@ -151,6 +152,11 @@ export default function Sidebar({ hideMobileChrome = false } = {}) {
         : <><Bell className="w-4 h-4 text-[#25D366]" /> Enable notifications</>}
     </DropdownMenuItem>
   )}
+  <DropdownMenuItem onClick={toggleTheme} className="gap-2.5 py-2">
+    {theme === 'dark'
+      ? <><Sun className="w-4 h-4 text-yellow-400" /> Light mode</>
+      : <><Moon className="w-4 h-4 text-indigo-400" /> Dark mode</>}
+  </DropdownMenuItem>
 
   <DropdownMenuSeparator className="bg-white/5" />
 
@@ -187,7 +193,7 @@ export default function Sidebar({ hideMobileChrome = false } = {}) {
       </div>
 
       {/* ── Tablet (768–1023px): compact icon-only rail ───────────────── */}
-      <div className="hidden md:flex lg:hidden w-16 flex-col shrink-0 bg-[#111B21] border-r border-white/5">
+      <div className="hidden md:flex lg:hidden w-16 flex-col shrink-0 bg-[var(--nyasa-surface-1)] border-r border-white/5">
         <div
           className="h-14 flex items-center justify-center border-b border-white/5 shrink-0"
           style={{ background: 'linear-gradient(135deg, #075E54 0%, #128C7E 100%)' }}
@@ -249,6 +255,11 @@ export default function Sidebar({ hideMobileChrome = false } = {}) {
         : <><Bell className="w-4 h-4 text-[#25D366]" /> Enable notifications</>}
     </DropdownMenuItem>
   )}
+  <DropdownMenuItem onClick={toggleTheme} className="gap-2.5 py-2">
+    {theme === 'dark'
+      ? <><Sun className="w-4 h-4 text-yellow-400" /> Light mode</>
+      : <><Moon className="w-4 h-4 text-indigo-400" /> Dark mode</>}
+  </DropdownMenuItem>
 
   <DropdownMenuSeparator className="bg-white/5" />
 
@@ -338,6 +349,11 @@ export default function Sidebar({ hideMobileChrome = false } = {}) {
         : <><Bell className="w-4 h-4 text-[#25D366]" /> Enable notifications</>}
     </DropdownMenuItem>
   )}
+  <DropdownMenuItem onClick={toggleTheme} className="gap-2.5 py-2">
+    {theme === 'dark'
+      ? <><Sun className="w-4 h-4 text-yellow-400" /> Light mode</>
+      : <><Moon className="w-4 h-4 text-indigo-400" /> Dark mode</>}
+  </DropdownMenuItem>
 
   <DropdownMenuSeparator className="bg-white/5" />
 
@@ -374,7 +390,7 @@ export default function Sidebar({ hideMobileChrome = false } = {}) {
       </div>
 
       {/* Bottom tab bar */}
-      <nav className={`md:hidden fixed bottom-0 left-0 right-0 z-50 bg-[#111B21] border-t border-white/10 flex items-stretch px-2 pb-safe ${hideMobileChrome ? 'hidden' : ''}`}>
+      <nav className={`md:hidden fixed bottom-0 left-0 right-0 z-50 bg-[var(--nyasa-surface-1)] border-t border-white/10 flex items-stretch px-2 pb-safe ${hideMobileChrome ? 'hidden' : ''}`}>
         {MOBILE_NAV.map(({ path, icon: Icon, label }) => {
           const active = pathname === path;
           return (

@@ -23,7 +23,7 @@ const SECTIONS = [
   { id: 'subscription', label: 'Subscription', icon: CreditCard, adminOnly: true  },
 ];
 
-const inputCls = 'w-full bg-[#2A3942] text-white text-sm rounded-xl px-4 py-2.5 focus:outline-none focus:ring-1 focus:ring-[#25D366] border-0 placeholder:text-gray-600';
+const inputCls = 'w-full bg-[var(--nyasa-surface-4)] text-white text-sm rounded-xl px-4 py-2.5 focus:outline-none focus:ring-1 focus:ring-[#25D366] border-0 placeholder:text-gray-600';
 
 function CopyBtn({ text }) {
   const [ok, setOk] = useState(false);
@@ -390,7 +390,7 @@ function WhatsAppCard({ saved, workspaceId, onSave, onDelete }) {
       {/* ── Connected state ── */}
       {isLive && (
         <div className="space-y-3">
-          <div className="bg-[#111B21] rounded-xl p-4 space-y-2">
+          <div className="bg-[var(--nyasa-surface-1)] rounded-xl p-4 space-y-2">
             <div className="flex items-center justify-between">
               <p className="text-sm font-bold text-white">WhatsApp is connected</p>
               <span className="text-[10px] px-2 py-0.5 rounded-full bg-[#25D36620] text-[#25D366] font-medium">
@@ -436,7 +436,7 @@ function WhatsAppCard({ saved, workspaceId, onSave, onDelete }) {
       {!isLive && (
         <div className="space-y-3">
           {/* Tab switcher */}
-          <div className="flex rounded-xl bg-[#0B141A] p-1 gap-1">
+          <div className="flex rounded-xl bg-[var(--nyasa-bg)] p-1 gap-1">
             {[['recommended', 'Recommended'], ['advanced', 'Advanced']].map(([key, label]) => (
               <button key={key} onClick={() => { setTab(key); setEmbeddedError(''); setDiscoverError(''); setManualError(''); }}
                 className={`flex-1 py-2 rounded-lg text-xs font-medium transition-colors ${
@@ -447,7 +447,7 @@ function WhatsAppCard({ saved, workspaceId, onSave, onDelete }) {
 
           {/* ── Recommended tab: Embedded Signup ── */}
           {tab === 'recommended' && (
-            <div className="bg-[#111B21] rounded-xl p-4 space-y-3">
+            <div className="bg-[var(--nyasa-surface-1)] rounded-xl p-4 space-y-3">
               <div>
                 <p className="text-sm font-bold text-white">Connect with Facebook</p>
                 <p className="text-[11px] text-gray-400 mt-1 leading-relaxed">
@@ -473,7 +473,7 @@ function WhatsAppCard({ saved, workspaceId, onSave, onDelete }) {
           {tab === 'advanced' && (
             <div className="space-y-3">
               {/* Sub-mode toggle */}
-              <div className="flex rounded-lg bg-[#0B141A] p-0.5 gap-0.5">
+              <div className="flex rounded-lg bg-[var(--nyasa-bg)] p-0.5 gap-0.5">
                 {[['discover', 'Auto-detect'], ['manual', 'Manual entry']].map(([key, label]) => (
                   <button key={key} onClick={() => { setAdvMode(key); setDiscoverError(''); setManualError(''); setWabas(null); setRegWizard(null); }}
                     className={`flex-1 py-1.5 rounded-md text-[11px] font-medium transition-colors ${
@@ -484,13 +484,13 @@ function WhatsAppCard({ saved, workspaceId, onSave, onDelete }) {
 
               {/* Auto-detect mode */}
               {advMode === 'discover' && !freshMode && (
-                <div className="bg-[#111B21] rounded-xl p-4 space-y-3">
+                <div className="bg-[var(--nyasa-surface-1)] rounded-xl p-4 space-y-3">
                   <p className="text-[11px] text-gray-400 leading-relaxed">
                     Paste a System User access token from Meta Business Settings → Users → System Users. Make sure it has <strong>whatsapp_business_management</strong> + <strong>whatsapp_business_messaging</strong> permissions and Manage access to the WABA.
                   </p>
                   <input type="password" value={token} onChange={e => setToken(e.target.value)}
                     placeholder="EAAG… (System User access token)"
-                    className="w-full bg-[#0B141A] text-white text-xs rounded-lg p-2.5 border border-white/10" />
+                    className="w-full bg-[var(--nyasa-bg)] text-white text-xs rounded-lg p-2.5 border border-white/10" />
                   <button onClick={handleDiscover} disabled={discovering || !token.trim()}
                     className="w-full py-2.5 rounded-xl text-sm font-medium text-white bg-[#25D366] hover:bg-[#20BD5A] disabled:opacity-50 flex items-center justify-center gap-2">
                     {discovering ? <Loader2 className="w-4 h-4 animate-spin" /> : null}
@@ -505,7 +505,7 @@ function WhatsAppCard({ saved, workspaceId, onSave, onDelete }) {
                           const w = wabas.find(w => w.waba_id === e.target.value);
                           setSelectedWabaId(e.target.value);
                           setSelectedPhoneId(w?.phone_numbers?.[0]?.phone_number_id || '');
-                        }} className="w-full bg-[#0B141A] text-white text-xs rounded-lg p-2.5 border border-white/10">
+                        }} className="w-full bg-[var(--nyasa-bg)] text-white text-xs rounded-lg p-2.5 border border-white/10">
                           {wabas.map(w => <option key={w.waba_id} value={w.waba_id}>{w.name} ({w.waba_id})</option>)}
                         </select>
                       </div>
@@ -516,7 +516,7 @@ function WhatsAppCard({ saved, workspaceId, onSave, onDelete }) {
                           <div className="space-y-1.5">
                             <label className="text-[11px] text-gray-500">Phone Number</label>
                             <select value={selectedPhoneId} onChange={e => setSelectedPhoneId(e.target.value)}
-                              className="w-full bg-[#0B141A] text-white text-xs rounded-lg p-2.5 border border-white/10">
+                              className="w-full bg-[var(--nyasa-bg)] text-white text-xs rounded-lg p-2.5 border border-white/10">
                               {phones.map(p => <option key={p.phone_number_id} value={p.phone_number_id}>{p.display_phone_number || p.phone_number_id}{p.verified_name ? ` · ${p.verified_name}` : ''}</option>)}
                             </select>
                           </div>
@@ -544,7 +544,7 @@ function WhatsAppCard({ saved, workspaceId, onSave, onDelete }) {
 
               {/* Fresh number wizard */}
               {advMode === 'discover' && freshMode && (
-                <div className="bg-[#111B21] rounded-xl p-4 space-y-3">
+                <div className="bg-[var(--nyasa-surface-1)] rounded-xl p-4 space-y-3">
                   <div className="flex items-center justify-between">
                     <p className="text-xs font-bold text-white">Register a new number</p>
                     <button onClick={() => { setFreshMode(false); setFreshStep('input'); setFreshError(''); }} className="text-[11px] text-gray-500 hover:text-gray-300">Cancel</button>
@@ -556,18 +556,18 @@ function WhatsAppCard({ saved, workspaceId, onSave, onDelete }) {
                       <div className="space-y-1.5">
                         <label className="text-[11px] text-gray-500">Business ID</label>
                         <input value={freshBusinessId} onChange={e => setFreshBusinessId(e.target.value)} placeholder="123456789012345"
-                          className="w-full bg-[#0B141A] text-white text-xs rounded-lg p-2.5 border border-white/10" />
+                          className="w-full bg-[var(--nyasa-bg)] text-white text-xs rounded-lg p-2.5 border border-white/10" />
                       </div>
                       <div className="grid grid-cols-3 gap-2">
                         <div className="space-y-1.5">
                           <label className="text-[11px] text-gray-500">Country code</label>
                           <input value={freshCc} onChange={e => setFreshCc(e.target.value.replace(/\D/g, ''))} placeholder="265"
-                            className="w-full bg-[#0B141A] text-white text-xs rounded-lg p-2.5 border border-white/10" />
+                            className="w-full bg-[var(--nyasa-bg)] text-white text-xs rounded-lg p-2.5 border border-white/10" />
                         </div>
                         <div className="col-span-2 space-y-1.5">
                           <label className="text-[11px] text-gray-500">Phone number</label>
                           <input value={freshPhone} onChange={e => setFreshPhone(e.target.value.replace(/\D/g, ''))} placeholder="9800114467"
-                            className="w-full bg-[#0B141A] text-white text-xs rounded-lg p-2.5 border border-white/10" />
+                            className="w-full bg-[var(--nyasa-bg)] text-white text-xs rounded-lg p-2.5 border border-white/10" />
                         </div>
                       </div>
                       <div className="bg-amber-500/10 rounded-lg p-2.5 space-y-1">
@@ -587,7 +587,7 @@ function WhatsAppCard({ saved, workspaceId, onSave, onDelete }) {
                     <div className="space-y-2.5">
                       <p className="text-[11px] text-[#25D366]">✓ Number added — verification code sent via SMS</p>
                       <input value={freshCode} onChange={e => setFreshCode(e.target.value.replace(/\D/g, '').slice(0, 6))} placeholder="123456" maxLength={6}
-                        className="w-full bg-[#0B141A] text-white text-xs rounded-lg p-2.5 border border-white/10" />
+                        className="w-full bg-[var(--nyasa-bg)] text-white text-xs rounded-lg p-2.5 border border-white/10" />
                       <div className="flex gap-2">
                         <button onClick={() => handleFreshResend('SMS')} disabled={freshBusy} className="flex-1 py-2 rounded-lg text-[11px] text-gray-400 bg-white/5 hover:bg-white/10 disabled:opacity-50">Resend SMS</button>
                         <button onClick={() => handleFreshResend('VOICE')} disabled={freshBusy} className="flex-1 py-2 rounded-lg text-[11px] text-gray-400 bg-white/5 hover:bg-white/10 disabled:opacity-50">Call me instead</button>
@@ -625,7 +625,7 @@ function WhatsAppCard({ saved, workspaceId, onSave, onDelete }) {
                       <div className="space-y-1.5">
                         <label className="text-[11px] text-gray-500">Set a 6-digit PIN (two-step verification — save this)</label>
                         <input value={freshPin} onChange={e => setFreshPin(e.target.value.replace(/\D/g, '').slice(0, 6))} placeholder="123456" maxLength={6}
-                          className="w-full bg-[#0B141A] text-white text-xs rounded-lg p-2.5 border border-white/10" />
+                          className="w-full bg-[var(--nyasa-bg)] text-white text-xs rounded-lg p-2.5 border border-white/10" />
                       </div>
                       <button onClick={handleFreshRegisterAndConnect} disabled={freshBusy}
                         className="w-full py-2.5 rounded-xl text-sm font-bold text-white bg-[#25D366] hover:bg-[#20BD5A] disabled:opacity-50 flex items-center justify-center gap-2">
@@ -640,23 +640,23 @@ function WhatsAppCard({ saved, workspaceId, onSave, onDelete }) {
 
               {/* Manual entry mode */}
               {advMode === 'manual' && !regWizard && (
-                <div className="bg-[#111B21] rounded-xl p-4 space-y-3">
+                <div className="bg-[var(--nyasa-surface-1)] rounded-xl p-4 space-y-3">
                   <p className="text-[11px] text-gray-400 leading-relaxed">Paste your credentials directly. WABA ID and Phone Number ID can be found in Meta Business Manager → WhatsApp Manager.</p>
                   <div className="space-y-2">
                     <div className="space-y-1">
                       <label className="text-[11px] text-gray-500">Permanent Access Token *</label>
                       <input type="password" value={manualToken} onChange={e => setManualToken(e.target.value)} placeholder="EAAG…"
-                        className="w-full bg-[#0B141A] text-white text-xs rounded-lg p-2.5 border border-white/10" />
+                        className="w-full bg-[var(--nyasa-bg)] text-white text-xs rounded-lg p-2.5 border border-white/10" />
                     </div>
                     <div className="space-y-1">
                       <label className="text-[11px] text-gray-500">WhatsApp Business Account ID (optional — auto-detected if blank)</label>
                       <input value={manualWabaId} onChange={e => setManualWabaId(e.target.value)} placeholder="916980661415765"
-                        className="w-full bg-[#0B141A] text-white text-xs rounded-lg p-2.5 border border-white/10" />
+                        className="w-full bg-[var(--nyasa-bg)] text-white text-xs rounded-lg p-2.5 border border-white/10" />
                     </div>
                     <div className="space-y-1">
                       <label className="text-[11px] text-gray-500">Phone Number ID (optional — auto-detected if blank)</label>
                       <input value={manualPhoneId} onChange={e => setManualPhoneId(e.target.value)} placeholder="1228643423663631"
-                        className="w-full bg-[#0B141A] text-white text-xs rounded-lg p-2.5 border border-white/10" />
+                        className="w-full bg-[var(--nyasa-bg)] text-white text-xs rounded-lg p-2.5 border border-white/10" />
                     </div>
                   </div>
                   {manualError && <p className="text-[11px] text-red-400 leading-relaxed">{manualError}</p>}
@@ -670,7 +670,7 @@ function WhatsAppCard({ saved, workspaceId, onSave, onDelete }) {
 
               {/* Registration wizard (triggered by manual connect when phone not yet registered) */}
               {advMode === 'manual' && regWizard && (
-                <div className="bg-[#111B21] rounded-xl p-4 space-y-3">
+                <div className="bg-[var(--nyasa-surface-1)] rounded-xl p-4 space-y-3">
                   <p className="text-sm font-bold text-white">Register {regWizard.phone_number || regWizard.phone_number_id}</p>
                   <p className="text-[11px] text-gray-400">This number isn't registered for Cloud API yet. Complete the steps below to activate it.</p>
 
@@ -699,7 +699,7 @@ function WhatsAppCard({ saved, workspaceId, onSave, onDelete }) {
                     <div className="space-y-2.5">
                       <p className="text-[11px] text-[#25D366]">✓ Verification code sent via SMS</p>
                       <input value={regCode} onChange={e => setRegCode(e.target.value.replace(/\D/g, '').slice(0, 6))} placeholder="123456" maxLength={6}
-                        className="w-full bg-[#0B141A] text-white text-xs rounded-lg p-2.5 border border-white/10" />
+                        className="w-full bg-[var(--nyasa-bg)] text-white text-xs rounded-lg p-2.5 border border-white/10" />
                       <div className="flex gap-2">
                         <button onClick={async () => { setRegBusy(true); try { await apiCall('whatsapp-guided-request-code', { access_token: activeToken, phone_number_id: regWizard.phone_number_id, code_method: 'SMS' }); } finally { setRegBusy(false); } }} disabled={regBusy} className="flex-1 py-2 rounded-lg text-[11px] text-gray-400 bg-white/5 hover:bg-white/10 disabled:opacity-50">Resend SMS</button>
                         <button onClick={async () => { setRegBusy(true); try { await apiCall('whatsapp-guided-request-code', { access_token: activeToken, phone_number_id: regWizard.phone_number_id, code_method: 'VOICE' }); } finally { setRegBusy(false); } }} disabled={regBusy} className="flex-1 py-2 rounded-lg text-[11px] text-gray-400 bg-white/5 hover:bg-white/10 disabled:opacity-50">Call me instead</button>
@@ -718,7 +718,7 @@ function WhatsAppCard({ saved, workspaceId, onSave, onDelete }) {
                       <div className="space-y-1.5">
                         <label className="text-[11px] text-gray-500">Set a 6-digit PIN (two-step verification — save this)</label>
                         <input value={regPin} onChange={e => setRegPin(e.target.value.replace(/\D/g, '').slice(0, 6))} placeholder="123456" maxLength={6}
-                          className="w-full bg-[#0B141A] text-white text-xs rounded-lg p-2.5 border border-white/10" />
+                          className="w-full bg-[var(--nyasa-bg)] text-white text-xs rounded-lg p-2.5 border border-white/10" />
                       </div>
                       <button onClick={handleRegComplete} disabled={regBusy}
                         className="w-full py-2.5 rounded-xl text-sm font-bold text-white bg-[#25D366] hover:bg-[#20BD5A] disabled:opacity-50 flex items-center justify-center gap-2">
@@ -808,7 +808,7 @@ function MessengerCard({ saved, workspaceId, onSave, onDelete }) {
 
             {mode === 'easy' && (
               <div className="space-y-3">
-                <div className="bg-[#111B21] rounded-xl p-4 space-y-2">
+                <div className="bg-[var(--nyasa-surface-1)] rounded-xl p-4 space-y-2">
                   <p className="text-sm font-bold text-white">Connect with Facebook</p>
                   <p className="text-xs text-gray-400 leading-relaxed">
                     Log in and pick which Page to connect. No tokens to copy.
@@ -831,7 +831,7 @@ function MessengerCard({ saved, workspaceId, onSave, onDelete }) {
 
             {mode === 'manual' && (
               <div className="space-y-3">
-                <div className="bg-[#111B21] rounded-xl p-3">
+                <div className="bg-[var(--nyasa-surface-1)] rounded-xl p-3">
                   <p className="text-[10px] font-bold text-gray-500 uppercase tracking-wide mb-1.5">Webhook URL</p>
                   <div className="flex items-center gap-2">
                     <p className="text-xs text-[#25D366] font-mono truncate flex-1">{PROD_URL}/api/webhooks/messenger</p>
@@ -956,7 +956,7 @@ function WebsiteCard({ saved, workspaceId, onSave, onDelete }) {
   return (
     <ChannelCard emoji="🌐" title="Website Live Chat" subtitle={subtitle} accentColor="#06B6D4" isLive={isLive}>
       <div className="space-y-3">
-        <div className="bg-[#111B21] rounded-xl p-3 space-y-2">
+        <div className="bg-[var(--nyasa-surface-1)] rounded-xl p-3 space-y-2">
           <div className="flex items-center gap-2">
             <Code2 className="w-3.5 h-3.5 text-cyan-400" />
             <p className="text-[10px] font-bold text-cyan-400 uppercase tracking-wide">Your Embed Snippet</p>
@@ -1084,7 +1084,7 @@ function InstagramCard({ saved, workspaceId, onSave, onDelete }) {
   return (
     <ChannelCard iconUrl="https://upload.wikimedia.org/wikipedia/commons/e/e7/Instagram_logo_2016.svg" title="Instagram" subtitle={subtitle} accentColor="#E1306C" isLive={isLive}>
       <div className="space-y-3">
-        <div className="bg-[#111B21] rounded-xl p-3">
+        <div className="bg-[var(--nyasa-surface-1)] rounded-xl p-3">
           <p className="text-[10px] font-bold text-gray-500 uppercase tracking-wide mb-1.5">Webhook URL</p>
           <div className="flex items-center gap-2">
             <p className="text-xs text-[#E1306C] font-mono truncate flex-1">{PROD_URL}/api/webhooks/instagram</p>
@@ -1160,7 +1160,7 @@ function TelegramCard({ saved, workspaceId, onSave, onDelete }) {
   return (
     <ChannelCard iconUrl="https://upload.wikimedia.org/wikipedia/commons/8/82/Telegram_logo.svg" title="Telegram" subtitle={subtitle} accentColor="#26A5E4" isLive={isLive}>
       <div className="space-y-3">
-        <div className="bg-[#111B21] rounded-xl p-3 space-y-1.5">
+        <div className="bg-[var(--nyasa-surface-1)] rounded-xl p-3 space-y-1.5">
           <p className="text-sm font-bold text-white">Create a bot in 2 minutes</p>
           <p className="text-xs text-gray-400 leading-relaxed">
             Message <a href="https://t.me/BotFather" target="_blank" rel="noreferrer" className="text-[#26A5E4] font-semibold">@BotFather</a> on Telegram, send <span className="text-gray-300 font-mono">/newbot</span>, and paste the token it gives you below.
@@ -1398,11 +1398,11 @@ export default function Settings() {
   };
 
   return (
-    <div className="flex h-screen overflow-hidden bg-[#111B21] pt-14 md:pt-0 pb-[56px] md:pb-0">
+    <div className="flex h-screen overflow-hidden bg-[var(--nyasa-surface-1)] pt-14 md:pt-0 pb-[56px] md:pb-0">
       <Sidebar />
 
       {/* Desktop sidebar */}
-      <div className="hidden md:flex w-56 bg-[#111B21] border-r border-white/10 flex-col py-4 px-3 shrink-0">
+      <div className="hidden md:flex w-56 bg-[var(--nyasa-surface-1)] border-r border-white/10 flex-col py-4 px-3 shrink-0">
         <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide px-3 mb-3">Settings</p>
         {visibleSections.map(({ id, label, icon: Icon }) => (
           <button key={id} onClick={() => setSection(id)}
@@ -1418,7 +1418,7 @@ export default function Settings() {
 
       <div className="flex-1 flex flex-col overflow-hidden bg-[#0D1418]">
         {/* Mobile tab bar */}
-        <div className="md:hidden flex overflow-x-auto bg-[#111B21] border-b border-white/10 px-2 pt-2 shrink-0 gap-1">
+        <div className="md:hidden flex overflow-x-auto bg-[var(--nyasa-surface-1)] border-b border-white/10 px-2 pt-2 shrink-0 gap-1">
           {visibleSections.map(({ id, label, icon: Icon }) => (
             <button key={id} onClick={() => setSection(id)}
               className="flex flex-col items-center gap-1 px-4 py-2 rounded-t-xl text-[10px] font-semibold whitespace-nowrap transition-all shrink-0"
@@ -1467,7 +1467,7 @@ export default function Settings() {
             )}
 
             {section === 'profile' && (
-              <div className="bg-[#202C33] rounded-2xl border border-white/10 p-5 space-y-4">
+              <div className="bg-[var(--nyasa-surface-2)] rounded-2xl border border-white/10 p-5 space-y-4">
                 <div className="flex items-center gap-4 mb-2">
                   <Avatar name={profileForm.full_name || ''} size="xl" />
                   <div>
@@ -1534,7 +1534,7 @@ export default function Settings() {
             )}
 
             {section === 'workspace' && (
-              <div className="bg-[#202C33] rounded-2xl border border-white/10 p-5 space-y-4">
+              <div className="bg-[var(--nyasa-surface-2)] rounded-2xl border border-white/10 p-5 space-y-4">
                 <div>
                   <label className="text-[11px] font-medium text-gray-400 mb-1.5 block">Workspace Name</label>
                   <input className={inputCls} value={wsName}
@@ -1551,7 +1551,7 @@ export default function Settings() {
             {section === 'team' && <TeamSection />}
 
             {section === 'sla' && (
-              <div className="bg-[#202C33] rounded-2xl border border-white/10 p-5 space-y-4">
+              <div className="bg-[var(--nyasa-surface-2)] rounded-2xl border border-white/10 p-5 space-y-4">
                 <div>
                   <p className="text-sm font-bold text-white mb-1">SLA — Response Time Target</p>
                   <div className="text-xs text-gray-400 leading-relaxed space-y-2 mt-2">
@@ -1596,7 +1596,7 @@ export default function Settings() {
                   <div className="flex items-center justify-center py-12"><Loader2 className="w-5 h-5 text-[#25D366] animate-spin" /></div>
                 ) : subStatus ? (
                   <>
-                    <div className="rounded-2xl border border-white/10 p-5 bg-[#202C33]">
+                    <div className="rounded-2xl border border-white/10 p-5 bg-[var(--nyasa-surface-2)]">
                       <div className="flex items-center gap-3 mb-3">
                         {subStatus.subscription_status === 'trialing' && <Clock className="w-5 h-5 text-yellow-400" />}
                         {subStatus.subscription_status === 'active' && <Crown className="w-5 h-5 text-[#25D366]" />}
@@ -1631,7 +1631,7 @@ export default function Settings() {
                         const isCurrent = subStatus.plan === key;
                         const labels = subStatus.plan_labels || {};
                         return (
-                          <div key={key} className={`rounded-2xl border p-5 ${isCurrent ? 'border-[#25D366] bg-[#25D366]/5' : 'border-white/10 bg-[#202C33]'}`}>
+                          <div key={key} className={`rounded-2xl border p-5 ${isCurrent ? 'border-[#25D366] bg-[#25D366]/5' : 'border-white/10 bg-[var(--nyasa-surface-2)]'}`}>
                             <p className="text-sm font-bold text-white">{labels[key] || key}</p>
                             <p className="text-2xl font-black text-white mt-2">K{price.toLocaleString()}<span className="text-xs font-normal text-gray-400">/mo</span></p>
                             <div className="mt-4">
@@ -1657,7 +1657,7 @@ export default function Settings() {
                         <h3 className="text-sm font-semibold text-white mb-3">Payment History</h3>
                         <div className="space-y-2">
                           {subStatus.transactions.map(t => (
-                            <div key={t.tx_ref} className="flex items-center justify-between bg-[#202C33] rounded-xl px-4 py-3 border border-white/5">
+                            <div key={t.tx_ref} className="flex items-center justify-between bg-[var(--nyasa-surface-2)] rounded-xl px-4 py-3 border border-white/5">
                               <div>
                                 <p className="text-xs font-medium text-white">K{(t.amount || 0).toLocaleString()} {t.currency}</p>
                                 <p className="text-[10px] text-gray-500">{new Date(t.created_at).toLocaleDateString('en-MW')}</p>

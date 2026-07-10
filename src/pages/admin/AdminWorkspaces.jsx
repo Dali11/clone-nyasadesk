@@ -109,7 +109,7 @@ export default function AdminWorkspaces() {
             const subBadge = SUB_BADGE[w.subscription_status] || SUB_BADGE.trialing;
             const trialDaysLeft = w.trial_ends_at ? Math.max(0, Math.ceil((new Date(w.trial_ends_at) - new Date()) / 86400000)) : null;
             return (
-              <div key={w.id} className="bg-[#202C33] rounded-2xl border border-white/10 p-5">
+              <div key={w.id} className="bg-[var(--nyasa-surface-2)] rounded-2xl border border-white/10 p-5">
                 <div className="flex flex-wrap items-start justify-between gap-4">
                   <div className="min-w-0">
                     <div className="flex items-center gap-2">
@@ -139,7 +139,7 @@ export default function AdminWorkspaces() {
                       value={w.plan}
                       disabled={updating === w.id}
                       onChange={e => changePlan(w.id, e.target.value)}
-                      className="bg-[#2A3942] text-white text-xs font-semibold rounded-xl px-3 py-2 focus:outline-none focus:ring-1 focus:ring-indigo-400 border-0 disabled:opacity-50"
+                      className="bg-[var(--nyasa-surface-4)] text-white text-xs font-semibold rounded-xl px-3 py-2 focus:outline-none focus:ring-1 focus:ring-indigo-400 border-0 disabled:opacity-50"
                     >
                       {Object.entries(PLAN_INFO).map(([key, p]) => (
                         <option key={key} value={key}>

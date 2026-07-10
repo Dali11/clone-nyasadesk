@@ -7,7 +7,7 @@ const PLAN_LABEL = { starter: 'Starter', growth: 'Growth', scale: 'Scale' };
 
 function StatCard({ icon: Icon, label, value, sub }) {
   return (
-    <div className="bg-[#202C33] rounded-2xl border border-white/10 p-5">
+    <div className="bg-[var(--nyasa-surface-2)] rounded-2xl border border-white/10 p-5">
       <div className="flex items-center gap-2 text-gray-400 text-xs font-medium mb-2">
         <Icon className="w-3.5 h-3.5" /> {label}
       </div>
@@ -61,7 +61,7 @@ export default function AdminOverview() {
         <StatCard icon={DollarSign} label="Est. MRR (MWK)" value={`K${totals.mrr.toLocaleString()}`} />
       </div>
 
-      <div className="bg-[#202C33] rounded-2xl border border-white/10 p-5 mb-8">
+      <div className="bg-[var(--nyasa-surface-2)] rounded-2xl border border-white/10 p-5 mb-8">
         <h2 className="text-sm font-semibold text-white mb-4 flex items-center gap-2">
           <TrendingUp className="w-4 h-4 text-indigo-400" /> Plan breakdown
         </h2>
@@ -83,7 +83,7 @@ export default function AdminOverview() {
         </div>
       </div>
 
-      <div className="bg-[#202C33] rounded-2xl border border-white/10 p-5">
+      <div className="bg-[var(--nyasa-surface-2)] rounded-2xl border border-white/10 p-5">
         <div className="flex items-center justify-between mb-4">
           <h2 className="text-sm font-semibold text-white">Recent workspaces</h2>
           <Link to="/admin/workspaces" className="text-xs text-indigo-400 hover:underline">View all →</Link>

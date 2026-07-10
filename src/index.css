@@ -5,60 +5,101 @@
 @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
 
 @layer base {
+  /* ── DARK (default) ─────────────────────────────────────────────────── */
   :root {
-    /* ── Nyasadesk dark theme — all shadcn CSS vars set to the app's actual
-       dark palette so every shadcn component (DropdownMenu, Sheet, Dialog,
-       Select, etc.) renders in the correct dark surface rather than the
-       default light white. ───────────────────────────────────────────── */
-    --background:         210 14% 8%;    /* #111B21 — main app bg        */
-    --foreground:         210 20% 92%;   /* near-white body text          */
-
-    --card:               207 14% 16%;   /* #202C33 — card/panel surface  */
+    --background:         210 14% 8%;
+    --foreground:         210 20% 92%;
+    --card:               207 14% 16%;
     --card-foreground:    210 20% 92%;
-
-    --popover:            207 14% 16%;   /* #202C33 — dropdown/popover    */
+    --popover:            207 14% 16%;
     --popover-foreground: 210 20% 92%;
-
-    --primary:            142 70% 49%;   /* #25D366 — Nyasadesk green     */
-    --primary-foreground: 0 0% 0%;       /* black text on green buttons   */
-
-    --secondary:          207 12% 20%;   /* slightly lighter dark surface */
+    --primary:            142 70% 49%;
+    --primary-foreground: 0 0% 0%;
+    --secondary:          207 12% 20%;
     --secondary-foreground: 210 20% 92%;
-
     --muted:              207 12% 20%;
-    --muted-foreground:   210 10% 52%;   /* gray-400 labels               */
-
-    --accent:             207 14% 22%;   /* hover state                   */
+    --muted-foreground:   210 10% 52%;
+    --accent:             207 14% 22%;
     --accent-foreground:  210 20% 92%;
-
-    --destructive:        0 72% 51%;     /* red-500                       */
+    --destructive:        0 72% 51%;
     --destructive-foreground: 0 0% 98%;
-
-    --border:             207 14% 20%;   /* white/5 borders               */
+    --border:             207 14% 20%;
     --input:              207 14% 16%;
-    --ring:               142 70% 49%;   /* focus ring = green            */
-
+    --ring:               142 70% 49%;
     --radius: 0.625rem;
-    --font-heading: 'Inter', ui-sans-serif, system-ui, sans-serif;
-    --font-body:    'Inter', ui-sans-serif, system-ui, sans-serif;
+
+    /* Nyasadesk surface tokens */
+    --nyasa-bg:        #0B141A;
+    --nyasa-surface-1: #111B21;
+    --nyasa-surface-2: #202C33;
+    --nyasa-surface-3: #1F2C34;
+    --nyasa-surface-4: #2a3a42;
+    --nyasa-surface-5: #0D1A21;
+    --nyasa-text:      #E9EDEF;
+    --nyasa-text-muted: #8696A0;
+    --nyasa-border:    rgba(255,255,255,0.05);
+
     --shadow-card:       0 1px 3px rgba(0,0,0,0.3), 0 1px 2px rgba(0,0,0,0.2);
     --shadow-card-hover: 0 4px 16px rgba(0,0,0,0.4), 0 2px 4px rgba(0,0,0,0.2);
     --shadow-modal:      0 24px 64px rgba(0,0,0,0.6);
+  }
+
+  /* ── LIGHT ──────────────────────────────────────────────────────────── */
+  :root.light {
+    --background:         0 0% 100%;
+    --foreground:         210 20% 10%;
+    --card:               0 0% 98%;
+    --card-foreground:    210 20% 10%;
+    --popover:            0 0% 100%;
+    --popover-foreground: 210 20% 10%;
+    --primary:            142 70% 36%;
+    --primary-foreground: 0 0% 100%;
+    --secondary:          210 14% 93%;
+    --secondary-foreground: 210 20% 20%;
+    --muted:              210 14% 93%;
+    --muted-foreground:   210 10% 44%;
+    --accent:             210 14% 90%;
+    --accent-foreground:  210 20% 10%;
+    --destructive:        0 72% 51%;
+    --destructive-foreground: 0 0% 98%;
+    --border:             210 14% 87%;
+    --input:              210 14% 93%;
+    --ring:               142 70% 36%;
+
+    /* Nyasadesk surface tokens — light equivalents */
+    --nyasa-bg:        #F0F2F5;
+    --nyasa-surface-1: #FFFFFF;
+    --nyasa-surface-2: #F7F8FA;
+    --nyasa-surface-3: #ECEEF0;
+    --nyasa-surface-4: #E2E5E9;
+    --nyasa-surface-5: #E8EAED;
+    --nyasa-text:      #111B21;
+    --nyasa-text-muted: #667781;
+    --nyasa-border:    rgba(0,0,0,0.08);
+
+    --shadow-card:       0 1px 3px rgba(0,0,0,0.07), 0 1px 2px rgba(0,0,0,0.04);
+    --shadow-card-hover: 0 4px 16px rgba(0,0,0,0.10), 0 2px 4px rgba(0,0,0,0.05);
+    --shadow-modal:      0 24px 64px rgba(0,0,0,0.18);
   }
 }
 
 @layer base {
   * { @apply border-border outline-ring/50; }
-  body { @apply bg-[#0B141A] text-foreground; font-family: 'Inter', ui-sans-serif, system-ui, sans-serif; }
+  body {
+    background: var(--nyasa-bg);
+    color: var(--nyasa-text);
+    font-family: 'Inter', ui-sans-serif, system-ui, sans-serif;
+    transition: background 0.2s ease, color 0.2s ease;
+  }
   h1, h2, h3, h4, h5, h6 { font-family: 'Inter', ui-sans-serif, system-ui, sans-serif; }
 }
 
 @layer utilities {
   .scrollbar-thin::-webkit-scrollbar { width: 4px; height: 4px; }
   .scrollbar-thin::-webkit-scrollbar-track { background: transparent; }
-  .scrollbar-thin::-webkit-scrollbar-thumb { background: #374151; border-radius: 9999px; }
-  .scrollbar-thin::-webkit-scrollbar-thumb:hover { background: #4B5563; }
-  .nav-rail { background: #0F1117; }
+  .scrollbar-thin::-webkit-scrollbar-thumb { background: var(--nyasa-surface-4); border-radius: 9999px; }
+  .scrollbar-thin::-webkit-scrollbar-thumb:hover { background: var(--nyasa-text-muted); }
+  .nav-rail { background: var(--nyasa-surface-1); }
   .inbox-indigo { color: #5C6CF7; }
   .bg-inbox-indigo { background: #5C6CF7; }
   .border-inbox-indigo { border-color: #5C6CF7; }
@@ -67,4 +108,51 @@
   .conversation-row { transition: background 150ms ease; }
   .conversation-row:hover .row-actions { opacity: 1; }
   .row-actions { opacity: 0; transition: opacity 150ms ease; }
+
+  /* Theme-aware surface utility classes */
+  .nyasa-bg        { background: var(--nyasa-bg) !important; }
+  .nyasa-surface-1 { background: var(--nyasa-surface-1) !important; }
+  .nyasa-surface-2 { background: var(--nyasa-surface-2) !important; }
+  .nyasa-surface-3 { background: var(--nyasa-surface-3) !important; }
+  .nyasa-border    { border-color: var(--nyasa-border) !important; }
+  .nyasa-text      { color: var(--nyasa-text) !important; }
+  .nyasa-text-muted { color: var(--nyasa-text-muted) !important; }
+}
+
+/* ── Light mode text overrides ─────────────────────────────────────────────
+   Many components use hardcoded text-white for body/label text (appropriate
+   in dark mode). In light mode these become invisible on white backgrounds.
+   Override them globally using the .light class on <html>. ────────────── */
+:root.light .text-white {
+  color: var(--nyasa-text) !important;
+}
+:root.light .text-gray-100,
+:root.light .text-gray-200,
+:root.light .text-gray-300 {
+  color: var(--nyasa-text) !important;
+}
+:root.light .text-gray-400,
+:root.light .text-gray-500 {
+  color: var(--nyasa-text-muted) !important;
+}
+/* Keep white text on coloured buttons/badges — don't override when bg is coloured */
+:root.light .bg-\[\#25D366\] .text-white,
+:root.light [style*="background: #25D366"] .text-white,
+:root.light [style*="background: linear-gradient"] .text-white,
+:root.light [style*="075E54"] .text-white,
+:root.light [style*="128C7E"] .text-white {
+  color: #000 !important;
+}
+
+/* Border overrides in light mode */
+:root.light .border-white\/5 { border-color: rgba(0,0,0,0.08) !important; }
+:root.light .border-white\/10 { border-color: rgba(0,0,0,0.10) !important; }
+:root.light .border-white\/20 { border-color: rgba(0,0,0,0.14) !important; }
+
+/* Sidebar header gradient stays green in both modes — good as is */
+
+/* Input placeholders in light mode */
+:root.light input::placeholder,
+:root.light textarea::placeholder {
+  color: #9CA3AF;
 }

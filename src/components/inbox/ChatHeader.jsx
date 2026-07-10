@@ -27,7 +27,7 @@ export default function ChatHeader({ conversation, users = [], onUpdate, onBack,
 
   return (
     <>
-    <div className="bg-[#202C33] border-b border-white/10 px-4 py-2.5 flex items-center gap-3 shrink-0">
+    <div className="bg-[var(--nyasa-surface-2)] border-b border-white/10 px-4 py-2.5 flex items-center gap-3 shrink-0">
       {/* Back button: only visible on mobile */}
       {onBack && (
         <button onClick={onBack} className="md:hidden p-1.5 -ml-1 text-gray-400 hover:text-white transition-colors">

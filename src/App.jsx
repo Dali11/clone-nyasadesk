@@ -106,7 +106,7 @@ function AppRoutes() {
   // (see NyasaAuth.jsx), so this correctly blocks the whole team at once.
   if (profile?.subscription_status === 'suspended') {
     return (
-      <div style={{ minHeight: '100vh', background: '#111B21', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 24 }}>
+      <div style={{ minHeight: '100vh', background: 'var(--nyasa-surface-1)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 24 }}>
         <div style={{ maxWidth: 380, textAlign: 'center' }}>
           <div style={{ width: 56, height: 56, borderRadius: 16, background: 'rgba(239,68,68,0.15)', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 16px' }}>
             <LockKeyhole size={26} color="#f87171" />

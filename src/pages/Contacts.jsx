@@ -30,7 +30,7 @@ function ContactDrawer({ contact, workspaceId, onClose, onSave }) {
   const [editData, setEditData] = useState({ ...contact });
   const [conversations, setConversations] = useState([]);
   const set = (k, v) => setEditData(d => ({ ...d, [k]: v }));
-  const inp = 'w-full bg-[#2A3942] text-white text-sm rounded-xl px-4 py-2.5 focus:outline-none focus:ring-1 focus:ring-[#25D366] border-0 placeholder:text-gray-600';
+  const inp = 'w-full bg-[var(--nyasa-surface-4)] text-white text-sm rounded-xl px-4 py-2.5 focus:outline-none focus:ring-1 focus:ring-[#25D366] border-0 placeholder:text-gray-600';
 
   useEffect(() => {
     if (!workspaceId || !contact?.id) return;
@@ -42,7 +42,7 @@ function ContactDrawer({ contact, workspaceId, onClose, onSave }) {
   return (
     <div className="fixed inset-0 z-50 flex">
       <div className="flex-1 bg-black/60" onClick={onClose} />
-      <div className="w-full max-w-sm md:w-96 bg-[#111B21] border-l border-white/10 flex flex-col overflow-y-auto scrollbar-thin">
+      <div className="w-full max-w-sm md:w-96 bg-[var(--nyasa-surface-1)] border-l border-white/10 flex flex-col overflow-y-auto scrollbar-thin">
         <div className="px-5 py-4 border-b border-white/10 flex items-center justify-between">
           <h2 className="font-semibold text-white">Contact Details</h2>
           <button onClick={onClose} className="p-1.5 hover:bg-white/10 rounded-lg text-gray-400"><X className="w-4 h-4" /></button>
@@ -58,7 +58,7 @@ function ContactDrawer({ contact, workspaceId, onClose, onSave }) {
         <div className="px-5 py-4 border-b border-white/10">
           <p className="text-[10px] font-semibold text-gray-500 uppercase tracking-wide mb-2">Deal Stage</p>
           <select value={editData.deal_stage || 'New Lead'} onChange={e => set('deal_stage', e.target.value)}
-            className="w-full bg-[#2A3942] text-white text-sm rounded-xl px-4 py-2.5 focus:outline-none border-0">
+            className="w-full bg-[var(--nyasa-surface-4)] text-white text-sm rounded-xl px-4 py-2.5 focus:outline-none border-0">
             {STAGES.slice(1).map(s => <option key={s} value={s}>{s}</option>)}
           </select>
         </div>
@@ -66,14 +66,14 @@ function ContactDrawer({ contact, workspaceId, onClose, onSave }) {
           <p className="text-[10px] font-semibold text-gray-500 uppercase tracking-wide mb-2">Notes</p>
           <textarea rows={3} value={editData.notes || ''} onChange={e => set('notes', e.target.value)}
             placeholder="Add notes…"
-            className="w-full bg-[#2A3942] text-white text-sm rounded-xl px-4 py-2.5 focus:outline-none focus:ring-1 focus:ring-[#25D366] border-0 resize-none placeholder:text-gray-600" />
+            className="w-full bg-[var(--nyasa-surface-4)] text-white text-sm rounded-xl px-4 py-2.5 focus:outline-none focus:ring-1 focus:ring-[#25D366] border-0 resize-none placeholder:text-gray-600" />
         </div>
         {conversations.length > 0 && (
           <div className="px-5 py-4">
             <p className="text-[10px] font-semibold text-gray-500 uppercase tracking-wide mb-2">Conversations ({conversations.length})</p>
             <div className="space-y-2">
               {conversations.map(cv => (
-                <div key={cv.id} className="bg-[#2A3942] rounded-xl px-3 py-2 flex items-center gap-2">
+                <div key={cv.id} className="bg-[var(--nyasa-surface-4)] rounded-xl px-3 py-2 flex items-center gap-2">
                   <ChannelBadge channel={cv.channel} />
                   <span className="text-xs text-gray-300 truncate">{cv.last_message_preview || cv.last_message}</span>
                 </div>
@@ -179,15 +179,15 @@ export default function Contacts() {
   };
 
   const sortLabel = SORT_OPTIONS.find(o => o.value === sort)?.label || 'Sort';
-  const inp = 'w-full bg-[#2A3942] text-white text-sm rounded-xl px-4 py-2.5 focus:outline-none focus:ring-1 focus:ring-[#25D366] border-0 placeholder:text-gray-600';
+  const inp = 'w-full bg-[var(--nyasa-surface-4)] text-white text-sm rounded-xl px-4 py-2.5 focus:outline-none focus:ring-1 focus:ring-[#25D366] border-0 placeholder:text-gray-600';
 
   return (
-    <div className="flex h-screen overflow-hidden bg-[#111B21] pt-14 md:pt-0 pb-[56px] md:pb-0">
+    <div className="flex h-screen overflow-hidden bg-[var(--nyasa-surface-1)] pt-14 md:pt-0 pb-[56px] md:pb-0">
       <Sidebar />
       <div className="flex-1 flex flex-col overflow-hidden bg-[#0D1418]">
 
         {/* ── Header ── */}
-        <div className="bg-[#111B21] border-b border-white/10 px-4 pt-3 pb-2">
+        <div className="bg-[var(--nyasa-surface-1)] border-b border-white/10 px-4 pt-3 pb-2">
           {/* Row 1: title + actions */}
           <div className="flex items-center gap-2 mb-2">
             <div className="flex-1 min-w-0">
@@ -196,19 +196,19 @@ export default function Contacts() {
             </div>
             {/* Search toggle (mobile) / search bar (desktop) */}
             <button onClick={() => setSearchOpen(o => !o)}
-              className="md:hidden p-2 rounded-xl bg-[#202C33] text-gray-400 hover:text-white shrink-0">
+              className="md:hidden p-2 rounded-xl bg-[var(--nyasa-surface-2)] text-gray-400 hover:text-white shrink-0">
               <Search className="w-4 h-4" />
             </button>
             {/* Sort button */}
             <div className="relative">
               <button onClick={() => setShowSort(o => !o)}
-                className="flex items-center gap-1.5 px-3 py-2 bg-[#202C33] rounded-xl text-xs text-gray-300 hover:text-white border border-white/10 whitespace-nowrap">
+                className="flex items-center gap-1.5 px-3 py-2 bg-[var(--nyasa-surface-2)] rounded-xl text-xs text-gray-300 hover:text-white border border-white/10 whitespace-nowrap">
                 <SlidersHorizontal className="w-3.5 h-3.5 shrink-0" />
                 <span className="hidden sm:inline">{sortLabel}</span>
                 <ChevronDown className="w-3 h-3 shrink-0" />
               </button>
               {showSort && (
-                <div className="absolute right-0 top-full mt-1 bg-[#202C33] border border-white/10 rounded-xl shadow-xl z-30 min-w-[160px] py-1">
+                <div className="absolute right-0 top-full mt-1 bg-[var(--nyasa-surface-2)] border border-white/10 rounded-xl shadow-xl z-30 min-w-[160px] py-1">
                   {SORT_OPTIONS.map(o => (
                     <button key={o.value} onClick={() => { setSort(o.value); setShowSort(false); }}
                       className={`w-full text-left px-4 py-2 text-xs hover:bg-white/5 ${sort === o.value ? 'text-[#25D366] font-semibold' : 'text-gray-300'}`}>
@@ -232,7 +232,7 @@ export default function Contacts() {
               <Search className="w-3.5 h-3.5 text-gray-500 absolute left-3 top-1/2 -translate-y-1/2" />
               <input value={search} onChange={e => setSearch(e.target.value)}
                 placeholder="Search by name or company…"
-                className="w-full pl-8 pr-3 py-2 text-sm bg-[#202C33] rounded-xl border border-white/10 text-white placeholder:text-gray-600 focus:outline-none focus:ring-1 focus:ring-[#25D366]" />
+                className="w-full pl-8 pr-3 py-2 text-sm bg-[var(--nyasa-surface-2)] rounded-xl border border-white/10 text-white placeholder:text-gray-600 focus:outline-none focus:ring-1 focus:ring-[#25D366]" />
               {search && <button onClick={() => setSearch('')} className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-500 hover:text-white"><X className="w-3.5 h-3.5" /></button>}
             </div>
           </div>
@@ -266,7 +266,7 @@ export default function Contacts() {
               {/* Mobile: card list */}
               <div className="md:hidden divide-y divide-white/5">
                 {canManage && (
-                  <div className="flex items-center gap-3 px-4 py-2.5 bg-[#111B21]">
+                  <div className="flex items-center gap-3 px-4 py-2.5 bg-[var(--nyasa-surface-1)]">
                     <input type="checkbox" checked={allSelected} onChange={toggleSelectAll}
                       className="w-4 h-4 rounded accent-[#25D366]" />
                     <span className="text-xs text-gray-500">Select all</span>
@@ -379,7 +379,7 @@ export default function Contacts() {
       {/* ── New contact modal ── */}
       {showNew && (
         <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-4 bg-black/60">
-          <div className="w-full max-w-sm bg-[#111B21] rounded-2xl border border-white/10 shadow-2xl overflow-hidden">
+          <div className="w-full max-w-sm bg-[var(--nyasa-surface-1)] rounded-2xl border border-white/10 shadow-2xl overflow-hidden">
             <div className="px-5 py-4 border-b border-white/10 flex items-center justify-between">
               <h2 className="font-semibold text-white">New Contact</h2>
               <button onClick={() => setShowNew(false)} className="p-1.5 hover:bg-white/10 rounded-lg text-gray-400"><X className="w-4 h-4" /></button>

@@ -103,7 +103,7 @@ export default function TeamSection() {
     }
   };
 
-  const inputCls = 'w-full bg-[#2A3942] text-white text-sm rounded-xl px-4 py-2.5 focus:outline-none focus:ring-1 focus:ring-[#25D366] border-0 placeholder:text-gray-600';
+  const inputCls = 'w-full bg-[var(--nyasa-surface-4)] text-white text-sm rounded-xl px-4 py-2.5 focus:outline-none focus:ring-1 focus:ring-[#25D366] border-0 placeholder:text-gray-600';
 
   if (loading) {
     return (
@@ -135,7 +135,7 @@ export default function TeamSection() {
       )}
 
       {showForm && canInvite && (
-        <div className="bg-[#202C33] rounded-2xl border border-[#25D366]/40 p-4 space-y-3">
+        <div className="bg-[var(--nyasa-surface-2)] rounded-2xl border border-[#25D366]/40 p-4 space-y-3">
           <div>
             <h3 className="font-semibold text-white text-sm">Add Team Member</h3>
             <p className="text-[11px] text-gray-500 mt-0.5">We'll create their account and email them a link to set their password.</p>
@@ -158,7 +158,7 @@ export default function TeamSection() {
           <select
             value={form.role}
             onChange={e => setForm(f => ({ ...f, role: e.target.value }))}
-            className="w-full bg-[#2A3942] text-white text-sm rounded-xl px-4 py-2.5 focus:outline-none border-0"
+            className="w-full bg-[var(--nyasa-surface-4)] text-white text-sm rounded-xl px-4 py-2.5 focus:outline-none border-0"
           >
             <option value="user">Agent</option>
             <option value="sales_manager">Sales Manager</option>
@@ -186,7 +186,7 @@ export default function TeamSection() {
       {users.map(u => {
         const isOwnerRow = u.id === workspaceId; // the row whose id === the workspace's own id is the original owner
         return (
-        <div key={u.id} className="bg-[#202C33] rounded-2xl border border-white/10 px-4 py-3.5 flex items-center gap-3">
+        <div key={u.id} className="bg-[var(--nyasa-surface-2)] rounded-2xl border border-white/10 px-4 py-3.5 flex items-center gap-3">
           <Avatar name={u.full_name || u.email || '?'} size="md" />
           <div className="flex-1 min-w-0">
             <div className="flex items-center gap-2">

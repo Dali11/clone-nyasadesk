@@ -64,7 +64,7 @@ export default function AdminAuditLog() {
       ) : (
         <div className="space-y-1.5">
           {entries.map(e => (
-            <div key={e.id} className="flex items-center justify-between bg-[#202C33] rounded-xl border border-white/10 px-4 py-3">
+            <div key={e.id} className="flex items-center justify-between bg-[var(--nyasa-surface-2)] rounded-xl border border-white/10 px-4 py-3">
               <div className="min-w-0">
                 <p className="text-xs font-semibold text-white">
                   {ACTION_LABEL[e.action] || e.action}
