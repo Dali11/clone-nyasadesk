@@ -8,7 +8,7 @@ const PRIORITIES = ['low', 'normal', 'high', 'urgent'];
 const STATUSES = ['open', 'snoozed', 'closed'];
 const STATUS_COLOR = { open: 'bg-green-500', snoozed: 'bg-yellow-500', closed: 'bg-gray-500', unassigned: 'bg-orange-400' };
 
-export default function ChatHeader({ conversation, users = [], onUpdate, onBack, onOpenContact, onDelete, canDelete, onPin, onUnpin, isPinnedForMe, canPin }) {
+export default function ChatHeader({ conversation, users = [], currentUserId, currentUserRole, onUpdate, onBack, onOpenContact, onDelete, canDelete, onPin, onUnpin, isPinnedForMe, canPin }) {
   if (!conversation) return null;
 
   const assign = (userId, userName) => onUpdate({
@@ -41,20 +41,44 @@ export default function ChatHeader({ conversation, users = [], onUpdate, onBack,
           <div className="flex items-center gap-1.5 text-xs text-gray-500">
             <span className={`w-1.5 h-1.5 rounded-full ${STATUS_COLOR[conversation.status] || 'bg-gray-500'}`} />
             <span className="capitalize">{conversation.status}</span>
-            {!conversation.assigned_to && <><span>·</span><span className="text-orange-400">Unassigned</span></>}
+            {conversation.assigned_to_name
+              ? <><span>·</span><span className="text-[#25D366]/80 text-[10px]">
+                  {conversation.assigned_to === currentUserId
+                    ? 'Assigned to you'
+                    : `Agent: ${conversation.assigned_to_name.split(' ')[0]}`}
+                </span></>
+              : <><span>·</span><span className="text-orange-400">Unassigned</span></>
+            }
           </div>
         </div>
       </button>
 
       <div className="flex items-center gap-2 shrink-0">
-        {conversation.assigned_to_name && (
-          <span
-            title={`Assigned to ${conversation.assigned_to_name}`}
-            className="hidden sm:inline-block text-[9px] font-medium text-gray-500 bg-white/5 px-1.5 py-0.5 rounded-full truncate max-w-[70px]"
-          >
-            {conversation.assigned_to_name.split(' ')[0]}
-          </span>
-        )}
+        {/* Assignment indicator — shown to admins/managers when chat belongs to another agent */}
+        {conversation.assigned_to && conversation.assigned_to_name && (() => {
+          const isMyChat = conversation.assigned_to === currentUserId;
+          const isElevated = currentUserRole === 'admin' || currentUserRole === 'sales_manager';
+          // Agents see nothing (they know it's theirs). Admins/managers see a pill.
+          if (isMyChat) return null;
+          if (!isElevated) return null;
+          const firstName = conversation.assigned_to_name.split(' ')[0];
+          const initials = conversation.assigned_to_name
+            .split(' ').map(w => w[0]).join('').slice(0, 2).toUpperCase();
+          return (
+            <div
+              title={`Assigned to ${conversation.assigned_to_name} — you're managing this chat`}
+              className="hidden sm:flex items-center gap-1 bg-[var(--nyasa-surface-3)] border border-[var(--nyasa-border)] rounded-full pl-0.5 pr-2 py-0.5 shrink-0"
+            >
+              {/* Mini avatar */}
+              <div className="w-5 h-5 rounded-full bg-[#25D366]/20 flex items-center justify-center text-[9px] font-bold text-[#25D366] shrink-0">
+                {initials}
+              </div>
+              <span className="text-[10px] font-medium text-gray-400 leading-none">
+                {firstName}
+              </span>
+            </div>
+          );
+        })()}
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
             <button className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-[#25D366] text-white text-xs font-semibold hover:bg-[#20BA5A] transition-colors">

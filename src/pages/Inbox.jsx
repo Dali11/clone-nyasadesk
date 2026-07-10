@@ -8,6 +8,7 @@ import MessageThread from '@/components/inbox/MessageThread';
 import ContactPanel from '@/components/inbox/ContactPanel';
 import NewConvModal from '@/components/inbox/NewConvModal';
 import { useNyasaAuth } from '@/lib/NyasaAuth';
+import { useToast } from '@/components/ui/use-toast';
 import { getConversations, updateConversation, deleteConversation, subscribeToConversations, getPinnedConvs, createInternalConv, pinConversation, unpinConversation, getTeamMembers } from '@/lib/channels';
 import { supabase } from '@/lib/supabase';
 import { useDocumentTitle } from '@/hooks/useDocumentTitle';
@@ -24,7 +25,8 @@ const CHANNELS_FILTER = ['all', 'whatsapp', 'website'];
 
 export default function Inbox() {
   useDocumentTitle('Inbox');
-  const { user, workspaceOwnerId, canViewAllChats } = useNyasaAuth();
+  const { user, profile, workspaceOwnerId, canViewAllChats } = useNyasaAuth();
+  const { toast } = useToast();
   const [conversations, setConversations] = useState([]);
   const [loading, setLoading] = useState(true);
   const [activeConv, setActiveConv] = useState(null);
@@ -167,7 +169,19 @@ export default function Inbox() {
   };
 
   const handleConvUpdate = (updates) => {
-    setActiveConv(prev => ({ ...prev, ...updates }));
+    setActiveConv(prev => {
+      // Fire a toast when a conversation is assigned to someone
+      if (updates.assigned_to_name && updates.assigned_to_name !== prev?.assigned_to_name) {
+        toast({
+          title: `Assigned to ${updates.assigned_to_name.split(' ')[0]}`,
+          description: `${prev?.contact_name || 'This chat'} is now handled by ${updates.assigned_to_name}`,
+          duration: 4000,
+        });
+      } else if (updates.assigned_to === null && prev?.assigned_to) {
+        toast({ title: 'AI automation resumed', duration: 3000 });
+      }
+      return { ...prev, ...updates };
+    });
     setConversations(prev => prev.map(c => c.id === updates.id ? { ...c, ...updates } : c));
     updateConversation(updates.id, updates).catch(e => console.error('[Inbox] failed to update conversation:', e));
   };
@@ -379,6 +393,8 @@ export default function Inbox() {
             <ChatHeader
               conversation={activeConv}
               users={teamUsers.length ? teamUsers : (user ? [{ id: user.id, full_name: user.full_name || user.email || 'You' }] : [])}
+              currentUserId={user?.id}
+              currentUserRole={profile?.role ?? 'agent'}
               onBack={() => setActiveConv(null)}
               onUpdate={handleConvUpdate}
               onOpenContact={() => setContactOpen(true)}
