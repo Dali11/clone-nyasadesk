@@ -871,60 +871,204 @@ function MessengerCard({ saved, workspaceId, onSave, onDelete }) {
 }
 
 function EmailCard({ saved, workspaceId, onSave, onDelete }) {
-  const [fields, setFields] = useState(saved ? saved.config || {} : {});
+  const [tab, setTab]       = useState('gmail');           // 'gmail' | 'manual'
+  const [fields, setFields] = useState(saved?.config || {});
   const [saving, setSaving] = useState(false);
+  const [testing, setTesting] = useState(false);
   const [status, setStatus] = useState('');
-  const isLive = !!(saved && saved.enabled && saved.config && saved.config.email);
+  const [gmailLoading, setGmailLoading] = useState(false);
 
-  const handleSave = async () => {
-    setSaving(true);
+  const isLive       = !!(saved?.enabled && saved?.config?.email);
+  const isGmailLive  = isLive && saved?.config?.provider === 'gmail';
+  const isManualLive = isLive && saved?.config?.provider !== 'gmail';
+  const connectedEmail = saved?.config?.email || '';
+
+  // Handle redirect back from Google OAuth (?email_connected=1 or ?email_error=...)
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    if (params.get('email_connected')) {
+      setStatus('Gmail connected! ✅');
+      // Clean the URL
+      const url = new URL(window.location.href);
+      url.searchParams.delete('email_connected');
+      url.searchParams.delete('email');
+      window.history.replaceState({}, '', url);
+    } else if (params.get('email_error')) {
+      setStatus('error: ' + decodeURIComponent(params.get('email_error')));
+      const url = new URL(window.location.href);
+      url.searchParams.delete('email_error');
+      window.history.replaceState({}, '', url);
+    }
+  }, []);
+
+  const handleGmailConnect = async () => {
+    setGmailLoading(true);
+    setStatus('');
     try {
-      await onSave('email', fields);
+      const res = await fetch(`/api/channels?action=gmail-oauth-url&workspace_id=${workspaceId}`);
+      const d = await res.json();
+      if (!d.ok) throw new Error(d.error);
+      // Redirect to Google consent screen — callback will redirect back to /settings
+      window.location.href = d.url;
+    } catch (e) {
+      setStatus('error: ' + e.message);
+      setGmailLoading(false);
+    }
+  };
+
+  const handleManualSave = async () => {
+    setSaving(true);
+    setStatus('');
+    try {
+      await onSave('email', { ...fields, provider: 'manual' });
       setStatus('saved');
     } catch (e) {
       setStatus('error: ' + e.message);
     } finally {
       setSaving(false);
-      setTimeout(() => setStatus(''), 3000);
+      setTimeout(() => setStatus(''), 4000);
     }
   };
 
-  const subtitle = isLive ? ('Connected · ' + saved.config.email) : 'Pull emails into your inbox';
+  const handleTest = async () => {
+    setTesting(true);
+    setStatus('');
+    try {
+      const res = await fetch('/api/channels?action=email-test', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ workspace_id: workspaceId }),
+      });
+      const d = await res.json();
+      setStatus(d.ok ? ('✅ ' + d.message) : ('error: ' + d.error));
+    } catch (e) {
+      setStatus('error: ' + e.message);
+    } finally {
+      setTesting(false);
+      setTimeout(() => setStatus(''), 5000);
+    }
+  };
+
+  const subtitle = isLive ? `Connected · ${connectedEmail}` : 'Turn emails into inbox conversations';
 
   return (
     <ChannelCard emoji="📧" title="Email" subtitle={subtitle} accentColor="#6366F1" isLive={isLive}>
-      <div className="space-y-3">
-        <ManualFields fields={fields} setFields={setFields} fieldDefs={[
-          { key: 'imap_host', label: 'IMAP Host', placeholder: 'imap.gmail.com' },
-          { key: 'imap_port', label: 'IMAP Port', placeholder: '993' },
-          { key: 'smtp_host', label: 'SMTP Host', placeholder: 'smtp.gmail.com' },
-          { key: 'smtp_port', label: 'SMTP Port', placeholder: '587' },
-          { key: 'email',     label: 'Email Address', placeholder: 'support@yourdomain.com' },
-          { key: 'password',  label: 'App Password',  placeholder: 'xxxx xxxx xxxx xxxx', secret: true },
-        ]} />
-        <a href="https://support.google.com/mail/answer/185833" target="_blank" rel="noreferrer"
-          className="inline-flex items-center gap-1.5 text-[11px] text-blue-400 hover:text-blue-300">
-          <ExternalLink className="w-3 h-3" />How to create a Gmail App Password
-        </a>
-        <div className="flex gap-2 pt-1">
-          <button onClick={handleSave} disabled={saving}
-            className="flex-1 py-2.5 rounded-xl text-sm font-bold text-white"
-            style={{ background: '#6366F1', opacity: saving ? 0.7 : 1 }}>
-            {saving ? 'Saving…' : status === 'saved' ? '✅ Saved!' : 'Save & Connect'}
-          </button>
-          {saved && (
-            <button onClick={() => onDelete('email')}
-              className="p-2.5 rounded-xl bg-red-500/10 text-red-400 hover:bg-red-500/20">
-              <Trash2 className="w-4 h-4" />
-            </button>
-          )}
+      {/* Status banner */}
+      {status && (
+        <div className={`mb-3 flex items-center gap-2 text-xs px-3 py-2 rounded-lg ${status.startsWith('error:') ? 'bg-red-500/10 text-red-400' : 'bg-green-500/10 text-green-400'}`}>
+          {status.startsWith('error:') ? <AlertCircle className="w-3.5 h-3.5 shrink-0" /> : <CheckCircle2 className="w-3.5 h-3.5 shrink-0" />}
+          <span>{status.startsWith('error:') ? status.slice(7) : status}</span>
         </div>
-        {status.startsWith('error:') && (
-          <p className="text-xs text-red-400 flex items-center gap-1.5">
-            <AlertCircle className="w-3.5 h-3.5" />{status.slice(6)}
-          </p>
-        )}
+      )}
+
+      {/* Connected state quick-actions */}
+      {isLive && (
+        <div className="mb-4 flex items-center justify-between bg-[var(--nyasa-surface-2)] rounded-xl px-3 py-2.5">
+          <div className="flex items-center gap-2 text-sm text-[var(--nyasa-text)]">
+            <span className="w-2 h-2 rounded-full bg-green-400 animate-pulse" />
+            <span className="font-medium truncate max-w-[180px]">{connectedEmail}</span>
+            {isGmailLive && <span className="text-[10px] text-[var(--nyasa-text-muted)] bg-[var(--nyasa-surface-3)] px-1.5 py-0.5 rounded-full">Gmail OAuth</span>}
+            {isManualLive && <span className="text-[10px] text-[var(--nyasa-text-muted)] bg-[var(--nyasa-surface-3)] px-1.5 py-0.5 rounded-full">Manual</span>}
+          </div>
+          <div className="flex gap-1.5">
+            <button onClick={handleTest} disabled={testing}
+              className="text-xs px-2.5 py-1.5 rounded-lg bg-[var(--nyasa-surface-3)] text-[var(--nyasa-text-muted)] hover:text-[var(--nyasa-text)] transition-colors">
+              {testing ? 'Testing…' : 'Test'}
+            </button>
+            <button onClick={() => onDelete('email')}
+              className="p-1.5 rounded-lg bg-red-500/10 text-red-400 hover:bg-red-500/20 transition-colors">
+              <Trash2 className="w-3.5 h-3.5" />
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* Tabs */}
+      <div className="flex gap-1 p-1 bg-[var(--nyasa-surface-2)] rounded-xl mb-4">
+        {[{ id: 'gmail', label: 'Gmail (Recommended)' }, { id: 'manual', label: 'Manual / Other' }].map(t => (
+          <button key={t.id} onClick={() => setTab(t.id)}
+            className={`flex-1 py-1.5 text-xs font-semibold rounded-lg transition-all ${tab === t.id ? 'bg-[#6366F1] text-white shadow' : 'text-[var(--nyasa-text-muted)] hover:text-[var(--nyasa-text)]'}`}>
+            {t.label}
+          </button>
+        ))}
       </div>
+
+      {/* Gmail tab */}
+      {tab === 'gmail' && (
+        <div className="space-y-4">
+          <div className="rounded-xl border border-[var(--nyasa-border)] bg-[var(--nyasa-surface-2)] p-4 space-y-2.5">
+            <p className="text-sm font-semibold text-[var(--nyasa-text)]">Connect your Gmail account</p>
+            <p className="text-xs text-[var(--nyasa-text-muted)] leading-relaxed">
+              One click — Google will ask you to sign in and grant Nyasadesk permission to send and read emails on your behalf. No passwords stored.
+            </p>
+            <ul className="space-y-1">
+              {['Inbound emails → auto-create conversations', 'Reply directly from the inbox', 'Access token refreshed automatically'].map(f => (
+                <li key={f} className="flex items-center gap-2 text-xs text-[var(--nyasa-text-muted)]">
+                  <CheckCircle2 className="w-3.5 h-3.5 text-green-400 shrink-0" />
+                  {f}
+                </li>
+              ))}
+            </ul>
+          </div>
+
+          <button onClick={handleGmailConnect} disabled={gmailLoading}
+            className="w-full flex items-center justify-center gap-3 py-3 rounded-xl font-bold text-sm border border-[var(--nyasa-border)] bg-[var(--nyasa-surface-2)] hover:bg-[var(--nyasa-surface-3)] transition-colors text-[var(--nyasa-text)]"
+            style={{ opacity: gmailLoading ? 0.7 : 1 }}>
+            {gmailLoading ? (
+              <span className="text-[var(--nyasa-text-muted)]">Redirecting to Google…</span>
+            ) : (
+              <>
+                {/* Google G logo */}
+                <svg width="18" height="18" viewBox="0 0 48 48">
+                  <path fill="#4285F4" d="M47.5 24.5c0-1.6-.1-3.2-.4-4.7H24v8.9h13.2c-.6 3-2.4 5.6-5 7.3v6h8.1c4.7-4.4 7.2-10.8 7.2-17.5z"/>
+                  <path fill="#34A853" d="M24 48c6.5 0 11.9-2.1 15.9-5.8l-8.1-6c-2.1 1.4-4.8 2.2-7.8 2.2-6 0-11.1-4-12.9-9.5H2.8v6.2C6.8 42.7 14.8 48 24 48z"/>
+                  <path fill="#FBBC05" d="M11.1 28.9c-.5-1.4-.7-2.8-.7-4.3s.2-3 .7-4.3v-6.2H2.8C1 17.5 0 20.6 0 24s1 6.5 2.8 9.1l8.3-4.2z"/>
+                  <path fill="#EA4335" d="M24 9.5c3.3 0 6.2 1.1 8.5 3.3l6.4-6.4C34.9 2.1 29.5 0 24 0 14.8 0 6.8 5.3 2.8 13.1l8.3 4.2C12.9 13.5 18 9.5 24 9.5z"/>
+                </svg>
+                Connect with Google
+              </>
+            )}
+          </button>
+
+          <div className="rounded-xl bg-blue-500/8 border border-blue-500/20 px-3 py-2.5">
+            <p className="text-[11px] text-blue-400 leading-relaxed">
+              <strong>Inbound setup:</strong> After connecting, forward (or set a filter in Gmail) to route incoming emails to Nyasadesk via the webhook at{' '}
+              <code className="bg-blue-500/10 px-1 py-0.5 rounded text-[10px]">nyasadesk.com/api/webhooks/email</code>.
+              Or use a Mailgun/SendGrid inbound parse pointed at that URL.
+            </p>
+          </div>
+        </div>
+      )}
+
+      {/* Manual tab */}
+      {tab === 'manual' && (
+        <div className="space-y-3">
+          <ManualFields fields={fields} setFields={setFields} fieldDefs={[
+            { key: 'imap_host', label: 'IMAP Host', placeholder: 'imap.gmail.com / mail.yourdomain.com' },
+            { key: 'imap_port', label: 'IMAP Port', placeholder: '993' },
+            { key: 'smtp_host', label: 'SMTP Host', placeholder: 'smtp.gmail.com / mail.yourdomain.com' },
+            { key: 'smtp_port', label: 'SMTP Port', placeholder: '587' },
+            { key: 'email',     label: 'Email Address', placeholder: 'support@yourdomain.com' },
+            { key: 'password',  label: 'App Password',  placeholder: 'xxxx xxxx xxxx xxxx', secret: true },
+          ]} />
+          <a href="https://support.google.com/mail/answer/185833" target="_blank" rel="noreferrer"
+            className="inline-flex items-center gap-1.5 text-[11px] text-blue-400 hover:text-blue-300">
+            <ExternalLink className="w-3 h-3" />How to get a Gmail App Password
+          </a>
+          <div className="flex gap-2 pt-1">
+            <button onClick={handleManualSave} disabled={saving}
+              className="flex-1 py-2.5 rounded-xl text-sm font-bold text-white transition-opacity"
+              style={{ background: '#6366F1', opacity: saving ? 0.7 : 1 }}>
+              {saving ? 'Saving…' : status === 'saved' ? '✅ Saved!' : 'Save & Connect'}
+            </button>
+            {saved && (
+              <button onClick={() => onDelete('email')}
+                className="p-2.5 rounded-xl bg-red-500/10 text-red-400 hover:bg-red-500/20">
+                <Trash2 className="w-4 h-4" />
+              </button>
+            )}
+          </div>
+        </div>
+      )}
     </ChannelCard>
   );
 }

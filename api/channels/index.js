@@ -36,7 +36,7 @@ export default async function handler(req, res) {
   // Agents above -- logic itself lives in api/_lib/documents.js.
   const getActions = ['hosted-connect', 'templates', 'ai-agents-list', 'ai-templates',
     'doc-settings-get', 'quotation-list', 'quotation-get', 'invoice-list', 'invoice-get',
-    'sales-list', 'sales-commission-report'];
+    'sales-list', 'sales-commission-report', 'gmail-oauth-url'];
   if (req.method !== 'POST' && !getActions.includes(req.query.action)) return res.status(405).json({ error: 'Method Not Allowed' });
   const action = req.query.action || 'send';
 
@@ -84,6 +84,10 @@ export default async function handler(req, res) {
   if (action === 'sales-delete')  return handleSalesDelete(req, res);
   if (action === 'sales-commission-report') return handleSalesCommissionReport(req, res);
   if (action === 'sales-commission-pdf')   return handleSalesCommissionPdf(req, res);
+  if (action === 'gmail-oauth-url')       return handleGmailOAuthUrl(req, res);
+  if (action === 'gmail-oauth-callback')  return handleGmailOAuthCallback(req, res);
+  if (action === 'email-test')            return handleEmailTest(req, res);
+  if (action === 'email-send')            return handleEmailSend(req, res);
   return handleSend(req, res);
 }
 
@@ -1430,6 +1434,249 @@ async function handleSalesCommissionPdf(req, res) {
     return res.status(200).json({ ok: true, pdf_url: pub.publicUrl });
   } catch (e) {
     console.error('[sales-commission-pdf]', e);
+    return res.status(500).json({ ok: false, error: e.message });
+  }
+}
+
+// ── Email: Gmail OAuth one-click connect ──────────────────────────────────
+// Uses Google OAuth2 with offline access to get a refresh_token that lets
+// Nyasadesk send (via Gmail API / SMTP-OAuth2) and read (via Gmail API)
+// on behalf of the workspace owner's Gmail account — no app password needed.
+//
+// Required env vars (add in Vercel dashboard + .env.local):
+//   GOOGLE_CLIENT_ID     — OAuth2 client ID  (type: Web application)
+//   GOOGLE_CLIENT_SECRET — OAuth2 client secret
+//
+// The redirect URI registered in Google Cloud Console must be:
+//   https://nyasadesk.com/api/channels?action=gmail-oauth-callback
+
+const GOOGLE_CLIENT_ID     = process.env.GOOGLE_CLIENT_ID;
+const GOOGLE_CLIENT_SECRET = process.env.GOOGLE_CLIENT_SECRET;
+const GMAIL_REDIRECT_URI   = 'https://nyasadesk.com/api/channels?action=gmail-oauth-callback';
+const GMAIL_SCOPES = [
+  'https://www.googleapis.com/auth/gmail.send',
+  'https://www.googleapis.com/auth/gmail.readonly',
+  'https://www.googleapis.com/auth/userinfo.email',
+  'https://www.googleapis.com/auth/userinfo.profile',
+].join(' ');
+
+async function handleGmailOAuthUrl(req, res) {
+  try {
+    const { workspace_id } = req.query;
+    if (!workspace_id) return res.status(400).json({ ok: false, error: 'workspace_id is required' });
+    if (!GOOGLE_CLIENT_ID) return res.status(500).json({ ok: false, error: 'Google OAuth is not configured on this server. Add GOOGLE_CLIENT_ID and GOOGLE_CLIENT_SECRET in Vercel environment variables.' });
+
+    // Encode workspace_id in state param so we know whose token this is on callback
+    const state = Buffer.from(JSON.stringify({ workspace_id })).toString('base64url');
+    const params = new URLSearchParams({
+      client_id: GOOGLE_CLIENT_ID,
+      redirect_uri: GMAIL_REDIRECT_URI,
+      response_type: 'code',
+      scope: GMAIL_SCOPES,
+      access_type: 'offline',
+      prompt: 'consent',   // force consent so we always get a refresh_token
+      state,
+    });
+    return res.status(200).json({ ok: true, url: `https://accounts.google.com/o/oauth2/v2/auth?${params}` });
+  } catch (e) {
+    return res.status(500).json({ ok: false, error: e.message });
+  }
+}
+
+async function handleGmailOAuthCallback(req, res) {
+  // Google redirects GET /api/channels?action=gmail-oauth-callback&code=...&state=...
+  try {
+    const { code, state, error: oauthError } = req.query;
+
+    if (oauthError) {
+      return res.status(302).setHeader('Location', `/settings?email_error=${encodeURIComponent(oauthError)}`).end();
+    }
+    if (!code || !state) {
+      return res.status(302).setHeader('Location', '/settings?email_error=missing_code').end();
+    }
+
+    let workspace_id;
+    try {
+      ({ workspace_id } = JSON.parse(Buffer.from(state, 'base64url').toString()));
+    } catch {
+      return res.status(302).setHeader('Location', '/settings?email_error=bad_state').end();
+    }
+
+    // Exchange code for tokens
+    const tokenRes = await fetch('https://oauth2.googleapis.com/token', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+      body: new URLSearchParams({
+        code,
+        client_id: GOOGLE_CLIENT_ID,
+        client_secret: GOOGLE_CLIENT_SECRET,
+        redirect_uri: GMAIL_REDIRECT_URI,
+        grant_type: 'authorization_code',
+      }),
+    });
+    const tokens = await tokenRes.json();
+    if (tokens.error) {
+      return res.status(302).setHeader('Location', `/settings?email_error=${encodeURIComponent(tokens.error_description || tokens.error)}`).end();
+    }
+
+    // Fetch the user's email address
+    const profileRes = await fetch('https://www.googleapis.com/oauth2/v2/userinfo', {
+      headers: { Authorization: `Bearer ${tokens.access_token}` },
+    });
+    const profile = await profileRes.json();
+    const email = profile.email;
+    const name  = profile.name || email;
+
+    // Save to channel_configs
+    const sb = createClient(SUPABASE_URL, SUPABASE_KEY);
+    const config = {
+      provider: 'gmail',
+      email,
+      name,
+      access_token:  tokens.access_token,
+      refresh_token: tokens.refresh_token,
+      token_expiry:  tokens.expires_in ? Date.now() + tokens.expires_in * 1000 : null,
+      connected_via: 'gmail_oauth',
+      connected_at:  new Date().toISOString(),
+    };
+    const { error: dbErr } = await sb.from('channel_configs').upsert(
+      { workspace_id, channel: 'email', enabled: true, config, updated_at: new Date().toISOString() },
+      { onConflict: 'workspace_id,channel' }
+    );
+    if (dbErr) {
+      return res.status(302).setHeader('Location', `/settings?email_error=${encodeURIComponent(dbErr.message)}`).end();
+    }
+
+    // Redirect back to settings with success flag
+    return res.status(302).setHeader('Location', `/settings?email_connected=1&email=${encodeURIComponent(email)}`).end();
+  } catch (e) {
+    console.error('[gmail-oauth-callback]', e);
+    return res.status(302).setHeader('Location', `/settings?email_error=${encodeURIComponent(e.message)}`).end();
+  }
+}
+
+// ── Email: test IMAP/SMTP manual credentials ──────────────────────────────
+async function handleEmailTest(req, res) {
+  // Basic smoke-test: try to get a fresh Gmail OAuth token (for OAuth configs)
+  // or just validate that required SMTP fields are present (for manual configs).
+  try {
+    const { workspace_id } = req.body || {};
+    if (!workspace_id) return res.status(400).json({ ok: false, error: 'workspace_id required' });
+    const sb = createClient(SUPABASE_URL, SUPABASE_KEY);
+    const { data: cfg } = await sb.from('channel_configs')
+      .select('config').eq('workspace_id', workspace_id).eq('channel', 'email').single();
+    if (!cfg?.config) return res.status(400).json({ ok: false, error: 'No email channel configured' });
+
+    const c = cfg.config;
+    if (c.provider === 'gmail') {
+      // Try refreshing the token to confirm the refresh_token is still valid
+      if (!c.refresh_token) return res.status(400).json({ ok: false, error: 'No refresh token stored — reconnect Gmail.' });
+      const r = await fetch('https://oauth2.googleapis.com/token', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+        body: new URLSearchParams({
+          client_id: GOOGLE_CLIENT_ID, client_secret: GOOGLE_CLIENT_SECRET,
+          refresh_token: c.refresh_token, grant_type: 'refresh_token',
+        }),
+      });
+      const data = await r.json();
+      if (data.error) return res.status(400).json({ ok: false, error: `Gmail token refresh failed: ${data.error_description || data.error}` });
+      return res.status(200).json({ ok: true, message: `Gmail connected as ${c.email}` });
+    }
+
+    // Manual IMAP/SMTP — just validate fields are present
+    const missing = ['imap_host', 'smtp_host', 'email', 'password'].filter(k => !c[k]);
+    if (missing.length) return res.status(400).json({ ok: false, error: `Missing fields: ${missing.join(', ')}` });
+    return res.status(200).json({ ok: true, message: `Manual email configured for ${c.email}` });
+  } catch (e) {
+    return res.status(500).json({ ok: false, error: e.message });
+  }
+}
+
+// ── Email: send outbound reply via Gmail API (OAuth) or Resend (SMTP fallback) ──
+async function handleEmailSend(req, res) {
+  try {
+    const { workspace_id, conversation_id, to, subject, body, message_id } = req.body || {};
+    if (!workspace_id || !to || !body) return res.status(400).json({ ok: false, error: 'workspace_id, to, and body are required' });
+
+    const sb = createClient(SUPABASE_URL, SUPABASE_KEY);
+    const { data: cfg } = await sb.from('channel_configs')
+      .select('config').eq('workspace_id', workspace_id).eq('channel', 'email').single();
+    if (!cfg?.config) return res.status(400).json({ ok: false, error: 'Email channel not configured' });
+
+    const c = cfg.config;
+    let sentOk = false;
+
+    if (c.provider === 'gmail' && c.refresh_token) {
+      // ── Refresh access token ──
+      const tokenRes = await fetch('https://oauth2.googleapis.com/token', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+        body: new URLSearchParams({
+          client_id: GOOGLE_CLIENT_ID, client_secret: GOOGLE_CLIENT_SECRET,
+          refresh_token: c.refresh_token, grant_type: 'refresh_token',
+        }),
+      });
+      const tokenData = await tokenRes.json();
+      if (tokenData.error) throw new Error(`Gmail token refresh failed: ${tokenData.error_description || tokenData.error}`);
+      const accessToken = tokenData.access_token;
+
+      // ── Build RFC 2822 raw email ──
+      const fromHeader = c.name ? `${c.name} <${c.email}>` : c.email;
+      const raw = [
+        `From: ${fromHeader}`,
+        `To: ${to}`,
+        `Subject: ${subject || 'Re: Your enquiry'}`,
+        'MIME-Version: 1.0',
+        'Content-Type: text/plain; charset=UTF-8',
+        '',
+        body,
+      ].join('\r\n');
+      const encodedRaw = Buffer.from(raw).toString('base64url');
+
+      // ── Send via Gmail API ──
+      const gmailRes = await fetch('https://gmail.googleapis.com/gmail/v1/users/me/messages/send', {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${accessToken}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ raw: encodedRaw }),
+      });
+      const gmailData = await gmailRes.json();
+      if (gmailData.error) throw new Error(gmailData.error.message || 'Gmail send failed');
+      sentOk = true;
+
+      // Update stored access token
+      await sb.from('channel_configs').update({
+        config: { ...c, access_token: accessToken, token_expiry: Date.now() + (tokenData.expires_in || 3600) * 1000 },
+        updated_at: new Date().toISOString(),
+      }).eq('workspace_id', workspace_id).eq('channel', 'email');
+
+    } else if (RESEND_API_KEY) {
+      // ── Fallback: Resend (for manual IMAP configs or Gmail without refresh_token) ──
+      const fromAddr = c.email ? `Nyasadesk <${c.email}>` : 'Nyasadesk <noreply@nyasadesk.com>';
+      const r = await fetch('https://api.resend.com/emails', {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${RESEND_API_KEY}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ from: fromAddr, to, subject: subject || 'Re: Your enquiry', text: body }),
+      });
+      const rd = await r.json();
+      if (!r.ok) throw new Error(rd.message || 'Resend send failed');
+      sentOk = true;
+    } else {
+      throw new Error('No email send method available. Connect Gmail or configure Resend.');
+    }
+
+    // Mark message as sent in DB
+    if (message_id) {
+      await sb.from('messages').update({ status: 'sent', error_reason: null }).eq('id', message_id);
+    }
+
+    return res.status(200).json({ ok: true });
+  } catch (e) {
+    console.error('[email-send]', e);
+    if (req.body?.message_id) {
+      const sb2 = createClient(SUPABASE_URL, SUPABASE_KEY);
+      await sb2.from('messages').update({ status: 'failed', error_reason: e.message.slice(0, 500) }).eq('id', req.body.message_id);
+    }
     return res.status(500).json({ ok: false, error: e.message });
   }
 }
