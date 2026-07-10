@@ -57,7 +57,14 @@ export async function notifyNewMessage(sb, { ownerId, contactName, body, convers
       body: (body || '').slice(0, 140) || '📎 Attachment',
       icon: '/icon-192.png',
       badge: '/badge-n.png',
-      data: { url: convUrl, conversationId, channel, unreadTotal, unreadConvs },
+      data: {
+        url: convUrl,
+        conversationId,
+        channel,
+        workspaceId: ownerId,   // needed by SW inline-reply handler
+        unreadTotal,
+        unreadConvs,
+      },
     });
 
     await Promise.all(subs.map(async (row) => {

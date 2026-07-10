@@ -14,6 +14,33 @@ if ('serviceWorker' in navigator) {
         console.log('[SW] Registered, scope:', reg.scope);
         // Check for updates every 60s
         setInterval(() => reg.update(), 60_000);
+
+        // Inject the inline-reply secret into the SW so it can authenticate
+        // notif-reply API calls without a user session.
+        // The secret is stored in the SW's cache (survives restarts).
+        const injectSecret = (worker) => {
+          if (!worker) return;
+          // VITE_NOTIF_REPLY_SECRET is set in Vercel env vars (same value as
+          // NOTIF_REPLY_SECRET on the server side).
+          const secret = import.meta.env.VITE_NOTIF_REPLY_SECRET || '';
+          if (secret) worker.postMessage({ type: 'SET_REPLY_SECRET', secret });
+        };
+
+        // Inject into the currently active SW (if any)
+        if (reg.active) injectSecret(reg.active);
+        // Also inject when a new SW takes over
+        reg.addEventListener('updatefound', () => {
+          const newWorker = reg.installing;
+          if (newWorker) {
+            newWorker.addEventListener('statechange', () => {
+              if (newWorker.state === 'activated') injectSecret(newWorker);
+            });
+          }
+        });
+        // And whenever the controller changes
+        navigator.serviceWorker.addEventListener('controllerchange', () => {
+          injectSecret(navigator.serviceWorker.controller);
+        });
       })
       .catch((err) => console.warn('[SW] Registration failed:', err));
   });

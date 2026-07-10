@@ -510,6 +510,78 @@ async function unpinConvHandler(req, res, sb, sbAnon) {
 }
 
 
+// ── Notification inline-reply handler ─────────────────────────────────────
+// Called by the service worker when the user types a reply directly in the
+// Android notification shade (no app open required).
+// Auth: uses a special SUPABASE_SERVICE_ROLE_KEY since there is no browser
+// session — we verify the request via a shared NOTIF_REPLY_SECRET instead.
+async function notifReplyHandler(req, res, sb) {
+  const { secret, conversationId, workspaceId, channel, text } = req.body || {};
+
+  // Gate with a server-side secret set via env var (set NOTIF_REPLY_SECRET in Vercel)
+  const expectedSecret = process.env.NOTIF_REPLY_SECRET;
+  if (!expectedSecret || secret !== expectedSecret) {
+    return res.status(401).json({ error: 'Unauthorized' });
+  }
+  if (!conversationId || !workspaceId || !text?.trim()) {
+    return res.status(400).json({ error: 'conversationId, workspaceId and text are required' });
+  }
+
+  try {
+    // 1. Resolve the channel config
+    const { data: cfg } = await sb.from('channel_configs').select('*')
+      .eq('workspace_id', workspaceId).eq('channel', channel || 'whatsapp').maybeSingle();
+    if (!cfg?.enabled) return res.status(400).json({ error: 'Channel not configured' });
+
+    // 2. Get conversation external_id (recipient phone/user id)
+    const { data: conv } = await sb.from('conversations').select('external_id, channel').eq('id', conversationId).maybeSingle();
+    if (!conv) return res.status(404).json({ error: 'Conversation not found' });
+
+    // 3. Persist the outbound message
+    const { data: msg, error: msgErr } = await sb.from('messages').insert({
+      conversation_id: conversationId,
+      workspace_id: workspaceId,
+      body: text.trim(),
+      direction: 'outbound',
+      channel: conv.channel || channel || 'whatsapp',
+      status: 'sending',
+      sender_id: 'notif-reply',
+      sender_name: 'Agent',
+    }).select().single();
+    if (msgErr) throw msgErr;
+
+    // 4. Send via provider abstraction
+    const { getProvider } = await import('./_lib/providers/index.js');
+    const providerKey = (conv.channel || channel) === 'whatsapp'
+      ? (cfg.config?.provider === 'wasapflow' ? 'whatsapp:wasapflow'
+         : cfg.config?.bird_workspace_id ? 'whatsapp:bird'
+         : cfg.config?.d360_api_key ? 'whatsapp:360dialog' : 'whatsapp:cloud')
+      : (conv.channel || channel);
+    const provider = getProvider(providerKey);
+    const result = await provider.sendMessage(cfg.config, {
+      to: conv.external_id, text: text.trim(), message_id: msg.id, conversation_id: conversationId, workspace_id: workspaceId,
+    }, { sb });
+
+    // 5. Update message status
+    await sb.from('messages').update({
+      status: 'sent',
+      ...(result?.external_id ? { external_id: result.external_id } : {}),
+    }).eq('id', msg.id);
+
+    // 6. Update conversation last_message
+    await sb.from('conversations').update({
+      last_message: text.trim(),
+      last_message_at: new Date().toISOString(),
+    }).eq('id', conversationId);
+
+    return res.status(200).json({ ok: true });
+  } catch (e) {
+    console.error('[notifReply] error:', e);
+    return res.status(500).json({ error: e.message });
+  }
+}
+
+
 export default async function handler(req, res) {
   try {
     const sb = createClient(SUPABASE_URL, SUPABASE_KEY);
@@ -517,6 +589,7 @@ export default async function handler(req, res) {
 
     const action = req.query.action;
     if (action === 'push-subscribe' && req.method === 'POST') return await pushSubscribeHandler(req, res, sb, sbAnon);
+    if (action === 'notif-reply' && req.method === 'POST') return await notifReplyHandler(req, res, sb);
     if (action === 'push-unsubscribe' && req.method === 'POST') return await pushUnsubscribeHandler(req, res, sb, sbAnon);
 
     if (action === 'remove' && req.method === 'POST') return await removeHandler(req, res, sb, sbAnon);
