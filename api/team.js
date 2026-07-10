@@ -142,12 +142,17 @@ async function inviteHandler(req, res, sb, sbAnon) {
         <!-- Header -->
         <tr>
           <td style="background:#075E54;padding:28px 32px;text-align:center;">
-            <div style="display:inline-flex;align-items:center;gap:10px;">
-              <div style="width:36px;height:36px;background:#25D366;border-radius:8px;display:flex;align-items:center;justify-content:center;">
-                <span style="color:white;font-size:18px;font-weight:bold;">N</span>
-              </div>
-              <span style="color:white;font-size:20px;font-weight:700;letter-spacing:-0.3px;">Nyasadesk</span>
-            </div>
+            <table cellpadding="0" cellspacing="0" style="margin:0 auto;">
+              <tr>
+                <td style="vertical-align:middle;padding-right:10px;">
+                  <img src="https://nyasadesk.com/icon-192.png" alt="Nyasadesk" width="40" height="40"
+                    style="width:40px;height:40px;border-radius:10px;display:block;border:0;" />
+                </td>
+                <td style="vertical-align:middle;">
+                  <span style="color:white;font-size:22px;font-weight:700;letter-spacing:-0.4px;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;">Nyasadesk</span>
+                </td>
+              </tr>
+            </table>
           </td>
         </tr>
         <!-- Body -->
@@ -157,6 +162,7 @@ async function inviteHandler(req, res, sb, sbAnon) {
               You've been invited to join<br>
               <span style="color:#25D366;">${workspaceName}</span>
             </h1>
+            <p style="margin:0 0 20px;color:#4B5563;font-size:12px;letter-spacing:0.2px;text-transform:uppercase;font-weight:600;">Shared team inbox · Nyasadesk</p>
             <p style="margin:16px 0;color:#8696A0;font-size:15px;line-height:1.6;">
               Hi ${agentName}, you've been added to the <strong style="color:#E9EDF0;">${workspaceName}</strong> workspace on Nyasadesk as <strong style="color:#E9EDF0;">${role === 'user' ? 'an Agent' : role === 'sales_manager' ? 'a Sales Manager' : 'an Admin'}</strong>.
             </p>
@@ -177,8 +183,11 @@ async function inviteHandler(req, res, sb, sbAnon) {
         </tr>
         <!-- Footer -->
         <tr>
-          <td style="padding:16px 32px;border-top:1px solid rgba(255,255,255,0.08);text-align:center;">
-            <p style="margin:0;color:#4B5563;font-size:11px;">Nyasadesk · nyasadesk.com</p>
+          <td style="padding:20px 32px;border-top:1px solid rgba(255,255,255,0.08);text-align:center;">
+            <img src="https://nyasadesk.com/icon-192.png" alt="" width="24" height="24"
+              style="width:24px;height:24px;border-radius:6px;display:inline-block;vertical-align:middle;margin-right:6px;border:0;" />
+            <span style="color:#4B5563;font-size:11px;vertical-align:middle;">Nyasadesk &middot; <a href="https://nyasadesk.com" style="color:#4B5563;text-decoration:none;">nyasadesk.com</a></span>
+            <p style="margin:8px 0 0;color:#374151;font-size:10px;">You're receiving this because someone added you to their workspace.</p>
           </td>
         </tr>
       </table>
