@@ -27,7 +27,7 @@ export default function ChatHeader({ conversation, users = [], onUpdate, onBack,
 
   return (
     <>
-    <div className="bg-[var(--nyasa-surface-2)] border-b border-white/10 px-4 py-2.5 flex items-center gap-3 shrink-0">
+    <div className="bg-[var(--nyasa-surface-2)] border-b border-[var(--nyasa-border)] px-4 py-2.5 flex items-center gap-3 shrink-0">
       {/* Back button: only visible on mobile */}
       {onBack && (
         <button onClick={onBack} className="md:hidden p-1.5 -ml-1 text-gray-400 hover:text-white transition-colors">
@@ -62,7 +62,7 @@ export default function ChatHeader({ conversation, users = [], onUpdate, onBack,
               <ChevronDown className="w-3 h-3" />
             </button>
           </DropdownMenuTrigger>
-          <DropdownMenuContent align="end" className="w-32 bg-[#233138] border-white/10 text-gray-200">
+          <DropdownMenuContent align="end" className="w-32 bg-[var(--nyasa-surface-3)] border-[var(--nyasa-border)] text-gray-200">
             {STATUSES.map(s => (
               <DropdownMenuItem key={s} onClick={() => updateStatus(s)} className="text-xs capitalize hover:bg-white/10 focus:bg-white/10 cursor-pointer">{s}</DropdownMenuItem>
             ))}
@@ -75,7 +75,7 @@ export default function ChatHeader({ conversation, users = [], onUpdate, onBack,
               <MoreVertical className="w-4 h-4" />
             </button>
           </DropdownMenuTrigger>
-          <DropdownMenuContent align="end" className="w-44 bg-[#233138] border-white/10 text-gray-200">
+          <DropdownMenuContent align="end" className="w-44 bg-[var(--nyasa-surface-3)] border-[var(--nyasa-border)] text-gray-200">
             <div className="px-2 py-1.5 text-[10px] text-gray-500 font-semibold uppercase">Assign to</div>
             {(users || []).map(u => (
               <DropdownMenuItem key={u.id} onClick={() => assign(u.id, u.full_name)} className="text-xs hover:bg-white/10 focus:bg-white/10 cursor-pointer gap-2">

@@ -273,7 +273,7 @@ function MessageActionsMenu({ msg, isOut, open, onOpenChange, onCopy, onShare, o
           <ChevronDown className="w-3.5 h-3.5" />
         </button>
       </DropdownMenuTrigger>
-      <DropdownMenuContent align={isOut ? 'end' : 'start'} className="w-40 bg-[#233138] border-white/10 text-gray-200">
+      <DropdownMenuContent align={isOut ? 'end' : 'start'} className="w-40 bg-[var(--nyasa-surface-3)] border-[var(--nyasa-border)] text-gray-200">
         {onReply && (
           <DropdownMenuItem onClick={onReply} className="text-xs gap-2 hover:bg-white/10 focus:bg-white/10 cursor-pointer">
             <Reply className="w-3.5 h-3.5" />Reply
@@ -732,7 +732,7 @@ export default function MessageThread({ conversation, workspaceId }) {
       {pinnedMessages.length > 0 && (
         <button
           onClick={() => scrollToMessage(pinnedMessages[pinnedMessages.length - 1].id)}
-          className="shrink-0 flex items-center gap-2 px-4 py-2 bg-[var(--nyasa-surface-3)] border-b border-white/5 text-left hover:bg-[#243139] transition-colors"
+          className="shrink-0 flex items-center gap-2 px-4 py-2 bg-[var(--nyasa-surface-3)] border-b border-[var(--nyasa-border)] text-left hover:bg-[#243139] transition-colors"
         >
           <Pin className="w-3.5 h-3.5 text-[#25D366] shrink-0" />
           <p className="flex-1 min-w-0 text-xs text-gray-300 truncate">
@@ -763,7 +763,7 @@ export default function MessageThread({ conversation, workspaceId }) {
                 {showSeparator && <DateSeparator label={dayLabel(ts)} />}
                 {i === 0 && msg.direction === 'inbound' && conversation?.contact_ad_attribution && (
                   <div className="flex justify-start px-3 pt-2 pb-0.5">
-                    <div className="flex items-center gap-1.5 bg-[#1a2530] border border-[#25D366]/30 rounded-full px-2.5 py-1 max-w-[75%]">
+                    <div className="flex items-center gap-1.5 bg-[var(--nyasa-surface-2)] border border-[#25D366]/30 rounded-full px-2.5 py-1 max-w-[75%]">
                       {(conversation.contact_ad_attribution.image_url || conversation.contact_ad_attribution.thumbnail_url) ? (
                         <img
                           src={conversation.contact_ad_attribution.image_url || conversation.contact_ad_attribution.thumbnail_url}
@@ -802,10 +802,10 @@ export default function MessageThread({ conversation, workspaceId }) {
       </div>
 
       {/* Composer */}
-      <div className="shrink-0 border-t border-white/5 bg-[var(--nyasa-surface-2)] px-3 py-2">
+      <div className="shrink-0 border-t border-[var(--nyasa-border)] bg-[var(--nyasa-surface-2)] px-3 py-2">
         {/* Reply preview bar */}
         {replyingTo && (
-          <div className="flex items-center gap-2 bg-[#1a2530] rounded-lg pl-2 pr-1 py-1.5 mb-2 border-l-[3px] border-[#25D366]">
+          <div className="flex items-center gap-2 bg-[var(--nyasa-surface-2)] rounded-lg pl-2 pr-1 py-1.5 mb-2 border-l-[3px] border-[#25D366]">
             <div className="flex-1 min-w-0">
               <p className="text-[10px] font-semibold text-[#25D366] truncate">
                 Replying to {replyingTo.direction === 'outbound' ? 'yourself' : (replyingTo.sender_name || conversation.contact_name)}
@@ -834,7 +834,7 @@ export default function MessageThread({ conversation, workspaceId }) {
               <Palette className="w-3.5 h-3.5" />
             </button>
             {showBgPicker && (
-              <div className="absolute right-0 bottom-full mb-1 z-10 bg-[#233138] border border-white/10 rounded-xl p-2 w-40 shadow-lg space-y-0.5">
+              <div className="absolute right-0 bottom-full mb-1 z-10 bg-[var(--nyasa-surface-3)] border border-[var(--nyasa-border)] rounded-xl p-2 w-40 shadow-lg space-y-0.5">
                 <p className="text-[10px] text-gray-500 px-2 pb-1">Chat background (only for you)</p>
                 {Object.entries(CHAT_BACKGROUNDS).map(([key, v]) => (
                   <button key={key} onClick={() => chooseBackground(key)}
@@ -864,7 +864,7 @@ export default function MessageThread({ conversation, workspaceId }) {
                 {aiDrafting ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Sparkles className="w-3.5 h-3.5" />} AI draft
               </button>
               {showAiPicker && (
-                <div className="absolute left-0 bottom-full mb-1 z-10 bg-[#233138] border border-white/10 rounded-xl p-1.5 w-52 shadow-lg space-y-0.5">
+                <div className="absolute left-0 bottom-full mb-1 z-10 bg-[var(--nyasa-surface-3)] border border-[var(--nyasa-border)] rounded-xl p-1.5 w-52 shadow-lg space-y-0.5">
                   <p className="text-[10px] text-gray-500 px-2 pb-1">Draft a reply using…</p>
                   {aiAgents.map(a => (
                     <button key={a.id} onClick={() => handleAiDraft(a)}
@@ -883,7 +883,7 @@ export default function MessageThread({ conversation, workspaceId }) {
           {showCanned && (
             <motion.div initial={{ height: 0, opacity: 0 }} animate={{ height: 'auto', opacity: 1 }}
               exit={{ height: 0, opacity: 0 }} className="overflow-hidden mb-2">
-              <div className="bg-[#1a2530] rounded-xl border border-white/10 p-2 max-h-40 overflow-y-auto space-y-1">
+              <div className="bg-[var(--nyasa-surface-2)] rounded-xl border border-[var(--nyasa-border)] p-2 max-h-40 overflow-y-auto space-y-1">
                 {canned.map(c => (
                   <button key={c.id} onClick={() => { setBody(c.body); setShowCanned(false); inputRef.current?.focus(); }}
                     className="w-full text-left px-3 py-2 rounded-lg hover:bg-white/5 transition-colors">

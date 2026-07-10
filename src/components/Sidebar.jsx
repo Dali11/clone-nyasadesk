@@ -69,11 +69,11 @@ export default function Sidebar({ hideMobileChrome = false } = {}) {
   return (
     <>
       {/* ── Desktop (≥1024px): full labeled rail ──────────────────────── */}
-      <div className="hidden lg:flex w-64 flex-col shrink-0 bg-[var(--nyasa-surface-1)] border-r border-white/5">
+      <div className="hidden lg:flex w-64 flex-col shrink-0 bg-[var(--nyasa-surface-1)] border-r border-[var(--nyasa-border)]">
 
         {/* Header — matches onboarding style */}
         <div
-          className="px-5 pt-5 pb-4 border-b border-white/5"
+          className="px-5 pt-5 pb-4 border-b border-[var(--nyasa-border)]"
           style={{ background: 'linear-gradient(135deg, #075E54 0%, #128C7E 100%)' }}
         >
           <div className="flex items-center gap-3">
@@ -110,7 +110,7 @@ export default function Sidebar({ hideMobileChrome = false } = {}) {
         </div>
 
         {/* User footer */}
-        <div className="p-3 border-t border-white/5">
+        <div className="p-3 border-t border-[var(--nyasa-border)]">
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
               <div className="flex items-center gap-3 px-2 py-2 rounded-xl hover:bg-white/5 transition-colors cursor-pointer">
@@ -127,7 +127,7 @@ export default function Sidebar({ hideMobileChrome = false } = {}) {
             </DropdownMenuTrigger>
             <DropdownMenuContent side="top" align="start" className="w-64">
   {/* User info header */}
-  <div className="px-3 py-3 border-b border-white/5">
+  <div className="px-3 py-3 border-b border-[var(--nyasa-border)]">
     <div className="flex items-center gap-3">
       <Avatar name={user?.full_name || ''} size="sm" status={user?.status || 'online'} />
       <div className="min-w-0">
@@ -194,9 +194,9 @@ export default function Sidebar({ hideMobileChrome = false } = {}) {
       </div>
 
       {/* ── Tablet (768–1023px): compact icon-only rail ───────────────── */}
-      <div className="hidden md:flex lg:hidden w-16 flex-col shrink-0 bg-[var(--nyasa-surface-1)] border-r border-white/5">
+      <div className="hidden md:flex lg:hidden w-16 flex-col shrink-0 bg-[var(--nyasa-surface-1)] border-r border-[var(--nyasa-border)]">
         <div
-          className="h-14 flex items-center justify-center border-b border-white/5 shrink-0"
+          className="h-14 flex items-center justify-center border-b border-[var(--nyasa-border)] shrink-0"
           style={{ background: 'linear-gradient(135deg, #075E54 0%, #128C7E 100%)' }}
         >
           <div className="w-8 h-8 rounded-lg bg-white/20 flex items-center justify-center">
@@ -221,7 +221,7 @@ export default function Sidebar({ hideMobileChrome = false } = {}) {
           })}
         </div>
 
-        <div className="p-2 border-t border-white/5 flex items-center justify-center">
+        <div className="p-2 border-t border-[var(--nyasa-border)] flex items-center justify-center">
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
               <button className="cursor-pointer">
@@ -230,7 +230,7 @@ export default function Sidebar({ hideMobileChrome = false } = {}) {
             </DropdownMenuTrigger>
             <DropdownMenuContent side="right" align="end" className="w-64">
   {/* User info header */}
-  <div className="px-3 py-3 border-b border-white/5">
+  <div className="px-3 py-3 border-b border-[var(--nyasa-border)]">
     <div className="flex items-center gap-3">
       <Avatar name={user?.full_name || ''} size="sm" status={user?.status || 'online'} />
       <div className="min-w-0">
@@ -303,7 +303,7 @@ export default function Sidebar({ hideMobileChrome = false } = {}) {
           of the header becoming the open conversation, not staying app-level. */}
       {/* Top header bar */}
       <div
-        className={`md:hidden fixed top-0 left-0 right-0 z-50 flex items-center gap-3 px-4 h-14 border-b border-white/10 ${hideMobileChrome ? 'hidden' : ''}`}
+        className={`md:hidden fixed top-0 left-0 right-0 z-50 flex items-center gap-3 px-4 h-14 border-b border-[var(--nyasa-border)] ${hideMobileChrome ? 'hidden' : ''}`}
         style={{ background: 'linear-gradient(135deg, #075E54 0%, #128C7E 100%)' }}
       >
         <img src="/icon-192.png" alt="Nyasadesk" className="w-8 h-8 rounded-lg shrink-0" />
@@ -324,7 +324,7 @@ export default function Sidebar({ hideMobileChrome = false } = {}) {
             </DropdownMenuTrigger>
             <DropdownMenuContent side="bottom" align="end" className="w-64">
   {/* User info header */}
-  <div className="px-3 py-3 border-b border-white/5">
+  <div className="px-3 py-3 border-b border-[var(--nyasa-border)]">
     <div className="flex items-center gap-3">
       <Avatar name={user?.full_name || ''} size="sm" status={user?.status || 'online'} />
       <div className="min-w-0">
@@ -391,7 +391,7 @@ export default function Sidebar({ hideMobileChrome = false } = {}) {
       </div>
 
       {/* Bottom tab bar */}
-      <nav className={`md:hidden fixed bottom-0 left-0 right-0 z-50 bg-[var(--nyasa-surface-1)] border-t border-white/10 flex items-stretch px-2 pb-safe ${hideMobileChrome ? 'hidden' : ''}`}>
+      <nav className={`md:hidden fixed bottom-0 left-0 right-0 z-50 bg-[var(--nyasa-surface-1)] border-t border-[var(--nyasa-border)] flex items-stretch px-2 pb-safe ${hideMobileChrome ? 'hidden' : ''}`}>
         {MOBILE_NAV.map(({ path, icon: Icon, label }) => {
           const active = pathname === path;
           return (

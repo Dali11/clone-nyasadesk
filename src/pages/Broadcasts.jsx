@@ -13,7 +13,7 @@ function BroadcastCard({ bc, contacts, sending, onDelete, onSend }) {
   const audience = contacts.filter(c => (bc.audience || []).includes(c.id));
   const isSending = sending === bc.id;
   return (
-    <div className="bg-[var(--nyasa-surface-2)] rounded-2xl border border-white/10 p-5">
+    <div className="bg-[var(--nyasa-surface-2)] rounded-2xl border border-[var(--nyasa-border)] p-5">
       <div className="flex items-start justify-between mb-3">
         <div>
           <div className="flex items-center gap-2 mb-1">
@@ -156,7 +156,7 @@ export default function Broadcasts() {
   return (
     <div className="flex h-screen overflow-hidden bg-[var(--nyasa-surface-1)] pt-14 md:pt-0 pb-[56px] md:pb-0">
       <Sidebar />
-      <div className="flex-1 overflow-y-auto scrollbar-thin bg-[#0D1418]">
+      <div className="flex-1 overflow-y-auto scrollbar-thin bg-[var(--nyasa-surface-5)]">
         <div className="max-w-4xl mx-auto px-6 py-8">
           <div className="flex items-center justify-between mb-8">
             <div>
@@ -191,7 +191,7 @@ export default function Broadcasts() {
       {showNew && (
         <div className="fixed inset-0 z-50 flex items-center justify-center">
           <div className="absolute inset-0 bg-black/70" onClick={() => setShowNew(false)} />
-          <div className="relative bg-[var(--nyasa-surface-2)] rounded-2xl border border-white/10 p-6 w-[480px] max-h-[90vh] overflow-y-auto scrollbar-thin space-y-4">
+          <div className="relative bg-[var(--nyasa-surface-2)] rounded-2xl border border-[var(--nyasa-border)] p-6 w-[480px] max-h-[90vh] overflow-y-auto scrollbar-thin space-y-4">
             <div className="flex items-center justify-between">
               <h2 className="font-semibold text-white">New Broadcast</h2>
               <button onClick={() => setShowNew(false)} className="text-gray-400 hover:text-gray-200"><X className="w-4 h-4" /></button>
@@ -264,7 +264,7 @@ export default function Broadcasts() {
               </div>
             </div>
             <div className="flex gap-3 pt-2">
-              <button onClick={() => setShowNew(false)} className="flex-1 py-2.5 border border-white/10 text-gray-300 rounded-xl text-sm">Cancel</button>
+              <button onClick={() => setShowNew(false)} className="flex-1 py-2.5 border border-[var(--nyasa-border)] text-gray-300 rounded-xl text-sm">Cancel</button>
               <button onClick={create} disabled={!form.name.trim() || !form.message.trim() || !form.audience.length || creating}
                 className="flex-1 py-2.5 bg-[#25D366] text-white font-semibold rounded-xl hover:bg-[#20BA5A] transition-colors text-sm disabled:opacity-40 flex items-center justify-center gap-2">
                 {creating ? <><Loader2 className="w-4 h-4 animate-spin" /> Creating…</> : 'Create Draft'}

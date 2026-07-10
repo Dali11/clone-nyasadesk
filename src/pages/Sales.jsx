@@ -81,14 +81,14 @@ export default function Sales() {
   return (
     <div className="flex flex-col h-full bg-[var(--nyasa-bg)] pt-14 md:pt-0 pb-[56px] md:pb-0">
       {/* Header */}
-      <div className="px-4 sm:px-6 py-3 border-b border-white/5">
+      <div className="px-4 sm:px-6 py-3 border-b border-[var(--nyasa-border)]">
         <div className="flex items-center justify-between">
           <h1 className="text-white font-bold text-lg flex items-center gap-2">
             <TrendingUp className="w-5 h-5 text-[#25D366]" /> Sales
           </h1>
           <div className="flex items-center gap-2">
             <button onClick={() => setShowCommissionModal(true)}
-              className="flex items-center gap-1.5 bg-[var(--nyasa-surface-2)] text-white text-xs font-semibold px-2.5 py-2 rounded-xl border border-white/10 hover:bg-[var(--nyasa-surface-4)]">
+              className="flex items-center gap-1.5 bg-[var(--nyasa-surface-2)] text-white text-xs font-semibold px-2.5 py-2 rounded-xl border border-[var(--nyasa-border)] hover:bg-[var(--nyasa-surface-4)]">
               <FileText className="w-3.5 h-3.5 text-[#25D366] shrink-0" />
               <span className="hidden sm:inline">Commission Report</span>
               <span className="sm:hidden">Report</span>
@@ -105,12 +105,12 @@ export default function Sales() {
 
       {/* Stats */}
       <div className="grid grid-cols-2 gap-3 px-4 sm:px-6 py-4">
-        <div className="bg-[var(--nyasa-surface-2)] rounded-xl p-4 border border-white/5">
+        <div className="bg-[var(--nyasa-surface-2)] rounded-xl p-4 border border-[var(--nyasa-border)]">
           <p className="text-xs text-gray-500 mb-1">Total claimed</p>
           <p className="text-white font-bold text-base">{fmt(totalValue, currency)}</p>
           <p className="text-xs text-gray-500 mt-0.5">{filtered.length} sale{filtered.length !== 1 ? 's' : ''}</p>
         </div>
-        <div className="bg-[var(--nyasa-surface-2)] rounded-xl p-4 border border-white/5">
+        <div className="bg-[var(--nyasa-surface-2)] rounded-xl p-4 border border-[var(--nyasa-border)]">
           <p className="text-xs text-gray-500 mb-1">Verified</p>
           <p className="text-[#25D366] font-bold text-base">{fmt(verifiedValue, currency)}</p>
           <p className="text-xs text-gray-500 mt-0.5">{filtered.filter(s => s.status === 'verified').length} sale{filtered.filter(s => s.status === 'verified').length !== 1 ? 's' : ''}</p>
@@ -120,7 +120,7 @@ export default function Sales() {
       {/* Filters */}
       <div className="flex gap-2 px-4 sm:px-6 pb-3 overflow-x-auto">
         <select value={statusFilter} onChange={e => setStatusFilter(e.target.value)}
-          className="bg-[var(--nyasa-surface-2)] text-white text-xs rounded-lg px-3 py-1.5 border border-white/10 outline-none">
+          className="bg-[var(--nyasa-surface-2)] text-white text-xs rounded-lg px-3 py-1.5 border border-[var(--nyasa-border)] outline-none">
           <option value="all">All statuses</option>
           <option value="claimed">Pending</option>
           <option value="verified">Verified</option>
@@ -128,7 +128,7 @@ export default function Sales() {
         </select>
         {isWorkspaceAdmin && agents.length > 1 && (
           <select value={agentFilter} onChange={e => setAgentFilter(e.target.value)}
-            className="bg-[var(--nyasa-surface-2)] text-white text-xs rounded-lg px-3 py-1.5 border border-white/10 outline-none">
+            className="bg-[var(--nyasa-surface-2)] text-white text-xs rounded-lg px-3 py-1.5 border border-[var(--nyasa-border)] outline-none">
             <option value="all">All agents</option>
             {agents.map(a => <option key={a.id} value={a.id}>{a.name}</option>)}
           </select>
@@ -157,7 +157,7 @@ export default function Sales() {
           const st = STATUS_STYLES[s.status] || STATUS_STYLES.claimed;
           const Icon = st.icon;
           return (
-            <div key={s.id} className="bg-[var(--nyasa-surface-2)] rounded-xl p-4 border border-white/5 space-y-3">
+            <div key={s.id} className="bg-[var(--nyasa-surface-2)] rounded-xl p-4 border border-[var(--nyasa-border)] space-y-3">
               <div className="flex items-start justify-between gap-3">
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center gap-2 flex-wrap">
@@ -184,7 +184,7 @@ export default function Sales() {
                   )}
                 </div>
               </div>
-              <div className="flex items-center justify-between pt-2 border-t border-white/5">
+              <div className="flex items-center justify-between pt-2 border-t border-[var(--nyasa-border)]">
                 <div>
                   <p className="text-xs text-gray-500">{s.agent_name} · {fmtDate(s.created_at)}</p>
                 </div>
@@ -267,13 +267,13 @@ function RecordSaleModal({ workspaceId, currency, onClose, onSaved, prefillConve
     } catch (e) { setError(e.message); } finally { setSaving(false); }
   };
 
-  const inputCls = 'w-full bg-[var(--nyasa-bg)] text-white text-sm rounded-xl px-3 py-2.5 border border-white/10 outline-none focus:border-[#25D366]/50 placeholder-gray-600';
+  const inputCls = 'w-full bg-[var(--nyasa-bg)] text-white text-sm rounded-xl px-3 py-2.5 border border-[var(--nyasa-border)] outline-none focus:border-[#25D366]/50 placeholder-gray-600';
   const labelCls = 'block text-xs text-gray-400 mb-1.5 font-medium';
 
   return (
     <div className="fixed inset-0 z-50 bg-black/70 flex items-end sm:items-center justify-center p-0 sm:p-4" onClick={onClose}>
       <div className="bg-[var(--nyasa-surface-1)] rounded-t-2xl sm:rounded-2xl w-full sm:max-w-md max-h-[90vh] overflow-y-auto" onClick={e => e.stopPropagation()}>
-        <div className="flex items-center justify-between px-5 py-4 border-b border-white/5">
+        <div className="flex items-center justify-between px-5 py-4 border-b border-[var(--nyasa-border)]">
           <h2 className="text-white font-bold text-base flex items-center gap-2"><TrendingUp className="w-4 h-4 text-[#25D366]" /> Record a Sale</h2>
           <button onClick={onClose} className="text-gray-500 hover:text-white"><X className="w-5 h-5" /></button>
         </div>
@@ -422,7 +422,7 @@ function CommissionReportModal({ workspaceId, agents, currency, isWorkspaceAdmin
     } catch (e) { setError(e.message); } finally { setDownloading(false); }
   };
 
-  const inputCls = 'w-full bg-[var(--nyasa-bg)] text-white text-sm rounded-xl px-3 py-2.5 border border-white/10 outline-none focus:border-[#25D366]/50 placeholder-gray-600';
+  const inputCls = 'w-full bg-[var(--nyasa-bg)] text-white text-sm rounded-xl px-3 py-2.5 border border-[var(--nyasa-border)] outline-none focus:border-[#25D366]/50 placeholder-gray-600';
   const labelCls = 'block text-xs text-gray-400 mb-1.5 font-medium';
   const ratePct = parseFloat(form.commission_rate) || 0;
   const rptCur = report?.currency || currency;
@@ -431,7 +431,7 @@ function CommissionReportModal({ workspaceId, agents, currency, isWorkspaceAdmin
     <div className="fixed inset-0 z-50 bg-black/70 flex items-end sm:items-center justify-center p-0 sm:p-4" onClick={onClose}>
       <div className="bg-[var(--nyasa-surface-1)] rounded-t-2xl sm:rounded-2xl w-full sm:max-w-2xl max-h-[92vh] overflow-y-auto" onClick={e => e.stopPropagation()}>
         {/* Header */}
-        <div className="flex items-center justify-between px-5 py-4 border-b border-white/5 sticky top-0 bg-[var(--nyasa-surface-1)] z-10">
+        <div className="flex items-center justify-between px-5 py-4 border-b border-[var(--nyasa-border)] sticky top-0 bg-[var(--nyasa-surface-1)] z-10">
           <h2 className="text-white font-bold text-base flex items-center gap-2">
             <DollarSign className="w-4 h-4 text-[#25D366]" /> Commission Report
           </h2>
@@ -483,8 +483,8 @@ function CommissionReportModal({ workspaceId, agents, currency, isWorkspaceAdmin
           </div>
 
           {/* Preview */}
-          <div className="bg-[var(--nyasa-surface-3)] rounded-xl border border-white/5 overflow-hidden">
-            <div className="px-4 py-3 border-b border-white/5 flex items-center justify-between">
+          <div className="bg-[var(--nyasa-surface-3)] rounded-xl border border-[var(--nyasa-border)] overflow-hidden">
+            <div className="px-4 py-3 border-b border-[var(--nyasa-border)] flex items-center justify-between">
               <span className="text-xs text-gray-400 font-semibold uppercase tracking-wide">Preview</span>
               {loading && <Loader2 className="w-4 h-4 text-[#25D366] animate-spin" />}
             </div>
@@ -498,7 +498,7 @@ function CommissionReportModal({ workspaceId, agents, currency, isWorkspaceAdmin
               <div className="overflow-x-auto">
                 <table className="w-full text-sm">
                   <thead>
-                    <tr className="text-xs text-gray-500 border-b border-white/5">
+                    <tr className="text-xs text-gray-500 border-b border-[var(--nyasa-border)]">
                       <th className="text-left font-medium px-4 py-2.5">Agent</th>
                       <th className="text-right font-medium px-2 py-2.5">Sales</th>
                       <th className="text-right font-medium px-2 py-2.5">Total Value</th>
@@ -508,7 +508,7 @@ function CommissionReportModal({ workspaceId, agents, currency, isWorkspaceAdmin
                   </thead>
                   <tbody>
                     {report.agent_summaries.map((a, i) => (
-                      <tr key={i} className="border-b border-white/5">
+                      <tr key={i} className="border-b border-[var(--nyasa-border)]">
                         <td className="px-4 py-2.5 text-white font-medium">{a.agent_name}</td>
                         <td className="px-2 py-2.5 text-right text-gray-300">{a.total_sales_count}</td>
                         <td className="px-2 py-2.5 text-right text-gray-300">{fmt(a.total_value, rptCur)}</td>
@@ -536,7 +536,7 @@ function CommissionReportModal({ workspaceId, agents, currency, isWorkspaceAdmin
           {/* Actions */}
           <div className="flex gap-3 pt-1">
             <button onClick={onClose}
-              className="flex-1 text-sm font-semibold text-gray-400 px-4 py-2.5 rounded-xl border border-white/10 hover:bg-white/5">
+              className="flex-1 text-sm font-semibold text-gray-400 px-4 py-2.5 rounded-xl border border-[var(--nyasa-border)] hover:bg-white/5">
               Close
             </button>
             <button onClick={downloadPdf} disabled={downloading || !report || report.agent_summaries.length === 0}

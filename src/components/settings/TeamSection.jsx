@@ -168,7 +168,7 @@ export default function TeamSection() {
           <div className="flex gap-3">
             <button
               onClick={() => { setShowForm(false); setError(''); }}
-              className="flex-1 py-2 border border-white/10 text-gray-300 rounded-xl text-sm"
+              className="flex-1 py-2 border border-[var(--nyasa-border)] text-gray-300 rounded-xl text-sm"
             >
               Cancel
             </button>
@@ -186,7 +186,7 @@ export default function TeamSection() {
       {users.map(u => {
         const isOwnerRow = u.id === workspaceId; // the row whose id === the workspace's own id is the original owner
         return (
-        <div key={u.id} className="bg-[var(--nyasa-surface-2)] rounded-2xl border border-white/10 px-4 py-3.5 flex items-center gap-3">
+        <div key={u.id} className="bg-[var(--nyasa-surface-2)] rounded-2xl border border-[var(--nyasa-border)] px-4 py-3.5 flex items-center gap-3">
           <Avatar name={u.full_name || u.email || '?'} size="md" />
           <div className="flex-1 min-w-0">
             <div className="flex items-center gap-2">
@@ -214,7 +214,7 @@ export default function TeamSection() {
                   <MoreVertical className="w-4 h-4" />
                 </button>
               </DropdownMenuTrigger>
-              <DropdownMenuContent align="end" className="w-44 bg-[#233138] border-white/10 text-gray-200">
+              <DropdownMenuContent align="end" className="w-44 bg-[var(--nyasa-surface-3)] border-[var(--nyasa-border)] text-gray-200">
                 {u.role !== 'user' && (
                   <DropdownMenuItem onClick={() => handleChangeRole(u.id, 'user')} className="text-xs gap-2 hover:bg-white/10 focus:bg-white/10 cursor-pointer">
                     <Shield className="w-3.5 h-3.5" />Make Agent

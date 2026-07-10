@@ -42,7 +42,7 @@ function ChannelCard({ emoji, iconUrl, title, subtitle, accentColor, isLive, chi
   return (
     <div
       className="rounded-2xl border overflow-hidden"
-      style={{ borderColor: isLive ? accentColor + '44' : 'rgba(255,255,255,0.08)', background: '#1a2530' }}
+      style={{ borderColor: isLive ? accentColor + '44' : 'rgba(255,255,255,0.08)', background:'var(--nyasa-surface-2)' }}
     >
       <button className="w-full flex items-center gap-3 p-4 text-left" onClick={() => setOpen(o => !o)}>
         <div className="w-10 h-10 rounded-xl flex items-center justify-center shrink-0 bg-white p-1.5 overflow-hidden">
@@ -69,7 +69,7 @@ function ChannelCard({ emoji, iconUrl, title, subtitle, accentColor, isLive, chi
         </div>
       </button>
       {open && (
-        <div className="px-4 pb-5 border-t border-white/5 pt-4">
+        <div className="px-4 pb-5 border-t border-[var(--nyasa-border)] pt-4">
           {children}
         </div>
       )}
@@ -477,7 +477,7 @@ function WhatsAppCard({ saved, workspaceId, onSave, onDelete }) {
                 {[['discover', 'Auto-detect'], ['manual', 'Manual entry']].map(([key, label]) => (
                   <button key={key} onClick={() => { setAdvMode(key); setDiscoverError(''); setManualError(''); setWabas(null); setRegWizard(null); }}
                     className={`flex-1 py-1.5 rounded-md text-[11px] font-medium transition-colors ${
-                      advMode === key ? 'bg-[#1a2530] text-white' : 'text-gray-500 hover:text-gray-300'
+                      advMode === key ? 'bg-[var(--nyasa-surface-2)] text-white' : 'text-gray-500 hover:text-gray-300'
                     }`}>{label}</button>
                 ))}
               </div>
@@ -490,7 +490,7 @@ function WhatsAppCard({ saved, workspaceId, onSave, onDelete }) {
                   </p>
                   <input type="password" value={token} onChange={e => setToken(e.target.value)}
                     placeholder="EAAG… (System User access token)"
-                    className="w-full bg-[var(--nyasa-bg)] text-white text-xs rounded-lg p-2.5 border border-white/10" />
+                    className="w-full bg-[var(--nyasa-bg)] text-white text-xs rounded-lg p-2.5 border border-[var(--nyasa-border)]" />
                   <button onClick={handleDiscover} disabled={discovering || !token.trim()}
                     className="w-full py-2.5 rounded-xl text-sm font-medium text-white bg-[#25D366] hover:bg-[#20BD5A] disabled:opacity-50 flex items-center justify-center gap-2">
                     {discovering ? <Loader2 className="w-4 h-4 animate-spin" /> : null}
@@ -505,7 +505,7 @@ function WhatsAppCard({ saved, workspaceId, onSave, onDelete }) {
                           const w = wabas.find(w => w.waba_id === e.target.value);
                           setSelectedWabaId(e.target.value);
                           setSelectedPhoneId(w?.phone_numbers?.[0]?.phone_number_id || '');
-                        }} className="w-full bg-[var(--nyasa-bg)] text-white text-xs rounded-lg p-2.5 border border-white/10">
+                        }} className="w-full bg-[var(--nyasa-bg)] text-white text-xs rounded-lg p-2.5 border border-[var(--nyasa-border)]">
                           {wabas.map(w => <option key={w.waba_id} value={w.waba_id}>{w.name} ({w.waba_id})</option>)}
                         </select>
                       </div>
@@ -516,7 +516,7 @@ function WhatsAppCard({ saved, workspaceId, onSave, onDelete }) {
                           <div className="space-y-1.5">
                             <label className="text-[11px] text-gray-500">Phone Number</label>
                             <select value={selectedPhoneId} onChange={e => setSelectedPhoneId(e.target.value)}
-                              className="w-full bg-[var(--nyasa-bg)] text-white text-xs rounded-lg p-2.5 border border-white/10">
+                              className="w-full bg-[var(--nyasa-bg)] text-white text-xs rounded-lg p-2.5 border border-[var(--nyasa-border)]">
                               {phones.map(p => <option key={p.phone_number_id} value={p.phone_number_id}>{p.display_phone_number || p.phone_number_id}{p.verified_name ? ` · ${p.verified_name}` : ''}</option>)}
                             </select>
                           </div>
@@ -556,18 +556,18 @@ function WhatsAppCard({ saved, workspaceId, onSave, onDelete }) {
                       <div className="space-y-1.5">
                         <label className="text-[11px] text-gray-500">Business ID</label>
                         <input value={freshBusinessId} onChange={e => setFreshBusinessId(e.target.value)} placeholder="123456789012345"
-                          className="w-full bg-[var(--nyasa-bg)] text-white text-xs rounded-lg p-2.5 border border-white/10" />
+                          className="w-full bg-[var(--nyasa-bg)] text-white text-xs rounded-lg p-2.5 border border-[var(--nyasa-border)]" />
                       </div>
                       <div className="grid grid-cols-3 gap-2">
                         <div className="space-y-1.5">
                           <label className="text-[11px] text-gray-500">Country code</label>
                           <input value={freshCc} onChange={e => setFreshCc(e.target.value.replace(/\D/g, ''))} placeholder="265"
-                            className="w-full bg-[var(--nyasa-bg)] text-white text-xs rounded-lg p-2.5 border border-white/10" />
+                            className="w-full bg-[var(--nyasa-bg)] text-white text-xs rounded-lg p-2.5 border border-[var(--nyasa-border)]" />
                         </div>
                         <div className="col-span-2 space-y-1.5">
                           <label className="text-[11px] text-gray-500">Phone number</label>
                           <input value={freshPhone} onChange={e => setFreshPhone(e.target.value.replace(/\D/g, ''))} placeholder="9800114467"
-                            className="w-full bg-[var(--nyasa-bg)] text-white text-xs rounded-lg p-2.5 border border-white/10" />
+                            className="w-full bg-[var(--nyasa-bg)] text-white text-xs rounded-lg p-2.5 border border-[var(--nyasa-border)]" />
                         </div>
                       </div>
                       <div className="bg-amber-500/10 rounded-lg p-2.5 space-y-1">
@@ -587,7 +587,7 @@ function WhatsAppCard({ saved, workspaceId, onSave, onDelete }) {
                     <div className="space-y-2.5">
                       <p className="text-[11px] text-[#25D366]">✓ Number added — verification code sent via SMS</p>
                       <input value={freshCode} onChange={e => setFreshCode(e.target.value.replace(/\D/g, '').slice(0, 6))} placeholder="123456" maxLength={6}
-                        className="w-full bg-[var(--nyasa-bg)] text-white text-xs rounded-lg p-2.5 border border-white/10" />
+                        className="w-full bg-[var(--nyasa-bg)] text-white text-xs rounded-lg p-2.5 border border-[var(--nyasa-border)]" />
                       <div className="flex gap-2">
                         <button onClick={() => handleFreshResend('SMS')} disabled={freshBusy} className="flex-1 py-2 rounded-lg text-[11px] text-gray-400 bg-white/5 hover:bg-white/10 disabled:opacity-50">Resend SMS</button>
                         <button onClick={() => handleFreshResend('VOICE')} disabled={freshBusy} className="flex-1 py-2 rounded-lg text-[11px] text-gray-400 bg-white/5 hover:bg-white/10 disabled:opacity-50">Call me instead</button>
@@ -625,7 +625,7 @@ function WhatsAppCard({ saved, workspaceId, onSave, onDelete }) {
                       <div className="space-y-1.5">
                         <label className="text-[11px] text-gray-500">Set a 6-digit PIN (two-step verification — save this)</label>
                         <input value={freshPin} onChange={e => setFreshPin(e.target.value.replace(/\D/g, '').slice(0, 6))} placeholder="123456" maxLength={6}
-                          className="w-full bg-[var(--nyasa-bg)] text-white text-xs rounded-lg p-2.5 border border-white/10" />
+                          className="w-full bg-[var(--nyasa-bg)] text-white text-xs rounded-lg p-2.5 border border-[var(--nyasa-border)]" />
                       </div>
                       <button onClick={handleFreshRegisterAndConnect} disabled={freshBusy}
                         className="w-full py-2.5 rounded-xl text-sm font-bold text-white bg-[#25D366] hover:bg-[#20BD5A] disabled:opacity-50 flex items-center justify-center gap-2">
@@ -646,17 +646,17 @@ function WhatsAppCard({ saved, workspaceId, onSave, onDelete }) {
                     <div className="space-y-1">
                       <label className="text-[11px] text-gray-500">Permanent Access Token *</label>
                       <input type="password" value={manualToken} onChange={e => setManualToken(e.target.value)} placeholder="EAAG…"
-                        className="w-full bg-[var(--nyasa-bg)] text-white text-xs rounded-lg p-2.5 border border-white/10" />
+                        className="w-full bg-[var(--nyasa-bg)] text-white text-xs rounded-lg p-2.5 border border-[var(--nyasa-border)]" />
                     </div>
                     <div className="space-y-1">
                       <label className="text-[11px] text-gray-500">WhatsApp Business Account ID (optional — auto-detected if blank)</label>
                       <input value={manualWabaId} onChange={e => setManualWabaId(e.target.value)} placeholder="916980661415765"
-                        className="w-full bg-[var(--nyasa-bg)] text-white text-xs rounded-lg p-2.5 border border-white/10" />
+                        className="w-full bg-[var(--nyasa-bg)] text-white text-xs rounded-lg p-2.5 border border-[var(--nyasa-border)]" />
                     </div>
                     <div className="space-y-1">
                       <label className="text-[11px] text-gray-500">Phone Number ID (optional — auto-detected if blank)</label>
                       <input value={manualPhoneId} onChange={e => setManualPhoneId(e.target.value)} placeholder="1228643423663631"
-                        className="w-full bg-[var(--nyasa-bg)] text-white text-xs rounded-lg p-2.5 border border-white/10" />
+                        className="w-full bg-[var(--nyasa-bg)] text-white text-xs rounded-lg p-2.5 border border-[var(--nyasa-border)]" />
                     </div>
                   </div>
                   {manualError && <p className="text-[11px] text-red-400 leading-relaxed">{manualError}</p>}
@@ -699,7 +699,7 @@ function WhatsAppCard({ saved, workspaceId, onSave, onDelete }) {
                     <div className="space-y-2.5">
                       <p className="text-[11px] text-[#25D366]">✓ Verification code sent via SMS</p>
                       <input value={regCode} onChange={e => setRegCode(e.target.value.replace(/\D/g, '').slice(0, 6))} placeholder="123456" maxLength={6}
-                        className="w-full bg-[var(--nyasa-bg)] text-white text-xs rounded-lg p-2.5 border border-white/10" />
+                        className="w-full bg-[var(--nyasa-bg)] text-white text-xs rounded-lg p-2.5 border border-[var(--nyasa-border)]" />
                       <div className="flex gap-2">
                         <button onClick={async () => { setRegBusy(true); try { await apiCall('whatsapp-guided-request-code', { access_token: activeToken, phone_number_id: regWizard.phone_number_id, code_method: 'SMS' }); } finally { setRegBusy(false); } }} disabled={regBusy} className="flex-1 py-2 rounded-lg text-[11px] text-gray-400 bg-white/5 hover:bg-white/10 disabled:opacity-50">Resend SMS</button>
                         <button onClick={async () => { setRegBusy(true); try { await apiCall('whatsapp-guided-request-code', { access_token: activeToken, phone_number_id: regWizard.phone_number_id, code_method: 'VOICE' }); } finally { setRegBusy(false); } }} disabled={regBusy} className="flex-1 py-2 rounded-lg text-[11px] text-gray-400 bg-white/5 hover:bg-white/10 disabled:opacity-50">Call me instead</button>
@@ -718,7 +718,7 @@ function WhatsAppCard({ saved, workspaceId, onSave, onDelete }) {
                       <div className="space-y-1.5">
                         <label className="text-[11px] text-gray-500">Set a 6-digit PIN (two-step verification — save this)</label>
                         <input value={regPin} onChange={e => setRegPin(e.target.value.replace(/\D/g, '').slice(0, 6))} placeholder="123456" maxLength={6}
-                          className="w-full bg-[var(--nyasa-bg)] text-white text-xs rounded-lg p-2.5 border border-white/10" />
+                          className="w-full bg-[var(--nyasa-bg)] text-white text-xs rounded-lg p-2.5 border border-[var(--nyasa-border)]" />
                       </div>
                       <button onClick={handleRegComplete} disabled={regBusy}
                         className="w-full py-2.5 rounded-xl text-sm font-bold text-white bg-[#25D366] hover:bg-[#20BD5A] disabled:opacity-50 flex items-center justify-center gap-2">
@@ -981,7 +981,7 @@ function WebsiteCard({ saved, workspaceId, onSave, onDelete }) {
             <>
               <p className="text-[10px] text-gray-500">A chat bubble that floats over your existing site. Paste anywhere in the body.</p>
               <div className="flex items-start gap-2 mt-1">
-                <code className="text-[11px] text-cyan-300 font-mono flex-1 break-all leading-relaxed bg-[#0D1418] rounded-lg p-2.5">
+                <code className="text-[11px] text-cyan-300 font-mono flex-1 break-all leading-relaxed bg-[var(--nyasa-surface-5)] rounded-lg p-2.5">
                   {popupSnippet}
                 </code>
                 <CopyBtn text={popupSnippet} />
@@ -992,7 +992,7 @@ function WebsiteCard({ saved, workspaceId, onSave, onDelete }) {
             <>
               <p className="text-[10px] text-gray-500">Always-open chat panel that fills a container on your own page — e.g. drop it into a "Contact us" page. Auto-adapts to your site's font, colors and light/dark mode.</p>
               <div className="flex items-start gap-2 mt-1">
-                <code className="text-[11px] text-cyan-300 font-mono flex-1 break-all leading-relaxed bg-[#0D1418] rounded-lg p-2.5 whitespace-pre-wrap">
+                <code className="text-[11px] text-cyan-300 font-mono flex-1 break-all leading-relaxed bg-[var(--nyasa-surface-5)] rounded-lg p-2.5 whitespace-pre-wrap">
                   {inlineSnippet}
                 </code>
                 <CopyBtn text={inlineSnippet} />
@@ -1007,7 +1007,7 @@ function WebsiteCard({ saved, workspaceId, onSave, onDelete }) {
                 <CopyBtn text={supportPageUrl} />
               </div>
               <div className="flex items-start gap-2 mt-2">
-                <code className="text-[11px] text-cyan-300 font-mono flex-1 break-all leading-relaxed bg-[#0D1418] rounded-lg p-2.5 whitespace-pre-wrap">
+                <code className="text-[11px] text-cyan-300 font-mono flex-1 break-all leading-relaxed bg-[var(--nyasa-surface-5)] rounded-lg p-2.5 whitespace-pre-wrap">
                   {iframeSnippet}
                 </code>
                 <CopyBtn text={iframeSnippet} />
@@ -1402,7 +1402,7 @@ export default function Settings() {
       <Sidebar />
 
       {/* Desktop sidebar */}
-      <div className="hidden md:flex w-56 bg-[var(--nyasa-surface-1)] border-r border-white/10 flex-col py-4 px-3 shrink-0">
+      <div className="hidden md:flex w-56 bg-[var(--nyasa-surface-1)] border-r border-[var(--nyasa-border)] flex-col py-4 px-3 shrink-0">
         <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide px-3 mb-3">Settings</p>
         {visibleSections.map(({ id, label, icon: Icon }) => (
           <button key={id} onClick={() => setSection(id)}
@@ -1416,9 +1416,9 @@ export default function Settings() {
         ))}
       </div>
 
-      <div className="flex-1 flex flex-col overflow-hidden bg-[#0D1418]">
+      <div className="flex-1 flex flex-col overflow-hidden bg-[var(--nyasa-surface-5)]">
         {/* Mobile tab bar */}
-        <div className="md:hidden flex overflow-x-auto bg-[var(--nyasa-surface-1)] border-b border-white/10 px-2 pt-2 shrink-0 gap-1">
+        <div className="md:hidden flex overflow-x-auto bg-[var(--nyasa-surface-1)] border-b border-[var(--nyasa-border)] px-2 pt-2 shrink-0 gap-1">
           {visibleSections.map(({ id, label, icon: Icon }) => (
             <button key={id} onClick={() => setSection(id)}
               className="flex flex-col items-center gap-1 px-4 py-2 rounded-t-xl text-[10px] font-semibold whitespace-nowrap transition-all shrink-0"
@@ -1467,7 +1467,7 @@ export default function Settings() {
             )}
 
             {section === 'profile' && (
-              <div className="bg-[var(--nyasa-surface-2)] rounded-2xl border border-white/10 p-5 space-y-4">
+              <div className="bg-[var(--nyasa-surface-2)] rounded-2xl border border-[var(--nyasa-border)] p-5 space-y-4">
                 <div className="flex items-center gap-4 mb-2">
                   <Avatar name={profileForm.full_name || ''} size="xl" />
                   <div>
@@ -1497,14 +1497,14 @@ export default function Settings() {
 
                 {isPlatformAdmin && (
                   <button onClick={() => navigate('/admin')}
-                    className="w-full flex items-center justify-center gap-2 py-3 rounded-xl text-sm font-bold border border-white/10 text-white hover:bg-white/5 transition-colors">
+                    className="w-full flex items-center justify-center gap-2 py-3 rounded-xl text-sm font-bold border border-[var(--nyasa-border)] text-white hover:bg-white/5 transition-colors">
                     <ShieldCheck className="w-4 h-4" style={{ color: '#25D366' }} />
                     Open Admin Panel
                   </button>
                 )}
 
                 {/* Password */}
-                <div className="mt-2 pt-4 border-t border-white/5">
+                <div className="mt-2 pt-4 border-t border-[var(--nyasa-border)]">
                   <p className="text-sm font-bold text-white mb-3">Password</p>
                   <div className="space-y-3">
                     <div>
@@ -1525,7 +1525,7 @@ export default function Settings() {
                     {pwError && <p className="text-red-400 text-xs">{pwError}</p>}
                     {pwSaved && <p className="text-[#25D366] text-xs font-semibold">✓ Password updated successfully!</p>}
                     <button onClick={changePassword} disabled={pwSaving}
-                      className="w-full flex items-center justify-center gap-2 py-3 rounded-xl text-sm font-bold border border-white/10 text-white hover:bg-white/5 transition-colors disabled:opacity-40">
+                      className="w-full flex items-center justify-center gap-2 py-3 rounded-xl text-sm font-bold border border-[var(--nyasa-border)] text-white hover:bg-white/5 transition-colors disabled:opacity-40">
                       {pwSaving ? 'Updating…' : (pwSaved ? '✓ Password updated!' : 'Update Password')}
                     </button>
                   </div>
@@ -1534,7 +1534,7 @@ export default function Settings() {
             )}
 
             {section === 'workspace' && (
-              <div className="bg-[var(--nyasa-surface-2)] rounded-2xl border border-white/10 p-5 space-y-4">
+              <div className="bg-[var(--nyasa-surface-2)] rounded-2xl border border-[var(--nyasa-border)] p-5 space-y-4">
                 <div>
                   <label className="text-[11px] font-medium text-gray-400 mb-1.5 block">Workspace Name</label>
                   <input className={inputCls} value={wsName}
@@ -1551,7 +1551,7 @@ export default function Settings() {
             {section === 'team' && <TeamSection />}
 
             {section === 'sla' && (
-              <div className="bg-[var(--nyasa-surface-2)] rounded-2xl border border-white/10 p-5 space-y-4">
+              <div className="bg-[var(--nyasa-surface-2)] rounded-2xl border border-[var(--nyasa-border)] p-5 space-y-4">
                 <div>
                   <p className="text-sm font-bold text-white mb-1">SLA — Response Time Target</p>
                   <div className="text-xs text-gray-400 leading-relaxed space-y-2 mt-2">
@@ -1596,7 +1596,7 @@ export default function Settings() {
                   <div className="flex items-center justify-center py-12"><Loader2 className="w-5 h-5 text-[#25D366] animate-spin" /></div>
                 ) : subStatus ? (
                   <>
-                    <div className="rounded-2xl border border-white/10 p-5 bg-[var(--nyasa-surface-2)]">
+                    <div className="rounded-2xl border border-[var(--nyasa-border)] p-5 bg-[var(--nyasa-surface-2)]">
                       <div className="flex items-center gap-3 mb-3">
                         {subStatus.subscription_status === 'trialing' && <Clock className="w-5 h-5 text-yellow-400" />}
                         {subStatus.subscription_status === 'active' && <Crown className="w-5 h-5 text-[#25D366]" />}
@@ -1631,7 +1631,7 @@ export default function Settings() {
                         const isCurrent = subStatus.plan === key;
                         const labels = subStatus.plan_labels || {};
                         return (
-                          <div key={key} className={`rounded-2xl border p-5 ${isCurrent ? 'border-[#25D366] bg-[#25D366]/5' : 'border-white/10 bg-[var(--nyasa-surface-2)]'}`}>
+                          <div key={key} className={`rounded-2xl border p-5 ${isCurrent ? 'border-[#25D366] bg-[#25D366]/5' : 'border-[var(--nyasa-border)] bg-[var(--nyasa-surface-2)]'}`}>
                             <p className="text-sm font-bold text-white">{labels[key] || key}</p>
                             <p className="text-2xl font-black text-white mt-2">K{price.toLocaleString()}<span className="text-xs font-normal text-gray-400">/mo</span></p>
                             <div className="mt-4">
@@ -1657,7 +1657,7 @@ export default function Settings() {
                         <h3 className="text-sm font-semibold text-white mb-3">Payment History</h3>
                         <div className="space-y-2">
                           {subStatus.transactions.map(t => (
-                            <div key={t.tx_ref} className="flex items-center justify-between bg-[var(--nyasa-surface-2)] rounded-xl px-4 py-3 border border-white/5">
+                            <div key={t.tx_ref} className="flex items-center justify-between bg-[var(--nyasa-surface-2)] rounded-xl px-4 py-3 border border-[var(--nyasa-border)]">
                               <div>
                                 <p className="text-xs font-medium text-white">K{(t.amount || 0).toLocaleString()} {t.currency}</p>
                                 <p className="text-[10px] text-gray-500">{new Date(t.created_at).toLocaleDateString('en-MW')}</p>

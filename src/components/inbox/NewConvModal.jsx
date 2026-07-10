@@ -39,7 +39,7 @@ export default function NewConvModal({ open, onClose, onCreated, workspaceId }) 
 
   return (
     <Dialog open={open} onOpenChange={(v) => { if (!v) onClose(); }}>
-      <DialogContent className="bg-[#233138] border border-white/10 text-white max-w-md">
+      <DialogContent className="bg-[var(--nyasa-surface-3)] border border-[var(--nyasa-border)] text-white max-w-md">
         <DialogHeader>
           <DialogTitle className="text-white">New Conversation</DialogTitle>
         </DialogHeader>

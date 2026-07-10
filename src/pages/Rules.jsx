@@ -94,7 +94,7 @@ export default function Rules() {
   return (
     <div className="flex h-screen overflow-hidden bg-[var(--nyasa-surface-1)] pt-14 md:pt-0 pb-[56px] md:pb-0">
       <Sidebar />
-      <div className="flex-1 overflow-y-auto scrollbar-thin bg-[#0D1418]">
+      <div className="flex-1 overflow-y-auto scrollbar-thin bg-[var(--nyasa-surface-5)]">
         <div className="max-w-3xl mx-auto px-6 py-8">
           <div className="flex items-start justify-between mb-6 gap-3">
             <div>
@@ -110,13 +110,13 @@ export default function Rules() {
           </div>
 
           {!isWorkspaceAdmin && (
-            <div className="flex items-center gap-2 bg-white/5 border border-white/10 rounded-xl px-4 py-3 mb-4 text-xs text-gray-400">
+            <div className="flex items-center gap-2 bg-white/5 border border-[var(--nyasa-border)] rounded-xl px-4 py-3 mb-4 text-xs text-gray-400">
               <Lock className="w-3.5 h-3.5 shrink-0" />
               You can view assignment rules, but only workspace admins can create, edit, or delete them.
             </div>
           )}
 
-          <div className="bg-[var(--nyasa-surface-2)] rounded-2xl border border-white/10 p-4 mb-6 space-y-3">
+          <div className="bg-[var(--nyasa-surface-2)] rounded-2xl border border-[var(--nyasa-border)] p-4 mb-6 space-y-3">
             <p className="text-xs font-bold text-gray-300 uppercase tracking-wide">How assignment works</p>
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
               {RULE_TYPES.map(rt => (
@@ -157,14 +157,14 @@ export default function Rules() {
                   {users.map(u => (
                     <button key={u.id} onClick={() => toggleUser(u.id)}
                       className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-medium transition-all border
-                        ${form.assigned_to_ids.includes(u.id) ? 'bg-[#25D366]/20 border-[#25D366]/40 text-[#25D366]' : 'border-white/10 text-gray-400 hover:border-white/20'}`}>
+                        ${form.assigned_to_ids.includes(u.id) ? 'bg-[#25D366]/20 border-[#25D366]/40 text-[#25D366]' : 'border-[var(--nyasa-border)] text-gray-400 hover:border-[var(--nyasa-border)]'}`}>
                       <Avatar name={u.full_name || u.email} size="xs" />{u.full_name || u.email}
                     </button>
                   ))}
                 </div>
               </div>
               <div className="flex gap-3 pt-2">
-                <button onClick={() => setEditing(null)} className="px-4 py-2 border border-white/10 text-gray-300 rounded-xl text-sm">Cancel</button>
+                <button onClick={() => setEditing(null)} className="px-4 py-2 border border-[var(--nyasa-border)] text-gray-300 rounded-xl text-sm">Cancel</button>
                 <button onClick={save} disabled={!form.name.trim() || saving}
                   className="px-6 py-2 bg-[#25D366] text-white font-semibold rounded-xl text-sm hover:bg-[#20BA5A] transition-colors disabled:opacity-40 flex items-center gap-2">
                   {saving ? <><Loader2 className="w-3.5 h-3.5 animate-spin" /> Saving…</> : 'Save Rule'}
@@ -184,7 +184,7 @@ export default function Rules() {
                 </div>
               )}
               {rules.map((r, idx) => (
-                <div key={r.id} className={`bg-[var(--nyasa-surface-2)] rounded-2xl border px-5 py-4 ${r.is_active ? 'border-white/10' : 'border-white/5 opacity-60'} group`}>
+                <div key={r.id} className={`bg-[var(--nyasa-surface-2)] rounded-2xl border px-5 py-4 ${r.is_active ? 'border-[var(--nyasa-border)]' : 'border-[var(--nyasa-border)] opacity-60'} group`}>
                   <div className="flex items-start gap-3">
                     <span className="text-xs text-gray-600 font-mono mt-0.5 w-4">#{idx + 1}</span>
                     <div className="flex-1 min-w-0">

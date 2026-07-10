@@ -10,7 +10,7 @@ export default function DataDeletion() {
         <p className="text-xs text-gray-500 mb-8">Last updated: July 8, 2026</p>
 
         <div className="space-y-6 text-sm text-gray-300 leading-relaxed">
-          <section className="bg-[#1a2530] rounded-2xl border border-white/10 p-5">
+          <section className="bg-[var(--nyasa-surface-2)] rounded-2xl border border-[var(--nyasa-border)] p-5">
             <h2 className="text-base font-bold text-white mb-2">How to delete your data</h2>
             <p className="text-gray-400 mb-4">
               If you connected your Facebook account or WhatsApp to Nyasadesk and would like
@@ -31,7 +31,7 @@ export default function DataDeletion() {
             </ol>
           </section>
 
-          <section className="bg-[#1a2530] rounded-2xl border border-white/10 p-5">
+          <section className="bg-[var(--nyasa-surface-2)] rounded-2xl border border-[var(--nyasa-border)] p-5">
             <h2 className="text-base font-bold text-white mb-2">What gets deleted</h2>
             <ul className="space-y-2 list-disc list-inside text-gray-400">
               <li>Your Facebook Page access tokens</li>
@@ -41,7 +41,7 @@ export default function DataDeletion() {
             </ul>
           </section>
 
-          <section className="bg-[#1a2530] rounded-2xl border border-white/10 p-5">
+          <section className="bg-[var(--nyasa-surface-2)] rounded-2xl border border-[var(--nyasa-border)] p-5">
             <h2 className="text-base font-bold text-white mb-2">Contact</h2>
             <p className="text-gray-400">For any data-related questions:</p>
             <a href="mailto:brandfletchmedia@gmail.com" className="text-[#25D366] font-medium mt-1 block">

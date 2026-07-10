@@ -155,7 +155,7 @@ export default function Dashboard() {
   return (
     <div className="flex h-screen overflow-hidden bg-[var(--nyasa-surface-1)] pt-14 md:pt-0 pb-[56px] md:pb-0">
       <Sidebar />
-      <div className="flex-1 overflow-y-auto scrollbar-thin bg-[#0D1418]">
+      <div className="flex-1 overflow-y-auto scrollbar-thin bg-[var(--nyasa-surface-5)]">
         <div className="max-w-6xl mx-auto px-4 md:px-6 py-6 md:py-8">
 
           {/* Header */}
@@ -212,7 +212,7 @@ export default function Dashboard() {
 
           {/* Charts */}
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 mb-6">
-            <div className="bg-[var(--nyasa-surface-2)] rounded-2xl p-4 md:p-5 border border-white/10">
+            <div className="bg-[var(--nyasa-surface-2)] rounded-2xl p-4 md:p-5 border border-[var(--nyasa-border)]">
               <h3 className="text-xs font-bold text-gray-300 uppercase tracking-wide mb-4">{isAgentView ? "My Chats by Channel" : "By Channel"}</h3>
               {hasChannelData ? (
                 <>
@@ -238,7 +238,7 @@ export default function Dashboard() {
               )}
             </div>
 
-            <div className="bg-[var(--nyasa-surface-2)] rounded-2xl p-4 md:p-5 border border-white/10">
+            <div className="bg-[var(--nyasa-surface-2)] rounded-2xl p-4 md:p-5 border border-[var(--nyasa-border)]">
               <h3 className="text-xs font-bold text-gray-300 uppercase tracking-wide mb-4">{isAgentView ? "My Pipeline" : "Pipeline"}</h3>
               <ResponsiveContainer width="100%" height={180}>
                 <BarChart data={stageData} barSize={14}>
@@ -255,11 +255,11 @@ export default function Dashboard() {
 
           {/* SLA Breaches */}
           {slaData.length > 0 && (
-            <div className="bg-[var(--nyasa-surface-2)] rounded-2xl p-4 md:p-5 border border-white/10 mb-6">
+            <div className="bg-[var(--nyasa-surface-2)] rounded-2xl p-4 md:p-5 border border-[var(--nyasa-border)] mb-6">
               <h3 className="text-xs font-bold text-gray-300 uppercase tracking-wide mb-4">{isAgentView ? "My SLA Watch" : "SLA At Risk"}</h3>
               <div className="space-y-2">
                 {slaData.map(c => (
-                  <div key={c.id} className="flex items-center justify-between py-2 border-b border-white/5 last:border-0">
+                  <div key={c.id} className="flex items-center justify-between py-2 border-b border-[var(--nyasa-border)] last:border-0">
                     <div className="flex items-center gap-3">
                       <Avatar name={c.contact?.full_name || 'Unknown'} size="sm" />
                       <div>

@@ -94,6 +94,81 @@
   h1, h2, h3, h4, h5, h6 { font-family: 'Inter', ui-sans-serif, system-ui, sans-serif; }
 }
 
+/* ── Comprehensive light mode surface + input overrides (auto-generated) ── */
+
+/* Scroll areas & page-level wrappers that use var(--nyasa-surface-*) */
+:root.light .bg-\[var\(--nyasa-surface-1\)\] { background: var(--nyasa-surface-1) !important; }
+:root.light .bg-\[var\(--nyasa-surface-2\)\] { background: var(--nyasa-surface-2) !important; }
+:root.light .bg-\[var\(--nyasa-surface-3\)\] { background: var(--nyasa-surface-3) !important; }
+:root.light .bg-\[var\(--nyasa-surface-4\)\] { background: var(--nyasa-surface-4) !important; }
+:root.light .bg-\[var\(--nyasa-surface-5\)\] { background: var(--nyasa-surface-5) !important; }
+:root.light .nyasa-bg { background: var(--nyasa-bg) !important; }
+
+/* Text on surface backgrounds */
+:root.light .text-\[var\(--nyasa-text\)\] { color: var(--nyasa-text) !important; }
+:root.light .text-\[var\(--nyasa-text-muted\)\] { color: var(--nyasa-text-muted) !important; }
+
+/* Scrollbar in light mode */
+:root.light .scrollbar-thin::-webkit-scrollbar-thumb {
+  background: var(--nyasa-surface-4);
+}
+
+/* Input fields on light surfaces — fix dark backgrounds on light bg */
+:root.light input[class*="bg-"],
+:root.light textarea[class*="bg-"] {
+  background: var(--nyasa-surface-2) !important;
+  color: var(--nyasa-text) !important;
+  border-color: var(--nyasa-border) !important;
+}
+/* But keep inputs with explicit tailwind variant bg-transparent */
+:root.light input.bg-transparent,
+:root.light textarea.bg-transparent {
+  background: transparent !important;
+}
+
+/* Select elements */
+:root.light select {
+  background: var(--nyasa-surface-2) !important;
+  color: var(--nyasa-text) !important;
+  border-color: var(--nyasa-border) !important;
+}
+
+/* Dropdown / popover menus — shadcn uses bg-popover */
+:root.light [data-radix-popper-content-wrapper] {
+  --popover: 0 0% 100%;
+  --popover-foreground: 210 20% 10%;
+}
+
+/* Code blocks / mono surfaces */
+:root.light code {
+  background: var(--nyasa-surface-2) !important;
+  color: var(--nyasa-text) !important;
+}
+
+/* Hover states using white/opacity (hover:bg-white/5, hover:bg-white/10) */
+:root.light .hover\:bg-white\/5:hover  { background: rgba(0,0,0,0.04) !important; }
+:root.light .hover\:bg-white\/10:hover { background: rgba(0,0,0,0.06) !important; }
+
+/* Active state selected (bg-white/5, bg-white/10) */
+:root.light .bg-white\/5  { background: rgba(0,0,0,0.04) !important; }
+:root.light .bg-white\/10 { background: rgba(0,0,0,0.06) !important; }
+:root.light .bg-white\/20 { background: rgba(0,0,0,0.08) !important; }
+
+/* Dividers / separators */
+:root.light .divide-white\/5 > * + * { border-color: rgba(0,0,0,0.05) !important; }
+:root.light hr { border-color: var(--nyasa-border) !important; }
+
+/* Text on nyasa-surface backgrounds should use nyasa-text */
+:root.light .text-gray-400 { color: var(--nyasa-text-muted) !important; }
+:root.light .text-gray-500 { color: var(--nyasa-text-muted) !important; }
+:root.light .text-gray-600 { color: var(--nyasa-text-muted) !important; }
+
+/* But NOT inside green buttons or brand-coloured elements */
+:root.light .bg-\[\#25D366\] .text-gray-400,
+:root.light .bg-\[\#25D366\] .text-gray-500 {
+  color: rgba(0,0,0,0.6) !important;
+}
+
 @layer utilities {
   .scrollbar-thin::-webkit-scrollbar { width: 4px; height: 4px; }
   .scrollbar-thin::-webkit-scrollbar-track { background: transparent; }

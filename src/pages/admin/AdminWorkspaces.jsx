@@ -109,7 +109,7 @@ export default function AdminWorkspaces() {
             const subBadge = SUB_BADGE[w.subscription_status] || SUB_BADGE.trialing;
             const trialDaysLeft = w.trial_ends_at ? Math.max(0, Math.ceil((new Date(w.trial_ends_at) - new Date()) / 86400000)) : null;
             return (
-              <div key={w.id} className="bg-[var(--nyasa-surface-2)] rounded-2xl border border-white/10 p-5">
+              <div key={w.id} className="bg-[var(--nyasa-surface-2)] rounded-2xl border border-[var(--nyasa-border)] p-5">
                 <div className="flex flex-wrap items-start justify-between gap-4">
                   <div className="min-w-0">
                     <div className="flex items-center gap-2">
@@ -151,7 +151,7 @@ export default function AdminWorkspaces() {
                   </div>
                 </div>
 
-                <div className="flex flex-wrap gap-4 mt-4 pt-4 border-t border-white/5">
+                <div className="flex flex-wrap gap-4 mt-4 pt-4 border-t border-[var(--nyasa-border)]">
                   <div className="flex items-center gap-1.5 text-xs text-gray-400">
                     <Users className="w-3.5 h-3.5" />
                     {w.team_count} / {plan.seats === 'Unlimited' ? '∞' : plan.seats} seats
@@ -163,7 +163,7 @@ export default function AdminWorkspaces() {
                 </div>
 
                 {/* Subscription management controls */}
-                <div className="flex flex-wrap gap-2 mt-3 pt-3 border-t border-white/5">
+                <div className="flex flex-wrap gap-2 mt-3 pt-3 border-t border-[var(--nyasa-border)]">
                   {w.subscription_status === 'trialing' && (
                     <>
                       <button onClick={() => extendTrial(w.id, 7)}
@@ -245,7 +245,7 @@ function WorkspaceDetailModal({ workspaceId, onClose }) {
 
   return (
     <div className="fixed inset-0 z-50 bg-black/70 flex items-center justify-center p-4" onClick={onClose}>
-      <div className="bg-[#1a2530] rounded-2xl border border-white/10 w-full max-w-2xl max-h-[85vh] overflow-y-auto p-5" onClick={e => e.stopPropagation()}>
+      <div className="bg-[var(--nyasa-surface-2)] rounded-2xl border border-[var(--nyasa-border)] w-full max-w-2xl max-h-[85vh] overflow-y-auto p-5" onClick={e => e.stopPropagation()}>
         <div className="flex items-center justify-between mb-4">
           <h2 className="text-white font-bold text-lg">
             {data?.workspace?.workspace_name || data?.workspace?.full_name || 'Workspace'}

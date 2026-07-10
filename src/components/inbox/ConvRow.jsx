@@ -35,7 +35,7 @@ export default function ConvRow({ conv, active, onClick, pinned = false }) {
 
   return (
     <div onClick={() => onClick(conv)}
-      className={`flex items-start gap-3 px-4 py-3 cursor-pointer border-b border-white/5 transition-colors
+      className={`flex items-start gap-3 px-4 py-3 cursor-pointer border-b border-[var(--nyasa-border)] transition-colors
         ${active ? 'bg-white/10' : 'hover:bg-white/5'}`}>
       <div className="relative shrink-0 mt-0.5">
         <Avatar name={conv.contact_name || '?'} src={conv.contact_avatar_url} size="md" />

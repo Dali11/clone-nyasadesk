@@ -65,7 +65,7 @@ export default function CannedResponses() {
   return (
     <div className="flex h-screen overflow-hidden bg-[var(--nyasa-surface-1)] pt-14 md:pt-0 pb-[56px] md:pb-0">
       <Sidebar />
-      <div className="flex-1 overflow-y-auto scrollbar-thin bg-[#0D1418]">
+      <div className="flex-1 overflow-y-auto scrollbar-thin bg-[var(--nyasa-surface-5)]">
         <div className="max-w-3xl mx-auto px-6 py-8">
           <div className="flex items-center justify-between mb-6">
             <div>
@@ -89,7 +89,7 @@ export default function CannedResponses() {
                 placeholder="Response body… use {{name}} for contact name"
                 value={form.body} onChange={e => set('body', e.target.value)} />
               <div className="flex gap-3">
-                <button onClick={() => setEditing(null)} className="px-4 py-2 border border-white/10 text-gray-300 rounded-xl text-sm">Cancel</button>
+                <button onClick={() => setEditing(null)} className="px-4 py-2 border border-[var(--nyasa-border)] text-gray-300 rounded-xl text-sm">Cancel</button>
                 <button onClick={save} disabled={!form.title.trim() || !form.body.trim() || saving}
                   className="px-6 py-2 bg-[#25D366] text-white font-semibold rounded-xl text-sm hover:bg-[#20BA5A] transition-colors disabled:opacity-40 flex items-center gap-2">
                   {saving ? <><Loader2 className="w-3.5 h-3.5 animate-spin" /> Saving…</> : 'Save'}
@@ -109,7 +109,7 @@ export default function CannedResponses() {
                 </div>
               )}
               {canned.map(cr => (
-                <div key={cr.id} className="bg-[var(--nyasa-surface-2)] rounded-2xl border border-white/10 px-5 py-4 flex items-start gap-4 group">
+                <div key={cr.id} className="bg-[var(--nyasa-surface-2)] rounded-2xl border border-[var(--nyasa-border)] px-5 py-4 flex items-start gap-4 group">
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-2 mb-1.5">
                       {cr.shortcut && <span className="text-xs font-mono text-[#25D366] bg-[#25D366]/10 px-2 py-0.5 rounded">{cr.shortcut}</span>}

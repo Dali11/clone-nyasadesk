@@ -257,7 +257,7 @@ export default function Inbox() {
       <Sidebar hideMobileChrome={showChat} />
 
       {/* Conversation list — hidden on mobile when chat is open */}
-      <div className={`flex flex-col bg-[var(--nyasa-surface-1)] border-r border-white/10
+      <div className={`flex flex-col bg-[var(--nyasa-surface-1)] border-r border-[var(--nyasa-border)]
         w-full md:w-80 lg:w-96 shrink-0 md:flex
         ${showChat ? 'hidden' : 'flex'}`}>
 
@@ -339,7 +339,7 @@ export default function Inbox() {
                   <ConvRow key={pc.conversation_id} conv={normalized} active={activeConv?.id === conv.id} onClick={handleSelect} pinned />
                 );
               })}
-              <div className="border-b border-white/10 mx-4 mb-1" />
+              <div className="border-b border-[var(--nyasa-border)] mx-4 mb-1" />
             </div>
           )}
           {loading ? (
@@ -359,7 +359,7 @@ export default function Inbox() {
       </div>
 
       {/* Chat area */}
-      <div className={`flex-1 flex flex-col overflow-hidden bg-[#0D1418]
+      <div className={`flex-1 flex flex-col overflow-hidden bg-[var(--nyasa-surface-5)]
         ${!showChat ? 'hidden md:flex' : 'flex'}`}>
         {activeConv ? (
           <>
@@ -387,7 +387,7 @@ export default function Inbox() {
                 className={`${contactOpen ? 'flex' : 'hidden'}
                   fixed top-14 bottom-[56px] left-0 right-0 z-40
                   md:top-0 md:bottom-0 md:left-16
-                  xl:static xl:inset-auto xl:z-auto xl:flex xl:w-72 xl:border-l xl:border-white/10 xl:shrink-0`}
+                  xl:static xl:inset-auto xl:z-auto xl:flex xl:w-72 xl:border-l xl:border-[var(--nyasa-border)] xl:shrink-0`}
               />
             </div>
           </>
@@ -407,11 +407,11 @@ export default function Inbox() {
       {/* Internal message modal */}
       {showInternalMsg && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4" onClick={() => setShowInternalMsg(false)}>
-          <div className="bg-[#233138] rounded-2xl border border-white/10 w-full max-w-md p-6" onClick={e => e.stopPropagation()}>
+          <div className="bg-[var(--nyasa-surface-3)] rounded-2xl border border-[var(--nyasa-border)] w-full max-w-md p-6" onClick={e => e.stopPropagation()}>
             <h2 className="text-base font-bold text-white mb-4">New Internal Message</h2>
             <label className="block text-xs text-gray-400 mb-1.5">Send to</label>
             <select
-              className="w-full bg-[var(--nyasa-surface-1)] text-white text-sm rounded-xl px-3 py-2.5 mb-3 focus:outline-none focus:ring-1 focus:ring-[#25D366] border border-white/10"
+              className="w-full bg-[var(--nyasa-surface-1)] text-white text-sm rounded-xl px-3 py-2.5 mb-3 focus:outline-none focus:ring-1 focus:ring-[#25D366] border border-[var(--nyasa-border)]"
               value={internalRecipient}
               onChange={e => setInternalRecipient(e.target.value)}
             >
@@ -422,7 +422,7 @@ export default function Inbox() {
             </select>
             <label className="block text-xs text-gray-400 mb-1.5">Message</label>
             <textarea
-              className="w-full bg-[var(--nyasa-surface-1)] text-white text-sm rounded-xl px-3 py-2.5 mb-4 focus:outline-none focus:ring-1 focus:ring-[#25D366] resize-none border border-white/10"
+              className="w-full bg-[var(--nyasa-surface-1)] text-white text-sm rounded-xl px-3 py-2.5 mb-4 focus:outline-none focus:ring-1 focus:ring-[#25D366] resize-none border border-[var(--nyasa-border)]"
               rows={3}
               placeholder="Type your message…"
               value={internalMessage}

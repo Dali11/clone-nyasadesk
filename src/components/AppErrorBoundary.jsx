@@ -23,7 +23,7 @@ export default class AppErrorBoundary extends React.Component {
       return (
         <div style={{
           minHeight: '100vh',
-          background: '#111B21',
+          background:'var(--nyasa-surface-1)',
           display: 'flex',
           alignItems: 'center',
           justifyContent: 'center',
@@ -38,13 +38,13 @@ export default class AppErrorBoundary extends React.Component {
               margin: '0 auto 16px',
               fontSize: 28,
             }}>⚠️</div>
-            <p style={{ color: '#E9EDF0', fontWeight: 700, fontSize: 18, marginBottom: 8 }}>
+            <p style={{ color:'var(--nyasa-text)', fontWeight: 700, fontSize: 18, marginBottom: 8 }}>
               Something went wrong
             </p>
-            <p style={{ color: '#8696A0', fontSize: 14, lineHeight: 1.6, marginBottom: 24 }}>
+            <p style={{ color:'var(--nyasa-text-muted)', fontSize: 14, lineHeight: 1.6, marginBottom: 24 }}>
               The app ran into an unexpected error. Try refreshing — if it keeps happening, contact support.
             </p>
-            <p style={{ color: '#4B5563', fontSize: 11, marginBottom: 20, fontFamily: 'monospace', background: '#0B141A', padding: '8px 12px', borderRadius: 8, wordBreak: 'break-all' }}>
+            <p style={{ color: '#4B5563', fontSize: 11, marginBottom: 20, fontFamily: 'monospace', background:'var(--nyasa-bg)', padding: '8px 12px', borderRadius: 8, wordBreak: 'break-all' }}>
               {this.state.error?.message || 'Unknown error'}
             </p>
             <button

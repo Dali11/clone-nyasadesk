@@ -215,7 +215,7 @@ export default function AiAgents() {
       <Sidebar />
 
       <div className="flex-1 flex flex-col overflow-hidden">
-        <div className="px-5 pt-5 pb-3 flex items-center justify-between shrink-0 border-b border-white/10">
+        <div className="px-5 pt-5 pb-3 flex items-center justify-between shrink-0 border-b border-[var(--nyasa-border)]">
           <div>
             <h1 className="text-lg font-black text-white flex items-center gap-2">
               <Bot className="w-5 h-5 text-[#25D366]" /> AI Agents
@@ -285,7 +285,7 @@ export default function AiAgents() {
                 </div>
               )}
               {agents.map(agent => (
-                <div key={agent.id} className="bg-[var(--nyasa-surface-2)] rounded-xl p-4 flex flex-col gap-2 border border-white/5">
+                <div key={agent.id} className="bg-[var(--nyasa-surface-2)] rounded-xl p-4 flex flex-col gap-2 border border-[var(--nyasa-border)]">
                   <div className="flex items-start justify-between gap-2">
                     <div className="flex items-center gap-2 min-w-0">
                       <div className="w-9 h-9 rounded-lg bg-[#25D366]/15 flex items-center justify-center shrink-0">
@@ -349,7 +349,7 @@ export default function AiAgents() {
       {/* Template picker modal */}
       {showTemplates && (
         <div className="fixed inset-0 z-50 bg-black/60 flex items-center justify-center p-4" onClick={() => setShowTemplates(false)}>
-          <div className="bg-[var(--nyasa-surface-1)] rounded-2xl border border-white/10 w-full max-w-lg max-h-[80vh] overflow-y-auto p-5" onClick={e => e.stopPropagation()}>
+          <div className="bg-[var(--nyasa-surface-1)] rounded-2xl border border-[var(--nyasa-border)] w-full max-w-lg max-h-[80vh] overflow-y-auto p-5" onClick={e => e.stopPropagation()}>
             <div className="flex items-center justify-between mb-4">
               <h2 className="text-white font-bold">Choose a template</h2>
               <button onClick={() => setShowTemplates(false)}><X className="w-5 h-5 text-gray-500" /></button>
@@ -370,7 +370,7 @@ export default function AiAgents() {
       {/* Configure agent modal */}
       {editing && (
         <div className="fixed inset-0 z-50 bg-black/60 flex items-center justify-center p-4" onClick={() => setEditing(null)}>
-          <div className="bg-[var(--nyasa-surface-1)] rounded-2xl border border-white/10 w-full max-w-xl max-h-[85vh] overflow-y-auto p-5" onClick={e => e.stopPropagation()}>
+          <div className="bg-[var(--nyasa-surface-1)] rounded-2xl border border-[var(--nyasa-border)] w-full max-w-xl max-h-[85vh] overflow-y-auto p-5" onClick={e => e.stopPropagation()}>
             <div className="flex items-center justify-between mb-4">
               <h2 className="text-white font-bold">{editing === 'new' ? 'New AI agent' : 'Configure agent'}</h2>
               <button onClick={() => setEditing(null)}><X className="w-5 h-5 text-gray-500" /></button>
@@ -491,7 +491,7 @@ export default function AiAgents() {
                 {editing === 'new' ? (
                   <p className="text-xs text-gray-600">Save the agent first, then add FAQs, policies, or price lists here.</p>
                 ) : (
-                  <div className="bg-[#1a2530] rounded-xl p-2.5 space-y-1.5">
+                  <div className="bg-[var(--nyasa-surface-2)] rounded-xl p-2.5 space-y-1.5">
                     {loadingKnowledge ? (
                       <div className="flex items-center gap-2 text-gray-500 text-xs py-2">
                         <Loader2 className="w-3.5 h-3.5 animate-spin" /> Loading…
@@ -523,10 +523,10 @@ export default function AiAgents() {
                       <div className="bg-[var(--nyasa-surface-2)] rounded-lg p-2.5 space-y-1.5">
                         <input value={knowledgeForm.title || ''} onChange={e => setKnowledgeForm(f => ({ ...f, title: e.target.value }))}
                           placeholder="Title, e.g. Refund policy"
-                          className="w-full bg-[#1a2530] text-white text-xs rounded-lg px-2.5 py-1.5 focus:outline-none focus:ring-1 focus:ring-[#25D366]" />
+                          className="w-full bg-[var(--nyasa-surface-2)] text-white text-xs rounded-lg px-2.5 py-1.5 focus:outline-none focus:ring-1 focus:ring-[#25D366]" />
                         <textarea value={knowledgeForm.content || ''} onChange={e => setKnowledgeForm(f => ({ ...f, content: e.target.value }))} rows={3}
                           placeholder="The actual info the agent should know…"
-                          className="w-full bg-[#1a2530] text-white text-xs rounded-lg px-2.5 py-1.5 focus:outline-none focus:ring-1 focus:ring-[#25D366] resize-none" />
+                          className="w-full bg-[var(--nyasa-surface-2)] text-white text-xs rounded-lg px-2.5 py-1.5 focus:outline-none focus:ring-1 focus:ring-[#25D366] resize-none" />
                         <div className="flex gap-1.5">
                           <button onClick={() => setKnowledgeForm(null)}
                             className="flex-1 text-[11px] font-semibold text-gray-400 hover:text-white bg-white/5 hover:bg-white/10 rounded-lg py-1.5 transition-colors">

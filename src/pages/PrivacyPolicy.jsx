@@ -112,7 +112,7 @@ export default function PrivacyPolicy() {
               If you have any questions about this Privacy Policy or want to exercise your data rights,
               contact us at:
             </p>
-            <div className="mt-3 bg-[#1a2530] rounded-xl p-4 border border-white/10">
+            <div className="mt-3 bg-[var(--nyasa-surface-2)] rounded-xl p-4 border border-[var(--nyasa-border)]">
               <p className="font-medium text-white">Brandfletch</p>
               <p className="text-gray-400">Nyasadesk Privacy Team</p>
               <a href="mailto:brandfletchmedia@gmail.com" className="text-[#25D366]">brandfletchmedia@gmail.com</a>

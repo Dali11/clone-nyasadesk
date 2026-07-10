@@ -44,11 +44,11 @@ export default function AdminAiUsage() {
         <>
           {totals && (
             <div className="grid grid-cols-2 gap-3 mb-6">
-              <div className="bg-[var(--nyasa-surface-2)] rounded-2xl border border-white/10 p-4">
+              <div className="bg-[var(--nyasa-surface-2)] rounded-2xl border border-[var(--nyasa-border)] p-4">
                 <p className="text-[11px] text-gray-500 flex items-center gap-1"><DollarSign className="w-3 h-3" /> Total cost (30d)</p>
                 <p className="text-xl font-bold text-white mt-1">${totals.cost_usd.toFixed(2)}</p>
               </div>
-              <div className="bg-[var(--nyasa-surface-2)] rounded-2xl border border-white/10 p-4">
+              <div className="bg-[var(--nyasa-surface-2)] rounded-2xl border border-[var(--nyasa-border)] p-4">
                 <p className="text-[11px] text-gray-500 flex items-center gap-1"><Bot className="w-3 h-3" /> AI replies (30d)</p>
                 <p className="text-xl font-bold text-white mt-1">{totals.calls.toLocaleString()}</p>
               </div>
@@ -60,7 +60,7 @@ export default function AdminAiUsage() {
           ) : (
             <div className="space-y-2">
               {usage.map(u => (
-                <div key={u.workspace_id} className="flex items-center justify-between bg-[var(--nyasa-surface-2)] rounded-xl border border-white/10 p-4">
+                <div key={u.workspace_id} className="flex items-center justify-between bg-[var(--nyasa-surface-2)] rounded-xl border border-[var(--nyasa-border)] p-4">
                   <div>
                     <p className="text-sm font-semibold text-white">{u.workspace_name}</p>
                     <p className="text-xs text-gray-500 mt-0.5">{u.calls} replies · {u.tokens.toLocaleString()} tokens</p>

@@ -51,7 +51,7 @@ export default function AdminTransactions() {
       ) : (
         <div className="space-y-2">
           {txns.map(t => (
-            <div key={t.id} className="flex items-center justify-between bg-[var(--nyasa-surface-2)] rounded-xl border border-white/10 p-4">
+            <div key={t.id} className="flex items-center justify-between bg-[var(--nyasa-surface-2)] rounded-xl border border-[var(--nyasa-border)] p-4">
               <div className="min-w-0">
                 <p className="text-sm font-semibold text-white truncate">{t.workspace_name}</p>
                 <p className="text-xs text-gray-500 mt-0.5">{t.plan_label} · {t.tx_ref}</p>

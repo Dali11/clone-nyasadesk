@@ -89,7 +89,7 @@ export default function AdminPricing() {
           {plans.map(p => {
             const dirty = drafts[p.plan] !== String(p.price_mwk);
             return (
-              <div key={p.plan} className="bg-[#151F24] border border-white/5 rounded-xl p-5 flex flex-col gap-3">
+              <div key={p.plan} className="bg-[var(--nyasa-surface-3)] border border-[var(--nyasa-border)] rounded-xl p-5 flex flex-col gap-3">
                 <div>
                   <p className="text-white font-semibold text-sm">{p.label}</p>
                   <p className="text-[11px] text-gray-500">Monthly price, in Malawi Kwacha</p>
@@ -100,7 +100,7 @@ export default function AdminPricing() {
                     type="number" min="0" step="1"
                     value={drafts[p.plan] ?? ''}
                     onChange={e => setDrafts(d => ({ ...d, [p.plan]: e.target.value }))}
-                    className="flex-1 bg-[#0D1418] border border-white/10 rounded-lg px-3 py-2 text-white text-sm focus:outline-none focus:border-indigo-500"
+                    className="flex-1 bg-[var(--nyasa-surface-5)] border border-[var(--nyasa-border)] rounded-lg px-3 py-2 text-[var(--nyasa-text)] text-sm focus:outline-none focus:border-indigo-500"
                   />
                   <span className="text-gray-500 text-xs">/mo</span>
                 </div>

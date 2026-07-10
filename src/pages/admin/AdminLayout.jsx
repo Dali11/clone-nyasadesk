@@ -44,9 +44,9 @@ export default function AdminLayout() {
   return (
     <div className="flex h-screen overflow-hidden bg-[var(--nyasa-surface-1)] pt-14 md:pt-0 pb-[56px] md:pb-0">
       {/* ── Desktop rail ─────────────────────────────────────────────── */}
-      <div className="hidden lg:flex w-64 flex-col shrink-0 bg-[var(--nyasa-surface-1)] border-r border-white/5">
+      <div className="hidden lg:flex w-64 flex-col shrink-0 bg-[var(--nyasa-surface-1)] border-r border-[var(--nyasa-border)]">
         <div
-          className="px-5 pt-5 pb-4 border-b border-white/5"
+          className="px-5 pt-5 pb-4 border-b border-[var(--nyasa-border)]"
           style={{ background: 'linear-gradient(135deg, #3730A3 0%, #4F46E5 100%)' }}
         >
           <div className="flex items-center gap-3">
@@ -78,7 +78,7 @@ export default function AdminLayout() {
           })}
         </div>
 
-        <div className="p-3 border-t border-white/5">
+        <div className="p-3 border-t border-[var(--nyasa-border)]">
           <Link
             to="/"
             className="flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium text-gray-400 hover:bg-white/5 hover:text-gray-200 transition-all"
@@ -97,7 +97,7 @@ export default function AdminLayout() {
 
       {/* ── Mobile top bar ───────────────────────────────────────────── */}
       <div
-        className="lg:hidden fixed top-0 inset-x-0 h-14 z-20 flex items-center justify-between px-4 border-b border-white/5"
+        className="lg:hidden fixed top-0 inset-x-0 h-14 z-20 flex items-center justify-between px-4 border-b border-[var(--nyasa-border)]"
         style={{ background: 'linear-gradient(135deg, #3730A3 0%, #4F46E5 100%)' }}
       >
         <div className="flex items-center gap-2">
@@ -110,7 +110,7 @@ export default function AdminLayout() {
       </div>
 
       {/* ── Mobile bottom nav ────────────────────────────────────────── */}
-      <div className="lg:hidden fixed bottom-0 inset-x-0 h-[56px] z-20 flex items-center justify-around bg-[var(--nyasa-surface-1)] border-t border-white/5">
+      <div className="lg:hidden fixed bottom-0 inset-x-0 h-[56px] z-20 flex items-center justify-around bg-[var(--nyasa-surface-1)] border-t border-[var(--nyasa-border)]">
         {mobilePrimaryNav.map(({ path, icon: Icon, label, end }) => {
           const active = end ? pathname === path : pathname.startsWith(path);
           return (
@@ -127,7 +127,7 @@ export default function AdminLayout() {
               <span className="text-[10px] font-medium">More</span>
             </button>
           </SheetTrigger>
-          <SheetContent side="bottom" className="bg-[var(--nyasa-surface-1)] border-white/10 text-gray-200 rounded-t-2xl pb-8">
+          <SheetContent side="bottom" className="bg-[var(--nyasa-surface-1)] border-[var(--nyasa-border)] text-gray-200 rounded-t-2xl pb-8">
             <div className="grid grid-cols-4 gap-3 pt-2">
               {mobileMoreNav.map(({ path, icon: Icon, label }) => {
                 const active = pathname.startsWith(path);
@@ -145,7 +145,7 @@ export default function AdminLayout() {
         </Sheet>
       </div>
 
-      <div className="flex-1 overflow-y-auto scrollbar-thin bg-[#0D1418]">
+      <div className="flex-1 overflow-y-auto scrollbar-thin bg-[var(--nyasa-surface-5)]">
         <div className="max-w-5xl mx-auto px-6 py-8">
           <Outlet />
         </div>

@@ -134,7 +134,7 @@ export default function Documents() {
     <div className="flex h-screen overflow-hidden bg-[var(--nyasa-surface-1)] pt-14 md:pt-0 pb-[56px] md:pb-0">
       <Sidebar />
       <div className="flex-1 flex flex-col overflow-hidden">
-        <div className="px-4 sm:px-6 py-4 border-b border-white/5 flex items-center justify-between">
+        <div className="px-4 sm:px-6 py-4 border-b border-[var(--nyasa-border)] flex items-center justify-between">
           <div>
             <h1 className="text-white font-bold text-lg flex items-center gap-2"><FileText className="w-5 h-5 text-[#25D366]" /> Quotes & Invoices</h1>
             <p className="text-gray-500 text-xs mt-0.5">Create, send, and track quotations and invoices.</p>
@@ -172,7 +172,7 @@ export default function Documents() {
           ) : (
             <div className="grid gap-2.5">
               {list.map(doc => (
-                <div key={doc.id} className="bg-[var(--nyasa-surface-2)] rounded-xl p-4 flex flex-wrap items-center gap-3 border border-white/5">
+                <div key={doc.id} className="bg-[var(--nyasa-surface-2)] rounded-xl p-4 flex flex-wrap items-center gap-3 border border-[var(--nyasa-border)]">
                   <div className="min-w-[160px] flex-1">
                     <div className="flex items-center gap-2">
                       <p className="text-white text-sm font-semibold">{doc.number}</p>
@@ -213,7 +213,7 @@ export default function Documents() {
 
       {showCreate && (
         <div className="fixed inset-0 z-50 bg-black/60 flex items-center justify-center p-4" onClick={closeModal}>
-          <div className="bg-[var(--nyasa-surface-1)] rounded-2xl border border-white/10 w-full max-w-lg max-h-[85vh] overflow-y-auto p-5" onClick={e => e.stopPropagation()}>
+          <div className="bg-[var(--nyasa-surface-1)] rounded-2xl border border-[var(--nyasa-border)] w-full max-w-lg max-h-[85vh] overflow-y-auto p-5" onClick={e => e.stopPropagation()}>
             <div className="flex items-center justify-between mb-4">
               <h2 className="text-white font-bold">{editingDoc ? 'Edit' : 'New'} {tab === 'invoices' ? 'Invoice' : 'Quotation'} {editingDoc ? `· ${editingDoc.number}` : ''}</h2>
               <button onClick={closeModal}><X className="w-5 h-5 text-gray-500" /></button>
@@ -233,7 +233,7 @@ export default function Documents() {
                 <label className={labelCls}>Items</label>
                 <div className="space-y-2">
                   {form.items.map((it, idx) => (
-                    <div key={idx} className="rounded-xl bg-white/[0.03] border border-white/5 p-2 sm:bg-transparent sm:border-0 sm:p-0">
+                    <div key={idx} className="rounded-xl bg-white/[0.03] border border-[var(--nyasa-border)] p-2 sm:bg-transparent sm:border-0 sm:p-0">
                       {/* Description gets its own full-width row -- on narrow phones,
                           cramming it into one row with Qty/Price/delete left it a
                           near-unusable sliver a few px wide. From sm: up (tablet+)
@@ -318,7 +318,7 @@ function SendModal({ workspaceId, target, onClose, onSent }) {
 
   return (
     <div className="fixed inset-0 z-50 bg-black/60 flex items-center justify-center p-4" onClick={onClose}>
-      <div className="bg-[var(--nyasa-surface-1)] rounded-2xl border border-white/10 w-full max-w-sm p-5" onClick={e => e.stopPropagation()}>
+      <div className="bg-[var(--nyasa-surface-1)] rounded-2xl border border-[var(--nyasa-border)] w-full max-w-sm p-5" onClick={e => e.stopPropagation()}>
         <div className="flex items-center justify-between mb-3">
           <h2 className="text-white font-bold text-sm">Send document</h2>
           <button onClick={onClose}><X className="w-5 h-5 text-gray-500" /></button>
@@ -372,7 +372,7 @@ function PaymentModal({ workspaceId, invoice, onClose, onRecorded }) {
 
   return (
     <div className="fixed inset-0 z-50 bg-black/60 flex items-center justify-center p-4" onClick={onClose}>
-      <div className="bg-[var(--nyasa-surface-1)] rounded-2xl border border-white/10 w-full max-w-sm p-5" onClick={e => e.stopPropagation()}>
+      <div className="bg-[var(--nyasa-surface-1)] rounded-2xl border border-[var(--nyasa-border)] w-full max-w-sm p-5" onClick={e => e.stopPropagation()}>
         <div className="flex items-center justify-between mb-3">
           <h2 className="text-white font-bold text-sm">Record payment · {invoice.number}</h2>
           <button onClick={onClose}><X className="w-5 h-5 text-gray-500" /></button>

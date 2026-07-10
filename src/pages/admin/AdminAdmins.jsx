@@ -96,7 +96,7 @@ export default function AdminAdmins() {
           value={newEmail}
           onChange={e => setNewEmail(e.target.value)}
           placeholder="name@company.com"
-          className="flex-1 bg-[var(--nyasa-surface-2)] text-white text-sm rounded-xl px-4 py-2.5 border border-white/10 focus:outline-none focus:ring-1 focus:ring-indigo-400 placeholder:text-gray-600"
+          className="flex-1 bg-[var(--nyasa-surface-2)] text-white text-sm rounded-xl px-4 py-2.5 border border-[var(--nyasa-border)] focus:outline-none focus:ring-1 focus:ring-indigo-400 placeholder:text-gray-600"
         />
         <button
           type="submit"
@@ -111,7 +111,7 @@ export default function AdminAdmins() {
       {loading ? (
         <div className="flex items-center justify-center py-20"><Loader2 className="w-6 h-6 text-indigo-400 animate-spin" /></div>
       ) : (
-        <div className="bg-[var(--nyasa-surface-2)] rounded-2xl border border-white/10 divide-y divide-white/5">
+        <div className="bg-[var(--nyasa-surface-2)] rounded-2xl border border-[var(--nyasa-border)] divide-y divide-white/5">
           {admins.length === 0 && <p className="text-center text-gray-600 py-10 text-sm">No admins yet.</p>}
           {admins.map(a => (
             <div key={a.email} className="flex items-center justify-between px-5 py-3.5">

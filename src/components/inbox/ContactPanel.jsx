@@ -73,7 +73,7 @@ export default function ContactPanel({ conversation, onUpdate = () => {}, onClos
   return (
     <div className={`bg-[var(--nyasa-surface-1)] flex-col overflow-y-auto scrollbar-thin ${className}`}>
       {/* Mobile/tablet back bar — the panel is docked permanently at xl+, so this only shows below that */}
-      <div className="xl:hidden flex items-center gap-3 px-4 h-14 border-b border-white/10 shrink-0 sticky top-0 bg-[var(--nyasa-surface-1)] z-10">
+      <div className="xl:hidden flex items-center gap-3 px-4 h-14 border-b border-[var(--nyasa-border)] shrink-0 sticky top-0 bg-[var(--nyasa-surface-1)] z-10">
         <button onClick={onClose} className="p-1.5 -ml-1.5 text-gray-400 hover:text-white transition-colors">
           <ArrowLeft className="w-5 h-5" />
         </button>
@@ -81,7 +81,7 @@ export default function ContactPanel({ conversation, onUpdate = () => {}, onClos
       </div>
 
       {/* Header */}
-      <div className="px-4 pt-5 pb-4 border-b border-white/10 text-center">
+      <div className="px-4 pt-5 pb-4 border-b border-[var(--nyasa-border)] text-center">
         <Avatar name={conversation.contact_name || '?'} src={conversation.contact_avatar_url} size="lg" />
         {editing ? (
           <div className="mt-3 space-y-2">
@@ -114,7 +114,7 @@ export default function ContactPanel({ conversation, onUpdate = () => {}, onClos
           Shows the actual ad creative (image/video thumbnail) plus headline/body/ad ID, so it's
           immediately obvious which specific ad this lead came from — not just "some ad". */}
       {contact?.ad_attribution && (
-        <div className="px-4 py-3 border-b border-white/10 bg-[#25D366]/5">
+        <div className="px-4 py-3 border-b border-[var(--nyasa-border)] bg-[#25D366]/5">
           <div className="flex items-center gap-1.5 mb-2">
             <Megaphone className="w-3 h-3 text-[#25D366]" />
             <p className="text-[10px] font-semibold text-[#25D366] uppercase tracking-wide">From an ad</p>
@@ -160,13 +160,13 @@ export default function ContactPanel({ conversation, onUpdate = () => {}, onClos
       )}
 
       {/* Deal Stage */}
-      <div className="px-4 py-3 border-b border-white/10">
+      <div className="px-4 py-3 border-b border-[var(--nyasa-border)]">
         <p className="text-[10px] font-semibold text-gray-600 uppercase tracking-wide mb-2">Deal Stage</p>
         <div className="flex flex-wrap gap-1">
           {DEAL_STAGES.map(s => (
             <button key={s} onClick={() => setStage(s)}
               className={`text-[10px] px-2 py-0.5 rounded-full border transition-all
-                ${(conversation.deal_stage || 'New Lead') === s ? `border-current font-semibold ${STAGE_COLORS[s]}` : 'border-white/10 text-gray-700 hover:border-white/20'}`}>
+                ${(conversation.deal_stage || 'New Lead') === s ? `border-current font-semibold ${STAGE_COLORS[s]}` : 'border-[var(--nyasa-border)] text-gray-700 hover:border-[var(--nyasa-border)]'}`}>
               {s}
             </button>
           ))}
@@ -174,7 +174,7 @@ export default function ContactPanel({ conversation, onUpdate = () => {}, onClos
       </div>
 
       {/* Tags */}
-      <div className="px-4 py-3 border-b border-white/10">
+      <div className="px-4 py-3 border-b border-[var(--nyasa-border)]">
         <div className="flex items-center justify-between mb-2">
           <p className="text-[10px] font-semibold text-gray-600 uppercase tracking-wide">Tags</p>
           <button onClick={() => setAddingTag(true)} className="p-1 hover:bg-white/10 rounded transition-colors"><Plus className="w-3 h-3 text-gray-600" /></button>
@@ -199,7 +199,7 @@ export default function ContactPanel({ conversation, onUpdate = () => {}, onClos
       </div>
 
       {/* Reminder */}
-      <div className="px-4 py-3 border-b border-white/10">
+      <div className="px-4 py-3 border-b border-[var(--nyasa-border)]">
         <div className="flex items-center justify-between mb-2">
           <p className="text-[10px] font-semibold text-gray-600 uppercase tracking-wide">Follow-up</p>
           <button onClick={() => setShowReminder(!showReminder)} className="p-1 hover:bg-white/10 rounded transition-colors">
