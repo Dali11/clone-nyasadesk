@@ -47,12 +47,32 @@ export async function persistInboundMessage(sb, workspaceId, params) {
     }, { onConflict: 'workspace_id,channel,external_id' })
     .select('*').single();
 
+  // Check if a conversation already exists so we can handle re-open correctly:
+  //  - Closed conv: re-open it AND preserve the previously assigned agent.
+  //    The agent who closed it is the most context-aware person to continue.
+  //    Only truly NEW convs should fall into unassigned/auto-assign flow.
+  //  - Open/snoozed conv: just update last_message etc. (upsert as before).
+  const { data: existingConv } = await sb.from('conversations')
+    .select('id,unread_count,assigned_to,assigned_to_name,status')
+    .eq('workspace_id', workspaceId).eq('channel', channel).eq('external_id', externalId)
+    .maybeSingle();
+
+  const upsertPayload = {
+    workspace_id: workspaceId, channel, external_id: externalId,
+    contact_id: contact?.id, subject: contactName,
+    last_message: body, last_message_at: timestamp,
+    // Always set status open — if was closed, re-open it
+    status: 'open',
+    // For a previously-closed (or existing) conv: preserve the assigned agent.
+    // For a brand-new conv: assigned_to stays null (unassigned flow / auto-assign).
+    ...(existingConv?.assigned_to ? {
+      assigned_to: existingConv.assigned_to,
+      assigned_to_name: existingConv.assigned_to_name,
+    } : {}),
+  };
+
   const { data: conv } = await sb.from('conversations')
-    .upsert({
-      workspace_id: workspaceId, channel, external_id: externalId,
-      contact_id: contact?.id, status: 'open', subject: contactName,
-      last_message: body, last_message_at: timestamp,
-    }, { onConflict: 'workspace_id,channel,external_id' })
+    .upsert(upsertPayload, { onConflict: 'workspace_id,channel,external_id' })
     .select('id,unread_count,assigned_to').single();
 
   if (conv?.id) {
