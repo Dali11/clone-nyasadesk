@@ -186,6 +186,35 @@ export default function Inbox() {
     updateConversation(updates.id, updates).catch(e => console.error('[Inbox] failed to update conversation:', e));
   };
 
+  const handleBulkAction = async ({ ids, action, payload }) => {
+    if (!ids.length) return;
+    try {
+      if (action === 'assign') {
+        await Promise.all(ids.map(id =>
+          updateConversation(id, { assigned_to: payload.userId, assigned_to_name: payload.userName, status: 'open' })
+        ));
+        setConversations(prev => prev.map(c =>
+          ids.includes(c.id) ? { ...c, assigned_to: payload.userId, assigned_to_name: payload.userName, status: 'open' } : c
+        ));
+        toast({ title: `${ids.length} chat${ids.length !== 1 ? 's' : ''} assigned to ${payload.userName.split(' ')[0]}`, duration: 3500 });
+      } else if (action === 'status') {
+        await Promise.all(ids.map(id => updateConversation(id, { status: payload.status })));
+        setConversations(prev => prev.map(c =>
+          ids.includes(c.id) ? { ...c, status: payload.status } : c
+        ));
+        toast({ title: `${ids.length} chat${ids.length !== 1 ? 's' : ''} marked ${payload.status}`, duration: 3000 });
+      } else if (action === 'delete') {
+        await Promise.all(ids.map(id => deleteConversation(id)));
+        setConversations(prev => prev.filter(c => !ids.includes(c.id)));
+        if (ids.includes(activeConv?.id)) setActiveConv(null);
+        toast({ title: `${ids.length} conversation${ids.length !== 1 ? 's' : ''} deleted`, duration: 3000 });
+      }
+    } catch (e) {
+      console.error('[Inbox] bulk action failed:', e);
+      toast({ title: 'Action failed', description: e.message, duration: 4000 });
+    }
+  };
+
   const handleSendInternalMsg = async () => {
     if (!internalRecipient || !internalMessage.trim() || !workspaceOwnerId) return;
     setSendingInternal(true);
@@ -380,7 +409,7 @@ export default function Inbox() {
               <p className="text-xs text-gray-600">Connect a channel in Settings to start receiving messages.</p>
             </div>
           ) : (
-            <ConvList conversations={filtered} activeId={activeConv?.id} onSelect={handleSelect} />
+            <ConvList conversations={filtered} activeId={activeConv?.id} onSelect={handleSelect} users={teamUsers} onBulkAction={handleBulkAction} />
           )}
         </div>
       </div>
