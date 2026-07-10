@@ -195,7 +195,7 @@ function WhatsAppCard({ saved, workspaceId, onSave, onDelete }) {
     }
     await loadFacebookSDK();
     if (!window.FB) { setEmbeddedError('Facebook SDK failed to load. Try refreshing the page.'); return; }
-    window.FB.init({ appId: configData.app_id, version: 'v19.0', cookie: true });
+    window.FB.init({ appId: configData.app_id, version: 'v21.0', cookie: true });
 
     window.removeEventListener('message', window._nyasaWAListener);
     window._nyasaWAListener = (e) => {
