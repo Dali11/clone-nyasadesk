@@ -123,7 +123,7 @@ export default function Sidebar({ hideMobileChrome = false } = {}) {
                 </div>
               </div>
             </DropdownMenuTrigger>
-            <DropdownMenuContent side="top" align="start" className="w-64 bg-[#202C33] border-white/10">
+            <DropdownMenuContent side="top" align="start" className="w-64">
   {/* User info header */}
   <div className="px-3 py-3 border-b border-white/5">
     <div className="flex items-center gap-3">
@@ -221,7 +221,7 @@ export default function Sidebar({ hideMobileChrome = false } = {}) {
                 <Avatar name={user?.full_name || ''} size="sm" status={user?.status || 'online'} />
               </button>
             </DropdownMenuTrigger>
-            <DropdownMenuContent side="right" align="end" className="w-64 bg-[#202C33] border-white/10">
+            <DropdownMenuContent side="right" align="end" className="w-64">
   {/* User info header */}
   <div className="px-3 py-3 border-b border-white/5">
     <div className="flex items-center gap-3">
@@ -310,7 +310,7 @@ export default function Sidebar({ hideMobileChrome = false } = {}) {
                 <Avatar name={user?.full_name || ''} size="xs" status={user?.status || 'online'} />
               </button>
             </DropdownMenuTrigger>
-            <DropdownMenuContent side="bottom" align="end" className="w-64 bg-[#202C33] border-white/10">
+            <DropdownMenuContent side="bottom" align="end" className="w-64">
   {/* User info header */}
   <div className="px-3 py-3 border-b border-white/5">
     <div className="flex items-center gap-3">

@@ -6,45 +6,58 @@
 
 @layer base {
   :root {
-    --background: 0 0% 96%;
-    --foreground: 222 20% 7%;
-    --card: 0 0% 100%;
-    --card-foreground: 222 20% 7%;
-    --popover: 0 0% 100%;
-    --popover-foreground: 222 20% 7%;
-    --primary: 234 90% 67%;
-    --primary-foreground: 0 0% 100%;
-    --secondary: 220 14% 96%;
-    --secondary-foreground: 222 20% 7%;
-    --muted: 220 14% 96%;
-    --muted-foreground: 220 9% 46%;
-    --accent: 234 90% 67%;
-    --accent-foreground: 0 0% 100%;
-    --destructive: 346 77% 50%;
+    /* ── Nyasadesk dark theme — all shadcn CSS vars set to the app's actual
+       dark palette so every shadcn component (DropdownMenu, Sheet, Dialog,
+       Select, etc.) renders in the correct dark surface rather than the
+       default light white. ───────────────────────────────────────────── */
+    --background:         210 14% 8%;    /* #111B21 — main app bg        */
+    --foreground:         210 20% 92%;   /* near-white body text          */
+
+    --card:               207 14% 16%;   /* #202C33 — card/panel surface  */
+    --card-foreground:    210 20% 92%;
+
+    --popover:            207 14% 16%;   /* #202C33 — dropdown/popover    */
+    --popover-foreground: 210 20% 92%;
+
+    --primary:            142 70% 49%;   /* #25D366 — Nyasadesk green     */
+    --primary-foreground: 0 0% 0%;       /* black text on green buttons   */
+
+    --secondary:          207 12% 20%;   /* slightly lighter dark surface */
+    --secondary-foreground: 210 20% 92%;
+
+    --muted:              207 12% 20%;
+    --muted-foreground:   210 10% 52%;   /* gray-400 labels               */
+
+    --accent:             207 14% 22%;   /* hover state                   */
+    --accent-foreground:  210 20% 92%;
+
+    --destructive:        0 72% 51%;     /* red-500                       */
     --destructive-foreground: 0 0% 98%;
-    --border: 220 13% 91%;
-    --input: 220 13% 91%;
-    --ring: 234 90% 67%;
+
+    --border:             207 14% 20%;   /* white/5 borders               */
+    --input:              207 14% 16%;
+    --ring:               142 70% 49%;   /* focus ring = green            */
+
     --radius: 0.625rem;
     --font-heading: 'Inter', ui-sans-serif, system-ui, sans-serif;
-    --font-body: 'Inter', ui-sans-serif, system-ui, sans-serif;
-    --shadow-card: 0 1px 3px rgba(0,0,0,0.07), 0 1px 2px rgba(0,0,0,0.04);
-    --shadow-card-hover: 0 4px 16px rgba(0,0,0,0.1), 0 2px 4px rgba(0,0,0,0.06);
-    --shadow-modal: 0 24px 64px rgba(0,0,0,0.14);
+    --font-body:    'Inter', ui-sans-serif, system-ui, sans-serif;
+    --shadow-card:       0 1px 3px rgba(0,0,0,0.3), 0 1px 2px rgba(0,0,0,0.2);
+    --shadow-card-hover: 0 4px 16px rgba(0,0,0,0.4), 0 2px 4px rgba(0,0,0,0.2);
+    --shadow-modal:      0 24px 64px rgba(0,0,0,0.6);
   }
 }
 
 @layer base {
   * { @apply border-border outline-ring/50; }
-  body { @apply bg-[#F5F5F7] text-foreground; font-family: 'Inter', ui-sans-serif, system-ui, sans-serif; }
+  body { @apply bg-[#0B141A] text-foreground; font-family: 'Inter', ui-sans-serif, system-ui, sans-serif; }
   h1, h2, h3, h4, h5, h6 { font-family: 'Inter', ui-sans-serif, system-ui, sans-serif; }
 }
 
 @layer utilities {
   .scrollbar-thin::-webkit-scrollbar { width: 4px; height: 4px; }
   .scrollbar-thin::-webkit-scrollbar-track { background: transparent; }
-  .scrollbar-thin::-webkit-scrollbar-thumb { background: #D1D5DB; border-radius: 9999px; }
-  .scrollbar-thin::-webkit-scrollbar-thumb:hover { background: #9CA3AF; }
+  .scrollbar-thin::-webkit-scrollbar-thumb { background: #374151; border-radius: 9999px; }
+  .scrollbar-thin::-webkit-scrollbar-thumb:hover { background: #4B5563; }
   .nav-rail { background: #0F1117; }
   .inbox-indigo { color: #5C6CF7; }
   .bg-inbox-indigo { background: #5C6CF7; }
