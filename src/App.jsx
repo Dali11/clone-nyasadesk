@@ -36,6 +36,7 @@ import PrivacyPolicy   from './pages/PrivacyPolicy';
 import DataDeletion    from './pages/DataDeletion';
 import SupportPage     from './pages/SupportPage';
 import { LockKeyhole } from 'lucide-react';
+import InstallPrompt from './components/InstallPrompt';
 import { supabase } from '@/lib/supabase';
 
 function AppRoutes() {
@@ -174,6 +175,7 @@ export default function App() {
             <AppRoutes />
           </Router>
           <Toaster />
+        <InstallPrompt />
         </NyasaAuthProvider>
       </QueryClientProvider>
     </AuthProvider>
