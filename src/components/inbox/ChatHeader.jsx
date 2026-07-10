@@ -8,7 +8,7 @@ const PRIORITIES = ['low', 'normal', 'high', 'urgent'];
 const STATUSES = ['open', 'snoozed', 'closed'];
 const STATUS_COLOR = { open: 'bg-green-500', snoozed: 'bg-yellow-500', closed: 'bg-gray-500', unassigned: 'bg-orange-400' };
 
-export default function ChatHeader({ conversation, users = [], currentUserId, currentUserRole, onUpdate, onBack, onOpenContact, onDelete, canDelete, onPin, onUnpin, isPinnedForMe, canPin }) {
+export default function ChatHeader({ conversation, users = [], currentUserId, currentUserRole, onUpdate, onBack, onOpenContact, onDelete, canDelete, onPin, onUnpin, isPinnedForMe, canPin, canAssign = false }) {
   if (!conversation) return null;
 
   const assign = (userId, userName) => onUpdate({
@@ -100,18 +100,20 @@ export default function ChatHeader({ conversation, users = [], currentUserId, cu
             </button>
           </DropdownMenuTrigger>
           <DropdownMenuContent align="end" className="w-44 bg-[var(--nyasa-surface-3)] border-[var(--nyasa-border)] text-gray-200">
-            <div className="px-2 py-1.5 text-[10px] text-gray-500 font-semibold uppercase">Assign to</div>
-            {(users || []).map(u => (
-              <DropdownMenuItem key={u.id} onClick={() => assign(u.id, u.full_name)} className="text-xs hover:bg-white/10 focus:bg-white/10 cursor-pointer gap-2">
-                <Avatar name={u.full_name} size="xs" />{u.full_name}
-              </DropdownMenuItem>
-            ))}
-            {conversation.assigned_to && (
-              <DropdownMenuItem onClick={resumeAutomation} className="text-xs hover:bg-white/10 focus:bg-white/10 cursor-pointer gap-2 text-[#25D366]">
-                <Bot className="w-3.5 h-3.5" />Resume AI automation
-              </DropdownMenuItem>
-            )}
-            <DropdownMenuSeparator className="bg-white/10" />
+            {canAssign && (<>
+              <div className="px-2 py-1.5 text-[10px] text-gray-500 font-semibold uppercase">Assign to</div>
+              {(users || []).map(u => (
+                <DropdownMenuItem key={u.id} onClick={() => assign(u.id, u.full_name)} className="text-xs hover:bg-white/10 focus:bg-white/10 cursor-pointer gap-2">
+                  <Avatar name={u.full_name} size="xs" />{u.full_name}
+                </DropdownMenuItem>
+              ))}
+              {conversation.assigned_to && (
+                <DropdownMenuItem onClick={resumeAutomation} className="text-xs hover:bg-white/10 focus:bg-white/10 cursor-pointer gap-2 text-[#25D366]">
+                  <Bot className="w-3.5 h-3.5" />Resume AI automation
+                </DropdownMenuItem>
+              )}
+              <DropdownMenuSeparator className="bg-white/10" />
+            </>)}
             <DropdownMenuItem onClick={() => setShowSaleModal(true)} className="text-xs hover:bg-white/10 focus:bg-white/10 cursor-pointer gap-2 text-[#25D366]">
               <TrendingUp className="w-3.5 h-3.5" />Mark as sale
             </DropdownMenuItem>

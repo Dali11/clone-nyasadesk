@@ -4,7 +4,7 @@ import ConvRow from './ConvRow';
 import Avatar from '@/components/Avatar';
 import { MessageSquare, X, CheckSquare, Square, UserCheck, CheckCircle, Clock, XCircle, Trash2 } from 'lucide-react';
 
-export default function ConvList({ conversations, activeId, onSelect, loading, users = [], onBulkAction }) {
+export default function ConvList({ conversations, activeId, onSelect, loading, users = [], onBulkAction, canAssign = false }) {
   const [selectedIds, setSelectedIds] = useState(new Set());
   const [bulkMode, setBulkMode] = useState(false);
   const [assignOpen, setAssignOpen] = useState(false);
@@ -12,6 +12,7 @@ export default function ConvList({ conversations, activeId, onSelect, loading, u
   const enterBulkMode = (id) => {
     setBulkMode(true);
     setSelectedIds(new Set([id]));
+    setAssignOpen(false);
   };
 
   const toggleSelect = (id) => {
@@ -132,10 +133,12 @@ export default function ConvList({ conversations, activeId, onSelect, loading, u
             ) : (
               /* Main action buttons */
               <div className="flex items-center gap-2 overflow-x-auto scrollbar-none pb-0.5">
-                <button onClick={() => setAssignOpen(true)}
-                  className="flex items-center gap-1.5 px-3 py-2 rounded-lg bg-[#25D366]/15 text-[#25D366] text-xs font-semibold whitespace-nowrap hover:bg-[#25D366]/25 transition-colors">
-                  <UserCheck className="w-3.5 h-3.5" />Assign
-                </button>
+                {canAssign && (
+                  <button onClick={() => setAssignOpen(true)}
+                    className="flex items-center gap-1.5 px-3 py-2 rounded-lg bg-[#25D366]/15 text-[#25D366] text-xs font-semibold whitespace-nowrap hover:bg-[#25D366]/25 transition-colors">
+                    <UserCheck className="w-3.5 h-3.5" />Assign
+                  </button>
+                )}
                 <button onClick={() => handleBulk('status', { status: 'open' })}
                   className="flex items-center gap-1.5 px-3 py-2 rounded-lg bg-white/5 text-gray-300 text-xs font-semibold whitespace-nowrap hover:bg-white/10 transition-colors">
                   <CheckCircle className="w-3.5 h-3.5 text-green-400" />Open

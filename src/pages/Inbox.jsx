@@ -409,7 +409,7 @@ export default function Inbox() {
               <p className="text-xs text-gray-600">Connect a channel in Settings to start receiving messages.</p>
             </div>
           ) : (
-            <ConvList conversations={filtered} activeId={activeConv?.id} onSelect={handleSelect} users={teamUsers} onBulkAction={handleBulkAction} />
+            <ConvList conversations={filtered} activeId={activeConv?.id} onSelect={handleSelect} users={teamUsers} onBulkAction={handleBulkAction} canAssign={canViewAllChats} />
           )}
         </div>
       </div>
@@ -433,6 +433,7 @@ export default function Inbox() {
               onUnpin={handleUnpin}
               isPinnedForMe={pinnedConvs.some(p => p.conversation_id === activeConv.id)}
               canPin={canViewAllChats}
+              canAssign={canViewAllChats}
             />
             <div className="flex-1 flex overflow-hidden relative">
               <MessageThread conversation={activeConv} workspaceId={workspaceOwnerId} />
