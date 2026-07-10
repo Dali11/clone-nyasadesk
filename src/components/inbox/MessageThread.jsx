@@ -511,7 +511,7 @@ export default function MessageThread({ conversation, workspaceId }) {
       inputRef.current?.focus();
     } catch (e) {
       console.error('[MessageThread] AI draft failed:', e);
-      toast({ title: 'AI draft failed', description: e?.message || 'Unknown error', variant: 'destructive' });
+      toast({ title: 'AI draft failed', description: e?.message || 'Unknown error', variant: 'destructive', duration: 5000 });
     } finally {
       setAiDrafting(false);
     }
@@ -588,7 +588,7 @@ export default function MessageThread({ conversation, workspaceId }) {
     } catch (e) {
       console.error('[MessageThread] send failed:', e);
       setMessages(prev => prev.map(m => m.id === tempId ? { ...m, status: 'failed' } : m));
-      toast({ title: 'Message failed to send', description: e?.message || 'Unknown error', variant: 'destructive' });
+      toast({ title: 'Message failed to send', description: e?.message || 'Unknown error', variant: 'destructive', duration: 5000 });
     } finally {
       sendingRef.current = false;
       setSending(false);
@@ -611,7 +611,7 @@ export default function MessageThread({ conversation, workspaceId }) {
     } catch (e) {
       console.error('[MessageThread] media send failed:', e);
       setMessages(prev => prev.map(m => m.id === tempId ? { ...m, status: 'failed' } : m));
-      toast({ title: `Failed to send ${kind}`, description: e?.message || 'Unknown error', variant: 'destructive' });
+      toast({ title: `Failed to send ${kind}`, description: e?.message || 'Unknown error', variant: 'destructive', duration: 5000 });
     }
   };
 
