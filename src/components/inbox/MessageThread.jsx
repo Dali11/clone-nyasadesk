@@ -455,6 +455,9 @@ export default function MessageThread({ conversation, workspaceId }) {
   const fileInputRef = useRef(null);
   const messageRefs = useRef({}); // for the pinned-messages bar's "jump to" scroll
   const sendingRef = useRef(false); // synchronous lock — `sending` state alone can be bypassed
+  // Track IDs of messages we've already inserted via the send/note response so
+  // the realtime subscription can skip them (avoids optimistic duplicate).
+  const settledIds = useRef(new Set());
                                      // if two triggers (e.g. Enter + click) fire before React re-renders
   const mediaRecorderRef = useRef(null);
   const recordChunksRef = useRef([]);
@@ -521,10 +524,20 @@ export default function MessageThread({ conversation, workspaceId }) {
   useEffect(() => {
     if (!conversation?.id) return;
     const sub = subscribeToMessages(conversation.id, (payload) => {
+      const incoming = payload.new;
+      if (!incoming?.id) return;
+      // If we already inserted this message from the send() response, just
+      // update in place (status/wamid may have been refreshed) and remove
+      // from the settled set — don't append a duplicate.
+      if (settledIds.current.has(incoming.id)) {
+        settledIds.current.delete(incoming.id);
+        setMessages(prev => prev.map(m => m.id === incoming.id ? { ...m, ...incoming } : m));
+        return;
+      }
       setMessages(prev => {
-        const exists = prev.find(m => m.id === payload.new.id);
-        if (exists) return prev.map(m => m.id === payload.new.id ? payload.new : m);
-        return [...prev, payload.new];
+        const exists = prev.find(m => m.id === incoming.id);
+        if (exists) return prev.map(m => m.id === incoming.id ? { ...m, ...incoming } : m);
+        return [...prev, incoming];
       });
     });
     return () => sub?.unsubscribe?.();
@@ -558,6 +571,7 @@ export default function MessageThread({ conversation, workspaceId }) {
       }]);
       try {
         const saved = await addNote(wId, conversation.id, text, user?.full_name || 'You', user?.id, replyToSnapshot);
+        if (saved?.id) settledIds.current.add(saved.id);
         setMessages(prev => prev.map(m => m.id === tempId ? saved : m));
       } catch (e) {
         console.error('[MessageThread] failed to save note:', e);
@@ -580,6 +594,8 @@ export default function MessageThread({ conversation, workspaceId }) {
 
     try {
       const msg = await sendMessage(wId, conversation.id, text, user?.full_name || 'You', null, user?.id || null, replyToSnapshot);
+      // Mark this real ID settled so the realtime sub won't add a duplicate
+      if (msg?.id) settledIds.current.add(msg.id);
       // If msg.status === 'queued', we're offline — keep optimistic bubble with queued style
       setMessages(prev => prev.map(m => m.id === tempId ? { ...msg, direction: 'outbound' } : m));
       if (msg.status === 'queued') {
@@ -607,6 +623,7 @@ export default function MessageThread({ conversation, workspaceId }) {
     }]);
     try {
       const msg = await sendMediaMessage(wId, conversation.id, file, kind, user?.full_name || 'You', '', user?.id || null);
+      if (msg?.id) settledIds.current.add(msg.id);
       setMessages(prev => prev.map(m => m.id === tempId ? { ...msg, direction: 'outbound' } : m));
     } catch (e) {
       console.error('[MessageThread] media send failed:', e);
