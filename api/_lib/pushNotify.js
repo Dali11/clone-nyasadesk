@@ -38,6 +38,7 @@ export async function notifyNewMessage(sb, { ownerId, contactName, body, convers
     // Badging API (navigator.setAppBadge, called from the service worker)
     // DOES let us put a real number on the installed PWA's home-screen icon.
     let unreadTotal = 0;
+    let unreadConvs = 0;
     try {
       const { count } = await sb
         .from('conversations')
@@ -45,14 +46,18 @@ export async function notifyNewMessage(sb, { ownerId, contactName, body, convers
         .eq('workspace_id', ownerId)
         .gt('unread_count', 0);
       unreadTotal = count || 0;
+      unreadConvs = count || 0;
     } catch { /* badge is best-effort, never block the actual notification */ }
+
+    // Deep-link URL: open directly to this conversation
+    const convUrl = conversationId ? `/?conv=${conversationId}` : '/';
 
     const payload = JSON.stringify({
       title: contactName || 'New message',
-      body: (body || '').slice(0, 140) || 'Sent an attachment',
+      body: (body || '').slice(0, 140) || '📎 Attachment',
       icon: '/icon-192.png',
-      badge: '/icon-192.png',
-      data: { url: '/', conversationId, channel, unreadTotal },
+      badge: '/badge-n.png',
+      data: { url: convUrl, conversationId, channel, unreadTotal, unreadConvs },
     });
 
     await Promise.all(subs.map(async (row) => {

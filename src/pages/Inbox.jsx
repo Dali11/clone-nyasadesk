@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
+import { useLocation } from 'react-router-dom';
 import { Search, Plus, Loader2, MessageSquareOff, Pin, Pencil } from 'lucide-react';
 import Sidebar from '@/components/Sidebar';
 import ConvList from '@/components/inbox/ConvList';
@@ -33,6 +34,18 @@ export default function Inbox() {
   const [showNew, setShowNew] = useState(false);
   const [contactOpen, setContactOpen] = useState(false);
   const [pinnedConvs, setPinnedConvs] = useState([]);
+
+  // Deep-link from push notification: ?conv=<id> → auto-open that conversation
+  const location = useLocation();
+  useEffect(() => {
+    const params = new URLSearchParams(location.search);
+    const convId = params.get('conv');
+    if (!convId || !conversations.length) return;
+    const target = conversations.find(c => c.id === convId);
+    if (target && (!activeConv || activeConv.id !== convId)) {
+      setActiveConv(target);
+    }
+  }, [location.search, conversations]);
   const [showInternalMsg, setShowInternalMsg] = useState(false);
   const [dmMembers, setDmMembers] = useState([]);
   const [internalRecipient, setInternalRecipient] = useState('');
