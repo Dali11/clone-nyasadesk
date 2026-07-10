@@ -91,25 +91,118 @@ async function inviteHandler(req, res, sb, sbAnon) {
     }
   }
 
-  const { data, error } = await sb.auth.admin.inviteUserByEmail(email, {
-    redirectTo: redirect_to || 'https://nyasadesk.com/onboarding',
+  // Step 1: look up workspace name from the owner's profile
+  const { data: ownerProfile2 } = await sb.from('profiles')
+    .select('workspace_name, full_name').eq('id', workspace_id).maybeSingle();
+  const workspaceName = ownerProfile2?.workspace_name || ownerProfile2?.full_name || 'your team';
+
+  // Step 2: generate a Supabase invite link (creates the user, returns a sign-in URL)
+  const { data: linkData, error: linkErr } = await sb.auth.admin.generateLink({
+    type: 'invite',
+    email,
+    options: {
+      redirectTo: redirect_to || 'https://nyasadesk.com/onboarding',
+      data: { workspace_name: workspaceName, workspace_id, role },
+    },
   });
 
-  if (error) {
-    return res.status(400).json({ error: error.message || 'Failed to send invite' });
+  if (linkErr) {
+    return res.status(400).json({ error: linkErr.message || 'Failed to create invite' });
   }
 
-  const newUserId = data?.user?.id;
+  const newUserId = linkData?.user?.id;
+  const inviteUrl = linkData?.properties?.action_link;
+
+  // Step 3: upsert profile immediately (before email, so the user exists in our DB)
   if (newUserId) {
     const { full_name: providedName } = req.body || {};
     const { error: profileErr } = await sb.from('profiles').upsert({
       id: newUserId,
       workspace_id,
-      role: role === 'user' ? 'user' : role, // preserve sales_manager / admin
+      role: role === 'user' ? 'user' : role,
       full_name: providedName?.trim() || email.split('@')[0],
       onboarding_complete: true,
     }, { onConflict: 'id' });
     if (profileErr) console.error('[team/invite] profile upsert error:', profileErr);
+  }
+
+  // Step 4: send branded invite email via Resend (falls back to Supabase default if no key)
+  const RESEND_KEY = process.env.RESEND_API_KEY;
+  if (RESEND_KEY && inviteUrl) {
+    const { full_name: providedName } = req.body || {};
+    const agentName = providedName?.trim() || email.split('@')[0];
+    const emailHtml = `
+<!DOCTYPE html>
+<html>
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"></head>
+<body style="margin:0;padding:0;background:#f4f4f5;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;">
+  <table width="100%" cellpadding="0" cellspacing="0" style="background:#f4f4f5;padding:40px 16px;">
+    <tr><td align="center">
+      <table width="100%" style="max-width:520px;background:#111B21;border-radius:16px;overflow:hidden;">
+        <!-- Header -->
+        <tr>
+          <td style="background:#075E54;padding:28px 32px;text-align:center;">
+            <div style="display:inline-flex;align-items:center;gap:10px;">
+              <div style="width:36px;height:36px;background:#25D366;border-radius:8px;display:flex;align-items:center;justify-content:center;">
+                <span style="color:white;font-size:18px;font-weight:bold;">N</span>
+              </div>
+              <span style="color:white;font-size:20px;font-weight:700;letter-spacing:-0.3px;">Nyasadesk</span>
+            </div>
+          </td>
+        </tr>
+        <!-- Body -->
+        <tr>
+          <td style="padding:36px 32px;">
+            <h1 style="margin:0 0 8px;color:#E9EDF0;font-size:22px;font-weight:700;line-height:1.3;">
+              You've been invited to join<br>
+              <span style="color:#25D366;">${workspaceName}</span>
+            </h1>
+            <p style="margin:16px 0;color:#8696A0;font-size:15px;line-height:1.6;">
+              Hi ${agentName}, you've been added to the <strong style="color:#E9EDF0;">${workspaceName}</strong> workspace on Nyasadesk as <strong style="color:#E9EDF0;">${role === 'user' ? 'an Agent' : role === 'sales_manager' ? 'a Sales Manager' : 'an Admin'}</strong>.
+            </p>
+            <p style="margin:0 0 28px;color:#8696A0;font-size:15px;line-height:1.6;">
+              Click the button below to set your password and access the shared inbox.
+            </p>
+            <div style="text-align:center;margin-bottom:28px;">
+              <a href="${inviteUrl}"
+                style="display:inline-block;padding:14px 32px;background:#25D366;color:white;text-decoration:none;border-radius:10px;font-weight:700;font-size:15px;letter-spacing:0.1px;">
+                Accept Invitation
+              </a>
+            </div>
+            <p style="margin:0;color:#4B5563;font-size:12px;line-height:1.6;text-align:center;">
+              This invitation link expires in 24 hours.<br>
+              If you weren't expecting this, you can safely ignore this email.
+            </p>
+          </td>
+        </tr>
+        <!-- Footer -->
+        <tr>
+          <td style="padding:16px 32px;border-top:1px solid rgba(255,255,255,0.08);text-align:center;">
+            <p style="margin:0;color:#4B5563;font-size:11px;">Nyasadesk · nyasadesk.com</p>
+          </td>
+        </tr>
+      </table>
+    </td></tr>
+  </table>
+</body>
+</html>`;
+
+    try {
+      await fetch('https://api.resend.com/emails', {
+        method: 'POST',
+        headers: { Authorization: \`Bearer \${RESEND_KEY}\`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          from: 'Nyasadesk <noreply@nyasadesk.com>',
+          to: [email],
+          subject: \`You've been invited to join \${workspaceName}\`,
+          html: emailHtml,
+        }),
+      });
+    } catch (emailErr) {
+      console.error('[team/invite] Resend error (non-fatal):', emailErr);
+      // Don't fail the whole request — account was created, link is valid.
+      // Supabase also sends its own default invite email as a fallback.
+    }
   }
 
   return res.status(200).json({ success: true, user_id: newUserId });
