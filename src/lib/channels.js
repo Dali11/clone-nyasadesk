@@ -1,5 +1,11 @@
 // channels.js — Supabase-backed channel configs + conversation/message helpers
 import { supabase } from '@/lib/supabase';
+import {
+  cacheConversations, getCachedConversations,
+  cacheMessages, getCachedMessages,
+  upsertCachedConversation, upsertCachedMessage,
+  enqueueOutbox,
+} from '@/lib/offlineDb';
 import { applyAssignmentRules } from '../../api/_lib/assignRules.js';
 
 // ── Channel Configs ──────────────────────────────────────────────────────────
@@ -62,6 +68,12 @@ function normalizeConversation(row) {
 }
 
 export async function getConversations(workspaceId, filters = {}) {
+  // If offline, fall back to cached conversations immediately
+  if (!navigator.onLine) {
+    const cached = await getCachedConversations(workspaceId).catch(() => []);
+    return cached;
+  }
+
   let q = supabase
     .from('conversations')
     .select('*, contact:contacts(id,full_name,phone,email,company,avatar_url,deal_stage,tags,notes,ad_attribution,lead_source)')
@@ -75,9 +87,22 @@ export async function getConversations(workspaceId, filters = {}) {
   }
   if (filters.channel && filters.channel !== 'all') q = q.eq('channel', filters.channel);
 
-  const { data, error } = await q;
+  let data, error;
+  try {
+    ({ data, error } = await q);
+  } catch (netErr) {
+    // Network completely unavailable — serve from cache
+    const cached = await getCachedConversations(workspaceId).catch(() => []);
+    return cached;
+  }
+
   if (error) throw error;
-  return (data || []).map(normalizeConversation);
+  const result = (data || []).map(normalizeConversation);
+
+  // Write-through: cache the fresh list for offline use
+  cacheConversations(result).catch(() => {});
+
+  return result;
 }
 
 export async function deleteConversation(id) {
@@ -167,13 +192,31 @@ export async function setMessagePinned(messageId, pinned) {
 }
 
 export async function getMessages(conversationId) {
-  const { data, error } = await supabase
-    .from('messages')
-    .select('*')
-    .eq('conversation_id', conversationId)
-    .order('created_at', { ascending: true });
+  // Offline: return cached messages
+  if (!navigator.onLine) {
+    const cached = await getCachedMessages(conversationId).catch(() => []);
+    return cached;
+  }
+
+  let data, error;
+  try {
+    ({ data, error } = await supabase
+      .from('messages')
+      .select('*')
+      .eq('conversation_id', conversationId)
+      .order('created_at', { ascending: true }));
+  } catch (netErr) {
+    const cached = await getCachedMessages(conversationId).catch(() => []);
+    return cached;
+  }
+
   if (error) throw error;
-  return data || [];
+  const msgs = data || [];
+
+  // Write-through: keep IndexedDB current for offline reads
+  cacheMessages(conversationId, msgs).catch(() => {});
+
+  return msgs;
 }
 
 // Uploads a File/Blob to the public 'chat-media' storage bucket and returns its
@@ -226,6 +269,25 @@ export async function addNote(workspaceId, conversationId, body, senderName, sen
 }
 
 export async function sendMessage(workspaceId, conversationId, body, senderName, attachments = null, senderId = null, replyTo = null) {
+  // ── Offline guard: enqueue and return a fake optimistic message ──────────
+  if (!navigator.onLine) {
+    await enqueueOutbox({ workspaceId, conversationId, body, senderName, senderId,
+                          replyTo, attachments, createdAt: new Date().toISOString() });
+    // Return a fake msg object so optimistic UI still works
+    return {
+      id: 'offline-' + Date.now(),
+      conversation_id: conversationId,
+      workspace_id: workspaceId,
+      body,
+      direction: 'outbound',
+      sender_name: senderName,
+      status: 'queued',
+      created_at: new Date().toISOString(),
+      attachments,
+      reply_to: replyTo,
+    };
+  }
+
   // 1. Insert message record — return as soon as this lands so the caller can
   // reconcile its optimistic bubble immediately. Everything below (steps 2 & 3)
   // used to be awaited before returning, which left a multi-hundred-ms window
@@ -306,7 +368,13 @@ export function subscribeToConversations(workspaceId, callback) {
       schema: 'public',
       table: 'conversations',
       filter: `workspace_id=eq.${workspaceId}`,
-    }, callback)
+    }, (payload) => {
+      // Cache live conversation changes to IDB for offline reading
+      if (payload?.new?.id) {
+        upsertCachedConversation(payload.new).catch(() => {});
+      }
+      callback(payload);
+    })
     .subscribe();
 }
 
@@ -321,7 +389,13 @@ export function subscribeToMessages(conversationId, callback) {
       schema: 'public',
       table: 'messages',
       filter: `conversation_id=eq.${conversationId}`,
-    }, callback)
+    }, (payload) => {
+      // Cache every live message update to IDB so it's available offline
+      if (payload?.new?.id) {
+        upsertCachedMessage(payload.new).catch(() => {});
+      }
+      callback(payload);
+    })
     .subscribe();
 }
 

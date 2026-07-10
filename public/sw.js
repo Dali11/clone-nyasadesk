@@ -1,63 +1,138 @@
-// ── Nyasadesk Service Worker v5 ────────────────────────────────────────────
-// Grouped/stacked notifications (WhatsApp-style), inline reply, badge icon.
+// ── Nyasadesk Service Worker v6 ────────────────────────────────────────────
+// Full offline-first PWA:
+//  - Pre-caches ALL Vite build chunks at install (app shell + all routes)
+//  - Cache-first for assets, network-first for navigation
+//  - Offline: serves cached HTML shell for any navigation
+//  - Grouped/stacked push notifications (WhatsApp-style)
+//  - Inline reply from notification bar
+//  - Badge icon support
 
-const CACHE_NAME = 'nyasadesk-v5';
-const OFFLINE_URL = '/';
+const STATIC_CACHE  = 'nyasadesk-static-v6';   // versioned static assets
+const DYNAMIC_CACHE = 'nyasadesk-dynamic-v6';   // runtime HTML pages
+const SECRET_CACHE  = 'nyasa-sw-secrets-v1';    // inline reply secret
 const NOTIF_REPLY_ENDPOINT = '/api/team?action=notif-reply';
 
-const PRECACHE_URLS = ['/', '/manifest.json', '/icon-192.png', '/icon-512.png',
-  '/icon-maskable-512.png', '/apple-touch-icon.png', '/badge-n.png'];
+// Core shell files — always precached
+const SHELL_URLS = [
+  '/',
+  '/manifest.json',
+  '/icon-192.png',
+  '/icon-512.png',
+  '/icon-maskable-512.png',
+  '/apple-touch-icon.png',
+  '/badge-n.png',
+];
 
-// ── Install ────────────────────────────────────────────────────────────────
+// ── Install: cache shell + all Vite build assets ───────────────────────────
 self.addEventListener('install', (event) => {
-  event.waitUntil(
-    caches.open(CACHE_NAME).then(cache =>
-      cache.addAll(PRECACHE_URLS).catch(err => console.warn('[SW] precache:', err))
-    ).then(() => self.skipWaiting())
-  );
+  event.waitUntil((async () => {
+    const cache = await caches.open(STATIC_CACHE);
+
+    // 1. Cache the core shell
+    await cache.addAll(SHELL_URLS).catch(e => console.warn('[SW] shell precache:', e));
+
+    // 2. Discover and cache ALL Vite output chunks via the asset manifest
+    //    Vite writes /.vite/manifest.json at build time listing every chunk.
+    try {
+      const manifestRes = await fetch('/.vite/manifest.json', { cache: 'no-store' });
+      if (manifestRes.ok) {
+        const manifest = await manifestRes.json();
+        const assetUrls = Object.values(manifest).flatMap(entry => {
+          const files = [entry.file];
+          if (entry.css) files.push(...entry.css);
+          if (entry.assets) files.push(...entry.assets);
+          return files;
+        }).filter(Boolean).map(f => '/' + f.replace(/^\//, ''));
+
+        // Batch into groups of 20 to avoid fetch storms
+        for (let i = 0; i < assetUrls.length; i += 20) {
+          const batch = assetUrls.slice(i, i + 20);
+          await Promise.allSettled(batch.map(url => cache.add(url)));
+        }
+        console.log(`[SW] Precached ${assetUrls.length} Vite chunks`);
+      }
+    } catch (e) {
+      console.warn('[SW] Manifest precache failed (dev mode?):', e.message);
+    }
+
+    await self.skipWaiting();
+  })());
 });
 
-// ── Activate ───────────────────────────────────────────────────────────────
+// ── Activate: purge old caches ─────────────────────────────────────────────
 self.addEventListener('activate', (event) => {
+  const KEEP = [STATIC_CACHE, DYNAMIC_CACHE, SECRET_CACHE];
   event.waitUntil(
     caches.keys()
-      .then(keys => Promise.all(keys.filter(k => k !== CACHE_NAME).map(k => caches.delete(k))))
+      .then(keys => Promise.all(
+        keys.filter(k => !KEEP.includes(k)).map(k => caches.delete(k))
+      ))
       .then(() => self.clients.claim())
   );
 });
 
-// ── Fetch ──────────────────────────────────────────────────────────────────
+// ── Fetch: offline-first strategy ──────────────────────────────────────────
 self.addEventListener('fetch', (event) => {
   const { request } = event;
   const url = new URL(request.url);
-  if (request.method !== 'GET') return;
-  if (!url.origin.includes(self.location.origin)) return;
-  if (url.pathname.startsWith('/api/')) return;
-  if (url.hostname.includes('supabase.co')) return;
 
+  // Non-GET: pass through (POST, etc.)
+  if (request.method !== 'GET') return;
+
+  // Cross-origin API calls: pass through
+  if (url.hostname.includes('supabase.co')) return;
+  if (url.hostname.includes('googletagmanager') ||
+      url.hostname.includes('analytics')) return;
+
+  // Our own API endpoints: network-only (never cache)
+  if (url.pathname.startsWith('/api/')) return;
+
+  // ── Navigation (HTML pages) ─────────────────────────────────────────────
+  // Strategy: Network-first, fall back to shell
   if (request.mode === 'navigate') {
-    event.respondWith(
-      fetch(request)
-        .then(res => {
-          if (res.ok) caches.open(CACHE_NAME).then(c => c.put(request, res.clone()));
-          return res;
-        })
-        .catch(() => caches.match(OFFLINE_URL))
-    );
+    event.respondWith((async () => {
+      try {
+        const res = await fetch(request);
+        if (res.ok) {
+          const cache = await caches.open(DYNAMIC_CACHE);
+          cache.put(request, res.clone());
+        }
+        return res;
+      } catch {
+        // Offline: serve root shell so React Router can still render the page
+        const cached = await caches.match(request) ||
+                       await caches.match('/') ||
+                       new Response('<html><body>Offline</body></html>',
+                         { headers: { 'Content-Type': 'text/html' } });
+        return cached;
+      }
+    })());
     return;
   }
 
-  if (url.pathname.match(/\.(js|css|png|jpg|jpeg|svg|gif|webp|woff2?|ico)$/) ||
-      url.pathname.startsWith('/assets/')) {
-    event.respondWith(
-      caches.match(request).then(cached => {
-        if (cached) return cached;
-        return fetch(request).then(res => {
-          if (res.ok) caches.open(CACHE_NAME).then(c => c.put(request, res.clone()));
-          return res;
-        });
-      })
-    );
+  // ── Static assets (/assets/, fonts, icons, images) ─────────────────────
+  // Strategy: Cache-first → network fallback → cache miss = graceful fail
+  const isAsset =
+    url.pathname.startsWith('/assets/') ||
+    url.pathname.match(/\.(js|css|png|jpg|jpeg|svg|gif|webp|woff2?|ico|mp4|wav|mp3)$/);
+
+  if (isAsset || url.origin === self.location.origin) {
+    event.respondWith((async () => {
+      const cached = await caches.match(request);
+      if (cached) return cached;
+
+      try {
+        const res = await fetch(request);
+        if (res.ok && isAsset) {
+          const cache = await caches.open(STATIC_CACHE);
+          cache.put(request, res.clone());
+        }
+        return res;
+      } catch {
+        // Asset not cached and offline — return empty 404
+        return new Response('', { status: 404 });
+      }
+    })());
   }
 });
 
@@ -76,7 +151,6 @@ self.addEventListener('push', (event) => {
   const channel     = data.data?.channel || 'whatsapp';
 
   event.waitUntil((async () => {
-    // 1. Update app badge
     if ('setAppBadge' in self.registration) {
       (unread > 0
         ? self.registration.setAppBadge(unread)
@@ -84,18 +158,16 @@ self.addEventListener('push', (event) => {
       ).catch(() => {});
     }
 
-    // 2. Get current notifications
-    const existing    = await self.registration.getNotifications();
-    const convNotifs  = existing.filter(n => n.tag?.startsWith('conv-'));
-    const prevNotif   = existing.find(n => n.tag === convTag);
-    const prevCount   = prevNotif?.data?.msgCount || 0;
-    const msgCount    = prevCount + 1;
+    const existing   = await self.registration.getNotifications();
+    const convNotifs = existing.filter(n => n.tag?.startsWith('conv-'));
+    const prevNotif  = existing.find(n => n.tag === convTag);
+    const prevCount  = prevNotif?.data?.msgCount || 0;
+    const msgCount   = prevCount + 1;
     if (prevNotif) prevNotif.close();
 
     const sender  = data.title || 'New message';
     const msgBody = (data.body  || '').slice(0, 100) || '📎 Attachment';
 
-    // 3. Per-conversation notification with inline Reply action
     const convOptions = {
       body:      msgCount > 1 ? `${msgCount} messages · ${msgBody}` : msgBody,
       icon:      '/icon-192.png',
@@ -105,32 +177,27 @@ self.addEventListener('push', (event) => {
       silent:    msgCount > 1,
       vibrate:   msgCount === 1 ? [200, 100, 200] : [],
       timestamp: Date.now(),
-      data: {
-        url, conversationId: convId, workspaceId, channel,
-        msgCount, unreadTotal: unread,
-      },
-      // Android 7+ supports inline text reply via this action type
+      data: { url, conversationId: convId, workspaceId, channel, msgCount, unreadTotal: unread },
       actions: [
         { action: 'reply',   title: 'Reply', type: 'text', placeholder: 'Type a reply…' },
         { action: 'dismiss', title: 'Dismiss' },
       ],
     };
 
-    // 4. Multi-conversation summary
     const otherConvNotifs = convNotifs.filter(n => n.tag !== convTag);
     if (otherConvNotifs.length >= 1 || unreadConvs > 1) {
       for (const n of existing) { if (n.tag !== 'nyasa-summary') n.close(); }
       const totalConvs = Math.max(otherConvNotifs.length + 1, unreadConvs);
       const totalMsgs  = unread;
       await self.registration.showNotification('Nyasadesk', {
-        body:      `${totalMsgs} new message${totalMsgs !== 1 ? 's' : ''} from ${totalConvs} conversation${totalConvs !== 1 ? 's' : ''}`,
-        icon:      '/icon-192.png',
-        badge:     '/badge-n.png',
-        tag:       'nyasa-summary',
-        renotify:  false,
-        silent:    true,
-        data:      { url: '/', isSummary: true, unreadTotal: unread },
-        actions:   [{ action: 'open', title: 'Open inbox' }],
+        body:    `${totalMsgs} new message${totalMsgs !== 1 ? 's' : ''} from ${totalConvs} conversation${totalConvs !== 1 ? 's' : ''}`,
+        icon:    '/icon-192.png',
+        badge:   '/badge-n.png',
+        tag:     'nyasa-summary',
+        renotify: false,
+        silent:  true,
+        data:    { url: '/', isSummary: true, unreadTotal: unread },
+        actions: [{ action: 'open', title: 'Open inbox' }],
       });
     } else {
       const summary = existing.find(n => n.tag === 'nyasa-summary');
@@ -143,38 +210,26 @@ self.addEventListener('push', (event) => {
 // ── Inline reply from notification bar ────────────────────────────────────
 self.addEventListener('notificationreply', (event) => {
   event.notification.close();
-
   const replyText   = event.reply;
   const notifData   = event.notification.data || {};
   const { conversationId, workspaceId, channel } = notifData;
-
   if (!replyText?.trim() || !conversationId || !workspaceId) return;
 
   event.waitUntil((async () => {
     try {
-      // Pull the NOTIF_REPLY_SECRET from SW's own scope (injected at registration time)
-      // We store it in the SW cache under a special key so it survives SW restarts
       const secret = await getReplySecret();
-
       const res = await fetch(NOTIF_REPLY_ENDPOINT, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          secret,
-          conversationId,
-          workspaceId,
-          channel: channel || 'whatsapp',
-          text: replyText.trim(),
-        }),
+        body: JSON.stringify({ secret, conversationId, workspaceId, channel: channel || 'whatsapp', text: replyText.trim() }),
       });
 
       if (res.ok) {
-        // Show a brief "Sent" confirmation notification — replaces the original
         await self.registration.showNotification('Message sent ✓', {
           body:    replyText.trim().slice(0, 80),
           icon:    '/icon-192.png',
           badge:   '/badge-n.png',
-          tag:     notifData.conversationId ? `conv-${notifData.conversationId}` : 'nyasa-sent',
+          tag:     `conv-${conversationId}`,
           silent:  true,
           vibrate: [100],
           data:    { url: notifData.url || '/', conversationId, msgCount: 0, unreadTotal: 0 },
@@ -198,17 +253,10 @@ self.addEventListener('notificationreply', (event) => {
 });
 
 // ── Secret management ──────────────────────────────────────────────────────
-// The NOTIF_REPLY_SECRET is a string stored in the SW's IndexedDB-backed
-// cache so the SW can authenticate inline replies to the backend without
-// a user session. It's written once at PWA install time via a postMessage
-// from main.jsx, then persisted across SW restarts.
-const SECRET_CACHE = 'nyasa-sw-secrets-v1';
-const SECRET_KEY   = 'notif-reply-secret';
-
 async function getReplySecret() {
   try {
     const cache = await caches.open(SECRET_CACHE);
-    const resp  = await cache.match(SECRET_KEY);
+    const resp  = await cache.match('notif-reply-secret');
     if (resp) return await resp.text();
   } catch { /**/ }
   return '';
@@ -217,10 +265,9 @@ async function getReplySecret() {
 self.addEventListener('message', (event) => {
   if (event.data?.type === 'SET_REPLY_SECRET' && event.data.secret) {
     caches.open(SECRET_CACHE).then(cache => {
-      cache.put(SECRET_KEY, new Response(event.data.secret));
+      cache.put('notif-reply-secret', new Response(event.data.secret));
     });
   }
-  // Force update signal from main.jsx
   if (event.data?.type === 'SKIP_WAITING') self.skipWaiting();
 });
 
@@ -228,12 +275,10 @@ self.addEventListener('message', (event) => {
 self.addEventListener('notificationclick', (event) => {
   event.notification.close();
   if (event.action === 'dismiss') return;
-
   const url = event.notification.data?.url || '/';
-
   event.waitUntil((async () => {
-    const allClients = await self.clients.matchAll({ type: 'window', includeUncontrolled: true });
-    for (const client of allClients) {
+    const all = await self.clients.matchAll({ type: 'window', includeUncontrolled: true });
+    for (const client of all) {
       if (client.url.includes(self.location.origin) && 'focus' in client) {
         await client.navigate(url);
         return client.focus();
@@ -245,5 +290,7 @@ self.addEventListener('notificationclick', (event) => {
 
 // ── Background sync ────────────────────────────────────────────────────────
 self.addEventListener('sync', (event) => {
-  if (event.tag === 'nyasa-sync') event.waitUntil(Promise.resolve());
+  // Background sync for outbox is handled by the app via useOutboxSync hook
+  // when the online event fires. SW sync is a belt-and-suspenders backup.
+  if (event.tag === 'nyasa-outbox-sync') event.waitUntil(Promise.resolve());
 });

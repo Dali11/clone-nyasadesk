@@ -580,7 +580,11 @@ export default function MessageThread({ conversation, workspaceId }) {
 
     try {
       const msg = await sendMessage(wId, conversation.id, text, user?.full_name || 'You', null, user?.id || null, replyToSnapshot);
+      // If msg.status === 'queued', we're offline — keep optimistic bubble with queued style
       setMessages(prev => prev.map(m => m.id === tempId ? { ...msg, direction: 'outbound' } : m));
+      if (msg.status === 'queued') {
+        toast({ title: 'No connection', description: 'Message queued — will send when back online 📤', variant: 'default' });
+      }
     } catch (e) {
       console.error('[MessageThread] send failed:', e);
       setMessages(prev => prev.map(m => m.id === tempId ? { ...m, status: 'failed' } : m));

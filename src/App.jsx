@@ -1,4 +1,6 @@
 import { Toaster } from "@/components/ui/toaster";
+import OfflineBanner from "@/components/OfflineBanner";
+import { useOutboxSync } from "@/lib/useOutboxSync";
 import { QueryClientProvider } from "@tanstack/react-query";
 import { queryClientInstance } from "@/lib/query-client";
 import { BrowserRouter as Router, Route, Routes, Navigate, useLocation } from "react-router-dom";
@@ -42,7 +44,8 @@ import { supabase } from '@/lib/supabase';
 function AppRoutes() {
   const location = useLocation();
   const { user, loading: authLoading } = useAuth();
-  const { onboardingComplete, loadingProfile, profile } = useNyasaAuth();
+  const { onboardingComplete, loadingProfile, profile, workspaceOwnerId } = useNyasaAuth();
+  useOutboxSync(workspaceOwnerId);
 
   // ── Public embeddable support page — no auth, no loading gate. ─────────
   // Meant to be iframed on a customer's own site or linked to directly, so
@@ -174,7 +177,8 @@ export default function App() {
             <ScrollToTop />
             <AppRoutes />
           </Router>
-          <Toaster />
+          <OfflineBanner />
+      <Toaster />
         <InstallPrompt />
         </NyasaAuthProvider>
       </QueryClientProvider>
