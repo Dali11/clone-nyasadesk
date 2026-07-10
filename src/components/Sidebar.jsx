@@ -50,6 +50,7 @@ export default function Sidebar({ hideMobileChrome = false } = {}) {
   const [moreOpen, setMoreOpen] = useState(false);
   const { supported: pushSupported, subscribed: pushSubscribed, loading: pushLoading, subscribe: pushSubscribe, unsubscribe: pushUnsubscribe } = usePushNotifications(workspaceOwnerId);
   const togglePush = () => (pushSubscribed ? pushUnsubscribe() : pushSubscribe());
+  const { theme, toggleTheme } = useTheme();
 
   const handleLogout = async () => {
     await signOut();

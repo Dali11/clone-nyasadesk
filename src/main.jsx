@@ -2,6 +2,7 @@ import React from 'react'
 import { ThemeProvider } from '@/lib/ThemeContext'
 import ReactDOM from 'react-dom/client'
 import App from '@/App.jsx'
+import AppErrorBoundary from '@/components/AppErrorBoundary'
 import '@/index.css'
 
 
@@ -19,5 +20,5 @@ if ('serviceWorker' in navigator) {
 }
 
 ReactDOM.createRoot(document.getElementById('root')).render(
-  <ThemeProvider><App /></ThemeProvider>
+  <AppErrorBoundary><ThemeProvider><App /></ThemeProvider></AppErrorBoundary>
 )
