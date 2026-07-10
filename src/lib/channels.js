@@ -903,3 +903,57 @@ export async function addKnowledgeFromFile(workspaceId, agentId, file) {
   if (!res.ok || !data.ok) throw new Error(data.error || 'Failed to add knowledge from file');
   return data.knowledge;
 }
+
+
+// ── Internal agent messaging + pinned conversations ──────────────────────────
+
+export async function getTeamMembers(workspaceId, accessToken) {
+  const res = await fetch(`/api/team?action=team-members&workspace_id=${encodeURIComponent(workspaceId)}`, {
+    headers: accessToken ? { Authorization: `Bearer ${accessToken}` } : {},
+  });
+  const json = await res.json();
+  if (!res.ok) throw new Error(json.error || 'Failed to load team members');
+  return json.members || [];
+}
+
+export async function createInternalConv(workspaceId, recipientId, message, accessToken) {
+  const res = await fetch('/api/team?action=create-internal-conv', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...(accessToken ? { Authorization: `Bearer ${accessToken}` } : {}) },
+    body: JSON.stringify({ workspace_id: workspaceId, recipient_id: recipientId, message }),
+  });
+  const json = await res.json();
+  if (!res.ok) throw new Error(json.error || 'Failed to create internal conversation');
+  return json;
+}
+
+export async function getPinnedConvs(workspaceId, accessToken) {
+  const res = await fetch(`/api/team?action=get-pins&workspace_id=${encodeURIComponent(workspaceId)}`, {
+    headers: accessToken ? { Authorization: `Bearer ${accessToken}` } : {},
+  });
+  const json = await res.json();
+  if (!res.ok) throw new Error(json.error || 'Failed to load pinned conversations');
+  return json.pins || [];
+}
+
+export async function pinConversation(workspaceId, convId, pinnedFor, accessToken) {
+  const res = await fetch('/api/team?action=pin-conv', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...(accessToken ? { Authorization: `Bearer ${accessToken}` } : {}) },
+    body: JSON.stringify({ workspace_id: workspaceId, conversation_id: convId, pinned_for: pinnedFor }),
+  });
+  const json = await res.json();
+  if (!res.ok) throw new Error(json.error || 'Failed to pin conversation');
+  return json;
+}
+
+export async function unpinConversation(workspaceId, convId, pinnedFor, accessToken) {
+  const res = await fetch('/api/team?action=unpin-conv', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...(accessToken ? { Authorization: `Bearer ${accessToken}` } : {}) },
+    body: JSON.stringify({ workspace_id: workspaceId, conversation_id: convId, pinned_for: pinnedFor }),
+  });
+  const json = await res.json();
+  if (!res.ok) throw new Error(json.error || 'Failed to unpin conversation');
+  return json;
+}

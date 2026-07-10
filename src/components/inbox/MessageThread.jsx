@@ -393,6 +393,9 @@ function Bubble({ msg, menuOpenId, onOpenMenu, onCopy, onShare, onDelete, onTogg
           <p className="italic text-gray-500 flex items-center gap-1.5"><Ban className="w-3.5 h-3.5" />This message was deleted</p>
         ) : (
           <>
+            {msg.channel === 'internal' && !isOut && msg.sender_name && (
+              <p className="text-[10px] font-semibold text-[#128C7E] mb-0.5">{msg.sender_name}</p>
+            )}
             {attachment && <MediaAttachment att={attachment} onOpen={onOpenMedia} />}
             {(!attachment || (msg.body && !['📷 Photo','🎥 Video','🎤 Voice message'].includes(msg.body))) && (() => {
               // Pure emoji reaction — render large with a subtle pill, no bubble chrome
@@ -914,7 +917,7 @@ export default function MessageThread({ conversation, workspaceId }) {
               rows={1}
               className="flex-1 bg-[#2A3942] text-white text-sm rounded-xl px-4 py-2.5 focus:outline-none focus:ring-1 focus:ring-[#25D366] resize-none placeholder:text-gray-600 leading-relaxed max-h-32"
               style={{ scrollbarWidth: 'thin' }}
-              placeholder={tab === 'note' ? 'Add an internal note…' : `Reply via ${conversation.channel}…`}
+              placeholder={tab === 'note' ? 'Add an internal note…' : conversation.channel === 'internal' ? 'Reply via internal message…' : `Reply via ${conversation.channel}…`}
               value={body}
               onChange={e => { setBody(e.target.value); e.target.style.height = 'auto'; e.target.style.height = Math.min(e.target.scrollHeight, 128) + 'px'; }}
               onKeyDown={handleKeyDown}

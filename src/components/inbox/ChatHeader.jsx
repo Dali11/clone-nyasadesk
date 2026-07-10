@@ -1,4 +1,4 @@
-import { ChevronDown, MoreVertical, ArrowLeft, Trash2, Bot, TrendingUp } from 'lucide-react';
+import { ChevronDown, MoreVertical, ArrowLeft, Trash2, Bot, TrendingUp, Pin, PinOff } from 'lucide-react';
 import { useState } from 'react';
 import { RecordSaleModal } from '@/pages/Sales';
 import Avatar from '@/components/Avatar';
@@ -8,7 +8,7 @@ const PRIORITIES = ['low', 'normal', 'high', 'urgent'];
 const STATUSES = ['open', 'snoozed', 'closed'];
 const STATUS_COLOR = { open: 'bg-green-500', snoozed: 'bg-yellow-500', closed: 'bg-gray-500', unassigned: 'bg-orange-400' };
 
-export default function ChatHeader({ conversation, users = [], onUpdate, onBack, onOpenContact, onDelete, canDelete }) {
+export default function ChatHeader({ conversation, users = [], onUpdate, onBack, onOpenContact, onDelete, canDelete, onPin, onUnpin, isPinnedForMe, canPin }) {
   if (!conversation) return null;
 
   const assign = (userId, userName) => onUpdate({
@@ -91,6 +91,28 @@ export default function ChatHeader({ conversation, users = [], onUpdate, onBack,
             <DropdownMenuItem onClick={() => setShowSaleModal(true)} className="text-xs hover:bg-white/10 focus:bg-white/10 cursor-pointer gap-2 text-[#25D366]">
               <TrendingUp className="w-3.5 h-3.5" />Mark as sale
             </DropdownMenuItem>
+            {(canPin || isPinnedForMe) && (
+              <>
+                <DropdownMenuSeparator className="bg-white/10" />
+                {canPin && (
+                  <div className="relative">
+                    <div className="px-2 py-1.5 text-[10px] text-gray-500 font-semibold uppercase flex items-center gap-1.5">
+                      <Pin className="w-3 h-3" />Pin for agent
+                    </div>
+                    {(users || []).map(u => (
+                      <DropdownMenuItem key={u.id} onClick={() => onPin?.(u.id)} className="text-xs hover:bg-white/10 focus:bg-white/10 cursor-pointer gap-2 pl-4">
+                        <Avatar name={u.full_name} size="xs" />{u.full_name}
+                      </DropdownMenuItem>
+                    ))}
+                  </div>
+                )}
+                {isPinnedForMe && (
+                  <DropdownMenuItem onClick={() => onUnpin?.()} className="text-xs hover:bg-white/10 focus:bg-white/10 cursor-pointer gap-2 text-orange-400">
+                    <PinOff className="w-3.5 h-3.5" />Unpin for me
+                  </DropdownMenuItem>
+                )}
+              </>
+            )}
             <DropdownMenuSeparator className="bg-white/10" />
             <div className="px-2 py-1.5 text-[10px] text-gray-500 font-semibold uppercase">Priority</div>
             {PRIORITIES.map(p => (

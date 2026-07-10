@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
-import { Search, Plus, Loader2, MessageSquareOff } from 'lucide-react';
+import { Search, Plus, Loader2, MessageSquareOff, Pin, Pencil } from 'lucide-react';
 import Sidebar from '@/components/Sidebar';
 import ConvList from '@/components/inbox/ConvList';
 import ChatHeader from '@/components/inbox/ChatHeader';
@@ -7,7 +7,7 @@ import MessageThread from '@/components/inbox/MessageThread';
 import ContactPanel from '@/components/inbox/ContactPanel';
 import NewConvModal from '@/components/inbox/NewConvModal';
 import { useNyasaAuth } from '@/lib/NyasaAuth';
-import { getConversations, updateConversation, deleteConversation, subscribeToConversations } from '@/lib/channels';
+import { getConversations, updateConversation, deleteConversation, subscribeToConversations, getPinnedConvs, createInternalConv, pinConversation, unpinConversation, getTeamMembers } from '@/lib/channels';
 import { supabase } from '@/lib/supabase';
 import { useDocumentTitle } from '@/hooks/useDocumentTitle';
 
@@ -32,6 +32,13 @@ export default function Inbox() {
   const [search, setSearch] = useState('');
   const [showNew, setShowNew] = useState(false);
   const [contactOpen, setContactOpen] = useState(false);
+  const [pinnedConvs, setPinnedConvs] = useState([]);
+  const [showInternalMsg, setShowInternalMsg] = useState(false);
+  const [dmMembers, setDmMembers] = useState([]);
+  const [internalRecipient, setInternalRecipient] = useState('');
+  const [internalMessage, setInternalMessage] = useState('');
+  const [sendingInternal, setSendingInternal] = useState(false);
+  const [pinPickerConv, setPinPickerConv] = useState(null); // conv being pinned
   // Real team roster for the "Assign to" menu — this used to just be the
   // current user, so you could never actually assign a conversation to a
   // teammate from the chat header, only to yourself.
@@ -71,6 +78,20 @@ export default function Inbox() {
     })();
   }, [workspaceOwnerId]);
 
+  // Load pinned conversations for the current user
+  const loadPinnedConversations = useCallback(async () => {
+    if (!workspaceOwnerId) return;
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      const pins = await getPinnedConvs(workspaceOwnerId, session?.access_token);
+      setPinnedConvs(pins);
+    } catch (e) {
+      console.error('[Inbox] failed to load pinned conversations:', e);
+    }
+  }, [workspaceOwnerId]);
+
+  useEffect(() => { loadPinnedConversations(); }, [loadPinnedConversations]);
+
   // Realtime subscription. IMPORTANT: don't blindly refetch the whole list
   // on every event -- opening a chat itself writes unread_count/last_read_at
   // (see handleSelect below), which fires this exact subscription right as
@@ -97,6 +118,9 @@ export default function Inbox() {
   }, [workspaceOwnerId, loadConversations]);
 
   const filtered = conversations.filter(c => {
+    // Exclude internal conversations from the main list — they only appear
+    // in the Pinned section or when explicitly navigated to
+    if (c.channel === 'internal' && !(activeConv?.channel === 'internal' && activeConv?.id === c.id)) return false;
     if (filter === 'unassigned' && c.assigned_to) return false;
     if (filter === 'open' && c.status !== 'open' && c.status !== 'unassigned') return false;
     if (filter === 'snoozed' && c.status !== 'snoozed') return false;
@@ -133,6 +157,67 @@ export default function Inbox() {
     setActiveConv(prev => ({ ...prev, ...updates }));
     setConversations(prev => prev.map(c => c.id === updates.id ? { ...c, ...updates } : c));
     updateConversation(updates.id, updates).catch(e => console.error('[Inbox] failed to update conversation:', e));
+  };
+
+  const handleSendInternalMsg = async () => {
+    if (!internalRecipient || !internalMessage.trim() || !workspaceOwnerId) return;
+    setSendingInternal(true);
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      const result = await createInternalConv(workspaceOwnerId, internalRecipient, internalMessage.trim(), session?.access_token);
+      // Reload conversations and pinned list
+      await loadConversations();
+      await loadPinnedConversations();
+      setShowInternalMsg(false);
+      setInternalRecipient('');
+      setInternalMessage('');
+      // Open the new internal conversation
+      if (result?.conversation) {
+        const conv = result.conversation;
+        setActiveConv({ ...conv, contact_name: conv.contact_name, channel: 'internal' });
+      }
+    } catch (e) {
+      console.error('[Inbox] failed to send internal message:', e);
+      window.alert(e?.message || 'Failed to send internal message');
+    } finally {
+      setSendingInternal(false);
+    }
+  };
+
+  const handlePinForAgent = async (agentId) => {
+    if (!pinPickerConv || !workspaceOwnerId || !agentId) return;
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      await pinConversation(workspaceOwnerId, pinPickerConv.id, agentId, session?.access_token);
+      await loadPinnedConversations();
+      setPinPickerConv(null);
+    } catch (e) {
+      console.error('[Inbox] failed to pin conversation:', e);
+      window.alert(e?.message || 'Failed to pin conversation');
+    }
+  };
+
+  const handleUnpin = async () => {
+    if (!activeConv || !workspaceOwnerId || !user) return;
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      await unpinConversation(workspaceOwnerId, activeConv.id, user.id, session?.access_token);
+      await loadPinnedConversations();
+    } catch (e) {
+      console.error('[Inbox] failed to unpin conversation:', e);
+      window.alert(e?.message || 'Failed to unpin conversation');
+    }
+  };
+
+  const handleLoadDmMembers = async () => {
+    if (!workspaceOwnerId) return;
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      const members = await getTeamMembers(workspaceOwnerId, session?.access_token);
+      setDmMembers(members);
+    } catch (e) {
+      console.error('[Inbox] failed to load DM members:', e);
+    }
   };
 
   const handleSelect = async (conv) => {
@@ -180,10 +265,19 @@ export default function Inbox() {
         <div className="px-4 pt-4 pb-2 shrink-0">
           <div className="flex items-center justify-between mb-3">
             <h1 className="text-lg font-black text-white">Inbox</h1>
-            <button onClick={() => setShowNew(true)}
-              className="w-8 h-8 rounded-full bg-[#25D366] flex items-center justify-center hover:bg-[#20BA5A] transition-colors">
-              <Plus className="w-4 h-4 text-white" />
-            </button>
+            <div className="flex items-center gap-2">
+              {canViewAllChats && (
+                <button onClick={() => { handleLoadDmMembers(); setShowInternalMsg(true); }}
+                  className="w-8 h-8 rounded-full bg-[#202C33] flex items-center justify-center hover:bg-[#2A3942] transition-colors"
+                  title="New internal message">
+                  <Pencil className="w-4 h-4 text-gray-300" />
+                </button>
+              )}
+              <button onClick={() => setShowNew(true)}
+                className="w-8 h-8 rounded-full bg-[#25D366] flex items-center justify-center hover:bg-[#20BA5A] transition-colors">
+                <Plus className="w-4 h-4 text-white" />
+              </button>
+            </div>
           </div>
           <div className="relative mb-3">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-500 pointer-events-none" />
@@ -225,6 +319,29 @@ export default function Inbox() {
 
         {/* List */}
         <div className="flex-1 overflow-y-auto scrollbar-thin">
+          {/* Pinned conversations section */}
+          {pinnedConvs.length > 0 && (
+            <div>
+              <div className="px-4 py-1.5 flex items-center gap-1.5">
+                <Pin className="w-3 h-3 text-[#25D366]" />
+                <span className="text-[10px] font-semibold text-[#25D366] uppercase tracking-wide">Pinned</span>
+              </div>
+              {pinnedConvs.map(pc => {
+                const conv = pc.conversation;
+                if (!conv) return null;
+                const normalized = {
+                  ...conv,
+                  contact_name: conv.contact_name || 'Internal',
+                  last_message_preview: conv.last_message || '',
+                  unread: (conv.unread_count || 0) > 0,
+                };
+                return (
+                  <ConvRow key={pc.conversation_id} conv={normalized} active={activeConv?.id === conv.id} onClick={handleSelect} pinned />
+                );
+              })}
+              <div className="border-b border-white/10 mx-4 mb-1" />
+            </div>
+          )}
           {loading ? (
             <div className="flex items-center justify-center gap-2 text-gray-500 text-sm py-16">
               <Loader2 className="w-4 h-4 animate-spin" /> Loading…
@@ -254,6 +371,10 @@ export default function Inbox() {
               onOpenContact={() => setContactOpen(true)}
               onDelete={handleDelete}
               canDelete={canViewAllChats}
+              onPin={(agentId) => { setPinPickerConv(activeConv); handlePinForAgent(agentId); }}
+              onUnpin={handleUnpin}
+              isPinnedForMe={pinnedConvs.some(p => p.conversation_id === activeConv.id)}
+              canPin={canViewAllChats}
             />
             <div className="flex-1 flex overflow-hidden relative">
               <MessageThread conversation={activeConv} workspaceId={workspaceOwnerId} />
@@ -282,6 +403,47 @@ export default function Inbox() {
       </div>
 
       <NewConvModal open={showNew} onClose={() => setShowNew(false)} onCreated={c => { setConversations(p => [c, ...p]); setShowNew(false); setActiveConv(c); }} workspaceId={workspaceOwnerId} />
+
+      {/* Internal message modal */}
+      {showInternalMsg && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4" onClick={() => setShowInternalMsg(false)}>
+          <div className="bg-[#233138] rounded-2xl border border-white/10 w-full max-w-md p-6" onClick={e => e.stopPropagation()}>
+            <h2 className="text-base font-bold text-white mb-4">New Internal Message</h2>
+            <label className="block text-xs text-gray-400 mb-1.5">Send to</label>
+            <select
+              className="w-full bg-[#111B21] text-white text-sm rounded-xl px-3 py-2.5 mb-3 focus:outline-none focus:ring-1 focus:ring-[#25D366] border border-white/10"
+              value={internalRecipient}
+              onChange={e => setInternalRecipient(e.target.value)}
+            >
+              <option value="">Select a team member…</option>
+              {dmMembers.map(m => (
+                <option key={m.id} value={m.id}>{m.full_name || 'Teammate'}{m.role ? ` (${m.role})` : ''}</option>
+              ))}
+            </select>
+            <label className="block text-xs text-gray-400 mb-1.5">Message</label>
+            <textarea
+              className="w-full bg-[#111B21] text-white text-sm rounded-xl px-3 py-2.5 mb-4 focus:outline-none focus:ring-1 focus:ring-[#25D366] resize-none border border-white/10"
+              rows={3}
+              placeholder="Type your message…"
+              value={internalMessage}
+              onChange={e => setInternalMessage(e.target.value)}
+            />
+            <div className="flex justify-end gap-2">
+              <button onClick={() => setShowInternalMsg(false)}
+                className="px-4 py-2 rounded-lg text-sm text-gray-400 hover:text-white transition-colors">
+                Cancel
+              </button>
+              <button
+                onClick={handleSendInternalMsg}
+                disabled={!internalRecipient || !internalMessage.trim() || sendingInternal}
+                className="px-4 py-2 rounded-lg bg-[#25D366] text-white text-sm font-semibold hover:bg-[#20BA5A] transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                {sendingInternal ? 'Sending…' : 'Send'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

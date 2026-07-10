@@ -267,6 +267,249 @@ async function removeHandler(req, res, sb, sbAnon) {
   return res.status(200).json({ success: true });
 }
 
+// ── Internal agent-to-agent messaging + pinned conversations ───────────────
+// All merged into team.js (no new file) to stay under Vercel Hobby's
+// 12-function cap. Frontend-only endpoints, keyed off action query params.
+
+async function getTeamMembersHandler(req, res, sb, sbAnon) {
+  const { workspace_id } = req.query;
+  if (!workspace_id) return res.status(400).json({ error: 'workspace_id is required' });
+
+  const callerId = await verifyCaller(req, res, sb, sbAnon);
+  if (!callerId) return;
+
+  const { data: callerProfile } = await sb.from('profiles').select('workspace_id').eq('id', callerId).maybeSingle();
+  const callerWorkspaceId = callerProfile?.workspace_id || callerId;
+  if (String(callerWorkspaceId) !== String(workspace_id)) {
+    return res.status(403).json({ error: 'You do not have access to this workspace' });
+  }
+
+  const { data, error } = await sb
+    .from('profiles')
+    .select('id, full_name, role, avatar_url')
+    .or(`workspace_id.eq.${workspace_id},id.eq.${workspace_id}`)
+    .order('full_name', { ascending: true });
+
+  if (error) throw error;
+  // Exclude the caller themselves from the DM picker list
+  const members = (data || []).filter(m => String(m.id) !== String(callerId));
+  return res.status(200).json({ members });
+}
+
+async function createInternalConvHandler(req, res, sb, sbAnon) {
+  const { workspace_id, recipient_id, message } = req.body || {};
+  if (!workspace_id || !recipient_id || !message) {
+    return res.status(400).json({ error: 'workspace_id, recipient_id, and message are required' });
+  }
+
+  const callerId = await verifyCaller(req, res, sb, sbAnon);
+  if (!callerId) return;
+
+  // Fetch caller profile
+  const { data: callerProfile } = await sb.from('profiles').select('workspace_id, role, full_name').eq('id', callerId).maybeSingle();
+  const callerWorkspaceId = callerProfile?.workspace_id || callerId;
+  if (String(callerWorkspaceId) !== String(workspace_id)) {
+    return res.status(403).json({ error: 'You do not have access to this workspace' });
+  }
+
+  // Fetch recipient profile
+  const { data: recipientProfile, error: recipErr } = await sb.from('profiles')
+    .select('id, full_name, role, workspace_id, avatar_url').eq('id', recipient_id).maybeSingle();
+  if (recipErr || !recipientProfile) {
+    return res.status(404).json({ error: 'Recipient not found' });
+  }
+
+  // Verify recipient is in the same workspace
+  const recipWorkspaceId = recipientProfile.workspace_id || recipientProfile.id;
+  if (String(recipWorkspaceId) !== String(workspace_id)) {
+    return res.status(403).json({ error: 'Recipient is not in this workspace' });
+  }
+
+  const callerName = callerProfile?.full_name || 'Agent';
+  const recipName = recipientProfile.full_name || 'Agent';
+
+  // Step 1: Create or find an internal contact for the recipient
+  const { data: existingContact } = await sb.from('contacts')
+    .select('id').eq('workspace_id', workspace_id).eq('channel', 'internal').eq('full_name', recipName).maybeSingle();
+
+  let contactId = existingContact?.id;
+  if (!contactId) {
+    const { data: newContact, error: contactErr } = await sb.from('contacts').insert({
+      workspace_id,
+      channel: 'internal',
+      full_name: recipName,
+      avatar_url: recipientProfile.avatar_url || null,
+    }).select().single();
+    if (contactErr) throw contactErr;
+    contactId = newContact.id;
+  }
+
+  // Step 2: Create the internal conversation
+  const { data: conv, error: convErr } = await sb.from('conversations').insert({
+    workspace_id,
+    channel: 'internal',
+    contact_id: contactId,
+    contact_name: recipName,
+    assigned_to: recipient_id,
+    status: 'open',
+    priority: 'normal',
+    last_message: message,
+    last_message_at: new Date().toISOString(),
+  }).select().single();
+  if (convErr) throw convErr;
+
+  // Step 3: Insert the first message
+  const { data: msg, error: msgErr } = await sb.from('messages').insert({
+    workspace_id,
+    conversation_id: conv.id,
+    direction: 'outbound',
+    body: message,
+    sender_id: callerId,
+    sender_name: callerName,
+    channel: 'internal',
+    status: 'sent',
+  }).select().single();
+  if (msgErr) throw msgErr;
+
+  // Step 4: Update conversation preview (already set in step 2, but ensure consistency)
+  await sb.from('conversations').update({
+    last_message: message,
+    last_message_at: new Date().toISOString(),
+    updated_at: new Date().toISOString(),
+  }).eq('id', conv.id);
+
+  // Step 5: Auto-pin the conversation for the recipient if they have < 3 pins
+  const { count: pinCount } = await sb.from('pinned_conversations')
+    .select('id', { count: 'exact', head: true })
+    .eq('pinned_for', recipient_id);
+  if ((pinCount || 0) < 3) {
+    await sb.from('pinned_conversations').upsert({
+      workspace_id,
+      pinned_by: callerId,
+      pinned_for: recipient_id,
+      conversation_id: conv.id,
+    }, { onConflict: 'pinned_for,conversation_id' });
+  }
+
+  // Step 6: Send push notification to recipient if they have a push subscription
+  try {
+    const { data: subs } = await sb.from('push_subscriptions')
+      .select('subscription').eq('user_id', recipient_id);
+    if (subs && subs.length > 0) {
+      const VAPID_KEY = process.env.VAPID_PUBLIC_KEY || '';
+      // Best-effort web push — we don't have the web-push library inline,
+      // but we send a simple fetch to each subscription endpoint
+      for (const row of subs) {
+        const sub = row.subscription;
+        if (sub?.endpoint) {
+          // Fire-and-forget — push delivery is non-critical
+          fetch(sub.endpoint, { method: 'POST', headers: sub.headers || {} }).catch(() => {});
+        }
+      }
+    }
+  } catch (pushErr) {
+    console.error('[team/create-internal-conv] push notification error (non-fatal):', pushErr);
+  }
+
+  return res.status(200).json({ success: true, conversation: conv, message: msg });
+}
+
+async function getPinsHandler(req, res, sb, sbAnon) {
+  const { workspace_id } = req.query;
+  if (!workspace_id) return res.status(400).json({ error: 'workspace_id is required' });
+
+  const callerId = await verifyCaller(req, res, sb, sbAnon);
+  if (!callerId) return;
+
+  const { data: callerProfile } = await sb.from('profiles').select('workspace_id').eq('id', callerId).maybeSingle();
+  const callerWorkspaceId = callerProfile?.workspace_id || callerId;
+  if (String(callerWorkspaceId) !== String(workspace_id)) {
+    return res.status(403).json({ error: 'You do not have access to this workspace' });
+  }
+
+  const { data, error } = await sb.from('pinned_conversations')
+    .select(`
+      id, pinned_by, pinned_for, conversation_id, created_at,
+      conversation:conversations(id, workspace_id, channel, contact_name, contact_id, status, priority, assigned_to, assigned_to_name, last_message, last_message_at, unread_count, sla_breach_at, subject)
+    `)
+    .eq('pinned_for', callerId)
+    .eq('workspace_id', workspace_id)
+    .order('created_at', { ascending: false });
+
+  if (error) throw error;
+  return res.status(200).json({ pins: data || [] });
+}
+
+async function pinConvHandler(req, res, sb, sbAnon) {
+  const { workspace_id, conversation_id, pinned_for } = req.body || {};
+  if (!workspace_id || !conversation_id || !pinned_for) {
+    return res.status(400).json({ error: 'workspace_id, conversation_id, and pinned_for are required' });
+  }
+
+  const callerId = await verifyCaller(req, res, sb, sbAnon);
+  if (!callerId) return;
+
+  // Only admin/sales_manager can pin
+  const { data: callerProfile } = await sb.from('profiles').select('workspace_id, role').eq('id', callerId).maybeSingle();
+  const callerWorkspaceId = callerProfile?.workspace_id || callerId;
+  if (String(callerWorkspaceId) !== String(workspace_id)) {
+    return res.status(403).json({ error: 'You do not have access to this workspace' });
+  }
+  const isOwner = String(callerId) === String(workspace_id);
+  const isManager = callerProfile?.role === 'admin' || callerProfile?.role === 'sales_manager';
+  if (!isOwner && !isManager) {
+    return res.status(403).json({ error: 'Only admins or sales managers can pin conversations' });
+  }
+
+  // Enforce max 3 pins per pinned_for agent
+  const { count: pinCount } = await sb.from('pinned_conversations')
+    .select('id', { count: 'exact', head: true })
+    .eq('pinned_for', pinned_for);
+  if ((pinCount || 0) >= 3) {
+    return res.status(400).json({ error: 'This agent already has 3 pinned conversations (the maximum). Unpin one first.' });
+  }
+
+  const { data, error } = await sb.from('pinned_conversations').upsert({
+    workspace_id,
+    pinned_by: callerId,
+    pinned_for,
+    conversation_id,
+  }, { onConflict: 'pinned_for,conversation_id' }).select().single();
+
+  if (error) throw error;
+  return res.status(200).json({ success: true, pin: data });
+}
+
+async function unpinConvHandler(req, res, sb, sbAnon) {
+  const { workspace_id, conversation_id, pinned_for } = req.body || {};
+  if (!workspace_id || !conversation_id || !pinned_for) {
+    return res.status(400).json({ error: 'workspace_id, conversation_id, and pinned_for are required' });
+  }
+
+  const callerId = await verifyCaller(req, res, sb, sbAnon);
+  if (!callerId) return;
+
+  const { data: callerProfile } = await sb.from('profiles').select('workspace_id, role').eq('id', callerId).maybeSingle();
+  const callerWorkspaceId = callerProfile?.workspace_id || callerId;
+  if (String(callerWorkspaceId) !== String(workspace_id)) {
+    return res.status(403).json({ error: 'You do not have access to this workspace' });
+  }
+  const isOwner = String(callerId) === String(workspace_id);
+  const isManager = callerProfile?.role === 'admin' || callerProfile?.role === 'sales_manager';
+  if (!isOwner && !isManager) {
+    return res.status(403).json({ error: 'Only admins or sales managers can unpin conversations' });
+  }
+
+  const { error } = await sb.from('pinned_conversations')
+    .delete()
+    .eq('pinned_for', pinned_for)
+    .eq('conversation_id', conversation_id);
+
+  if (error) throw error;
+  return res.status(200).json({ success: true });
+}
+
+
 export default async function handler(req, res) {
   try {
     const sb = createClient(SUPABASE_URL, SUPABASE_KEY);
@@ -277,6 +520,14 @@ export default async function handler(req, res) {
     if (action === 'push-unsubscribe' && req.method === 'POST') return await pushUnsubscribeHandler(req, res, sb, sbAnon);
 
     if (action === 'remove' && req.method === 'POST') return await removeHandler(req, res, sb, sbAnon);
+
+    // Internal agent-to-agent messaging + pinned conversations
+    if (action === 'team-members' && req.method === 'GET') return await getTeamMembersHandler(req, res, sb, sbAnon);
+    if (action === 'create-internal-conv' && req.method === 'POST') return await createInternalConvHandler(req, res, sb, sbAnon);
+    if (action === 'get-pins' && req.method === 'GET') return await getPinsHandler(req, res, sb, sbAnon);
+    if (action === 'pin-conv' && req.method === 'POST') return await pinConvHandler(req, res, sb, sbAnon);
+    if (action === 'unpin-conv' && req.method === 'POST') return await unpinConvHandler(req, res, sb, sbAnon);
+
     if (req.method === 'GET') return await listHandler(req, res, sb, sbAnon);
     if (req.method === 'POST') return await inviteHandler(req, res, sb, sbAnon);
     return res.status(405).json({ error: 'Method not allowed' });
