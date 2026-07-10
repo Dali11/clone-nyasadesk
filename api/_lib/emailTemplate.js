@@ -3,7 +3,7 @@
 // Matches the dark-green WhatsApp-inspired brand used in the invite email.
 //
 // Usage:
-//   const { buildEmail } = require('./_lib/emailTemplate');
+//   import { buildEmail } from './_lib/emailTemplate.js';
 //   const html = buildEmail({
 //     preheader: 'Short preview text shown in inbox',
 //     body: `...inner HTML content (no wrapping needed)...`,
@@ -99,4 +99,4 @@ function buildEmail({ preheader = '', body = '', cta = null, footer = '' }) {
 </html>`;
 }
 
-module.exports = { buildEmail };
+export { buildEmail };

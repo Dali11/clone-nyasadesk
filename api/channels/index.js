@@ -19,6 +19,7 @@ import {
 import { discoverWabas, connectWaba, createWaba, addPhoneNumber, requestVerificationCode, verifyPhoneCode, registerPhoneNumber } from '../_lib/whatsappGuidedSetup.js';
 import { validateToken, discoverWabas as discoverWabasManual, getWabaInfo, listPhoneNumbers, getPhoneDetails, isPhoneRegistered, autoSetup } from '../_lib/whatsappSetup.js';
 import { freshSetup } from '../_lib/freshSetup.js';
+import { buildEmail } from '../_lib/emailTemplate.js';
 import { jsPDF } from 'jspdf';
 
 const SUPABASE_URL = 'https://pfbaepibelomiutlotkn.supabase.co';
