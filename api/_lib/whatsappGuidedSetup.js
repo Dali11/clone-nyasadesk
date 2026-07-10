@@ -97,9 +97,26 @@ export async function connectWaba(sb, { workspaceId, accessToken, wabaId, phoneN
   const verifyToken = `nyasa_${workspaceId.slice(-8)}`;
   const callbackUri = `https://nyasadesk.com/api/webhooks/whatsapp`;
 
-  // Meta's documented webhook-override feature: subscribes this WABA to
-  // deliver webhooks straight to our endpoint, bypassing any need for the
-  // customer to own/configure a separate Facebook Developer App.
+  // IMPORTANT ORDER: save the verify_token to DB FIRST before calling Meta's
+  // webhook subscription endpoint. Meta immediately sends a verification ping
+  // to our callback URL — if the token isn't in the DB yet, our handler
+  // returns 403 and Meta rejects with #2200 "Callback verification failed".
+  const { error: preErr } = await sb.from('channel_configs').upsert({
+    workspace_id: workspaceId, channel: 'whatsapp', enabled: true,
+    config: {
+      provider: 'cloud',
+      access_token: accessToken,
+      phone_number_id: phoneNumberId,
+      waba_id: wabaId,
+      verify_token: verifyToken,
+      connected_via: 'guided_graph_api',
+      connected_at: new Date().toISOString(),
+    },
+    updated_at: new Date().toISOString(),
+  }, { onConflict: 'workspace_id,channel' });
+  if (preErr) throw new Error(preErr.message);
+
+  // Now subscribe webhooks — Meta's ping will find the token in the DB.
   const subRes = await fetch(`${GRAPH}/${wabaId}/subscribed_apps`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
@@ -114,6 +131,7 @@ export async function connectWaba(sb, { workspaceId, accessToken, wabaId, phoneN
     throw new Error(subData.error.message || 'Failed to subscribe webhooks for this WABA. The token may be missing "Manage" permission on it.');
   }
 
+  // Fetch full phone details now that webhooks are subscribed.
   const numRes = await fetch(`${GRAPH}/${phoneNumberId}?fields=display_phone_number,verified_name,quality_rating&access_token=${encodeURIComponent(accessToken)}`);
   const numData = await numRes.json();
 
@@ -130,6 +148,7 @@ export async function connectWaba(sb, { workspaceId, accessToken, wabaId, phoneN
     connected_at: new Date().toISOString(),
   };
 
+  // Update config with full phone details.
   const { error } = await sb.from('channel_configs').upsert({
     workspace_id: workspaceId, channel: 'whatsapp', enabled: true, config,
     updated_at: new Date().toISOString(),

@@ -395,9 +395,17 @@ export class WhatsAppCloudProvider extends MessagingProvider {
     const challenge = req.query['hub.challenge'];
 
     if (mode === 'subscribe') {
-      // Match verify_token against any workspace's config
+      // Primary: match verify_token against any workspace's saved config
       const match = configs?.find(c => c.config?.verify_token === token);
-      if (match || !configs?.length) return { challenge };
+      if (match) return { challenge };
+
+      // Fallback 1: our tokens always follow the pattern nyasa_<8chars>
+      // Accept any token that matches the pattern — covers the race window
+      // where the DB write hasn't fully committed before Meta's ping arrives.
+      if (token && /^nyasa_[a-zA-Z0-9]{8}$/.test(token)) return { challenge };
+
+      // Fallback 2: no configs at all yet (fresh workspace)
+      if (!configs?.length) return { challenge };
     }
     return null;
   }

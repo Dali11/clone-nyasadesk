@@ -1053,15 +1053,42 @@ async function handleWhatsappManualConnect(req, res) {
       });
     }
 
-    // Step 6: fully set up (subscribe webhooks, fetch limits, etc.)
+    // Step 6: Save the verify_token to DB BEFORE subscribing webhooks.
+    // Meta's callback verification ping arrives immediately when we call
+    // subscribeWebhooks — if the token isn't in the DB yet, our webhook
+    // handler returns 403 and Meta rejects the connection (#2200).
+    const { createClient } = await import('@supabase/supabase-js');
+    const sb = createClient(
+      'https://pfbaepibelomiutlotkn.supabase.co',
+      process.env.SUPABASE_SERVICE_ROLE_KEY
+    );
+    const verifyToken = 'nyasa_' + resolvedWabaId.slice(-8);
+
+    // Write a partial config first so the webhook verify ping can succeed
+    await sb.from('channel_configs').upsert({
+      workspace_id, channel: 'whatsapp', enabled: true,
+      config: {
+        provider: 'cloud',
+        access_token,
+        phone_number_id: resolvedPhoneId,
+        waba_id: resolvedWabaId,
+        verify_token: verifyToken,
+        connected_via: 'manual_cloud_api',
+        connected_at: new Date().toISOString(),
+      },
+      updated_at: new Date().toISOString(),
+    }, { onConflict: 'workspace_id,channel' });
+
+    // Step 7: now subscribe webhooks + fetch full phone details
     const setup = await autoSetup(access_token, resolvedWabaId, resolvedPhoneId);
 
+    // Step 8: update config with full phone details from setup
     const config = {
       provider: 'cloud',
       access_token,
       phone_number_id: resolvedPhoneId,
       waba_id: resolvedWabaId,
-      verify_token: 'nyasa_' + resolvedWabaId.slice(-8),
+      verify_token: verifyToken,
       phone_number: setup.phone.display_phone_number,
       verified_name: setup.phone.verified_name,
       quality_rating: setup.phone.quality_rating,
@@ -1071,11 +1098,6 @@ async function handleWhatsappManualConnect(req, res) {
       connected_at: new Date().toISOString(),
     };
 
-    const { createClient } = await import('@supabase/supabase-js');
-    const sb = createClient(
-      'https://pfbaepibelomiutlotkn.supabase.co',
-      process.env.SUPABASE_SERVICE_ROLE_KEY
-    );
     await sb.from('channel_configs').upsert({
       workspace_id, channel: 'whatsapp', enabled: true, config,
       updated_at: new Date().toISOString(),
