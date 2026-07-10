@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { Loader2, Users, MessageSquare, Calendar, Clock, Crown, Plus, Lock, Unlock, Eye } from 'lucide-react';
 import { adminFetch } from '@/lib/adminApi';
 import { useDocumentTitle } from '@/hooks/useDocumentTitle';
+import { useToast } from '@/components/ui/use-toast';
 
 const PLAN_INFO = {
   starter: { label: 'Starter', seats: 2 },
@@ -21,6 +22,7 @@ const SUB_BADGE = {
 // Formerly the whole of AdminPanel.jsx — now lives inside AdminLayout's
 // shell, so it only renders its own content, not a full-page wrapper.
 export default function AdminWorkspaces() {
+  const { toast } = useToast();
   useDocumentTitle('Admin · Workspaces');
   const navigate = useNavigate();
   const [workspaces, setWorkspaces] = useState([]);
@@ -70,7 +72,7 @@ export default function AdminWorkspaces() {
       await load();
     } catch (e) {
       console.error('[AdminWorkspaces] update error:', e);
-      window.alert(e.message);
+      toast({ variant: 'destructive', title: 'Error', description: e.message });
     } finally {
       setUpdating(null);
     }

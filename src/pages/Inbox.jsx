@@ -234,7 +234,7 @@ export default function Inbox() {
       }
     } catch (e) {
       console.error('[Inbox] failed to send internal message:', e);
-      window.alert(e?.message || 'Failed to send internal message');
+      toast({ variant: 'destructive', title: 'Error', description: e?.message || 'Failed to send internal message' });
     } finally {
       setSendingInternal(false);
     }
@@ -249,7 +249,7 @@ export default function Inbox() {
       setPinPickerConv(null);
     } catch (e) {
       console.error('[Inbox] failed to pin conversation:', e);
-      window.alert(e?.message || 'Failed to pin conversation');
+      toast({ variant: 'destructive', title: 'Error', description: e?.message || 'Failed to pin conversation' });
     }
   };
 
@@ -261,7 +261,7 @@ export default function Inbox() {
       await loadPinnedConversations();
     } catch (e) {
       console.error('[Inbox] failed to unpin conversation:', e);
-      window.alert(e?.message || 'Failed to unpin conversation');
+      toast({ variant: 'destructive', title: 'Error', description: e?.message || 'Failed to unpin conversation' });
     }
   };
 
@@ -295,7 +295,7 @@ export default function Inbox() {
       setActiveConv(prev => (prev?.id === id ? null : prev));
     } catch (e) {
       console.error('[Inbox] failed to delete conversation:', e);
-      window.alert('Could not delete this conversation. You may not have permission.');
+      toast({ variant: 'destructive', title: 'Error', description: 'Could not delete this conversation. You may not have permission.' });
     }
   };
 

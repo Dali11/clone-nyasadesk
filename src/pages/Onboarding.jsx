@@ -71,6 +71,7 @@ export default function Onboarding() {
   const toggleCh = (id) => setSelectedCh(p => p.includes(id) ? p.filter(c => c !== id) : [...p, id]);
 
   const finish = async () => {
+    if (!workspaceName.trim()) { setError('Please enter a workspace name'); return; }
     setLoading(true); setError('');
     try {
       const { error: err } = await supabase.from('profiles').upsert({

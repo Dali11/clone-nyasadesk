@@ -3,12 +3,14 @@ import { useNavigate } from 'react-router-dom';
 import { Loader2, DollarSign, Check } from 'lucide-react';
 import { adminFetch } from '@/lib/adminApi';
 import { useDocumentTitle } from '@/hooks/useDocumentTitle';
+import { useToast } from '@/components/ui/use-toast';
 
 // Admin-editable monthly pricing per plan, backed by the plan_pricing DB
 // table (see api/admin/workspaces.js ?resource=pricing). Changing a price
 // here takes effect immediately everywhere that reads it: the public
 // Pricing page, new checkouts, and the Overview MRR calc -- no deploy needed.
 export default function AdminPricing() {
+  const { toast } = useToast();
   useDocumentTitle('Admin · Pricing');
   const navigate = useNavigate();
   const [plans, setPlans] = useState([]);
@@ -44,7 +46,7 @@ export default function AdminPricing() {
     const raw = drafts[plan];
     const price_mwk = Number(raw);
     if (!Number.isFinite(price_mwk) || price_mwk < 0 || !Number.isInteger(price_mwk)) {
-      alert('Enter a whole number (MWK), e.g. 30000');
+      toast({ variant: 'destructive', title: 'Error', description: 'Enter a whole number (MWK), e.g. 30000' });
       return;
     }
     setSaving(plan);
@@ -59,7 +61,7 @@ export default function AdminPricing() {
       setTimeout(() => setSavedFlash(cur => cur === plan ? null : cur), 1800);
     } catch (e) {
       console.error('[AdminPricing] save error:', e);
-      alert(e.message || 'Failed to save price');
+      toast({ variant: 'destructive', title: 'Error', description: e.message || 'Failed to save price' });
     } finally {
       setSaving(null);
     }

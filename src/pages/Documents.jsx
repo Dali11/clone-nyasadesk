@@ -4,6 +4,7 @@ import Sidebar from '@/components/Sidebar';
 import { useNyasaAuth } from '@/lib/NyasaAuth';
 import { supabase } from '@/lib/supabase';
 import { useDocumentTitle } from '@/hooks/useDocumentTitle';
+import { useToast } from '@/components/ui/use-toast';
 import {
   getDocSettings, saveDocSettings, listQuotations, listInvoices, createQuotation, updateQuotation,
   convertQuotationToInvoice, createInvoice, recordInvoicePayment, sendDocument, getQuotation, getInvoice,
@@ -34,6 +35,7 @@ const BLANK_DOC_FORM = {
 };
 
 export default function Documents() {
+  const { toast } = useToast();
   useDocumentTitle('Quotes & Invoices');
   const { workspaceOwnerId, isWorkspaceAdmin } = useNyasaAuth();
 
@@ -118,14 +120,14 @@ export default function Documents() {
 
   const convert = async (id) => {
     try { await convertQuotationToInvoice(workspaceOwnerId, id); await load(); setTab('invoices'); }
-    catch (e) { alert(e.message); }
+    catch (e) { toast({ variant: 'destructive', title: 'Error', description: e.message }); }
   };
 
   const download = async (doc_type, id) => {
     try {
       const res = doc_type === 'invoice' ? await getInvoice(workspaceOwnerId, id) : await getQuotation(workspaceOwnerId, id);
       window.open(res.pdf_url, '_blank');
-    } catch (e) { alert(e.message); }
+    } catch (e) { toast({ variant: 'destructive', title: 'Error', description: e.message }); }
   };
 
   const list = tab === 'invoices' ? invoices : quotations;
@@ -415,7 +417,7 @@ function DocSettingsForm({ workspaceId, settings, onSaved }) {
       const url = await uploadChatMedia(workspaceId, file, 'logo');
       set('logo_url', url);
     } catch (err) {
-      alert('Logo upload failed: ' + err.message);
+      toast({ variant: 'destructive', title: 'Error', description: 'Logo upload failed: ' + err.message });
     } finally {
       setLogoUploading(false);
     }
@@ -435,7 +437,7 @@ function DocSettingsForm({ workspaceId, settings, onSaved }) {
       const updated = await saveDocSettings(workspaceId, form);
       onSaved(updated); setSaved(true); setTimeout(() => setSaved(false), 2000);
     } catch (e) {
-      alert(e.message);
+      toast({ variant: 'destructive', title: 'Error', description: e.message });
     } finally {
       setSaving(false);
     }

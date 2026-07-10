@@ -10,6 +10,7 @@ import { getChannelConfigs, saveChannelConfig, deleteChannelConfig } from '@/lib
 import { supabase } from '@/lib/supabase';
 import { useDocumentTitle } from '@/hooks/useDocumentTitle';
 import { useFacebookSDK } from '@/hooks/useFacebookSDK';
+import { useToast } from '@/components/ui/use-toast';
 
 const PROD_URL  = 'https://nyasadesk.com';
 const FB_APP_ID = import.meta.env.VITE_FACEBOOK_APP_ID || '';
@@ -1192,6 +1193,7 @@ function TelegramCard({ saved, workspaceId, onSave, onDelete }) {
 }
 
 export default function Settings() {
+  const { toast } = useToast();
   useDocumentTitle('Settings');
   const { user, profile, workspaceOwnerId, isWorkspaceAdmin, isPlatformAdmin } = useNyasaAuth();
   const navigate = useNavigate();
@@ -1281,7 +1283,7 @@ export default function Settings() {
       if (data.checkout_url) window.location.href = data.checkout_url;
     } catch (e) {
       console.error('[Settings] checkout error:', e);
-      window.alert(e.message || 'Could not start checkout');
+      toast({ variant: 'destructive', title: 'Error', description: e.message || 'Could not start checkout' });
     } finally {
       setCheckoutLoading(null);
     }

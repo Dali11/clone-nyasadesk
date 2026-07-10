@@ -5,6 +5,7 @@ import Sidebar from '@/components/Sidebar';
 import { useNyasaAuth } from '@/lib/NyasaAuth';
 import { getAiAgents, saveAiAgent, deleteAiAgent, getAiAgentTemplates, getAiKnowledge, saveAiKnowledge, deleteAiKnowledge, addKnowledgeFromUrl, addKnowledgeFromFile, getAiUsageSummary, getRules } from '@/lib/channels';
 import { useDocumentTitle } from '@/hooks/useDocumentTitle';
+import { useToast } from '@/components/ui/use-toast';
 
 const CHANNEL_OPTIONS = ['whatsapp', 'website', 'instagram', 'telegram', 'messenger'];
 const LANGUAGE_OPTIONS = ['English', 'Chichewa', 'French', 'Portuguese', 'Swahili'];
@@ -23,6 +24,7 @@ const AGENT_TYPE_BADGES = {
 };
 
 export default function AiAgents() {
+  const { toast } = useToast();
   useDocumentTitle('AI Agents');
   const { workspaceOwnerId, isWorkspaceAdmin, profile } = useNyasaAuth();
   const hasAiAccess = profile?.plan === 'scale';
@@ -107,7 +109,7 @@ export default function AiAgents() {
       await loadKnowledge(editing);
     } catch (e) {
       console.error('[AiAgents] knowledge save error:', e);
-      alert('Failed to save knowledge: ' + e.message);
+      toast({ variant: 'destructive', title: 'Error', description: 'Failed to save knowledge: ' + e.message });
     } finally {
       setSavingKnowledge(false);
     }
@@ -131,7 +133,7 @@ export default function AiAgents() {
       await addKnowledgeFromUrl(workspaceOwnerId, editing, url.trim());
       await loadKnowledge(editing);
     } catch (e) {
-      alert('Could not add that page: ' + e.message);
+      toast({ variant: 'destructive', title: 'Error', description: 'Could not add that page: ' + e.message });
     } finally {
       setIngestingUrl(false);
     }
@@ -141,13 +143,13 @@ export default function AiAgents() {
     const file = e.target.files?.[0];
     e.target.value = '';
     if (!file) return;
-    if (file.size > 2.5 * 1024 * 1024) { alert('File is too large (max 2.5MB) — try a shorter document.'); return; }
+    if (file.size > 2.5 * 1024 * 1024) { toast({ variant: 'destructive', title: 'Error', description: 'File is too large (max 2.5MB) — try a shorter document.' }); return; }
     setIngestingFile(true);
     try {
       await addKnowledgeFromFile(workspaceOwnerId, editing, file);
       await loadKnowledge(editing);
     } catch (e2) {
-      alert('Could not read that file: ' + e2.message);
+      toast({ variant: 'destructive', title: 'Error', description: 'Could not read that file: ' + e2.message });
     } finally {
       setIngestingFile(false);
     }
@@ -161,7 +163,7 @@ export default function AiAgents() {
   const save = async () => {
     if (!form.name.trim() || saving) return;
     if (form.system_instructions.length > INSTRUCTIONS_MAX_CHARS) {
-      alert(`System instructions are too long (${form.system_instructions.length.toLocaleString()} / ${INSTRUCTIONS_MAX_CHARS.toLocaleString()} chars) -- trim it down a bit before saving.`);
+      toast({ variant: 'destructive', title: 'Error', description: `System instructions are too long (${form.system_instructions.length.toLocaleString()} / ${INSTRUCTIONS_MAX_CHARS.toLocaleString()} chars) — trim it down a bit before saving.` });
       return;
     }
     setSaving(true);
@@ -180,9 +182,9 @@ export default function AiAgents() {
     } catch (e) {
       console.error('[AiAgents] save error:', e);
       const isNetworkErr = e instanceof TypeError || /failed to fetch|network/i.test(e?.message || '');
-      alert(isNetworkErr
+      toast({ variant: 'destructive', title: 'Error', description: isNetworkErr
         ? "Couldn't save — your connection dropped. Check your signal and try again."
-        : 'Failed to save: ' + e.message);
+        : 'Failed to save: ' + e.message });
     } finally {
       setSaving(false);
     }
@@ -195,7 +197,7 @@ export default function AiAgents() {
       setAgents(prev => prev.filter(a => a.id !== id));
     } catch (e) {
       console.error('[AiAgents] delete error:', e);
-      alert('Failed to delete: ' + e.message);
+      toast({ variant: 'destructive', title: 'Error', description: 'Failed to delete: ' + e.message });
     }
   };
 
