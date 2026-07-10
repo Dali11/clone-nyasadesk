@@ -1,11 +1,11 @@
 import { useState } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
-import { MessageSquare, BarChart2, Users, Megaphone, Settings, Zap, BookOpen, ShieldCheck, LogOut, MoreHorizontal, Bell, BellOff, Bot, FileText, TrendingUp } from 'lucide-react';
+import { MessageSquare, BarChart2, Users, Megaphone, Settings, Zap, BookOpen, ShieldCheck, LogOut, MoreHorizontal, Bell, BellOff, Bot, FileText, TrendingUp, User, Lock, Moon, HelpCircle, Star, ExternalLink } from 'lucide-react';
 import Avatar from './Avatar';
 import { useNyasaAuth } from '@/lib/NyasaAuth';
 import { useAuth } from '@/lib/AuthContext';
 import { usePushNotifications } from '@/lib/usePushNotifications';
-import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger, DropdownMenuSeparator, DropdownMenuLabel } from '@/components/ui/dropdown-menu';
 import { Sheet, SheetContent, SheetTrigger } from '@/components/ui/sheet';
 
 const NAV = [
@@ -28,6 +28,7 @@ const MOBILE_NAV = [
   { path: '/',          icon: MessageSquare, label: 'Inbox'    },
   { path: '/contacts',  icon: Users,         label: 'Contacts' },
   { path: '/dashboard', icon: BarChart2,     label: 'Reports'  },
+  { path: '/settings',  icon: Settings,      label: 'Settings' },
 ];
 const MOBILE_MORE_NAV = [
   { path: '/broadcasts', icon: Megaphone, label: 'Broadcasts' },
@@ -122,17 +123,65 @@ export default function Sidebar({ hideMobileChrome = false } = {}) {
                 </div>
               </div>
             </DropdownMenuTrigger>
-            <DropdownMenuContent side="top" align="start" className="w-48">
-              {pushSupported && (
-                <DropdownMenuItem onClick={togglePush} disabled={pushLoading}>
-                  {pushSubscribed ? <BellOff className="w-4 h-4 mr-2" /> : <Bell className="w-4 h-4 mr-2" />}
-                  {pushSubscribed ? 'Disable notifications' : 'Enable notifications'}
-                </DropdownMenuItem>
-              )}
-              <DropdownMenuItem onClick={handleLogout} className="text-red-500 focus:text-red-500">
-                <LogOut className="w-4 h-4 mr-2" /> Log out
-              </DropdownMenuItem>
-            </DropdownMenuContent>
+            <DropdownMenuContent side="top" align="start" className="w-64 bg-[#202C33] border-white/10">
+  {/* User info header */}
+  <div className="px-3 py-3 border-b border-white/5">
+    <div className="flex items-center gap-3">
+      <Avatar name={user?.full_name || ''} size="sm" status={user?.status || 'online'} />
+      <div className="min-w-0">
+        <p className="text-sm font-bold text-white truncate">{user?.full_name || user?.email || 'You'}</p>
+        <p className="text-[11px] text-gray-500 capitalize">{user?.role || 'agent'} · {workspaceName || 'Nyasadesk'}</p>
+      </div>
+    </div>
+  </div>
+
+  {/* Quick navigation */}
+  <DropdownMenuItem onClick={() => navigate('/settings?tab=profile')} className="gap-2.5 py-2.5">
+    <User className="w-4 h-4 text-gray-400" /> Profile & Account
+  </DropdownMenuItem>
+  <DropdownMenuItem onClick={() => navigate('/settings?tab=profile')} className="gap-2.5 py-2">
+    <Lock className="w-4 h-4 text-gray-400" /> Change Password
+  </DropdownMenuItem>
+
+  {/* Notifications */}
+  {pushSupported && (
+    <DropdownMenuItem onClick={togglePush} disabled={pushLoading} className="gap-2.5 py-2">
+      {pushSubscribed
+        ? <><BellOff className="w-4 h-4 text-gray-400" /> Mute notifications</>
+        : <><Bell className="w-4 h-4 text-[#25D366]" /> Enable notifications</>}
+    </DropdownMenuItem>
+  )}
+
+  <DropdownMenuSeparator className="bg-white/5" />
+
+  {/* Quick links to key pages — visible on mobile where bottom nav is limited */}
+  <DropdownMenuItem onClick={() => navigate('/broadcasts')} className="gap-2.5 py-2">
+    <Megaphone className="w-4 h-4 text-gray-400" /> Broadcasts
+  </DropdownMenuItem>
+  <DropdownMenuItem onClick={() => navigate('/ai-agents')} className="gap-2.5 py-2">
+    <Bot className="w-4 h-4 text-gray-400" /> AI Agents
+  </DropdownMenuItem>
+  <DropdownMenuItem onClick={() => navigate('/documents')} className="gap-2.5 py-2">
+    <FileText className="w-4 h-4 text-gray-400" /> Quotes & Invoices
+  </DropdownMenuItem>
+  <DropdownMenuItem onClick={() => navigate('/sales')} className="gap-2.5 py-2">
+    <TrendingUp className="w-4 h-4 text-gray-400" /> Sales
+  </DropdownMenuItem>
+
+  <DropdownMenuSeparator className="bg-white/5" />
+
+  {isPlatformAdmin && (
+    <DropdownMenuItem onClick={() => navigate('/admin')} className="gap-2.5 py-2">
+      <ShieldCheck className="w-4 h-4 text-[#25D366]" /> Admin Panel
+    </DropdownMenuItem>
+  )}
+
+  <DropdownMenuItem
+    onClick={handleLogout}
+    className="gap-2.5 py-2 text-red-400 focus:text-red-400">
+    <LogOut className="w-4 h-4" /> Log out
+  </DropdownMenuItem>
+</DropdownMenuContent>
           </DropdownMenu>
         </div>
       </div>
@@ -172,17 +221,65 @@ export default function Sidebar({ hideMobileChrome = false } = {}) {
                 <Avatar name={user?.full_name || ''} size="sm" status={user?.status || 'online'} />
               </button>
             </DropdownMenuTrigger>
-            <DropdownMenuContent side="right" align="end" className="w-48">
-              {pushSupported && (
-                <DropdownMenuItem onClick={togglePush} disabled={pushLoading}>
-                  {pushSubscribed ? <BellOff className="w-4 h-4 mr-2" /> : <Bell className="w-4 h-4 mr-2" />}
-                  {pushSubscribed ? 'Disable notifications' : 'Enable notifications'}
-                </DropdownMenuItem>
-              )}
-              <DropdownMenuItem onClick={handleLogout} className="text-red-500 focus:text-red-500">
-                <LogOut className="w-4 h-4 mr-2" /> Log out
-              </DropdownMenuItem>
-            </DropdownMenuContent>
+            <DropdownMenuContent side="right" align="end" className="w-64 bg-[#202C33] border-white/10">
+  {/* User info header */}
+  <div className="px-3 py-3 border-b border-white/5">
+    <div className="flex items-center gap-3">
+      <Avatar name={user?.full_name || ''} size="sm" status={user?.status || 'online'} />
+      <div className="min-w-0">
+        <p className="text-sm font-bold text-white truncate">{user?.full_name || user?.email || 'You'}</p>
+        <p className="text-[11px] text-gray-500 capitalize">{user?.role || 'agent'} · {workspaceName || 'Nyasadesk'}</p>
+      </div>
+    </div>
+  </div>
+
+  {/* Quick navigation */}
+  <DropdownMenuItem onClick={() => navigate('/settings?tab=profile')} className="gap-2.5 py-2.5">
+    <User className="w-4 h-4 text-gray-400" /> Profile & Account
+  </DropdownMenuItem>
+  <DropdownMenuItem onClick={() => navigate('/settings?tab=profile')} className="gap-2.5 py-2">
+    <Lock className="w-4 h-4 text-gray-400" /> Change Password
+  </DropdownMenuItem>
+
+  {/* Notifications */}
+  {pushSupported && (
+    <DropdownMenuItem onClick={togglePush} disabled={pushLoading} className="gap-2.5 py-2">
+      {pushSubscribed
+        ? <><BellOff className="w-4 h-4 text-gray-400" /> Mute notifications</>
+        : <><Bell className="w-4 h-4 text-[#25D366]" /> Enable notifications</>}
+    </DropdownMenuItem>
+  )}
+
+  <DropdownMenuSeparator className="bg-white/5" />
+
+  {/* Quick links to key pages — visible on mobile where bottom nav is limited */}
+  <DropdownMenuItem onClick={() => navigate('/broadcasts')} className="gap-2.5 py-2">
+    <Megaphone className="w-4 h-4 text-gray-400" /> Broadcasts
+  </DropdownMenuItem>
+  <DropdownMenuItem onClick={() => navigate('/ai-agents')} className="gap-2.5 py-2">
+    <Bot className="w-4 h-4 text-gray-400" /> AI Agents
+  </DropdownMenuItem>
+  <DropdownMenuItem onClick={() => navigate('/documents')} className="gap-2.5 py-2">
+    <FileText className="w-4 h-4 text-gray-400" /> Quotes & Invoices
+  </DropdownMenuItem>
+  <DropdownMenuItem onClick={() => navigate('/sales')} className="gap-2.5 py-2">
+    <TrendingUp className="w-4 h-4 text-gray-400" /> Sales
+  </DropdownMenuItem>
+
+  <DropdownMenuSeparator className="bg-white/5" />
+
+  {isPlatformAdmin && (
+    <DropdownMenuItem onClick={() => navigate('/admin')} className="gap-2.5 py-2">
+      <ShieldCheck className="w-4 h-4 text-[#25D366]" /> Admin Panel
+    </DropdownMenuItem>
+  )}
+
+  <DropdownMenuItem
+    onClick={handleLogout}
+    className="gap-2.5 py-2 text-red-400 focus:text-red-400">
+    <LogOut className="w-4 h-4" /> Log out
+  </DropdownMenuItem>
+</DropdownMenuContent>
           </DropdownMenu>
         </div>
       </div>
@@ -213,28 +310,76 @@ export default function Sidebar({ hideMobileChrome = false } = {}) {
                 <Avatar name={user?.full_name || ''} size="xs" status={user?.status || 'online'} />
               </button>
             </DropdownMenuTrigger>
-            <DropdownMenuContent side="bottom" align="end" className="w-48">
-              {pushSupported && (
-                <DropdownMenuItem onClick={togglePush} disabled={pushLoading}>
-                  {pushSubscribed ? <BellOff className="w-4 h-4 mr-2" /> : <Bell className="w-4 h-4 mr-2" />}
-                  {pushSubscribed ? 'Disable notifications' : 'Enable notifications'}
-                </DropdownMenuItem>
-              )}
-              <DropdownMenuItem onClick={handleLogout} className="text-red-500 focus:text-red-500">
-                <LogOut className="w-4 h-4 mr-2" /> Log out
-              </DropdownMenuItem>
-            </DropdownMenuContent>
+            <DropdownMenuContent side="bottom" align="end" className="w-64 bg-[#202C33] border-white/10">
+  {/* User info header */}
+  <div className="px-3 py-3 border-b border-white/5">
+    <div className="flex items-center gap-3">
+      <Avatar name={user?.full_name || ''} size="sm" status={user?.status || 'online'} />
+      <div className="min-w-0">
+        <p className="text-sm font-bold text-white truncate">{user?.full_name || user?.email || 'You'}</p>
+        <p className="text-[11px] text-gray-500 capitalize">{user?.role || 'agent'} · {workspaceName || 'Nyasadesk'}</p>
+      </div>
+    </div>
+  </div>
+
+  {/* Quick navigation */}
+  <DropdownMenuItem onClick={() => navigate('/settings?tab=profile')} className="gap-2.5 py-2.5">
+    <User className="w-4 h-4 text-gray-400" /> Profile & Account
+  </DropdownMenuItem>
+  <DropdownMenuItem onClick={() => navigate('/settings?tab=profile')} className="gap-2.5 py-2">
+    <Lock className="w-4 h-4 text-gray-400" /> Change Password
+  </DropdownMenuItem>
+
+  {/* Notifications */}
+  {pushSupported && (
+    <DropdownMenuItem onClick={togglePush} disabled={pushLoading} className="gap-2.5 py-2">
+      {pushSubscribed
+        ? <><BellOff className="w-4 h-4 text-gray-400" /> Mute notifications</>
+        : <><Bell className="w-4 h-4 text-[#25D366]" /> Enable notifications</>}
+    </DropdownMenuItem>
+  )}
+
+  <DropdownMenuSeparator className="bg-white/5" />
+
+  {/* Quick links to key pages — visible on mobile where bottom nav is limited */}
+  <DropdownMenuItem onClick={() => navigate('/broadcasts')} className="gap-2.5 py-2">
+    <Megaphone className="w-4 h-4 text-gray-400" /> Broadcasts
+  </DropdownMenuItem>
+  <DropdownMenuItem onClick={() => navigate('/ai-agents')} className="gap-2.5 py-2">
+    <Bot className="w-4 h-4 text-gray-400" /> AI Agents
+  </DropdownMenuItem>
+  <DropdownMenuItem onClick={() => navigate('/documents')} className="gap-2.5 py-2">
+    <FileText className="w-4 h-4 text-gray-400" /> Quotes & Invoices
+  </DropdownMenuItem>
+  <DropdownMenuItem onClick={() => navigate('/sales')} className="gap-2.5 py-2">
+    <TrendingUp className="w-4 h-4 text-gray-400" /> Sales
+  </DropdownMenuItem>
+
+  <DropdownMenuSeparator className="bg-white/5" />
+
+  {isPlatformAdmin && (
+    <DropdownMenuItem onClick={() => navigate('/admin')} className="gap-2.5 py-2">
+      <ShieldCheck className="w-4 h-4 text-[#25D366]" /> Admin Panel
+    </DropdownMenuItem>
+  )}
+
+  <DropdownMenuItem
+    onClick={handleLogout}
+    className="gap-2.5 py-2 text-red-400 focus:text-red-400">
+    <LogOut className="w-4 h-4" /> Log out
+  </DropdownMenuItem>
+</DropdownMenuContent>
           </DropdownMenu>
         </div>
       </div>
 
       {/* Bottom tab bar */}
-      <nav className={`md:hidden fixed bottom-0 left-0 right-0 z-50 bg-[#111B21] border-t border-white/10 flex items-center justify-around px-2 pb-safe ${hideMobileChrome ? 'hidden' : ''}`}>
+      <nav className={`md:hidden fixed bottom-0 left-0 right-0 z-50 bg-[#111B21] border-t border-white/10 flex items-stretch px-2 pb-safe ${hideMobileChrome ? 'hidden' : ''}`}>
         {MOBILE_NAV.map(({ path, icon: Icon, label }) => {
           const active = pathname === path;
           return (
             <Link key={path} to={path}
-              className={`flex flex-col items-center gap-0.5 py-2 px-4 transition-colors
+              className={`flex-1 flex flex-col items-center gap-0.5 py-2 transition-colors
                 ${active ? 'text-[#25D366]' : 'text-gray-500'}`}>
               <Icon className="w-5 h-5" />
               <span className="text-[10px] font-medium">{label}</span>
@@ -242,34 +387,10 @@ export default function Sidebar({ hideMobileChrome = false } = {}) {
           );
         })}
 
-        {/* "More" -- Broadcasts/Rules/Responses/Settings/Admin previously had
-            NO way to be reached at all on mobile (no route in the tab bar,
-            no overflow menu). This sheet is the fix. */}
-        <Sheet open={moreOpen} onOpenChange={setMoreOpen}>
-          <SheetTrigger asChild>
-            <button
-              className={`flex flex-col items-center gap-0.5 py-2 px-4 transition-colors
-                ${moreActive ? 'text-[#25D366]' : 'text-gray-500'}`}>
-              <MoreHorizontal className="w-5 h-5" />
-              <span className="text-[10px] font-medium">More</span>
-            </button>
-          </SheetTrigger>
-          <SheetContent side="bottom" className="bg-[#111B21] border-white/10 text-gray-200 rounded-t-2xl pb-8">
-            <div className="grid grid-cols-4 gap-3 pt-2">
-              {mobileMoreItems.map(({ path, icon: Icon, label }) => {
-                const active = pathname === path;
-                return (
-                  <Link key={path} to={path} onClick={() => setMoreOpen(false)}
-                    className={`flex flex-col items-center gap-1.5 py-3 rounded-xl transition-colors
-                      ${active ? 'bg-[#25D366]/15 text-[#25D366]' : 'text-gray-400 hover:bg-white/5'}`}>
-                    <Icon className="w-5 h-5" />
-                    <span className="text-[11px] font-medium">{label}</span>
-                  </Link>
-                );
-              })}
-            </div>
-          </SheetContent>
-        </Sheet>
+        {/* MOBILE_MORE_NAV items (Broadcasts, AI Agents, etc.) are now
+            accessible via the avatar dropdown menu on mobile, or the
+            desktop/tablet sidebar. The More sheet is retained but its
+            trigger is removed from the bottom bar. */}
       </nav>
     </>
   );

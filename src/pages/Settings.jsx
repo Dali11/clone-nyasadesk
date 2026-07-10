@@ -1218,6 +1218,12 @@ export default function Settings() {
   const [slaHours, setSlaHours] = useState(4);
   const [slaSaved, setSlaSaved] = useState(false);
 
+  // ── Password change state ────────────────────────────────────────────
+  const [pwForm, setPwForm] = useState({ current: '', newPw: '', confirm: '' });
+  const [pwSaving, setPwSaving] = useState(false);
+  const [pwError, setPwError] = useState('');
+  const [pwSaved, setPwSaved] = useState(false);
+
   // ── Subscription state ────────────────────────────────────────────────
   const [subStatus, setSubStatus] = useState(null);
   const [subLoading, setSubLoading] = useState(false);
@@ -1349,6 +1355,30 @@ export default function Settings() {
     setTimeout(() => setProfileSaved(false), 2000);
   };
 
+  const changePassword = async () => {
+    setPwError('');
+    if (!pwForm.newPw) { setPwError('Enter a new password'); return; }
+    if (pwForm.newPw.length < 8) { setPwError('Password must be at least 8 characters'); return; }
+    if (pwForm.newPw !== pwForm.confirm) { setPwError('Passwords do not match'); return; }
+    setPwSaving(true);
+    try {
+      // If user has a current password (not invited via magic link), verify it first
+      // by attempting a sign-in. If they have no password yet, skip this step.
+      if (pwForm.current) {
+        const { error: signInErr } = await supabase.auth.signInWithPassword({
+          email: user.email, password: pwForm.current
+        });
+        if (signInErr) { setPwError('Current password is incorrect'); setPwSaving(false); return; }
+      }
+      const { error } = await supabase.auth.updateUser({ password: pwForm.newPw });
+      if (error) throw new Error(error.message);
+      setPwForm({ current: '', newPw: '', confirm: '' });
+      setPwSaved(true);
+      setTimeout(() => setPwSaved(false), 3000);
+    } catch (e) { setPwError(e.message); }
+    finally { setPwSaving(false); }
+  };
+
   const saveWorkspace = async () => {
     // Must target the WORKSPACE OWNER's row, not the caller's own id — for an
     // invited admin those are different rows. Using user.id directly here was
@@ -1472,6 +1502,34 @@ export default function Settings() {
                     Open Admin Panel
                   </button>
                 )}
+
+                {/* Password */}
+                <div className="mt-2 pt-4 border-t border-white/5">
+                  <p className="text-sm font-bold text-white mb-3">Password</p>
+                  <div className="space-y-3">
+                    <div>
+                      <label className="text-[11px] font-medium text-gray-400 mb-1.5 block">Current password <span className="text-gray-600">(leave blank if you signed up via invite link)</span></label>
+                      <input type="password" className={inputCls} placeholder="Current password" value={pwForm.current}
+                        onChange={e => setPwForm(f => ({...f, current: e.target.value}))} />
+                    </div>
+                    <div>
+                      <label className="text-[11px] font-medium text-gray-400 mb-1.5 block">New password</label>
+                      <input type="password" className={inputCls} placeholder="At least 8 characters" value={pwForm.newPw}
+                        onChange={e => setPwForm(f => ({...f, newPw: e.target.value}))} />
+                    </div>
+                    <div>
+                      <label className="text-[11px] font-medium text-gray-400 mb-1.5 block">Confirm new password</label>
+                      <input type="password" className={inputCls} placeholder="Repeat new password" value={pwForm.confirm}
+                        onChange={e => setPwForm(f => ({...f, confirm: e.target.value}))} />
+                    </div>
+                    {pwError && <p className="text-red-400 text-xs">{pwError}</p>}
+                    {pwSaved && <p className="text-[#25D366] text-xs font-semibold">✓ Password updated successfully!</p>}
+                    <button onClick={changePassword} disabled={pwSaving}
+                      className="w-full flex items-center justify-center gap-2 py-3 rounded-xl text-sm font-bold border border-white/10 text-white hover:bg-white/5 transition-colors disabled:opacity-40">
+                      {pwSaving ? 'Updating…' : (pwSaved ? '✓ Password updated!' : 'Update Password')}
+                    </button>
+                  </div>
+                </div>
               </div>
             )}
 
