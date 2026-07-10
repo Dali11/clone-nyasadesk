@@ -35,7 +35,7 @@ export default async function handler(req, res) {
   // Agents above -- logic itself lives in api/_lib/documents.js.
   const getActions = ['hosted-connect', 'templates', 'ai-agents-list', 'ai-templates',
     'doc-settings-get', 'quotation-list', 'quotation-get', 'invoice-list', 'invoice-get',
-    'sales-commission-report'];
+    'sales-list', 'sales-commission-report'];
   if (req.method !== 'POST' && !getActions.includes(req.query.action)) return res.status(405).json({ error: 'Method Not Allowed' });
   const action = req.query.action || 'send';
 
@@ -1125,12 +1125,14 @@ async function handleSalesVerify(req, res) {
     if (!user) return;
     const { sale_id, status } = req.body || {};
     if (!sale_id || !status) return res.status(400).json({ error: 'sale_id and status required' });
-    // Only admins can verify/dispute
+    // Only admins (role='admin') or the workspace owner (no workspace_id set
+    // on their own profile, because workspace_id points to the owner in
+    // invited members' rows) can verify/dispute sales.
     const { data: profile } = await sb.from('profiles').select('role, workspace_id').eq('id', user.id).maybeSingle();
-    if (profile?.role !== 'admin' && profile?.workspace_id) {
-      // Check if workspace owner
-      const isOwner = !profile.workspace_id;
-      if (!isOwner) return res.status(403).json({ error: 'Only admins can verify sales' });
+    const isOwner = !profile?.workspace_id; // workspace owner has no workspace_id (they ARE the workspace)
+    const isAdmin = profile?.role === 'admin' || profile?.role === 'sales_manager';
+    if (!isOwner && !isAdmin) {
+      return res.status(403).json({ error: 'Only admins can verify sales' });
     }
     const { data, error } = await sb.from('sales')
       .update({ status, verified_by: user.id, verified_at: new Date().toISOString() })
