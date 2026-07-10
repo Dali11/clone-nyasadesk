@@ -15,5 +15,12 @@ export default defineConfig({
       visualEditAgent: true
     }),
     react(),
-  ]
+  ],
+  build: {
+    // Generate .vite/manifest.json so sw.js can discover and pre-cache all
+    // Vite output chunks at install time for full offline support.
+    manifest: true,
+    // Increase chunk size warning threshold slightly (our app is a full SaaS)
+    chunkSizeWarningLimit: 1000,
+  },
 });

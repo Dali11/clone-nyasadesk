@@ -26,9 +26,16 @@ async function listHandler(req, res, sb, sbAnon) {
   if (!workspace_id) return res.status(400).json({ error: 'workspace_id is required' });
 
   const callerId = await verifyCaller(req, res, sb, sbAnon);
-  if (!callerId) return; // response already sent
+  if (!callerId) return;
 
-  const { data: callerProfile } = await sb.from('profiles').select('workspace_id').eq('id', callerId).maybeSingle();
+  // Verify caller belongs to this workspace.
+  // Owner: their profile.workspace_id is NULL, so callerWorkspaceId = callerId = workspace_id ✓
+  // Invited agent: profile.workspace_id = owner's ID = workspace_id ✓
+  const { data: callerProfile, error: cpErr } = await sb.from('profiles').select('workspace_id').eq('id', callerId).maybeSingle();
+  if (cpErr) {
+    console.error('[team/list] callerProfile error:', cpErr.message);
+    return res.status(500).json({ error: 'Failed to verify caller profile' });
+  }
   const callerWorkspaceId = callerProfile?.workspace_id || callerId;
   if (String(callerWorkspaceId) !== String(workspace_id)) {
     return res.status(403).json({ error: 'You do not have access to this workspace' });
@@ -36,19 +43,30 @@ async function listHandler(req, res, sb, sbAnon) {
 
   const { data, error } = await sb
     .from('profiles')
-    .select('id, full_name, role, avatar_url, workspace_id, updated_at, email')
+    .select('id, full_name, role, avatar_url, workspace_id, updated_at')
     .or(`workspace_id.eq.${workspace_id},id.eq.${workspace_id}`)
     .order('updated_at', { ascending: true });
 
-  if (error) throw error;
+  if (error) {
+    console.error('[team/list] profiles query error:', error.message);
+    return res.status(500).json({ error: 'Failed to fetch team members: ' + error.message });
+  }
 
-  // profiles has no email column (lives in auth.users) — attach it via admin API
+  // Attach email + last_sign_in_at from auth.users via admin API (service role).
+  // Each call is individually try/caught — a single failed lookup must not
+  // crater the whole list response.
   const users = await Promise.all((data || []).map(async (p) => {
     try {
-      const { data: authUser } = await sb.auth.admin.getUserById(p.id);
-      return { ...p, email: authUser?.user?.email || null, last_sign_in_at: authUser?.user?.last_sign_in_at || null };
-    } catch {
-      return { ...p, email: null };
+      const { data: authUser, error: auErr } = await sb.auth.admin.getUserById(p.id);
+      if (auErr) throw auErr;
+      return {
+        ...p,
+        email: authUser?.user?.email || null,
+        last_sign_in_at: authUser?.user?.last_sign_in_at || null,
+      };
+    } catch (e) {
+      console.warn('[team/list] getUserById failed for', p.id, ':', e.message);
+      return { ...p, email: null, last_sign_in_at: null };
     }
   }));
 
@@ -158,6 +176,7 @@ async function inviteHandler(req, res, sb, sbAnon) {
   // Step 4: send branded invite email via Resend (falls back to Supabase default if no key)
   const RESEND_KEY = process.env.RESEND_API_KEY;
   if (RESEND_KEY && inviteUrl) {
+    const { buildEmail } = await import('./_lib/emailTemplate.js');
     const { full_name: providedName } = req.body || {};
     const agentName = providedName?.trim() || email.split('@')[0];
     const roleLabel = role === 'user' ? 'an Agent' : role === 'sales_manager' ? 'a Sales Manager' : 'an Admin';

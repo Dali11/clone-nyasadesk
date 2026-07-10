@@ -23,7 +23,7 @@ export function useOutboxSync(workspaceOwnerId) {
 
         for (const item of queue) {
           try {
-            await sendMessage(
+            const sent = await sendMessage(
               item.workspaceId,
               item.conversationId,
               item.body,
@@ -33,6 +33,12 @@ export function useOutboxSync(workspaceOwnerId) {
               item.replyTo || null,
             );
             await deleteOutboxItem(item.localId);
+
+            // Notify any open MessageThread to clear offline bubbles for
+            // this conversation and re-fetch messages.
+            window.dispatchEvent(new CustomEvent('nyasa:outbox-flushed', {
+              detail: { conversationId: item.conversationId, sentMsg: sent },
+            }));
           } catch (e) {
             console.warn('[Outbox] Failed to send queued message:', e.message);
             // Leave in queue — will retry next reconnect

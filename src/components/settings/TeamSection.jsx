@@ -257,7 +257,7 @@ function MemberCard({ u, currentUserId, workspaceId, canManage, onRoleChange, on
 
 // ── Main component ─────────────────────────────────────────────────────────
 export default function TeamSection() {
-  const { user, profile, workspaceOwnerId } = useNyasaAuth();
+  const { user, profile, workspaceOwnerId, loadingProfile } = useNyasaAuth();
   const workspaceId = workspaceOwnerId || profile?.workspace_id || user?.id;
   const canManage   = !profile?.workspace_id || profile?.role === 'admin';
 
@@ -276,6 +276,9 @@ export default function TeamSection() {
   };
 
   const loadUsers = async () => {
+    // Wait for profile to be fully loaded before fetching — avoids hitting the
+    // API with a stale or missing workspaceId on first render.
+    if (loadingProfile) return;
     if (!workspaceId) { setLoading(false); return; }
     try {
       const { data: { session } } = await supabase.auth.getSession();
@@ -297,7 +300,7 @@ export default function TeamSection() {
     }
   };
 
-  useEffect(() => { loadUsers(); }, [workspaceId]);
+  useEffect(() => { loadUsers(); }, [workspaceId, loadingProfile]);
 
   const handleInviteSuccess = (email) => {
     setShowForm(false);
