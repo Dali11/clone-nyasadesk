@@ -20,7 +20,7 @@ export default function TeamSection() {
   const [loading, setLoading] = useState(true);
   const [inviting, setInviting] = useState(false);
   const [showForm, setShowForm] = useState(false);
-  const [form, setForm] = useState({ email: '', role: 'user' });
+  const [form, setForm] = useState({ email: '', full_name: '', role: 'user' });
   const [error, setError] = useState('');
   const [successMsg, setSuccessMsg] = useState('');
 
@@ -57,12 +57,12 @@ export default function TeamSection() {
           'Content-Type': 'application/json',
           ...(session?.access_token ? { Authorization: `Bearer ${session.access_token}` } : {}),
         },
-        body: JSON.stringify({ email: form.email.trim(), role: form.role, workspace_id: workspaceId }),
+        body: JSON.stringify({ email: form.email.trim(), full_name: form.full_name.trim(), role: form.role, workspace_id: workspaceId }),
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || 'Failed to send invite');
-      setSuccessMsg(`Invitation sent to ${form.email.trim()}`);
-      setForm({ email: '', role: 'user' });
+      setSuccessMsg(`Account created — invite email sent to ${form.email.trim()}`);
+      setForm({ email: '', full_name: '', role: 'user' });
       setShowForm(false);
       await loadUsers();
     } catch (e) {
@@ -122,7 +122,7 @@ export default function TeamSection() {
             onClick={() => { setShowForm(true); setError(''); setSuccessMsg(''); }}
             className="flex items-center gap-1.5 px-3 py-2 bg-[#25D366] text-white text-xs font-bold rounded-xl hover:bg-[#20BA5A] transition-colors"
           >
-            <Plus className="w-3.5 h-3.5" /> Invite
+            <Plus className="w-3.5 h-3.5" /> Add Agent
           </button>
         )}
       </div>
@@ -136,7 +136,17 @@ export default function TeamSection() {
 
       {showForm && canInvite && (
         <div className="bg-[#202C33] rounded-2xl border border-[#25D366]/40 p-4 space-y-3">
-          <h3 className="font-semibold text-white text-sm">Invite Team Member</h3>
+          <div>
+            <h3 className="font-semibold text-white text-sm">Add Team Member</h3>
+            <p className="text-[11px] text-gray-500 mt-0.5">We'll create their account and email them a link to set their password.</p>
+          </div>
+          <input
+            className={inputCls}
+            placeholder="Full name"
+            type="text"
+            value={form.full_name}
+            onChange={e => setForm(f => ({ ...f, full_name: e.target.value }))}
+          />
           <input
             className={inputCls}
             placeholder="Email address *"
@@ -167,7 +177,7 @@ export default function TeamSection() {
               disabled={!form.email.trim() || inviting}
               className="flex-1 py-2 bg-[#25D366] text-white font-bold rounded-xl text-sm disabled:opacity-40 flex items-center justify-center gap-2"
             >
-              {inviting ? <><Loader2 className="w-3.5 h-3.5 animate-spin" /> Sending…</> : 'Send Invite'}
+              {inviting ? <><Loader2 className="w-3.5 h-3.5 animate-spin" /> Creating…</> : 'Add & Send Invite'}
             </button>
           </div>
         </div>

@@ -40,12 +40,26 @@ export default function Onboarding() {
   // belongs to someone else's workspace (an invited teammate caught by a
   // stale/incorrect onboardingComplete=false), bail out immediately instead
   // of letting `finish()` below overwrite their role/workspace data.
+  // If this user arrived via a Supabase invite link they already have a
+  // workspace_id set (we upserted it during inviteHandler). Skip the wizard.
   useEffect(() => {
     if (profile?.workspace_id && profile.workspace_id !== user?.id) {
       setOnboardingComplete(true);
       navigate('/', { replace: true });
     }
   }, [profile?.workspace_id, user?.id]);
+
+  // Also handle the case where the profile hasn't loaded yet but the URL
+  // hash contains type=invite (Supabase invite token). Once the session is
+  // exchanged and the profile loads, the guard above will fire.
+  useEffect(() => {
+    const hash = window.location.hash;
+    if (hash.includes('type=invite') || hash.includes('type=recovery')) {
+      // Supabase has already exchanged the token by the time React mounts.
+      // Just wait for the profile to load — the guard above redirects.
+      // Nothing to do here except avoid running the workspace-creation wizard.
+    }
+  }, []);
 
   const [step, setStep]               = useState(0);
   const [workspaceName, setWsName]    = useState('');

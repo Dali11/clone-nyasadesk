@@ -92,7 +92,7 @@ async function inviteHandler(req, res, sb, sbAnon) {
   }
 
   const { data, error } = await sb.auth.admin.inviteUserByEmail(email, {
-    redirectTo: redirect_to || 'https://nyasadesk.com/login',
+    redirectTo: redirect_to || 'https://nyasadesk.com/onboarding',
   });
 
   if (error) {
@@ -101,13 +101,14 @@ async function inviteHandler(req, res, sb, sbAnon) {
 
   const newUserId = data?.user?.id;
   if (newUserId) {
+    const { full_name: providedName } = req.body || {};
     const { error: profileErr } = await sb.from('profiles').upsert({
       id: newUserId,
       workspace_id,
-      role,
-      full_name: email.split('@')[0],
+      role: role === 'user' ? 'user' : role, // preserve sales_manager / admin
+      full_name: providedName?.trim() || email.split('@')[0],
       onboarding_complete: true,
-    });
+    }, { onConflict: 'id' });
     if (profileErr) console.error('[team/invite] profile upsert error:', profileErr);
   }
 
