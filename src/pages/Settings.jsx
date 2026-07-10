@@ -329,9 +329,12 @@ function WhatsAppCard({ saved, workspaceId, onSave, onDelete }) {
   };
   const handleFreshStart = async () => {
     if (!token.trim() || !freshBusinessId.trim() || !freshCc.trim() || !freshPhone.trim()) { setFreshError('All fields are required'); return; }
+    // Strip leading zero — Meta's API requires the number without it (e.g. 891107334 not 0891107334)
+    const normalizedPhone = freshPhone.trim().replace(/^0+/, '');
+    if (!normalizedPhone) { setFreshError('Enter a valid phone number'); return; }
     setFreshBusy(true); setFreshError(''); setFreshIsAppNumber(false);
     try {
-      const data = await freshApiCall('whatsapp-guided-fresh-setup', { access_token: token.trim(), business_id: freshBusinessId.trim(), cc: freshCc.trim(), phone_number: freshPhone.trim() });
+      const data = await freshApiCall('whatsapp-guided-fresh-setup', { access_token: token.trim(), business_id: freshBusinessId.trim(), cc: freshCc.trim(), phone_number: normalizedPhone });
       setFreshWabaId(data.waba_id); setFreshPhoneId(data.phone_number_id);
       // freshSetup fires request_code immediately — check if it flagged an app-number
       if (data.error_code === 'WHATSAPP_APP_NUMBER' || data.is_app_number) {
@@ -566,8 +569,8 @@ function WhatsAppCard({ saved, workspaceId, onSave, onDelete }) {
                             className="w-full bg-[var(--nyasa-bg)] text-white text-xs rounded-lg p-2.5 border border-[var(--nyasa-border)]" />
                         </div>
                         <div className="col-span-2 space-y-1.5">
-                          <label className="text-[11px] text-gray-500">Phone number</label>
-                          <input value={freshPhone} onChange={e => setFreshPhone(e.target.value.replace(/\D/g, ''))} placeholder="9800114467"
+                          <label className="text-[11px] text-gray-500">Phone number <span className="text-gray-600">(no leading zero)</span></label>
+                          <input value={freshPhone} onChange={e => setFreshPhone(e.target.value.replace(/\D/g, ''))} placeholder="891107334" title="Without leading zero — e.g. 891107334 not 0891107334"
                             className="w-full bg-[var(--nyasa-bg)] text-white text-xs rounded-lg p-2.5 border border-[var(--nyasa-border)]" />
                         </div>
                       </div>

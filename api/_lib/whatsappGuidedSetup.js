@@ -180,6 +180,8 @@ export async function addPhoneNumber(accessToken, wabaId, { cc, phoneNumber, ver
   if (!accessToken || !wabaId || !cc || !phoneNumber || !verifiedName) {
     throw new Error('accessToken, wabaId, cc, phoneNumber and verifiedName are all required');
   }
+  // Strip leading zero — Meta API rejects numbers like 0891107334, expects 891107334
+  phoneNumber = String(phoneNumber).replace(/^0+/, '');
   const res = await fetch(`${GRAPH}/${wabaId}/phone_numbers`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },

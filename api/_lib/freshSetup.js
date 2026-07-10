@@ -12,6 +12,8 @@ export async function freshSetup(accessToken, businessId, cc, phoneNumber) {
   if (!accessToken || !businessId || !cc || !phoneNumber) {
     throw new Error('accessToken, businessId, cc and phoneNumber are all required');
   }
+  // Meta requires the phone number WITHOUT a leading zero (e.g. 891107334 not 0891107334)
+  phoneNumber = String(phoneNumber).replace(/^0+/, '');
 
   // Look up the business name to use as the WABA + number display name
   const bizRes = await fetch(
