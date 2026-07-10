@@ -292,7 +292,33 @@ async function handleDocumentSend(req, res) {
           reply_to: settings.email || undefined,
           to: doc.customer_email,
           subject: `${doc_type === 'invoice' ? 'Invoice' : 'Quotation'} ${doc.number} from ${settings.company_name || 'us'}`,
-          html: `<p>Hi ${doc.customer_name},</p><p>Please find attached your ${doc_type} <b>${doc.number}</b>.</p>`,
+          html: buildEmail({
+            preheader: `Your ${doc_type === 'invoice' ? 'Invoice' : 'Quotation'} ${doc.number} from ${settings.company_name || 'us'}`,
+            body: `
+              <h1 style="margin:0 0 16px;color:#E9EDF0;font-size:22px;font-weight:700;line-height:1.3;
+                         font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;">
+                ${doc_type === 'invoice' ? 'Invoice' : 'Quotation'}
+                ${doc.number}
+              </h1>
+              <p style="margin:0 0 12px;color:#8696A0;font-size:15px;line-height:1.6;
+                        font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;">
+                Hi <strong style="color:#E9EDF0;">${doc.customer_name}</strong>,
+              </p>
+              <p style="margin:0 0 20px;color:#8696A0;font-size:15px;line-height:1.6;
+                        font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;">
+                Please find your ${doc_type === 'invoice' ? 'invoice' : 'quotation'}
+                <strong style="color:#25D366;">${doc.number}</strong> attached to this email,
+                sent by <strong style="color:#E9EDF0;">${settings.company_name || 'us'}</strong>.
+              </p>
+              ${doc_type === 'invoice' ? `<p style="margin:0;color:#8696A0;font-size:14px;line-height:1.6;
+                        font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;">
+                If you have any questions about this invoice, please reply to this email.
+              </p>` : `<p style="margin:0;color:#8696A0;font-size:14px;line-height:1.6;
+                        font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;">
+                This quotation is valid for 30 days. Reply to accept or ask any questions.
+              </p>`}`,
+            footer: `Sent via Nyasadesk on behalf of ${settings.company_name || 'your service provider'}.`,
+          }),
           attachments: [{ filename, content: pdfBase64 }],
         }),
       });
