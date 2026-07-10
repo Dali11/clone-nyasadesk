@@ -159,7 +159,7 @@ export default function Landing() {
                   Hi, do you have a package for a 5-person team?
                 </div>
                 <div style={{ alignSelf: 'flex-end', background: WA_DARK_GREEN, color: '#fff', fontSize: 13, padding: '10px 14px', borderRadius: '14px 14px 4px 14px', maxWidth: '85%' }}>
-                  Yes — that's our Growth plan at K30,000/mo. Want me to send over a quotation?
+                  Yes — that's our Growth plan at K50,000/mo. Want me to send over a quotation?
                 </div>
                 <div style={{ alignSelf: 'flex-start', background: SURFACE2, color: TEXT, fontSize: 13, padding: '10px 14px', borderRadius: '14px 14px 14px 4px', maxWidth: '85%' }}>
                   Yes please
@@ -219,7 +219,7 @@ export default function Landing() {
       <section style={{ borderTop: `1px solid ${SURFACE2}`, padding: '64px 24px', background: SURFACE, textAlign: 'center' }}>
         <div style={{ maxWidth: 640, margin: '0 auto' }}>
           <h2 style={{ fontSize: 28, fontWeight: 800, color: TEXT, marginBottom: 12 }}>Simple, transparent pricing</h2>
-          <p style={{ color: MUTED, fontSize: 15, marginBottom: 28 }}>Plans starting at K15,000/month — pick the one that fits your team.</p>
+          <p style={{ color: MUTED, fontSize: 15, marginBottom: 28 }}>Plans starting at K25,000/month — pick the one that fits your team.</p>
           <Link to="/pricing" style={{
             display: 'inline-flex', alignItems: 'center', gap: 8, textDecoration: 'none',
             background: WA_GREEN, color: '#fff', fontWeight: 700, fontSize: 15,

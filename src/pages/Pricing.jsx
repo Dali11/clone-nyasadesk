@@ -6,7 +6,7 @@ import MarketingHeader from '@/components/marketing/MarketingHeader';
 import MarketingFooter from '@/components/marketing/MarketingFooter';
 import { WA_GREEN, WA_DARK_GREEN, WA_NAVY, BG, SURFACE, SURFACE2, TEXT, MUTED } from '@/lib/marketingTheme';
 
-const FALLBACK_PRICE = { starter: 'K15,000', growth: 'K30,000', scale: 'K120,000' };
+const FALLBACK_PRICE = { starter: 'K25,000', growth: 'K50,000', scale: 'K120,000' };
 
 const PLANS = [
   {
