@@ -264,6 +264,20 @@ export default function Dashboard() {
             <p className="text-xs md:text-sm text-gray-400 mt-0.5">{isAgentView ? 'Your chats & activity' : 'Team performance & pipeline'}</p>
           </div>
 
+          {/* Account-mismatch warning: owner with no data */}
+          {!loading && !profile?.workspace_id && conversations.length === 0 && (
+            <div className="mb-5 flex items-start gap-3 bg-yellow-500/10 border border-yellow-500/25 rounded-xl px-4 py-3.5">
+              <span className="text-yellow-400 text-lg mt-0.5">⚠️</span>
+              <div>
+                <p className="text-sm font-semibold text-yellow-300">No data found for this account</p>
+                <p className="text-xs text-yellow-400/80 mt-0.5 leading-relaxed">
+                  This account has no linked workspace or conversations. If you expected to see data here,
+                  please log out and sign in with the correct workspace-owner email (e.g. geniuspulse22@gmail.com).
+                </p>
+              </div>
+            </div>
+          )}
+
           {loading ? (
             <div className="flex items-center justify-center py-20 text-gray-500">
               <Loader2 className="w-6 h-6 animate-spin" />
