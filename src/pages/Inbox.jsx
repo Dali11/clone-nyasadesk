@@ -62,14 +62,17 @@ export default function Inbox() {
   const loadConversations = useCallback(async () => {
     if (!workspaceOwnerId) return;
     try {
-      const data = await getConversations(workspaceOwnerId);
+      // Agents only see their assigned chats — pass their userId as agentId filter.
+      // Admins and Sales Managers get everything (no agentId filter).
+      const filters = canViewAllChats ? {} : { agentId: user?.id };
+      const data = await getConversations(workspaceOwnerId, filters);
       setConversations(data);
     } catch (e) {
       console.error('Failed to load conversations:', e);
     } finally {
       setLoading(false);
     }
-  }, [workspaceOwnerId]);
+  }, [workspaceOwnerId, canViewAllChats, user?.id]);
 
   // Initial load
   useEffect(() => { loadConversations(); }, [loadConversations]);
@@ -123,6 +126,29 @@ export default function Inbox() {
     if (!workspaceOwnerId) return;
     const sub = subscribeToConversations(workspaceOwnerId, (payload) => {
       if (payload?.eventType === 'UPDATE' && payload.new?.id) {
+        // For agents: if a conversation gets assigned away from them, remove it from the list.
+        // If it gets assigned to them, trigger a full reload to pull in the joined contact data.
+        if (!canViewAllChats) {
+          const isNowMine = payload.new?.assigned_to === user?.id;
+          // Check if this conv is already in our local list
+          const isInList = (prev) => prev.some(c => c.id === payload.new.id);
+          if (!isNowMine) {
+            // Not assigned to me — remove from list if it was there (reassigned away)
+            setConversations(prev => {
+              if (!isInList(prev)) return prev; // wasn't in list anyway
+              return prev.filter(c => c.id !== payload.new.id);
+            });
+            setActiveConv(prev => (prev?.id === payload.new.id ? null : prev));
+            return;
+          }
+          // isNowMine — if not in list yet, reload to get full joined contact data
+          setConversations(prev => {
+            if (!isInList(prev)) { loadConversations(); return prev; }
+            return prev.map(c => c.id === payload.new.id ? { ...c, ...payload.new } : c);
+          });
+          setActiveConv(prev => (prev?.id === payload.new.id ? { ...prev, ...payload.new } : prev));
+          return;
+        }
         setConversations(prev => prev.map(c => c.id === payload.new.id ? { ...c, ...payload.new } : c));
         setActiveConv(prev => (prev?.id === payload.new.id ? { ...prev, ...payload.new } : prev));
       } else {
@@ -130,7 +156,7 @@ export default function Inbox() {
       }
     });
     return () => sub?.unsubscribe?.();
-  }, [workspaceOwnerId, loadConversations]);
+  }, [workspaceOwnerId, loadConversations, canViewAllChats, user?.id]);
 
   const filtered = conversations.filter(c => {
     // Exclude internal conversations from the main list — they only appear

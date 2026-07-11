@@ -80,6 +80,14 @@ export async function getConversations(workspaceId, filters = {}) {
     .eq('workspace_id', workspaceId)
     .order('last_message_at', { ascending: false });
 
+  // ── Role-based visibility ────────────────────────────────────────────────
+  // Agents (role='user') only see conversations assigned to them.
+  // Admins and Sales Managers see everything.
+  // filters.agentId is passed only when the caller is an agent.
+  if (filters.agentId) {
+    q = q.eq('assigned_to', filters.agentId);
+  }
+
   if (filters.status && filters.status !== 'all') {
     if (filters.status === 'open')       q = q.in('status', ['open','unassigned']);
     else if (filters.status === 'unassigned') q = q.is('assigned_to', null).eq('status', 'open');
