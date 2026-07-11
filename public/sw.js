@@ -144,7 +144,7 @@ self.addEventListener('push', (event) => {
 
   const convId      = data.data?.conversationId;
   const convTag     = convId ? `conv-${convId}` : 'nyasa-msg';
-  const url         = data.data?.url || (convId ? `/?conv=${convId}` : '/');
+  const url         = data.data?.url || (convId ? `/inbox?conv=${convId}` : '/inbox');
   const unread      = typeof data.data?.unreadTotal === 'number' ? data.data.unreadTotal : 0;
   const unreadConvs = typeof data.data?.unreadConvs === 'number' ? data.data.unreadConvs : 1;
   const workspaceId = data.data?.workspaceId || '';
@@ -196,7 +196,7 @@ self.addEventListener('push', (event) => {
         tag:     'nyasa-summary',
         renotify: false,
         silent:  true,
-        data:    { url: '/', isSummary: true, unreadTotal: unread },
+        data:    { url: '/inbox', isSummary: true, unreadTotal: unread },
         actions: [{ action: 'open', title: 'Open inbox' }],
       });
     } else {
@@ -274,17 +274,38 @@ self.addEventListener('message', (event) => {
 // ── Notification click ─────────────────────────────────────────────────────
 self.addEventListener('notificationclick', (event) => {
   event.notification.close();
+
+  // Dismiss action — nothing to do
   if (event.action === 'dismiss') return;
-  const url = event.notification.data?.url || '/';
+
+  // Resolve the target URL — always absolute so navigate() + openWindow() work correctly
+  const relativeUrl = event.notification.data?.url || '/inbox';
+  const targetUrl   = relativeUrl.startsWith('http')
+    ? relativeUrl
+    : self.location.origin + relativeUrl;
+
   event.waitUntil((async () => {
-    const all = await self.clients.matchAll({ type: 'window', includeUncontrolled: true });
-    for (const client of all) {
-      if (client.url.includes(self.location.origin) && 'focus' in client) {
-        await client.navigate(url);
-        return client.focus();
+    try {
+      const all = await self.clients.matchAll({ type: 'window', includeUncontrolled: true });
+
+      // Prefer an existing focused window on our origin
+      const existing = all.find(c =>
+        c.url.startsWith(self.location.origin) && 'focus' in c
+      );
+
+      if (existing) {
+        // Use postMessage to drive navigation — more reliable than client.navigate()
+        // which can silently fail cross-origin or on non-WindowClients
+        existing.postMessage({ type: 'NOTIF_NAVIGATE', url: targetUrl });
+        return existing.focus();
       }
+
+      // No existing window — open a new one
+      return self.clients.openWindow(targetUrl);
+    } catch (e) {
+      // Last resort: open a new window
+      return self.clients.openWindow(targetUrl);
     }
-    return self.clients.openWindow(url);
   })());
 });
 

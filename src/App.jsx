@@ -3,7 +3,7 @@ import OfflineBanner from "@/components/OfflineBanner";
 import { useOutboxSync } from "@/lib/useOutboxSync";
 import { QueryClientProvider } from "@tanstack/react-query";
 import { queryClientInstance } from "@/lib/query-client";
-import { BrowserRouter as Router, Route, Routes, Navigate, useLocation } from "react-router-dom";
+import { BrowserRouter as Router, Route, Routes, Navigate, useLocation, useNavigate } from "react-router-dom";
 import { AuthProvider, useAuth } from "@/lib/AuthContext";
 import { NyasaAuthProvider, useNyasaAuth } from "@/lib/NyasaAuth";
 import ScrollToTop from "./components/ScrollToTop";
@@ -46,7 +46,29 @@ import { supabase } from '@/lib/supabase';
 
 function AppRoutes() {
   const location = useLocation();
+  const navigate  = useNavigate();
   const { user, loading: authLoading } = useAuth();
+
+  // ── Service Worker → app navigation (notification clicks) ──────────────
+  // The SW sends NOTIF_NAVIGATE when a notification is clicked and the app
+  // is already open. We listen here so React Router handles it properly
+  // (no full page reload, hash routing intact).
+  React.useEffect(() => {
+    if (!('serviceWorker' in navigator)) return;
+    const handler = (event) => {
+      if (event.data?.type === 'NOTIF_NAVIGATE' && event.data.url) {
+        try {
+          const target = new URL(event.data.url);
+          // Only handle same-origin navigation
+          if (target.origin === window.location.origin) {
+            navigate(target.pathname + target.search + target.hash, { replace: false });
+          }
+        } catch { /* ignore malformed URLs */ }
+      }
+    };
+    navigator.serviceWorker.addEventListener('message', handler);
+    return () => navigator.serviceWorker.removeEventListener('message', handler);
+  }, [navigate]);
   const { onboardingComplete, loadingProfile, profile, workspaceOwnerId } = useNyasaAuth();
   useOutboxSync(workspaceOwnerId);
 
