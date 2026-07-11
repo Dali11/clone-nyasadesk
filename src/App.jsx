@@ -1,3 +1,4 @@
+import React, { useEffect } from 'react';
 import { Toaster } from "@/components/ui/toaster";
 import OfflineBanner from "@/components/OfflineBanner";
 import { useOutboxSync } from "@/lib/useOutboxSync";
@@ -53,7 +54,7 @@ function AppRoutes() {
   // The SW sends NOTIF_NAVIGATE when a notification is clicked and the app
   // is already open. We listen here so React Router handles it properly
   // (no full page reload, hash routing intact).
-  React.useEffect(() => {
+  useEffect(() => {
     if (!('serviceWorker' in navigator)) return;
     const handler = (event) => {
       if (event.data?.type === 'NOTIF_NAVIGATE' && event.data.url) {
