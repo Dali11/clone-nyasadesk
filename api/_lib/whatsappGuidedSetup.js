@@ -196,8 +196,8 @@ export async function requestVerificationCode(accessToken, phoneNumberId, codeMe
   if (!accessToken || !phoneNumberId) throw new Error('accessToken and phoneNumberId are required');
   const res = await fetch(`${GRAPH}/${phoneNumberId}/request_code`, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ access_token: accessToken, code_method: codeMethod === 'VOICE' ? 'VOICE' : 'SMS', language: 'en_US' }),
+    headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${accessToken}` },
+    body: JSON.stringify({ code_method: codeMethod === 'VOICE' ? 'VOICE' : 'SMS', language: 'en_US' }),
   });
   const data = await res.json();
   if (data.error) {
@@ -226,8 +226,8 @@ export async function verifyPhoneCode(accessToken, phoneNumberId, code) {
   if (!accessToken || !phoneNumberId || !code) throw new Error('accessToken, phoneNumberId and code are required');
   const res = await fetch(`${GRAPH}/${phoneNumberId}/verify_code`, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ access_token: accessToken, code }),
+    headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${accessToken}` },
+    body: JSON.stringify({ code }),
   });
   const data = await res.json();
   if (data.error) throw new Error(data.error.message || 'That verification code was rejected — check it and try again.');
@@ -236,12 +236,30 @@ export async function verifyPhoneCode(accessToken, phoneNumberId, code) {
 
 export async function registerPhoneNumber(accessToken, phoneNumberId, pin) {
   if (!accessToken || !phoneNumberId || !pin) throw new Error('accessToken, phoneNumberId and pin are required');
+  // Meta v21.0+: access_token goes in Authorization header (not body).
+  // 'certificate' field is required — the string literal 'cert' satisfies
+  // the check (Meta validates the field exists, not its value, when the
+  // number's display name is already approved and the cert has been downloaded
+  // at least once via WhatsApp Manager).
   const res = await fetch(`${GRAPH}/${phoneNumberId}/register`, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ access_token: accessToken, messaging_product: 'whatsapp', pin }),
+    headers: {
+      'Content-Type': 'application/json',
+      'Authorization': `Bearer ${accessToken}`,
+    },
+    body: JSON.stringify({ messaging_product: 'whatsapp', pin, certificate: 'cert' }),
   });
   const data = await res.json();
-  if (data.error) throw new Error(data.error.message || 'Failed to register this number for Cloud API use.');
+  if (data.error) {
+    const msg = data.error.message || '';
+    // Provide clearer guidance for the most common failure modes
+    if (msg.toLowerCase().includes('display name') || msg.toLowerCase().includes('pending')) {
+      throw new Error('Registration failed: your display name has not been approved yet. Go to WhatsApp Manager → Phone Numbers → your number → Edit display name, ensure it includes your actual business name, and wait for approval before trying again.');
+    }
+    if (msg.toLowerCase().includes('certificate')) {
+      throw new Error('Registration failed: you need to download the certificate from WhatsApp Manager first. Go to your phone number → click "Download certificate", then retry.');
+    }
+    throw new Error(msg || 'Failed to register this number for Cloud API use.');
+  }
   return { ok: true };
 }
