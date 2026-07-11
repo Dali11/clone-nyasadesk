@@ -41,6 +41,8 @@ import AdminAuditLog   from "./pages/admin/AdminAuditLog";
 import PrivacyPolicy   from './pages/PrivacyPolicy';
 import DataDeletion    from './pages/DataDeletion';
 import SupportPage     from './pages/SupportPage';
+import MyCommissions    from './pages/MyCommissions';
+import AdminCommissions from './pages/admin/AdminCommissions';
 import { LockKeyhole } from 'lucide-react';
 import InstallPrompt from './components/InstallPrompt';
 import { supabase } from '@/lib/supabase';
