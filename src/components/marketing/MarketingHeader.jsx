@@ -9,6 +9,7 @@ const PRODUCT_ITEMS = [
   { icon: FileText,   title: 'Quotes & Invoices', desc: 'Branded PDFs, sent straight from the chat, with payment tracking.',           href: '/#documents' },
   { icon: Users2,     title: 'Automation & Team', desc: 'Assignment rules, SLA tracking, roles — built for real sales teams.',         href: '/#product' },
   { icon: Users2,     title: 'Multi-Agent Inbox',  desc: 'One WhatsApp number shared across your whole team. No personal phones.',      href: '/features/multi-agent' },
+  { icon: Bot,        title: 'WhatsApp Chatbots',  desc: 'AI chatbot included in Scale — replies, qualifies leads, and sends quotes 24/7.', href: '/features/whatsapp-chatbots' },
 ];
 
 export default function MarketingHeader() {
