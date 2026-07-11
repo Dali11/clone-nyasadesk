@@ -1,18 +1,34 @@
 import { useEffect, useState } from 'react';
-import { Loader2, Building2, Users, MessageSquare, DollarSign, TrendingUp } from 'lucide-react';
+import { Loader2, Building2, Users, MessageSquare, DollarSign, TrendingUp, ChevronRight } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { adminFetch } from '@/lib/adminApi';
 
 const PLAN_LABEL = { starter: 'Starter', growth: 'Growth', scale: 'Scale' };
 
-function StatCard({ icon: Icon, label, value, sub }) {
-  return (
-    <div className="bg-[var(--nyasa-surface-2)] rounded-2xl border border-[var(--nyasa-border)] p-5">
+function StatCard({ icon: Icon, label, value, sub, href }) {
+  const content = (
+    <>
       <div className="flex items-center gap-2 text-gray-400 text-xs font-medium mb-2">
         <Icon className="w-3.5 h-3.5" /> {label}
       </div>
       <p className="text-2xl font-bold text-white">{value}</p>
       {sub && <p className="text-[11px] text-gray-500 mt-1">{sub}</p>}
+    </>
+  );
+
+  const className = "block bg-[var(--nyasa-surface-2)] rounded-2xl border border-[var(--nyasa-border)] p-5 transition-colors hover:bg-white/5";
+
+  if (href) {
+    return (
+      <Link to={href} className={className}>
+        {content}
+      </Link>
+    );
+  }
+
+  return (
+    <div className="bg-[var(--nyasa-surface-2)] rounded-2xl border border-[var(--nyasa-border)] p-5">
+      {content}
     </div>
   );
 }
@@ -55,8 +71,8 @@ export default function AdminOverview() {
       </div>
 
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-8">
-        <StatCard icon={Building2} label="Workspaces" value={totals.workspaces} />
-        <StatCard icon={Users} label="Users" value={totals.users} />
+        <StatCard icon={Building2} label="Workspaces" value={totals.workspaces} href="/admin/workspaces" />
+        <StatCard icon={Users} label="Users" value={totals.users} href="/admin/workspaces" />
         <StatCard icon={MessageSquare} label="Conversations" value={totals.conversations} sub={`${totals.messages} messages`} />
         <StatCard icon={DollarSign} label="Est. MRR (MWK)" value={`K${totals.mrr.toLocaleString()}`} />
       </div>
@@ -91,13 +107,20 @@ export default function AdminOverview() {
         <div className="space-y-2">
           {recent_workspaces.length === 0 && <p className="text-xs text-gray-600">No workspaces yet.</p>}
           {recent_workspaces.map(w => (
-            <div key={w.id} className="flex items-center justify-between py-2 border-b border-[var(--nyasa-border)] last:border-0">
+            <Link
+              key={w.id}
+              to={`/admin/workspaces?open=${w.id}`}
+              className="flex items-center justify-between py-2 border-b border-[var(--nyasa-border)] last:border-0 hover:bg-white/5 transition-colors rounded-xl px-2 -mx-2"
+            >
               <div className="min-w-0">
                 <p className="text-sm text-white truncate">{w.workspace_name || 'Untitled workspace'}</p>
                 <p className="text-[11px] text-gray-500 capitalize">{w.subscription_status || 'active'}</p>
               </div>
-              <span className="text-xs font-semibold text-gray-400">{PLAN_LABEL[w.plan] || w.plan}</span>
-            </div>
+              <div className="flex items-center gap-2">
+                <span className="text-xs font-semibold text-gray-400">{PLAN_LABEL[w.plan] || w.plan}</span>
+                <ChevronRight className="w-3.5 h-3.5 text-gray-600" />
+              </div>
+            </Link>
           ))}
         </div>
       </div>
