@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { useSearchParams, useNavigate } from 'react-router-dom';
 import { User, Users, Globe, Bell, Building2, Check, Loader2,
          Trash2, Copy, ExternalLink, ChevronDown, AlertCircle, Code2, ShieldCheck, CreditCard, Crown, Clock, CheckCircle2,
-         Megaphone, Pin, PinOff, Edit2, X, Plus, BadgeDollarSign } from 'lucide-react';
+         Megaphone, Pin, PinOff, Edit2, X, Plus, BadgeDollarSign, RefreshCw } from 'lucide-react';
 import Sidebar from '@/components/Sidebar';
 import Avatar from '@/components/Avatar';
 import TeamSection from '@/components/settings/TeamSection';
@@ -154,6 +154,7 @@ function WhatsAppCard({ saved, workspaceId, onSave, onDelete }) {
   const [verifying, setVerifying] = useState(false);
   const [verifyResult, setVerifyResult] = useState(null);
   const [error, setError] = useState('');
+  const [refreshing, setRefreshing] = useState(false);
 
   const embeddedSignupDataRef = useState({ current: null })[0];
   const { loadFacebookSDK, sdkReady } = useFacebookSDK();
@@ -184,6 +185,24 @@ function WhatsAppCard({ saved, workspaceId, onSave, onDelete }) {
   // ── Disconnect ────────────────────────────────────────────────────────────
   const handleDisconnect = async () => {
     try { if (onDelete) await onDelete('whatsapp'); } catch (e) { setError('Disconnect failed: ' + e.message); }
+  };
+
+  // ── Refresh phone details from Meta ───────────────────────────────────────
+  const handleRefreshStatus = async () => {
+    if (!saved?.config?.access_token || !saved?.config?.phone_number_id) return;
+    setRefreshing(true);
+    try {
+      const data = await apiCall('whatsapp-refresh-status', {
+        workspace_id: workspaceId,
+        access_token: saved.config.access_token,
+        phone_number_id: saved.config.phone_number_id,
+        waba_id: saved.config.waba_id,
+      });
+      if (data.ok && onSave) {
+        onSave('whatsapp', { ...saved.config, ...data.phone });
+      }
+    } catch (e) { /* silently ignore */ }
+    finally { setRefreshing(false); }
   };
 
   // ── Embedded Signup ───────────────────────────────────────────────────────
@@ -399,19 +418,45 @@ function WhatsAppCard({ saved, workspaceId, onSave, onDelete }) {
       {/* ── Connected state ── */}
       {isLive && (
         <div className="space-y-3">
-          <div className="bg-[var(--nyasa-surface-1)] rounded-xl p-4 space-y-2">
-            <div className="flex items-center justify-between">
-              <p className="text-sm font-bold text-white">WhatsApp is connected</p>
-              <span className="text-[10px] px-2 py-0.5 rounded-full bg-[#25D36620] text-[#25D366] font-medium">
-                {connectedViaLabel[saved.config?.connected_via] || 'Connected'}
-              </span>
+          <div className="bg-[var(--nyasa-surface-1)] rounded-xl p-4 space-y-3">
+            <div className="flex items-start justify-between gap-2">
+              <div>
+                <p className="text-sm font-bold text-white">WhatsApp is connected</p>
+                {saved.config?.phone_number && (
+                  <p className="text-xs text-gray-400 mt-0.5">{saved.config.phone_number}{saved.config?.verified_name ? ` · ${saved.config.verified_name}` : ''}</p>
+                )}
+              </div>
+              <div className="flex items-center gap-1.5 shrink-0">
+                <span className="text-[10px] px-2 py-0.5 rounded-full bg-[#25D36620] text-[#25D366] font-medium">
+                  {connectedViaLabel[saved.config?.connected_via] || 'Cloud API'}
+                </span>
+              </div>
             </div>
-            {saved.config?.phone_number && <p className="text-xs text-gray-400">{saved.config.phone_number}{saved.config?.verified_name ? ` · ${saved.config.verified_name}` : ''}</p>}
-            {saved.config?.quality_rating && (
-              <p className={`text-xs font-medium ${qualityColors[saved.config.quality_rating] || 'text-gray-400'}`}>
-                Quality: {saved.config.quality_rating}
-              </p>
+
+            {/* Quality + registration status */}
+            <div className="flex items-center gap-3">
+              {saved.config?.quality_rating && (
+                <div className="flex items-center gap-1.5">
+                  <div className={`w-2 h-2 rounded-full ${saved.config.quality_rating === 'GREEN' ? 'bg-emerald-400' : saved.config.quality_rating === 'YELLOW' ? 'bg-amber-400' : saved.config.quality_rating === 'RED' ? 'bg-red-400' : 'bg-gray-500'}`} />
+                  <span className={`text-[11px] font-medium ${qualityColors[saved.config.quality_rating] || 'text-gray-400'}`}>
+                    {saved.config.quality_rating === 'UNKNOWN' ? 'Quality not yet rated' : `Quality: ${saved.config.quality_rating}`}
+                  </span>
+                </div>
+              )}
+              <button onClick={handleRefreshStatus} disabled={refreshing}
+                className="ml-auto flex items-center gap-1 text-[10px] text-gray-500 hover:text-gray-300 disabled:opacity-40">
+                <RefreshCw className={`w-3 h-3 ${refreshing ? 'animate-spin' : ''}`} />
+                {refreshing ? 'Refreshing…' : 'Refresh'}
+              </button>
+            </div>
+
+            {/* WABA ID info */}
+            {saved.config?.waba_id && (
+              <div className="text-[10px] text-gray-600 font-mono">
+                WABA: {saved.config.waba_id} · PID: {saved.config.phone_number_id}
+              </div>
             )}
+
             {embeddedSetupPin && (
               <div className="bg-amber-500/10 border border-amber-500/30 rounded-lg p-3">
                 <p className="text-[11px] font-semibold text-amber-400">Save your 2FA PIN: <span className="font-mono text-white">{embeddedSetupPin}</span></p>

@@ -78,6 +78,7 @@ export default async function handler(req, res) {
   if (action === 'whatsapp-guided-register-phone') return handleWhatsappGuidedRegisterPhone(req, res);
   if (action === 'whatsapp-guided-fresh-setup')   return handleWhatsappGuidedFreshSetup(req, res);
   if (action === 'whatsapp-manual-connect') return handleWhatsappManualConnect(req, res);
+  if (action === 'whatsapp-refresh-status') return handleWhatsappRefreshStatus(req, res);
   if (action === 'sales-create')  return handleSalesCreate(req, res);
   if (action === 'sales-list')    return handleSalesList(req, res);
   if (action === 'sales-verify')  return handleSalesVerify(req, res);
@@ -1013,33 +1014,18 @@ async function handleWhatsappManualConnect(req, res) {
   // auto-setup if possible, return connected or needs_registration.
   try {
     const { workspace_id, access_token, waba_id, phone_number_id } = req.body || {};
-    if (!workspace_id || !access_token) {
-      return res.status(400).json({ ok: false, error: 'workspace_id and access_token are required' });
+    if (!workspace_id || !access_token || !waba_id || !phone_number_id) {
+      return res.status(400).json({ ok: false, error: 'access_token, waba_id and phone_number_id are all required' });
     }
 
     // Step 1: validate token (throws with user-friendly message on failure)
     await validateToken(access_token);
 
-    // Step 2: resolve WABA
-    let resolvedWabaId = waba_id || null;
-    let wabas = null;
-    if (!resolvedWabaId) {
-      wabas = await discoverWabasManual(access_token);
-      resolvedWabaId = wabas[0]?.waba_id;
-      if (!resolvedWabaId) {
-        return res.status(400).json({ ok: false, error: 'No WhatsApp Business Account found for this token. Assign the System User to a WABA with Manage permission in Business Settings > System Users > Add Assets.' });
-      }
-    }
+    // Step 2: WABA ID provided directly — no auto-discovery
+    const resolvedWabaId = waba_id.trim();
 
-    // Step 3: resolve phone number
-    let resolvedPhoneId = phone_number_id || null;
-    if (!resolvedPhoneId) {
-      const phones = await listPhoneNumbers(access_token, resolvedWabaId);
-      resolvedPhoneId = phones[0]?.id;
-      if (!resolvedPhoneId) {
-        return res.status(400).json({ ok: false, error: 'No phone numbers found on this WhatsApp Business Account. Add one in Meta Business Manager first.' });
-      }
-    }
+    // Step 3: Phone Number ID provided directly — no auto-discovery
+    const resolvedPhoneId = phone_number_id.trim();
 
     // Step 4: get full phone details
     const phone = await getPhoneDetails(access_token, resolvedPhoneId);
@@ -1110,6 +1096,45 @@ async function handleWhatsappManualConnect(req, res) {
     return res.status(200).json({ ok: true, config });
   } catch (e) {
     console.error('[channels/whatsapp-manual-connect]', e);
+    return res.status(400).json({ ok: false, error: e.message });
+  }
+}
+
+
+// ── WhatsApp Refresh Status ───────────────────────────────────────────────
+async function handleWhatsappRefreshStatus(req, res) {
+  try {
+    const { workspace_id, access_token, phone_number_id, waba_id } = req.body || {};
+    if (!workspace_id || !access_token || !phone_number_id) {
+      return res.status(400).json({ ok: false, error: 'workspace_id, access_token, phone_number_id required' });
+    }
+    const phone = await getPhoneDetails(access_token, phone_number_id);
+    // Update config in DB with fresh details
+    const { createClient } = await import('@supabase/supabase-js');
+    const sb = createClient('https://pfbaepibelomiutlotkn.supabase.co', process.env.SUPABASE_SERVICE_ROLE_KEY);
+    const { data: existing } = await sb.from('channel_configs').select('config').eq('workspace_id', workspace_id).eq('channel', 'whatsapp').maybeSingle();
+    if (existing?.config) {
+      const updatedConfig = {
+        ...existing.config,
+        phone_number: phone.display_phone_number,
+        verified_name: phone.verified_name,
+        quality_rating: phone.quality_rating,
+        name_status: phone.name_status,
+        account_mode: phone.account_mode,
+        code_verification_status: phone.code_verification_status,
+      };
+      await sb.from('channel_configs').update({ config: updatedConfig, updated_at: new Date().toISOString() }).eq('workspace_id', workspace_id).eq('channel', 'whatsapp');
+    }
+    return res.status(200).json({ ok: true, phone: {
+      phone_number: phone.display_phone_number,
+      verified_name: phone.verified_name,
+      quality_rating: phone.quality_rating,
+      name_status: phone.name_status,
+      account_mode: phone.account_mode,
+      code_verification_status: phone.code_verification_status,
+    }});
+  } catch (e) {
+    console.error('[channels/whatsapp-refresh-status]', e);
     return res.status(400).json({ ok: false, error: e.message });
   }
 }
