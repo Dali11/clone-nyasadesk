@@ -431,12 +431,19 @@ export async function subscribeWebhooks(accessToken, wabaId) {
 
   const callbackUri = 'https://nyasadesk.com/api/webhooks/whatsapp';
   const verifyToken = `nyasa_${wabaId.slice(-8)}`;
+  const url = `${GRAPH}/${wabaId}/subscribed_apps?access_token=${encodeURIComponent(accessToken)}`;
 
   try {
-    await graphPost(
-      `${GRAPH}/${wabaId}/subscribed_apps?access_token=${encodeURIComponent(accessToken)}`,
-      { override_callback_uri: callbackUri, verify_token: verifyToken }
-    );
+    // Step 1: Subscribe the app to this WABA (no override yet).
+    // Meta requires the app to be subscribed BEFORE override_callback_uri can be set.
+    // Sending override_callback_uri in the initial subscription triggers error #100.
+    await graphPost(url, {});
+
+    // Step 2: Now set the callback override on the already-subscribed app.
+    await graphPost(url, {
+      override_callback_uri: callbackUri,
+      verify_token: verifyToken,
+    });
   } catch (e) {
     throw new Error(
       e.message ||
