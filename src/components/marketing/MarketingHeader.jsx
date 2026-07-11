@@ -8,6 +8,7 @@ const PRODUCT_ITEMS = [
   { icon: Bot,        title: 'AI Agents',         desc: 'An AI teammate that replies, drafts, or works fully autonomously.',           href: '/#ai-agents' },
   { icon: FileText,   title: 'Quotes & Invoices', desc: 'Branded PDFs, sent straight from the chat, with payment tracking.',           href: '/#documents' },
   { icon: Users2,     title: 'Automation & Team', desc: 'Assignment rules, SLA tracking, roles — built for real sales teams.',         href: '/#product' },
+  { icon: Users2,     title: 'Multi-Agent Inbox',  desc: 'One WhatsApp number shared across your whole team. No personal phones.',      href: '/features/multi-agent' },
 ];
 
 export default function MarketingHeader() {

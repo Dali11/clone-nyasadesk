@@ -8,7 +8,8 @@ import { AuthProvider, useAuth } from "@/lib/AuthContext";
 import { NyasaAuthProvider, useNyasaAuth } from "@/lib/NyasaAuth";
 import ScrollToTop from "./components/ScrollToTop";
 
-import Landing         from "./pages/Landing";
+import Landing              from "./pages/Landing";
+import MultiAgentFeature   from "./pages/MultiAgentFeature";
 import Pricing         from "./pages/Pricing";
 import Login           from "./pages/Login";
 import Register        from "./pages/Register";
@@ -82,6 +83,7 @@ function AppRoutes() {
         {/* Any other path → landing */}
         <Route path="/privacy"         element={<PrivacyPolicy />} />
         <Route path="/data-deletion"    element={<DataDeletion />} />
+        <Route path="/features/multi-agent" element={<MultiAgentFeature />} />
         <Route path="*"                element={<Navigate to="/" replace />} />
       </Routes>
     );
