@@ -278,12 +278,12 @@ function WhatsAppCard({ saved, workspaceId, onSave, onDelete }) {
 
   // ── Advanced: manual ──────────────────────────────────────────────────────
   const handleManualConnect = async () => {
-    if (!manualToken.trim()) { setManualError('Access token is required'); return; }
+    if (!manualToken.trim() || !manualWabaId.trim() || !manualPhoneId.trim()) { setManualError('All three fields are required'); return; }
     setManualConnecting(true); setManualError('');
     try {
       const data = await apiCall('whatsapp-manual-connect', {
         workspace_id: workspaceId, access_token: manualToken.trim(),
-        waba_id: manualWabaId.trim() || undefined, phone_number_id: manualPhoneId.trim() || undefined,
+        waba_id: manualWabaId.trim(), phone_number_id: manualPhoneId.trim(),
       });
       if (!data.ok) { setManualError(data.error || 'Connection failed'); return; }
       if (data.needs_registration) {
@@ -444,308 +444,163 @@ function WhatsAppCard({ saved, workspaceId, onSave, onDelete }) {
       {/* ── Connect state ── */}
       {!isLive && (
         <div className="space-y-3">
-          {/* Tab switcher */}
-          <div className="flex rounded-xl bg-[var(--nyasa-bg)] p-1 gap-1">
-            {[['recommended', 'Recommended'], ['advanced', 'Advanced']].map(([key, label]) => (
-              <button key={key} onClick={() => { setTab(key); setEmbeddedError(''); setDiscoverError(''); setManualError(''); }}
-                className={`flex-1 py-2 rounded-lg text-xs font-medium transition-colors ${
-                  tab === key ? 'bg-[#25D366] text-white' : 'text-gray-400 hover:text-gray-200'
-                }`}>{label}</button>
-            ))}
-          </div>
 
-          {/* ── Recommended tab: Embedded Signup ── */}
-          {tab === 'recommended' && (
+          {/* Manual entry — primary method */}
+          {!regWizard && (
             <div className="bg-[var(--nyasa-surface-1)] rounded-xl p-4 space-y-3">
               <div>
-                <p className="text-sm font-bold text-white">Connect with Facebook</p>
-                <p className="text-[11px] text-gray-400 mt-1 leading-relaxed">
-                  The easiest way to connect. You'll keep using WhatsApp Business App on your phone — Nyasadesk adds a parallel connection so messages flow to both. Just log in with Facebook and follow the steps.
+                <p className="text-xs font-bold text-white mb-0.5">Cloud API Credentials</p>
+                <p className="text-[11px] text-gray-400 leading-relaxed">
+                  Find these in <strong>Meta Business Suite → WhatsApp Manager</strong>. Use a permanent System User access token.
                 </p>
               </div>
-              {embeddedSetupPin && (
-                <div className="bg-amber-500/10 border border-amber-500/30 rounded-lg p-3">
-                  <p className="text-[11px] font-semibold text-amber-400">Save your 2FA PIN: <span className="font-mono text-white">{embeddedSetupPin}</span></p>
-                  <p className="text-[11px] text-amber-200/70 mt-0.5">Meta set this during registration. Keep it safe.</p>
+              <div className="space-y-2">
+                <div className="space-y-1">
+                  <label className="text-[11px] text-gray-500">Permanent Access Token <span className="text-red-400">*</span></label>
+                  <input type="password" value={manualToken} onChange={e => setManualToken(e.target.value)} placeholder="EAAG…"
+                    className="w-full bg-[var(--nyasa-bg)] text-white text-xs rounded-lg p-2.5 border border-[var(--nyasa-border)] focus:border-[#25D366] outline-none" />
                 </div>
-              )}
-              {embeddedError && <p className="text-[11px] text-red-400 leading-relaxed">{embeddedError}</p>}
-              <button onClick={handleEmbeddedSignup} disabled={embeddedLoading}
-                className="w-full py-3 rounded-xl text-sm font-bold text-white bg-[#1877F2] hover:bg-[#166FE5] disabled:opacity-50 flex items-center justify-center gap-2">
-                {embeddedLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : null}
-                {embeddedLoading ? 'Connecting…' : '  Connect with Facebook — keep WhatsApp app working'}
+                <div className="space-y-1">
+                  <label className="text-[11px] text-gray-500">WhatsApp Business Account ID (WABA ID) <span className="text-red-400">*</span></label>
+                  <input value={manualWabaId} onChange={e => setManualWabaId(e.target.value)} placeholder="916980661415765"
+                    className="w-full bg-[var(--nyasa-bg)] text-white text-xs rounded-lg p-2.5 border border-[var(--nyasa-border)] focus:border-[#25D366] outline-none" />
+                </div>
+                <div className="space-y-1">
+                  <label className="text-[11px] text-gray-500">Phone Number ID <span className="text-red-400">*</span></label>
+                  <input value={manualPhoneId} onChange={e => setManualPhoneId(e.target.value)} placeholder="1228643423663631"
+                    className="w-full bg-[var(--nyasa-bg)] text-white text-xs rounded-lg p-2.5 border border-[var(--nyasa-border)] focus:border-[#25D366] outline-none" />
+                </div>
+              </div>
+              {manualError && <p className="text-[11px] text-red-400 leading-relaxed">{manualError}</p>}
+              <button onClick={handleManualConnect} disabled={manualConnecting || !manualToken.trim() || !manualWabaId.trim() || !manualPhoneId.trim()}
+                className="w-full py-3 rounded-xl text-sm font-bold text-white bg-[#25D366] hover:bg-[#20BD5A] disabled:opacity-50 flex items-center justify-center gap-2">
+                {manualConnecting ? <Loader2 className="w-4 h-4 animate-spin" /> : <ShieldCheck className="w-4 h-4" />}
+                {manualConnecting ? 'Connecting…' : 'Connect to WhatsApp Cloud API'}
               </button>
+
+              {/* Connect with Facebook — Coming Soon */}
+              <div className="pt-1">
+                <div className="relative">
+                  <div className="absolute inset-0 rounded-xl overflow-hidden">
+                    <div className="absolute inset-0 bg-[var(--nyasa-bg)] opacity-70 rounded-xl" />
+                  </div>
+                  <button disabled
+                    className="w-full py-3 rounded-xl text-sm font-bold text-white/40 bg-[#1877F2]/30 border border-[#1877F2]/20 flex items-center justify-center gap-2 cursor-not-allowed relative">
+                    <svg className="w-4 h-4 opacity-50" viewBox="0 0 24 24" fill="currentColor"><path d="M24 12.073c0-6.627-5.373-12-12-12s-12 5.373-12 12c0 5.99 4.388 10.954 10.125 11.854v-8.385H7.078v-3.47h3.047V9.43c0-3.007 1.792-4.669 4.533-4.669 1.312 0 2.686.235 2.686.235v2.953H15.83c-1.491 0-1.956.925-1.956 1.874v2.25h3.328l-.532 3.47h-2.796v8.385C19.612 23.027 24 18.062 24 12.073z"/></svg>
+                    Connect with Facebook
+                    <span className="ml-1 px-1.5 py-0.5 rounded-full bg-amber-500/30 text-amber-300 text-[9px] font-bold">COMING SOON</span>
+                  </button>
+                </div>
+                <p className="text-[10px] text-center text-gray-600 mt-1.5">One-click Facebook login — available soon</p>
+              </div>
             </div>
           )}
 
-          {/* ── Advanced tab ── */}
-          {tab === 'advanced' && (
-            <div className="space-y-3">
-              {/* Sub-mode toggle */}
-              <div className="flex rounded-lg bg-[var(--nyasa-bg)] p-0.5 gap-0.5">
-                {[['discover', 'Auto-detect'], ['manual', 'Manual entry']].map(([key, label]) => (
-                  <button key={key} onClick={() => { setAdvMode(key); setDiscoverError(''); setManualError(''); setWabas(null); setRegWizard(null); }}
-                    className={`flex-1 py-1.5 rounded-md text-[11px] font-medium transition-colors ${
-                      advMode === key ? 'bg-[var(--nyasa-surface-2)] text-white' : 'text-gray-500 hover:text-gray-300'
-                    }`}>{label}</button>
-                ))}
+          {/* Registration wizard — shown after manual connect when number not yet on Cloud API */}
+          {regWizard && (
+            <div className="bg-[var(--nyasa-surface-1)] rounded-xl p-4 space-y-3">
+              <div className="flex items-center gap-2">
+                <div className="w-8 h-8 rounded-lg bg-amber-500/15 flex items-center justify-center shrink-0">
+                  <ShieldCheck className="w-4 h-4 text-amber-400" />
+                </div>
+                <div>
+                  <p className="text-sm font-bold text-white">Register on Cloud API</p>
+                  <p className="text-[11px] text-gray-400">{regWizard.phone_number || regWizard.phone_number_id}</p>
+                </div>
+              </div>
+              <p className="text-[11px] text-gray-400 leading-relaxed">
+                Your credentials are valid but this number isn't registered on WhatsApp Cloud API yet. 
+                Complete the steps below to activate it — this only takes a minute.
+              </p>
+
+              {/* Step indicator */}
+              <div className="flex items-center gap-2 py-1">
+                <div className={`flex items-center gap-1.5 ${regStep === 'code' ? 'text-white' : 'text-[#25D366]'}`}>
+                  <div className={`w-5 h-5 rounded-full flex items-center justify-center text-[10px] font-bold ${regStep === 'code' ? 'bg-[#25D366] text-white' : 'bg-[#25D366]/20 text-[#25D366]'}`}>
+                    {regStep === 'code' ? '1' : '✓'}
+                  </div>
+                  <span className="text-[11px]">Verify number</span>
+                </div>
+                <div className="flex-1 h-px bg-[var(--nyasa-border)]" />
+                <div className={`flex items-center gap-1.5 ${regStep === 'pin' ? 'text-white' : 'text-gray-500'}`}>
+                  <div className={`w-5 h-5 rounded-full flex items-center justify-center text-[10px] font-bold ${regStep === 'pin' ? 'bg-[#25D366] text-white' : 'bg-white/10 text-gray-500'}`}>2</div>
+                  <span className="text-[11px]">Set PIN & activate</span>
+                </div>
               </div>
 
-              {/* Auto-detect mode */}
-              {advMode === 'discover' && !freshMode && (
-                <div className="bg-[var(--nyasa-surface-1)] rounded-xl p-4 space-y-3">
-                  <p className="text-[11px] text-gray-400 leading-relaxed">
-                    Paste a System User access token from Meta Business Settings → Users → System Users. Make sure it has <strong>whatsapp_business_management</strong> + <strong>whatsapp_business_messaging</strong> permissions and Manage access to the WABA.
-                  </p>
-                  <input type="password" value={token} onChange={e => setToken(e.target.value)}
-                    placeholder="EAAG… (System User access token)"
-                    className="w-full bg-[var(--nyasa-bg)] text-white text-xs rounded-lg p-2.5 border border-[var(--nyasa-border)]" />
-                  <button onClick={handleDiscover} disabled={discovering || !token.trim()}
-                    className="w-full py-2.5 rounded-xl text-sm font-medium text-white bg-[#25D366] hover:bg-[#20BD5A] disabled:opacity-50 flex items-center justify-center gap-2">
-                    {discovering ? <Loader2 className="w-4 h-4 animate-spin" /> : null}
-                    {discovering ? 'Looking up your accounts…' : 'Find my WhatsApp accounts'}
-                  </button>
-
-                  {wabas && wabas.length > 0 && (
-                    <div className="space-y-2.5 pt-1">
-                      <div className="space-y-1.5">
-                        <label className="text-[11px] text-gray-500">WhatsApp Business Account</label>
-                        <select value={selectedWabaId} onChange={e => {
-                          const w = wabas.find(w => w.waba_id === e.target.value);
-                          setSelectedWabaId(e.target.value);
-                          setSelectedPhoneId(w?.phone_numbers?.[0]?.phone_number_id || '');
-                        }} className="w-full bg-[var(--nyasa-bg)] text-white text-xs rounded-lg p-2.5 border border-[var(--nyasa-border)]">
-                          {wabas.map(w => <option key={w.waba_id} value={w.waba_id}>{w.name} ({w.waba_id})</option>)}
-                        </select>
-                      </div>
-                      {(() => {
-                        const phones = wabas.find(w => w.waba_id === selectedWabaId)?.phone_numbers || [];
-                        if (!phones.length) return <p className="text-[11px] text-amber-400">No phone numbers found on this account. Add one in Meta's WhatsApp Manager first.</p>;
-                        return (
-                          <div className="space-y-1.5">
-                            <label className="text-[11px] text-gray-500">Phone Number</label>
-                            <select value={selectedPhoneId} onChange={e => setSelectedPhoneId(e.target.value)}
-                              className="w-full bg-[var(--nyasa-bg)] text-white text-xs rounded-lg p-2.5 border border-[var(--nyasa-border)]">
-                              {phones.map(p => <option key={p.phone_number_id} value={p.phone_number_id}>{p.display_phone_number || p.phone_number_id}{p.verified_name ? ` · ${p.verified_name}` : ''}</option>)}
-                            </select>
-                          </div>
-                        );
-                      })()}
-                      <button onClick={handleDiscoverConnect} disabled={connecting || !selectedPhoneId}
-                        className="w-full py-2.5 rounded-xl text-sm font-bold text-white bg-[#25D366] hover:bg-[#20BD5A] disabled:opacity-50 flex items-center justify-center gap-2">
-                        {connecting ? <Loader2 className="w-4 h-4 animate-spin" /> : <ShieldCheck className="w-4 h-4" />}
-                        {connecting ? 'Connecting…' : 'Connect this number'}
-                      </button>
-                    </div>
-                  )}
-
-                  {discoverError && <p className="text-[11px] text-red-400 leading-relaxed">{discoverError}</p>}
-
-                  {/* Register new number sub-flow */}
-                  {!freshMode && (
-                    <button onClick={() => { setFreshMode(true); setFreshError(''); setFreshStep('input'); }}
-                      className="w-full text-center text-[11px] text-gray-500 hover:text-gray-300 underline underline-offset-2">
-                      Register a brand new number →
+              {regStep === 'code' && !regIsAppNumber && (
+                <div className="space-y-2.5">
+                  <div className="bg-[#25D366]/10 rounded-lg p-2.5">
+                    <p className="text-[11px] text-[#25D366]">✓ Verification code sent via SMS to your number</p>
+                  </div>
+                  <div className="space-y-1">
+                    <label className="text-[11px] text-gray-500">Enter 6-digit verification code</label>
+                    <input value={regCode} onChange={e => setRegCode(e.target.value.replace(/\D/g, '').slice(0, 6))} 
+                      placeholder="123456" maxLength={6}
+                      className="w-full bg-[var(--nyasa-bg)] text-white text-sm text-center tracking-widest font-mono rounded-lg p-2.5 border border-[var(--nyasa-border)] focus:border-[#25D366] outline-none" />
+                  </div>
+                  <div className="flex gap-2">
+                    <button onClick={async () => { setRegBusy(true); try { await apiCall('whatsapp-guided-request-code', { access_token: activeToken, phone_number_id: regWizard.phone_number_id, code_method: 'SMS' }); } finally { setRegBusy(false); } }} 
+                      disabled={regBusy} className="flex-1 py-2 rounded-lg text-[11px] text-gray-400 bg-white/5 hover:bg-white/10 disabled:opacity-50">
+                      Resend SMS
                     </button>
-                  )}
-                </div>
-              )}
-
-              {/* Fresh number wizard */}
-              {advMode === 'discover' && freshMode && (
-                <div className="bg-[var(--nyasa-surface-1)] rounded-xl p-4 space-y-3">
-                  <div className="flex items-center justify-between">
-                    <p className="text-xs font-bold text-white">Register a new number</p>
-                    <button onClick={() => { setFreshMode(false); setFreshStep('input'); setFreshError(''); }} className="text-[11px] text-gray-500 hover:text-gray-300">Cancel</button>
+                    <button onClick={async () => { setRegBusy(true); try { await apiCall('whatsapp-guided-request-code', { access_token: activeToken, phone_number_id: regWizard.phone_number_id, code_method: 'VOICE' }); } finally { setRegBusy(false); } }} 
+                      disabled={regBusy} className="flex-1 py-2 rounded-lg text-[11px] text-gray-400 bg-white/5 hover:bg-white/10 disabled:opacity-50">
+                      Call me instead
+                    </button>
                   </div>
-
-                  {freshStep === 'input' && (
-                    <div className="space-y-2.5">
-                      <p className="text-[11px] text-gray-400 leading-relaxed">Uses the same token above. Your Business ID is in Meta Business Settings → Business Info.</p>
-                      <div className="space-y-1.5">
-                        <label className="text-[11px] text-gray-500">Business ID</label>
-                        <input value={freshBusinessId} onChange={e => setFreshBusinessId(e.target.value)} placeholder="123456789012345"
-                          className="w-full bg-[var(--nyasa-bg)] text-white text-xs rounded-lg p-2.5 border border-[var(--nyasa-border)]" />
-                      </div>
-                      <div className="grid grid-cols-3 gap-2">
-                        <div className="space-y-1.5">
-                          <label className="text-[11px] text-gray-500">Country code</label>
-                          <input value={freshCc} onChange={e => setFreshCc(e.target.value.replace(/\D/g, ''))} placeholder="265"
-                            className="w-full bg-[var(--nyasa-bg)] text-white text-xs rounded-lg p-2.5 border border-[var(--nyasa-border)]" />
-                        </div>
-                        <div className="col-span-2 space-y-1.5">
-                          <label className="text-[11px] text-gray-500">Phone number <span className="text-gray-600">(no leading zero)</span></label>
-                          <input value={freshPhone} onChange={e => setFreshPhone(e.target.value.replace(/\D/g, ''))} placeholder="891107334" title="Without leading zero — e.g. 891107334 not 0891107334"
-                            className="w-full bg-[var(--nyasa-bg)] text-white text-xs rounded-lg p-2.5 border border-[var(--nyasa-border)]" />
-                        </div>
-                      </div>
-                      <div className="bg-amber-500/10 rounded-lg p-2.5 space-y-1">
-                        <p className="text-[11px] font-semibold text-amber-400">Number still on WhatsApp Business App?</p>
-                        <p className="text-[11px] text-amber-200/70 leading-relaxed"><strong>Keep both (coexistence):</strong> use the Recommended tab — Meta's QR-code flow is the only way to do this.</p>
-                        <p className="text-[11px] text-amber-200/70 leading-relaxed"><strong>Full migration:</strong> delete the WhatsApp account from the app (Settings → Account → Delete my account) then come back here.</p>
-                      </div>
-                      <button onClick={handleFreshStart} disabled={freshBusy}
-                        className="w-full py-2.5 rounded-xl text-sm font-medium text-white bg-[#25D366] hover:bg-[#20BD5A] disabled:opacity-50 flex items-center justify-center gap-2">
-                        {freshBusy ? <Loader2 className="w-4 h-4 animate-spin" /> : null}
-                        {freshBusy ? 'Setting up…' : 'Continue'}
-                      </button>
-                    </div>
-                  )}
-
-                  {freshStep === 'code' && !freshIsAppNumber && (
-                    <div className="space-y-2.5">
-                      <p className="text-[11px] text-[#25D366]">✓ Number added — verification code sent via SMS</p>
-                      <input value={freshCode} onChange={e => setFreshCode(e.target.value.replace(/\D/g, '').slice(0, 6))} placeholder="123456" maxLength={6}
-                        className="w-full bg-[var(--nyasa-bg)] text-white text-xs rounded-lg p-2.5 border border-[var(--nyasa-border)]" />
-                      <div className="flex gap-2">
-                        <button onClick={() => handleFreshResend('SMS')} disabled={freshBusy} className="flex-1 py-2 rounded-lg text-[11px] text-gray-400 bg-white/5 hover:bg-white/10 disabled:opacity-50">Resend SMS</button>
-                        <button onClick={() => handleFreshResend('VOICE')} disabled={freshBusy} className="flex-1 py-2 rounded-lg text-[11px] text-gray-400 bg-white/5 hover:bg-white/10 disabled:opacity-50">Call me instead</button>
-                      </div>
-                      <button onClick={handleFreshVerify} disabled={freshBusy}
-                        className="w-full py-2.5 rounded-xl text-sm font-medium text-white bg-[#25D366] hover:bg-[#20BD5A] disabled:opacity-50 flex items-center justify-center gap-2">
-                        {freshBusy ? <Loader2 className="w-4 h-4 animate-spin" /> : null}
-                        {freshBusy ? 'Verifying…' : 'Verify code'}
-                      </button>
-                    </div>
-                  )}
-
-                  {freshStep === 'code' && freshIsAppNumber && (
-                    <div className="space-y-3">
-                      <div className="bg-blue-500/10 border border-blue-500/30 rounded-xl p-4 space-y-2">
-                        <p className="text-sm font-bold text-white">This number is on WhatsApp Business App</p>
-                        <p className="text-[11px] text-blue-200/80 leading-relaxed">
-                          SMS verification doesn't work for numbers that are active on the WhatsApp Business App — Meta blocks it by design.
-                          The good news: you can connect it <strong>without losing the app</strong> using Coexistence.
-                        </p>
-                        <p className="text-[11px] text-blue-200/60 leading-relaxed">
-                          Use "Connect with Facebook" on the Recommended tab — Meta will ask you to scan a QR code inside your WhatsApp Business App, then both Nyasadesk and the app work together on the same number.
-                        </p>
-                      </div>
-                      <button onClick={() => { setFreshMode(false); setFreshStep('input'); setFreshIsAppNumber(false); setFreshError(''); setTab('recommended'); }}
-                        className="w-full py-3 rounded-xl text-sm font-bold text-white bg-[#1877F2] hover:bg-[#166FE5] flex items-center justify-center gap-2">
-                        Switch to Recommended — Connect with Facebook →
-                      </button>
-                    </div>
-                  )}
-
-                  {freshStep === 'pin' && (
-                    <div className="space-y-2.5">
-                      <p className="text-[11px] text-[#25D366]">✓ Number verified</p>
-                      <div className="space-y-1.5">
-                        <label className="text-[11px] text-gray-500">Set a 6-digit PIN (two-step verification — save this)</label>
-                        <input value={freshPin} onChange={e => setFreshPin(e.target.value.replace(/\D/g, '').slice(0, 6))} placeholder="123456" maxLength={6}
-                          className="w-full bg-[var(--nyasa-bg)] text-white text-xs rounded-lg p-2.5 border border-[var(--nyasa-border)]" />
-                      </div>
-                      <button onClick={handleFreshRegisterAndConnect} disabled={freshBusy}
-                        className="w-full py-2.5 rounded-xl text-sm font-bold text-white bg-[#25D366] hover:bg-[#20BD5A] disabled:opacity-50 flex items-center justify-center gap-2">
-                        {freshBusy ? <Loader2 className="w-4 h-4 animate-spin" /> : <ShieldCheck className="w-4 h-4" />}
-                        {freshBusy ? 'Registering & connecting…' : 'Activate & connect'}
-                      </button>
-                    </div>
-                  )}
-                  {freshError && <p className="text-[11px] text-red-400">{freshError}</p>}
-                </div>
-              )}
-
-              {/* Manual entry mode */}
-              {advMode === 'manual' && !regWizard && (
-                <div className="bg-[var(--nyasa-surface-1)] rounded-xl p-4 space-y-3">
-                  <p className="text-[11px] text-gray-400 leading-relaxed">Paste your credentials directly. WABA ID and Phone Number ID can be found in Meta Business Manager → WhatsApp Manager.</p>
-                  <div className="space-y-2">
-                    <div className="space-y-1">
-                      <label className="text-[11px] text-gray-500">Permanent Access Token *</label>
-                      <input type="password" value={manualToken} onChange={e => setManualToken(e.target.value)} placeholder="EAAG…"
-                        className="w-full bg-[var(--nyasa-bg)] text-white text-xs rounded-lg p-2.5 border border-[var(--nyasa-border)]" />
-                    </div>
-                    <div className="space-y-1">
-                      <label className="text-[11px] text-gray-500">WhatsApp Business Account ID (optional — auto-detected if blank)</label>
-                      <input value={manualWabaId} onChange={e => setManualWabaId(e.target.value)} placeholder="916980661415765"
-                        className="w-full bg-[var(--nyasa-bg)] text-white text-xs rounded-lg p-2.5 border border-[var(--nyasa-border)]" />
-                    </div>
-                    <div className="space-y-1">
-                      <label className="text-[11px] text-gray-500">Phone Number ID (optional — auto-detected if blank)</label>
-                      <input value={manualPhoneId} onChange={e => setManualPhoneId(e.target.value)} placeholder="1228643423663631"
-                        className="w-full bg-[var(--nyasa-bg)] text-white text-xs rounded-lg p-2.5 border border-[var(--nyasa-border)]" />
-                    </div>
-                  </div>
-                  {manualError && <p className="text-[11px] text-red-400 leading-relaxed">{manualError}</p>}
-                  <button onClick={handleManualConnect} disabled={manualConnecting || !manualToken.trim()}
+                  <button onClick={handleRegVerify} disabled={regBusy || regCode.length < 6}
                     className="w-full py-2.5 rounded-xl text-sm font-bold text-white bg-[#25D366] hover:bg-[#20BD5A] disabled:opacity-50 flex items-center justify-center gap-2">
-                    {manualConnecting ? <Loader2 className="w-4 h-4 animate-spin" /> : <ShieldCheck className="w-4 h-4" />}
-                    {manualConnecting ? 'Validating & connecting…' : 'Connect'}
+                    {regBusy ? <Loader2 className="w-4 h-4 animate-spin" /> : null}
+                    {regBusy ? 'Verifying…' : 'Verify code'}
                   </button>
                 </div>
               )}
 
-              {/* Registration wizard (triggered by manual connect when phone not yet registered) */}
-              {advMode === 'manual' && regWizard && (
-                <div className="bg-[var(--nyasa-surface-1)] rounded-xl p-4 space-y-3">
-                  <p className="text-sm font-bold text-white">Register {regWizard.phone_number || regWizard.phone_number_id}</p>
-                  <p className="text-[11px] text-gray-400">This number isn't registered for Cloud API yet. Complete the steps below to activate it.</p>
-
-                  {regStep === 'code' && regIsAppNumber && (
-                    <div className="space-y-3">
-                      <div className="bg-blue-500/10 border border-blue-500/30 rounded-xl p-4 space-y-2">
-                        <p className="text-sm font-bold text-white">This number is on WhatsApp Business App</p>
-                        <p className="text-[11px] text-blue-200/80 leading-relaxed">
-                          SMS verification won't arrive — Meta blocks it for numbers active on the WhatsApp Business App.
-                          The good news: you can connect it <strong>without losing the app</strong>.
-                        </p>
-                        <p className="text-[11px] text-blue-200/60 leading-relaxed">
-                          Use "Connect with Facebook" — Meta will ask you to scan a QR code inside your WhatsApp Business App.
-                          After that, both the app and Nyasadesk work on the same number simultaneously.
-                        </p>
-                      </div>
-                      <button onClick={() => { setRegWizard(null); setRegIsAppNumber(false); setTab('recommended'); }}
-                        className="w-full py-3 rounded-xl text-sm font-bold text-white bg-[#1877F2] hover:bg-[#166FE5] flex items-center justify-center gap-2">
-                        Switch to Recommended — Connect with Facebook →
-                      </button>
-                      <button onClick={() => { setRegWizard(null); setRegIsAppNumber(false); }} className="w-full text-center text-[11px] text-gray-500 hover:text-gray-300">← Back</button>
-                    </div>
-                  )}
-
-                  {regStep === 'code' && !regIsAppNumber && (
-                    <div className="space-y-2.5">
-                      <p className="text-[11px] text-[#25D366]">✓ Verification code sent via SMS</p>
-                      <input value={regCode} onChange={e => setRegCode(e.target.value.replace(/\D/g, '').slice(0, 6))} placeholder="123456" maxLength={6}
-                        className="w-full bg-[var(--nyasa-bg)] text-white text-xs rounded-lg p-2.5 border border-[var(--nyasa-border)]" />
-                      <div className="flex gap-2">
-                        <button onClick={async () => { setRegBusy(true); try { await apiCall('whatsapp-guided-request-code', { access_token: activeToken, phone_number_id: regWizard.phone_number_id, code_method: 'SMS' }); } finally { setRegBusy(false); } }} disabled={regBusy} className="flex-1 py-2 rounded-lg text-[11px] text-gray-400 bg-white/5 hover:bg-white/10 disabled:opacity-50">Resend SMS</button>
-                        <button onClick={async () => { setRegBusy(true); try { await apiCall('whatsapp-guided-request-code', { access_token: activeToken, phone_number_id: regWizard.phone_number_id, code_method: 'VOICE' }); } finally { setRegBusy(false); } }} disabled={regBusy} className="flex-1 py-2 rounded-lg text-[11px] text-gray-400 bg-white/5 hover:bg-white/10 disabled:opacity-50">Call me instead</button>
-                      </div>
-                      <button onClick={handleRegVerify} disabled={regBusy}
-                        className="w-full py-2.5 rounded-xl text-sm font-medium text-white bg-[#25D366] hover:bg-[#20BD5A] disabled:opacity-50 flex items-center justify-center gap-2">
-                        {regBusy ? <Loader2 className="w-4 h-4 animate-spin" /> : null}
-                        {regBusy ? 'Verifying…' : 'Verify code'}
-                      </button>
-                    </div>
-                  )}
-
-                  {regStep === 'pin' && (
-                    <div className="space-y-2.5">
-                      <p className="text-[11px] text-[#25D366]">✓ Code verified</p>
-                      <div className="space-y-1.5">
-                        <label className="text-[11px] text-gray-500">Set a 6-digit PIN (two-step verification — save this)</label>
-                        <input value={regPin} onChange={e => setRegPin(e.target.value.replace(/\D/g, '').slice(0, 6))} placeholder="123456" maxLength={6}
-                          className="w-full bg-[var(--nyasa-bg)] text-white text-xs rounded-lg p-2.5 border border-[var(--nyasa-border)]" />
-                      </div>
-                      <button onClick={handleRegComplete} disabled={regBusy}
-                        className="w-full py-2.5 rounded-xl text-sm font-bold text-white bg-[#25D366] hover:bg-[#20BD5A] disabled:opacity-50 flex items-center justify-center gap-2">
-                        {regBusy ? <Loader2 className="w-4 h-4 animate-spin" /> : <ShieldCheck className="w-4 h-4" />}
-                        {regBusy ? 'Registering & connecting…' : 'Activate & connect'}
-                      </button>
-                    </div>
-                  )}
-
-                  {regError && <p className="text-[11px] text-red-400">{regError}</p>}
-                  <button onClick={() => setRegWizard(null)} className="w-full text-center text-[11px] text-gray-500 hover:text-gray-300">← Back</button>
+              {regStep === 'code' && regIsAppNumber && (
+                <div className="space-y-3">
+                  <div className="bg-amber-500/10 border border-amber-500/30 rounded-xl p-4 space-y-2">
+                    <p className="text-sm font-bold text-amber-300">Number is on WhatsApp Business App</p>
+                    <p className="text-[11px] text-amber-200/80 leading-relaxed">
+                      Meta blocks SMS verification for numbers active on the WhatsApp Business App. 
+                      You'll need to use the "Connect with Facebook" flow (coming soon) to keep both running simultaneously.
+                    </p>
+                    <p className="text-[11px] text-amber-200/60 leading-relaxed">
+                      Alternatively, remove the number from your WhatsApp Business App (Settings → Account → Delete my account), 
+                      then come back here and try again.
+                    </p>
+                  </div>
+                  <button onClick={() => { setRegWizard(null); setRegIsAppNumber(false); }} 
+                    className="w-full text-center text-[11px] text-gray-500 hover:text-gray-300">← Back to credentials</button>
                 </div>
               )}
+
+              {regStep === 'pin' && (
+                <div className="space-y-2.5">
+                  <div className="bg-[#25D366]/10 rounded-lg p-2.5">
+                    <p className="text-[11px] text-[#25D366]">✓ Number verified — now set your 2-step verification PIN</p>
+                  </div>
+                  <div className="space-y-1">
+                    <label className="text-[11px] text-gray-500">6-digit PIN <span className="text-gray-600">(save this — you'll need it if you ever re-register)</span></label>
+                    <input value={regPin} onChange={e => setRegPin(e.target.value.replace(/\D/g, '').slice(0, 6))} 
+                      placeholder="123456" maxLength={6}
+                      className="w-full bg-[var(--nyasa-bg)] text-white text-sm text-center tracking-widest font-mono rounded-lg p-2.5 border border-[var(--nyasa-border)] focus:border-[#25D366] outline-none" />
+                  </div>
+                  <button onClick={handleRegComplete} disabled={regBusy || regPin.length < 6}
+                    className="w-full py-3 rounded-xl text-sm font-bold text-white bg-[#25D366] hover:bg-[#20BD5A] disabled:opacity-50 flex items-center justify-center gap-2">
+                    {regBusy ? <Loader2 className="w-4 h-4 animate-spin" /> : <ShieldCheck className="w-4 h-4" />}
+                    {regBusy ? 'Registering & activating…' : 'Activate on Cloud API'}
+                  </button>
+                </div>
+              )}
+
+              {regError && <p className="text-[11px] text-red-400 mt-1">{regError}</p>}
+              <button onClick={() => { setRegWizard(null); setRegError(''); }} 
+                className="w-full text-center text-[11px] text-gray-500 hover:text-gray-300">← Back to credentials</button>
             </div>
           )}
         </div>
-      )}
-    </ChannelCard>
+      )}    </ChannelCard>
   );
 }
 
