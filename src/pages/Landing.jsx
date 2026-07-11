@@ -1,7 +1,6 @@
 import { Link } from 'react-router-dom';
 import { MessageSquare, Users, Zap, Shield, Megaphone, Tags, Smartphone, MessageCircleReply, ArrowRight, Bot, FileText, Check, Sparkles } from 'lucide-react';
-import MarketingHeader from '@/components/marketing/MarketingHeader';
-import MarketingFooter from '@/components/marketing/MarketingFooter';
+import MarketingLayout from '@/components/marketing/MarketingLayout';
 import { WA_GREEN, WA_DARK_GREEN, WA_NAVY, BG, SURFACE, SURFACE2, TEXT, MUTED } from '@/lib/marketingTheme';
 
 const FEATURES = [
@@ -38,8 +37,7 @@ const DOC_POINTS = [
 
 export default function Landing() {
   return (
-    <div style={{ background: BG, color: TEXT, fontFamily: "'Inter', sans-serif", minHeight: '100vh' }}>
-      <MarketingHeader />
+    <MarketingLayout title="Nyasadesk — Shared Team Inbox">
 
       {/* HERO */}
       <section style={{ maxWidth: 1100, margin: '0 auto', padding: '80px 24px 60px', display: 'flex', alignItems: 'center', gap: 60, flexWrap: 'wrap' }}>
@@ -245,8 +243,6 @@ export default function Landing() {
           </Link>
         </div>
       </section>
-
-      <MarketingFooter />
-    </div>
+    </MarketingLayout>
   );
 }

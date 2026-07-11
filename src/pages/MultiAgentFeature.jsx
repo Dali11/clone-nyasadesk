@@ -8,19 +8,10 @@ import {
   Mail, Globe, Instagram, Bot, ShieldCheck, BarChart3,
   ChevronRight, Star, Hash, Layers,
 } from 'lucide-react';
-import MarketingHeader from '@/components/marketing/MarketingHeader';
-import MarketingFooter from '@/components/marketing/MarketingFooter';
+import MarketingLayout, { Pill } from '@/components/marketing/MarketingLayout';
 import {
-  WA_GREEN, WA_DARK_GREEN, WA_NAVY,
-  BG, SURFACE, SURFACE2, TEXT, MUTED, CONTACT_WHATSAPP,
+  WA_GREEN, WA_DARK_GREEN, WA_NAVY, SURFACE, SURFACE2, MUTED, CONTACT_WHATSAPP,
 } from '@/lib/marketingTheme';
-
-// ─── design helpers ──────────────────────────────────────────────────────────
-const pill = (label, color = WA_GREEN) => (
-  <span style={{ display: 'inline-block', background: `${color}22`, color, border: `1px solid ${color}44`, borderRadius: 999, padding: '4px 12px', fontSize: 12, fontWeight: 700, letterSpacing: '.04em', textTransform: 'uppercase' }}>
-    {label}
-  </span>
-);
 
 const AGENTS = [
   { name: 'Thandi M.',   role: 'Sales',   color: '#25D366', avatar: 'TM', online: true  },
@@ -100,16 +91,15 @@ const TESTIMONIALS = [
 
 export default function MultiAgentFeature() {
   return (
-    <div style={{ background: BG, color: TEXT, fontFamily: "'Inter', sans-serif", minHeight: '100vh' }}>
-      <MarketingHeader />
+    <MarketingLayout title="Multi-Agent Inbox">
 
       {/* ── HERO ─────────────────────────────────────────────────────────── */}
       <section style={{ maxWidth: 1100, margin: '0 auto', padding: '88px 24px 64px', display: 'flex', alignItems: 'center', gap: 60, flexWrap: 'wrap' }}>
 
         {/* Copy */}
         <div style={{ flex: '1 1 400px' }}>
-          {pill('Multi-Agent Inbox')}
-          <h1 style={{ fontSize: 'clamp(34px, 5vw, 58px)', fontWeight: 800, lineHeight: 1.08, margin: '20px 0 24px', color: TEXT }}>
+          {<Pill label="Multi-Agent Inbox" />}
+          <h1 style={{ fontSize: 'clamp(34px, 5vw, 58px)', fontWeight: 800, lineHeight: 1.08, margin: '20px 0 24px', color: '#E9EDF0' }}>
             One WhatsApp number.<br />
             <span style={{ color: WA_GREEN }}>Your whole team.</span>
           </h1>
@@ -122,7 +112,7 @@ export default function MultiAgentFeature() {
             <Link to="/register" style={{ background: WA_GREEN, color: '#fff', textDecoration: 'none', fontWeight: 700, fontSize: 15, padding: '15px 30px', borderRadius: 12, display: 'flex', alignItems: 'center', gap: 8 }}>
               Get started free <ArrowRight size={18} />
             </Link>
-            <a href={CONTACT_WHATSAPP} target="_blank" rel="noreferrer" style={{ background: SURFACE2, color: TEXT, textDecoration: 'none', fontWeight: 600, fontSize: 15, padding: '15px 28px', borderRadius: 12 }}>
+            <a href={CONTACT_WHATSAPP} target="_blank" rel="noreferrer" style={{ background: SURFACE2, color: '#E9EDF0', textDecoration: 'none', fontWeight: 600, fontSize: 15, padding: '15px 28px', borderRadius: 12 }}>
               Chat with us
             </a>
           </div>
@@ -134,7 +124,7 @@ export default function MultiAgentFeature() {
           <div style={{ background: SURFACE, borderRadius: 20, overflow: 'hidden', boxShadow: '0 28px 80px rgba(0,0,0,.55)', border: `1px solid ${SURFACE2}` }}>
             {/* App bar */}
             <div style={{ background: WA_NAVY, padding: '14px 18px', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-              <span style={{ color: TEXT, fontWeight: 700, fontSize: 15 }}>Nyasadesk · Shared Inbox</span>
+              <span style={{ color: '#E9EDF0', fontWeight: 700, fontSize: 15 }}>Nyasadesk · Shared Inbox</span>
               <div style={{ display: 'flex', gap: 6 }}>
                 {['#25D366','#FFC107','#FF5252'].map(c => <div key={c} style={{ width: 9, height: 9, borderRadius: '50%', background: c }} />)}
               </div>
@@ -166,12 +156,12 @@ export default function MultiAgentFeature() {
             {/* Conversation rows */}
             {CONVS.map((c, i) => (
               <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 11, padding: '11px 16px', borderBottom: `1px solid ${SURFACE2}`, background: i === 0 ? `${SURFACE2}88` : 'transparent' }}>
-                <div style={{ width: 38, height: 38, borderRadius: '50%', background: SURFACE2, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, fontSize: 13, fontWeight: 700, color: TEXT }}>
+                <div style={{ width: 38, height: 38, borderRadius: '50%', background: SURFACE2, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, fontSize: 13, fontWeight: 700, color: '#E9EDF0' }}>
                   {c.name[0]}
                 </div>
                 <div style={{ flex: 1, minWidth: 0 }}>
                   <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 2 }}>
-                    <span style={{ fontWeight: 600, fontSize: 12, color: TEXT }}>{c.name}</span>
+                    <span style={{ fontWeight: 600, fontSize: 12, color: '#E9EDF0' }}>{c.name}</span>
                     <span style={{ fontSize: 10, color: MUTED }}>{c.time}</span>
                   </div>
                   <div style={{ fontSize: 11, color: MUTED, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', marginBottom: 4 }}>{c.msg}</div>
@@ -206,7 +196,7 @@ export default function MultiAgentFeature() {
       {/* ── THE PROBLEM ──────────────────────────────────────────────────── */}
       <section style={{ maxWidth: 900, margin: '0 auto', padding: '80px 24px 60px' }}>
         <div style={{ textAlign: 'center', marginBottom: 48 }}>
-          {pill('The problem', '#FF5252')}
+          {<Pill label="The problem" color="#FF5252" />}
           <h2 style={{ fontSize: 'clamp(26px, 4vw, 40px)', fontWeight: 800, margin: '16px 0 14px' }}>
             One phone. Three sales reps.<br />What could go wrong?
           </h2>
@@ -226,7 +216,7 @@ export default function MultiAgentFeature() {
           ].map(it => (
             <div key={it.title} style={{ background: SURFACE, border: `1px solid ${SURFACE2}`, borderRadius: 14, padding: '22px 20px' }}>
               <div style={{ fontSize: 28, marginBottom: 10 }}>{it.emoji}</div>
-              <div style={{ fontWeight: 700, fontSize: 14, marginBottom: 8, color: TEXT }}>{it.title}</div>
+              <div style={{ fontWeight: 700, fontSize: 14, marginBottom: 8, color: '#E9EDF0' }}>{it.title}</div>
               <div style={{ fontSize: 13, color: MUTED, lineHeight: 1.65 }}>{it.desc}</div>
             </div>
           ))}
@@ -237,7 +227,7 @@ export default function MultiAgentFeature() {
       <section id="how-it-works" style={{ background: SURFACE, padding: '80px 24px' }}>
         <div style={{ maxWidth: 900, margin: '0 auto' }}>
           <div style={{ textAlign: 'center', marginBottom: 56 }}>
-            {pill('How it works')}
+            {<Pill label="How it works" />}
             <h2 style={{ fontSize: 'clamp(26px, 4vw, 40px)', fontWeight: 800, margin: '16px 0 14px' }}>
               Set up in minutes. Scale forever.
             </h2>
@@ -258,7 +248,7 @@ export default function MultiAgentFeature() {
                   {s.step}
                 </div>
                 <div style={{ flex: 1 }}>
-                  <div style={{ fontWeight: 700, fontSize: 17, marginBottom: 8, color: TEXT }}>{s.title}</div>
+                  <div style={{ fontWeight: 700, fontSize: 17, marginBottom: 8, color: '#E9EDF0' }}>{s.title}</div>
                   <div style={{ fontSize: 14, color: MUTED, lineHeight: 1.7 }}>{s.body}</div>
                 </div>
               </div>
@@ -270,7 +260,7 @@ export default function MultiAgentFeature() {
       {/* ── WHY NYASADESK ───────────────────────────────────────────────── */}
       <section style={{ maxWidth: 1100, margin: '0 auto', padding: '80px 24px' }}>
         <div style={{ textAlign: 'center', marginBottom: 52 }}>
-          {pill('Why Nyasadesk')}
+          {<Pill label="Why Nyasadesk" />}
           <h2 style={{ fontSize: 'clamp(26px, 4vw, 40px)', fontWeight: 800, margin: '16px 0 14px' }}>
             Built for Malawian sales teams
           </h2>
@@ -286,7 +276,7 @@ export default function MultiAgentFeature() {
                 <it.icon size={20} color={WA_GREEN} />
               </div>
               <div>
-                <div style={{ fontWeight: 700, fontSize: 14, marginBottom: 7, color: TEXT }}>{it.title}</div>
+                <div style={{ fontWeight: 700, fontSize: 14, marginBottom: 7, color: '#E9EDF0' }}>{it.title}</div>
                 <div style={{ fontSize: 13, color: MUTED, lineHeight: 1.65 }}>{it.body}</div>
               </div>
             </div>
@@ -301,10 +291,10 @@ export default function MultiAgentFeature() {
           <div style={{ flex: '1 1 280px' }}>
             <div style={{ position: 'relative', display: 'flex', flexDirection: 'column', gap: 12 }}>
               {CHANNELS.map(ch => (
-                <div key={ch.label} style={{ display: 'flex', alignItems: 'center', gap: 14, background: BG, borderRadius: 12, padding: '14px 18px', border: `1px solid ${SURFACE2}` }}>
+                <div key={ch.label} style={{ display: 'flex', alignItems: 'center', gap: 14, background: '#111B21', borderRadius: 12, padding: '14px 18px', border: `1px solid ${SURFACE2}` }}>
                   <span style={{ fontSize: 22 }}>{ch.icon}</span>
                   <div style={{ flex: 1 }}>
-                    <div style={{ fontWeight: 600, fontSize: 13, color: TEXT }}>{ch.label}</div>
+                    <div style={{ fontWeight: 600, fontSize: 13, color: '#E9EDF0' }}>{ch.label}</div>
                     <div style={{ fontSize: 11, color: MUTED }}>{ch.count} open conversations</div>
                   </div>
                   <div style={{ width: 8, height: 8, borderRadius: '50%', background: ch.color }} />
@@ -317,7 +307,7 @@ export default function MultiAgentFeature() {
 
           {/* Copy */}
           <div style={{ flex: '1 1 320px' }}>
-            {pill('Omnichannel')}
+            {<Pill label="Omnichannel" />}
             <h2 style={{ fontSize: 'clamp(24px, 3.5vw, 36px)', fontWeight: 800, margin: '16px 0 16px', lineHeight: 1.15 }}>
               Every channel.<br />One inbox.<br />
               <span style={{ color: WA_GREEN }}>Zero context-switching.</span>
@@ -343,7 +333,7 @@ export default function MultiAgentFeature() {
       {/* ── PRICING ──────────────────────────────────────────────────────── */}
       <section id="pricing" style={{ maxWidth: 1060, margin: '0 auto', padding: '88px 24px' }}>
         <div style={{ textAlign: 'center', marginBottom: 52 }}>
-          {pill('Pricing')}
+          {<Pill label="Pricing" />}
           <h2 style={{ fontSize: 'clamp(26px, 4vw, 42px)', fontWeight: 800, margin: '16px 0 14px' }}>
             Pick the size that fits your team
           </h2>
@@ -361,9 +351,9 @@ export default function MultiAgentFeature() {
                   MOST POPULAR
                 </div>
               )}
-              <div style={{ fontWeight: 800, fontSize: 17, color: TEXT, marginBottom: 6 }}>{plan.name}</div>
+              <div style={{ fontWeight: 800, fontSize: 17, color: '#E9EDF0', marginBottom: 6 }}>{plan.name}</div>
               <div style={{ display: 'flex', alignItems: 'baseline', gap: 4, marginBottom: 6 }}>
-                <span style={{ fontSize: 32, fontWeight: 800, color: plan.highlight ? WA_GREEN : TEXT }}>{plan.price}</span>
+                <span style={{ fontSize: 32, fontWeight: 800, color: plan.highlight ? WA_GREEN : '#E9EDF0' }}>{plan.price}</span>
                 <span style={{ color: MUTED, fontSize: 14 }}>{plan.period}</span>
               </div>
               <div style={{ fontSize: 13, color: MUTED, marginBottom: 24, paddingBottom: 20, borderBottom: `1px solid ${SURFACE2}` }}>
@@ -383,7 +373,7 @@ export default function MultiAgentFeature() {
                   display: 'block', textAlign: 'center', textDecoration: 'none', fontWeight: 700, fontSize: 14,
                   padding: '13px', borderRadius: 10,
                   background: plan.highlight ? WA_GREEN : SURFACE2,
-                  color: plan.highlight ? '#fff' : TEXT,
+                  color: plan.highlight ? '#fff' : '#E9EDF0',
                   border: `1px solid ${plan.highlight ? WA_GREEN : SURFACE2}`,
                 }}
               >
@@ -403,12 +393,12 @@ export default function MultiAgentFeature() {
       <section style={{ background: SURFACE, padding: '64px 24px' }}>
         <div style={{ maxWidth: 860, margin: '0 auto', display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))', gap: 24 }}>
           {TESTIMONIALS.map(t => (
-            <div key={t.name} style={{ background: BG, border: `1px solid ${SURFACE2}`, borderRadius: 16, padding: '28px 26px' }}>
+            <div key={t.name} style={{ background: '#111B21', border: `1px solid ${SURFACE2}`, borderRadius: 16, padding: '28px 26px' }}>
               <div style={{ display: 'flex', gap: 3, marginBottom: 16 }}>
                 {[...Array(5)].map((_, i) => <Star key={i} size={14} fill={WA_GREEN} color={WA_GREEN} />)}
               </div>
-              <p style={{ fontSize: 15, color: TEXT, lineHeight: 1.75, marginBottom: 20, fontStyle: 'italic' }}>"{t.quote}"</p>
-              <div style={{ fontWeight: 700, fontSize: 13, color: TEXT }}>{t.name}</div>
+              <p style={{ fontSize: 15, color: '#E9EDF0', lineHeight: 1.75, marginBottom: 20, fontStyle: 'italic' }}>"{t.quote}"</p>
+              <div style={{ fontWeight: 700, fontSize: 13, color: '#E9EDF0' }}>{t.name}</div>
               <div style={{ fontSize: 12, color: MUTED }}>{t.role}</div>
             </div>
           ))}
@@ -430,14 +420,12 @@ export default function MultiAgentFeature() {
             <Link to="/register" style={{ background: WA_GREEN, color: '#fff', textDecoration: 'none', fontWeight: 700, fontSize: 15, padding: '15px 32px', borderRadius: 12, display: 'flex', alignItems: 'center', gap: 8 }}>
               Start free <ArrowRight size={18} />
             </Link>
-            <a href={CONTACT_WHATSAPP} target="_blank" rel="noreferrer" style={{ background: SURFACE2, color: TEXT, textDecoration: 'none', fontWeight: 600, fontSize: 15, padding: '15px 28px', borderRadius: 12 }}>
+            <a href={CONTACT_WHATSAPP} target="_blank" rel="noreferrer" style={{ background: SURFACE2, color: '#E9EDF0', textDecoration: 'none', fontWeight: 600, fontSize: 15, padding: '15px 28px', borderRadius: 12 }}>
               Chat with us first
             </a>
           </div>
         </div>
       </section>
-
-      <MarketingFooter />
-    </div>
+    </MarketingLayout>
   );
 }

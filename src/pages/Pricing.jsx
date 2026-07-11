@@ -2,8 +2,7 @@ import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { Check, ArrowRight } from 'lucide-react';
 import { useDocumentTitle } from '@/hooks/useDocumentTitle';
-import MarketingHeader from '@/components/marketing/MarketingHeader';
-import MarketingFooter from '@/components/marketing/MarketingFooter';
+import MarketingLayout from '@/components/marketing/MarketingLayout';
 import { WA_GREEN, WA_DARK_GREEN, WA_NAVY, BG, SURFACE, SURFACE2, TEXT, MUTED } from '@/lib/marketingTheme';
 
 const FALLBACK_PRICE = { starter: 'K25,000', growth: 'K50,000', scale: 'K120,000' };
@@ -45,8 +44,7 @@ export default function Pricing() {
   }, []);
 
   return (
-    <div style={{ background: BG, color: TEXT, fontFamily: "'Inter', sans-serif", minHeight: '100vh' }}>
-      <MarketingHeader />
+    <MarketingLayout title="Pricing">
 
       {/* HEADER */}
       <section style={{ maxWidth: 1100, margin: '0 auto', padding: '72px 24px 24px', textAlign: 'center' }}>
@@ -100,8 +98,6 @@ export default function Pricing() {
           Need something custom or more than 5 team members without going straight to Scale? <Link to="/register" style={{ color: WA_GREEN, textDecoration: 'none', fontWeight: 600 }}>Get in touch</Link>.
         </p>
       </section>
-
-      <MarketingFooter />
-    </div>
+    </MarketingLayout>
   );
 }

@@ -8,19 +8,10 @@ import {
   BookOpen, FileText, Users, ChevronRight,
   Star, Phone, Sparkles, Shield,
 } from 'lucide-react';
-import MarketingHeader from '@/components/marketing/MarketingHeader';
-import MarketingFooter from '@/components/marketing/MarketingFooter';
+import MarketingLayout, { Pill } from '@/components/marketing/MarketingLayout';
 import {
-  WA_GREEN, WA_DARK_GREEN, WA_NAVY,
-  BG, SURFACE, SURFACE2, TEXT, MUTED, CONTACT_WHATSAPP,
+  WA_GREEN, WA_DARK_GREEN, WA_NAVY, SURFACE, SURFACE2, MUTED, CONTACT_WHATSAPP,
 } from '@/lib/marketingTheme';
-
-// ─── helpers ─────────────────────────────────────────────────────────────────
-const pill = (label, color = WA_GREEN) => (
-  <span style={{ display:'inline-block', background:`${color}22`, color, border:`1px solid ${color}44`, borderRadius:999, padding:'4px 12px', fontSize:12, fontWeight:700, letterSpacing:'.04em', textTransform:'uppercase' }}>
-    {label}
-  </span>
-);
 
 // ─── agent templates the product actually has ─────────────────────────────────
 const BOTS = [
@@ -96,16 +87,15 @@ const WHY = [
 
 export default function WhatsappChatbots() {
   return (
-    <div style={{ background: BG, color: TEXT, fontFamily: "'Inter', sans-serif", minHeight: '100vh' }}>
-      <MarketingHeader />
+    <MarketingLayout title="WhatsApp Chatbots">
 
       {/* ── HERO ─────────────────────────────────────────────────────────── */}
       <section style={{ maxWidth: 1100, margin: '0 auto', padding: '88px 24px 72px', display: 'flex', alignItems: 'center', gap: 60, flexWrap: 'wrap' }}>
 
         {/* Copy */}
         <div style={{ flex: '1 1 420px' }}>
-          {pill('WhatsApp AI Chatbots')}
-          <h1 style={{ fontSize: 'clamp(34px, 5vw, 58px)', fontWeight: 800, lineHeight: 1.08, margin: '20px 0 24px', color: TEXT }}>
+          {<Pill label="WhatsApp AI Chatbots" />}
+          <h1 style={{ fontSize: 'clamp(34px, 5vw, 58px)', fontWeight: 800, lineHeight: 1.08, margin: '20px 0 24px', color: '#E9EDF0' }}>
             A WhatsApp chatbot<br />
             that actually works.<br />
             <span style={{ color: WA_GREEN }}>Included in Scale.</span>
@@ -123,7 +113,7 @@ export default function WhatsappChatbots() {
             <Link to="/register" style={{ background: WA_GREEN, color: '#fff', textDecoration: 'none', fontWeight: 700, fontSize: 15, padding: '15px 30px', borderRadius: 12, display: 'flex', alignItems: 'center', gap: 8 }}>
               Start free trial <ArrowRight size={18} />
             </Link>
-            <a href={CONTACT_WHATSAPP} target="_blank" rel="noreferrer" style={{ background: SURFACE2, color: TEXT, textDecoration: 'none', fontWeight: 600, fontSize: 15, padding: '15px 28px', borderRadius: 12 }}>
+            <a href={CONTACT_WHATSAPP} target="_blank" rel="noreferrer" style={{ background: SURFACE2, color: '#E9EDF0', textDecoration: 'none', fontWeight: 600, fontSize: 15, padding: '15px 28px', borderRadius: 12 }}>
               See a demo
             </a>
           </div>
@@ -140,7 +130,7 @@ export default function WhatsappChatbots() {
                 <Bot size={18} color={WA_GREEN} />
               </div>
               <div>
-                <div style={{ fontWeight: 700, fontSize: 13, color: TEXT }}>Nyasadesk Bot</div>
+                <div style={{ fontWeight: 700, fontSize: 13, color: '#E9EDF0' }}>Nyasadesk Bot</div>
                 <div style={{ fontSize: 11, color: WA_GREEN }}>● Online — Sales Agent</div>
               </div>
               <div style={{ marginLeft: 'auto', fontSize: 11, color: MUTED, background: `${WA_GREEN}22`, border: `1px solid ${WA_GREEN}44`, borderRadius: 999, padding: '3px 10px', fontWeight: 600 }}>
@@ -155,7 +145,7 @@ export default function WhatsappChatbots() {
                   <div style={{
                     maxWidth: '82%', padding: '9px 13px', borderRadius: m.from === 'customer' ? '14px 14px 4px 14px' : '14px 14px 14px 4px',
                     background: m.from === 'customer' ? WA_DARK_GREEN : SURFACE2,
-                    fontSize: 12.5, color: TEXT, lineHeight: 1.55,
+                    fontSize: 12.5, color: '#E9EDF0', lineHeight: 1.55,
                     boxShadow: '0 1px 4px rgba(0,0,0,.3)',
                   }}>
                     {m.text}
@@ -196,7 +186,7 @@ export default function WhatsappChatbots() {
       {/* ── THE PITCH: ONE PRICE ─────────────────────────────────────────── */}
       <section style={{ maxWidth: 860, margin: '0 auto', padding: '88px 24px 64px' }}>
         <div style={{ textAlign: 'center', marginBottom: 52 }}>
-          {pill('The Scale plan')}
+          {<Pill label="The Scale plan" />}
           <h2 style={{ fontSize: 'clamp(26px, 4vw, 42px)', fontWeight: 800, margin: '16px 0 16px', lineHeight: 1.15 }}>
             Other tools charge extra for AI.<br />
             <span style={{ color: WA_GREEN }}>We don't.</span>
@@ -212,7 +202,7 @@ export default function WhatsappChatbots() {
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: 20, marginBottom: 48 }}>
           {/* The old way */}
           <div style={{ background: SURFACE, border: `2px solid #FF525233`, borderRadius: 20, padding: '28px 24px' }}>
-            <div style={{ fontWeight: 800, fontSize: 15, color: TEXT, marginBottom: 4 }}>The old way</div>
+            <div style={{ fontWeight: 800, fontSize: 15, color: '#E9EDF0', marginBottom: 4 }}>The old way</div>
             <div style={{ fontSize: 13, color: MUTED, marginBottom: 24 }}>Cobbling it together</div>
             {[
               ['Chatbot platform', '~K45,000/mo'],
@@ -226,7 +216,7 @@ export default function WhatsappChatbots() {
               </div>
             ))}
             <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: 16, paddingTop: 12, borderTop: `1px solid ${SURFACE2}`, fontWeight: 800, fontSize: 15 }}>
-              <span style={{ color: TEXT }}>Total</span>
+              <span style={{ color: '#E9EDF0' }}>Total</span>
               <span style={{ color: '#FF5252' }}>~K110,000/mo</span>
             </div>
             <div style={{ fontSize: 12, color: MUTED, marginTop: 8 }}>Plus 4 logins, 4 support teams, and a spreadsheet to keep it all in sync.</div>
@@ -235,7 +225,7 @@ export default function WhatsappChatbots() {
           {/* Nyasadesk Scale */}
           <div style={{ background: `linear-gradient(160deg, ${WA_DARK_GREEN}22 0%, ${WA_NAVY}33 100%)`, border: `2px solid ${WA_GREEN}`, borderRadius: 20, padding: '28px 24px', position: 'relative', overflow: 'hidden' }}>
             <div style={{ position: 'absolute', top: 0, right: 0, background: WA_GREEN, color: '#fff', fontSize: 11, fontWeight: 700, padding: '5px 16px', borderBottomLeftRadius: 12, letterSpacing: '.04em' }}>RECOMMENDED</div>
-            <div style={{ fontWeight: 800, fontSize: 15, color: TEXT, marginBottom: 4 }}>Nyasadesk Scale</div>
+            <div style={{ fontWeight: 800, fontSize: 15, color: '#E9EDF0', marginBottom: 4 }}>Nyasadesk Scale</div>
             <div style={{ fontSize: 13, color: MUTED, marginBottom: 24 }}>Everything in one place</div>
             {[
               'AI chatbot (6 templates + custom)',
@@ -253,7 +243,7 @@ export default function WhatsappChatbots() {
               </div>
             ))}
             <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: 16, paddingTop: 12, fontWeight: 800, fontSize: 17 }}>
-              <span style={{ color: TEXT }}>Total</span>
+              <span style={{ color: '#E9EDF0' }}>Total</span>
               <span style={{ color: WA_GREEN }}>K120,000/mo</span>
             </div>
             <Link to="/register" style={{ display: 'block', textAlign: 'center', marginTop: 20, background: WA_GREEN, color: '#fff', textDecoration: 'none', fontWeight: 700, fontSize: 14, padding: '13px', borderRadius: 10 }}>
@@ -267,7 +257,7 @@ export default function WhatsappChatbots() {
       <section style={{ background: SURFACE, padding: '80px 24px' }}>
         <div style={{ maxWidth: 1060, margin: '0 auto' }}>
           <div style={{ textAlign: 'center', marginBottom: 52 }}>
-            {pill('Bot templates')}
+            {<Pill label="Bot templates" />}
             <h2 style={{ fontSize: 'clamp(26px, 4vw, 40px)', fontWeight: 800, margin: '16px 0 14px' }}>
               Six ready-to-deploy chatbots
             </h2>
@@ -279,13 +269,13 @@ export default function WhatsappChatbots() {
 
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: 20 }}>
             {BOTS.map(bot => (
-              <div key={bot.name} style={{ background: BG, border: `1px solid ${SURFACE2}`, borderRadius: 16, padding: '24px 22px', display: 'flex', flexDirection: 'column', gap: 0 }}>
+              <div key={bot.name} style={{ background: '#111B21', border: `1px solid ${SURFACE2}`, borderRadius: 16, padding: '24px 22px', display: 'flex', flexDirection: 'column', gap: 0 }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 12 }}>
                   <div style={{ width: 44, height: 44, borderRadius: 12, background: `${bot.color}18`, border: `1px solid ${bot.color}33`, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 22, flexShrink: 0 }}>
                     {bot.icon}
                   </div>
                   <div>
-                    <div style={{ fontWeight: 700, fontSize: 14, color: TEXT }}>{bot.name}</div>
+                    <div style={{ fontWeight: 700, fontSize: 14, color: '#E9EDF0' }}>{bot.name}</div>
                     <div style={{ fontSize: 12, color: bot.color, fontWeight: 600 }}>{bot.tagline}</div>
                   </div>
                 </div>
@@ -303,7 +293,7 @@ export default function WhatsappChatbots() {
       {/* ── HOW IT WORKS ─────────────────────────────────────────────────── */}
       <section style={{ maxWidth: 860, margin: '0 auto', padding: '80px 24px' }}>
         <div style={{ textAlign: 'center', marginBottom: 52 }}>
-          {pill('Setup')}
+          {<Pill label="Setup" />}
           <h2 style={{ fontSize: 'clamp(26px, 4vw, 40px)', fontWeight: 800, margin: '16px 0 14px' }}>
             Live in under 15 minutes
           </h2>
@@ -316,7 +306,7 @@ export default function WhatsappChatbots() {
                 {s.n}
               </div>
               <div style={{ paddingTop: 8 }}>
-                <div style={{ fontWeight: 700, fontSize: 16, marginBottom: 8, color: TEXT }}>{s.title}</div>
+                <div style={{ fontWeight: 700, fontSize: 16, marginBottom: 8, color: '#E9EDF0' }}>{s.title}</div>
                 <div style={{ fontSize: 14, color: MUTED, lineHeight: 1.7 }}>{s.body}</div>
               </div>
             </div>
@@ -328,19 +318,19 @@ export default function WhatsappChatbots() {
       <section style={{ background: SURFACE, padding: '80px 24px' }}>
         <div style={{ maxWidth: 1060, margin: '0 auto' }}>
           <div style={{ textAlign: 'center', marginBottom: 52 }}>
-            {pill('Why it works')}
+            {<Pill label="Why it works" />}
             <h2 style={{ fontSize: 'clamp(26px, 4vw, 40px)', fontWeight: 800, margin: '16px 0 14px' }}>
               Not just a chatbot. A complete AI teammate.
             </h2>
           </div>
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: 22 }}>
             {WHY.map(it => (
-              <div key={it.title} style={{ background: BG, border: `1px solid ${SURFACE2}`, borderRadius: 16, padding: '24px 22px', display: 'flex', gap: 16 }}>
+              <div key={it.title} style={{ background: '#111B21', border: `1px solid ${SURFACE2}`, borderRadius: 16, padding: '24px 22px', display: 'flex', gap: 16 }}>
                 <div style={{ width: 42, height: 42, borderRadius: 12, background: `${WA_GREEN}15`, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
                   <it.icon size={20} color={WA_GREEN} />
                 </div>
                 <div>
-                  <div style={{ fontWeight: 700, fontSize: 14, marginBottom: 7, color: TEXT }}>{it.title}</div>
+                  <div style={{ fontWeight: 700, fontSize: 14, marginBottom: 7, color: '#E9EDF0' }}>{it.title}</div>
                   <div style={{ fontSize: 13, color: MUTED, lineHeight: 1.65 }}>{it.body}</div>
                 </div>
               </div>
@@ -385,7 +375,7 @@ export default function WhatsappChatbots() {
             <Link to="/register" style={{ background: WA_GREEN, color: '#fff', textDecoration: 'none', fontWeight: 700, fontSize: 15, padding: '15px 32px', borderRadius: 12, display: 'flex', alignItems: 'center', gap: 8 }}>
               Start free trial <ArrowRight size={18} />
             </Link>
-            <a href={CONTACT_WHATSAPP} target="_blank" rel="noreferrer" style={{ background: SURFACE2, color: TEXT, textDecoration: 'none', fontWeight: 600, fontSize: 15, padding: '15px 28px', borderRadius: 12 }}>
+            <a href={CONTACT_WHATSAPP} target="_blank" rel="noreferrer" style={{ background: SURFACE2, color: '#E9EDF0', textDecoration: 'none', fontWeight: 600, fontSize: 15, padding: '15px 28px', borderRadius: 12 }}>
               Chat with us first
             </a>
           </div>
@@ -403,12 +393,12 @@ export default function WhatsappChatbots() {
             { quote: 'The bot handles all our first responses now. By the time a human picks it up, the customer is already qualified. Our close rate went up significantly.', name: 'Techno Mart', role: 'Electronics Retailer, Lilongwe' },
             { quote: 'The Finance Manager bot actually sends quotes by itself. Customers get a professional PDF in seconds — we used to take hours to do that manually.', name: 'Brandfletch Media', role: 'Digital Agency, Blantyre' },
           ].map(t => (
-            <div key={t.name} style={{ background: BG, border: `1px solid ${SURFACE2}`, borderRadius: 16, padding: '28px 26px' }}>
+            <div key={t.name} style={{ background: '#111B21', border: `1px solid ${SURFACE2}`, borderRadius: 16, padding: '28px 26px' }}>
               <div style={{ display: 'flex', gap: 3, marginBottom: 16 }}>
                 {[...Array(5)].map((_,i) => <Star key={i} size={14} fill={WA_GREEN} color={WA_GREEN} />)}
               </div>
-              <p style={{ fontSize: 15, color: TEXT, lineHeight: 1.75, marginBottom: 20, fontStyle: 'italic' }}>"{t.quote}"</p>
-              <div style={{ fontWeight: 700, fontSize: 13, color: TEXT }}>{t.name}</div>
+              <p style={{ fontSize: 15, color: '#E9EDF0', lineHeight: 1.75, marginBottom: 20, fontStyle: 'italic' }}>"{t.quote}"</p>
+              <div style={{ fontWeight: 700, fontSize: 13, color: '#E9EDF0' }}>{t.name}</div>
               <div style={{ fontSize: 12, color: MUTED }}>{t.role}</div>
             </div>
           ))}
@@ -430,13 +420,11 @@ export default function WhatsappChatbots() {
           <Link to="/register" style={{ background: WA_GREEN, color: '#fff', textDecoration: 'none', fontWeight: 700, fontSize: 15, padding: '15px 32px', borderRadius: 12, display: 'flex', alignItems: 'center', gap: 8 }}>
             Start free — Scale plan <ArrowRight size={18} />
           </Link>
-          <a href={CONTACT_WHATSAPP} target="_blank" rel="noreferrer" style={{ background: SURFACE2, color: TEXT, textDecoration: 'none', fontWeight: 600, fontSize: 15, padding: '15px 28px', borderRadius: 12 }}>
+          <a href={CONTACT_WHATSAPP} target="_blank" rel="noreferrer" style={{ background: SURFACE2, color: '#E9EDF0', textDecoration: 'none', fontWeight: 600, fontSize: 15, padding: '15px 28px', borderRadius: 12 }}>
             Talk to us on WhatsApp
           </a>
         </div>
       </section>
-
-      <MarketingFooter />
-    </div>
+    </MarketingLayout>
   );
 }

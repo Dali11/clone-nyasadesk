@@ -8,19 +8,10 @@ import {
   MessageSquare, Mail, Globe, Instagram, Send,
   Zap, Clock, BarChart3, Star, Sparkles, Users,
 } from 'lucide-react';
-import MarketingHeader from '@/components/marketing/MarketingHeader';
-import MarketingFooter from '@/components/marketing/MarketingFooter';
+import MarketingLayout, { Pill } from '@/components/marketing/MarketingLayout';
 import {
-  WA_GREEN, WA_DARK_GREEN, WA_NAVY,
-  BG, SURFACE, SURFACE2, TEXT, MUTED, CONTACT_WHATSAPP,
+  WA_GREEN, WA_DARK_GREEN, WA_NAVY, SURFACE, SURFACE2, MUTED, CONTACT_WHATSAPP,
 } from '@/lib/marketingTheme';
-
-// ─── helpers ──────────────────────────────────────────────────────────────────
-const pill = (label, color = WA_GREEN) => (
-  <span style={{ display: 'inline-block', background: `${color}22`, color, border: `1px solid ${color}44`, borderRadius: 999, padding: '4px 12px', fontSize: 12, fontWeight: 700, letterSpacing: '.04em', textTransform: 'uppercase' }}>
-    {label}
-  </span>
-);
 
 // ─── channel data ─────────────────────────────────────────────────────────────
 const CHANNELS = [
@@ -79,15 +70,14 @@ const CH_COLOR = { WhatsApp: '#25D366', Email: '#3B8BF5', 'Web Chat': '#F5A623',
 
 export default function OmnichannelFeature() {
   return (
-    <div style={{ background: BG, color: TEXT, fontFamily: "'Inter', sans-serif", minHeight: '100vh' }}>
-      <MarketingHeader />
+    <MarketingLayout title="Omnichannel & Broadcasts">
 
       {/* ── HERO ─────────────────────────────────────────────────────────── */}
       <section style={{ maxWidth: 1100, margin: '0 auto', padding: '88px 24px 72px', display: 'flex', alignItems: 'center', gap: 60, flexWrap: 'wrap' }}>
 
         {/* Copy */}
         <div style={{ flex: '1 1 420px' }}>
-          {pill('Omnichannel · Broadcasts · Follow-ups')}
+          {<Pill label="Omnichannel · Broadcasts · Follow-ups" />}
           <h1 style={{ fontSize: 'clamp(34px, 5vw, 56px)', fontWeight: 800, lineHeight: 1.08, margin: '20px 0 24px' }}>
             Every channel.<br />
             Every customer.<br />
@@ -102,7 +92,7 @@ export default function OmnichannelFeature() {
             <Link to="/register" style={{ background: WA_GREEN, color: '#fff', textDecoration: 'none', fontWeight: 700, fontSize: 15, padding: '15px 30px', borderRadius: 12, display: 'flex', alignItems: 'center', gap: 8 }}>
               Get started free <ArrowRight size={18} />
             </Link>
-            <a href={CONTACT_WHATSAPP} target="_blank" rel="noreferrer" style={{ background: SURFACE2, color: TEXT, textDecoration: 'none', fontWeight: 600, fontSize: 15, padding: '15px 28px', borderRadius: 12 }}>
+            <a href={CONTACT_WHATSAPP} target="_blank" rel="noreferrer" style={{ background: SURFACE2, color: '#E9EDF0', textDecoration: 'none', fontWeight: 600, fontSize: 15, padding: '15px 28px', borderRadius: 12 }}>
               See a demo
             </a>
           </div>
@@ -114,7 +104,7 @@ export default function OmnichannelFeature() {
           <div style={{ background: SURFACE, borderRadius: 20, overflow: 'hidden', boxShadow: '0 28px 80px rgba(0,0,0,.55)', border: `1px solid ${SURFACE2}` }}>
             {/* Header */}
             <div style={{ background: WA_NAVY, padding: '14px 16px', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-              <span style={{ fontWeight: 700, fontSize: 14, color: TEXT }}>Inbox · All channels</span>
+              <span style={{ fontWeight: 700, fontSize: 14, color: '#E9EDF0' }}>Inbox · All channels</span>
               <div style={{ display: 'flex', gap: 6 }}>
                 {CHANNELS.slice(0, 5).map(ch => (
                   <div key={ch.name} title={ch.name} style={{ width: 22, height: 22, borderRadius: '50%', background: `${ch.color}22`, border: `1.5px solid ${ch.color}`, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 10 }}>
@@ -141,12 +131,12 @@ export default function OmnichannelFeature() {
               { name: 'Amina K.',  msg: 'Loved the new product post! 🔥',     ch: 'Instagram', agent: 'Lucia',  time: '09:15', unread: 0 },
             ].map((c, i) => (
               <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '10px 14px', borderBottom: `1px solid ${SURFACE2}`, background: i === 0 ? `${SURFACE2}99` : 'transparent' }}>
-                <div style={{ width: 36, height: 36, borderRadius: '50%', background: SURFACE2, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, fontSize: 13, fontWeight: 700, color: TEXT }}>
+                <div style={{ width: 36, height: 36, borderRadius: '50%', background: SURFACE2, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, fontSize: 13, fontWeight: 700, color: '#E9EDF0' }}>
                   {c.name[0]}
                 </div>
                 <div style={{ flex: 1, minWidth: 0 }}>
                   <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 2 }}>
-                    <span style={{ fontWeight: 600, fontSize: 12, color: TEXT }}>{c.name}</span>
+                    <span style={{ fontWeight: 600, fontSize: 12, color: '#E9EDF0' }}>{c.name}</span>
                     <span style={{ fontSize: 10, color: MUTED }}>{c.time}</span>
                   </div>
                   <div style={{ fontSize: 11, color: MUTED, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', marginBottom: 3 }}>{c.msg}</div>
@@ -179,7 +169,7 @@ export default function OmnichannelFeature() {
       {/* ── OMNICHANNEL GRID ─────────────────────────────────────────────── */}
       <section style={{ maxWidth: 1060, margin: '0 auto', padding: '88px 24px 64px' }}>
         <div style={{ textAlign: 'center', marginBottom: 52 }}>
-          {pill('Omnichannel')}
+          {<Pill label="Omnichannel" />}
           <h2 style={{ fontSize: 'clamp(26px, 4vw, 42px)', fontWeight: 800, margin: '16px 0 14px' }}>
             Six channels. One inbox. Zero context-switching.
           </h2>
@@ -196,7 +186,7 @@ export default function OmnichannelFeature() {
                 {ch.emoji}
               </div>
               <div>
-                <div style={{ fontWeight: 700, fontSize: 15, color: TEXT, marginBottom: 7 }}>{ch.name}</div>
+                <div style={{ fontWeight: 700, fontSize: 15, color: '#E9EDF0', marginBottom: 7 }}>{ch.name}</div>
                 <div style={{ fontSize: 13, color: MUTED, lineHeight: 1.65 }}>{ch.desc}</div>
               </div>
             </div>
@@ -205,7 +195,7 @@ export default function OmnichannelFeature() {
 
         <div style={{ marginTop: 40, background: SURFACE, borderRadius: 16, padding: '28px 28px', border: `1px solid ${WA_GREEN}33`, display: 'flex', gap: 20, flexWrap: 'wrap', alignItems: 'center' }}>
           <div style={{ flex: '1 1 300px' }}>
-            <div style={{ fontWeight: 700, fontSize: 16, color: TEXT, marginBottom: 8 }}>One conversation thread, no matter where they reach you</div>
+            <div style={{ fontWeight: 700, fontSize: 16, color: '#E9EDF0', marginBottom: 8 }}>One conversation thread, no matter where they reach you</div>
             <div style={{ fontSize: 14, color: MUTED, lineHeight: 1.7 }}>
               When the same customer emails you and then sends a WhatsApp, Nyasadesk links it — so your agent never has to ask "wait, did you send an email earlier?"
             </div>
@@ -226,9 +216,9 @@ export default function OmnichannelFeature() {
 
           {/* Mock broadcast list */}
           <div style={{ flex: '1 1 300px', maxWidth: 420 }}>
-            <div style={{ background: BG, borderRadius: 18, overflow: 'hidden', border: `1px solid ${SURFACE2}`, boxShadow: '0 16px 48px rgba(0,0,0,.4)' }}>
+            <div style={{ background: '#111B21', borderRadius: 18, overflow: 'hidden', border: `1px solid ${SURFACE2}`, boxShadow: '0 16px 48px rgba(0,0,0,.4)' }}>
               <div style={{ background: WA_NAVY, padding: '14px 18px', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                <div style={{ fontWeight: 700, fontSize: 14, color: TEXT, display: 'flex', gap: 8, alignItems: 'center' }}>
+                <div style={{ fontWeight: 700, fontSize: 14, color: '#E9EDF0', display: 'flex', gap: 8, alignItems: 'center' }}>
                   <Megaphone size={16} color={WA_GREEN} /> Broadcasts
                 </div>
                 <div style={{ background: WA_GREEN, color: '#fff', fontSize: 11, fontWeight: 700, padding: '4px 12px', borderRadius: 999, cursor: 'pointer' }}>+ New</div>
@@ -240,7 +230,7 @@ export default function OmnichannelFeature() {
                     {bc.ch === 'WhatsApp' ? '💬' : '📧'}
                   </div>
                   <div style={{ flex: 1 }}>
-                    <div style={{ fontWeight: 600, fontSize: 13, color: TEXT, marginBottom: 4 }}>{bc.name}</div>
+                    <div style={{ fontWeight: 600, fontSize: 13, color: '#E9EDF0', marginBottom: 4 }}>{bc.name}</div>
                     <div style={{ display: 'flex', gap: 12, fontSize: 12 }}>
                       <span style={{ color: MUTED }}>{bc.ch}</span>
                       {bc.status === 'sent' && <>
@@ -271,7 +261,7 @@ export default function OmnichannelFeature() {
 
           {/* Copy */}
           <div style={{ flex: '1 1 320px' }}>
-            {pill('Broadcasts')}
+            {<Pill label="Broadcasts" />}
             <h2 style={{ fontSize: 'clamp(24px, 3.5vw, 38px)', fontWeight: 800, margin: '16px 0 16px', lineHeight: 1.15 }}>
               Reach your whole list<br />in one send.
             </h2>
@@ -303,7 +293,7 @@ export default function OmnichannelFeature() {
       {/* ── AUTO-ASSIGNMENT ──────────────────────────────────────────────── */}
       <section style={{ maxWidth: 1060, margin: '0 auto', padding: '88px 24px' }}>
         <div style={{ textAlign: 'center', marginBottom: 52 }}>
-          {pill('Auto-assignment')}
+          {<Pill label="Auto-assignment" />}
           <h2 style={{ fontSize: 'clamp(26px, 4vw, 42px)', fontWeight: 800, margin: '16px 0 14px' }}>
             Every lead lands on the right desk.
           </h2>
@@ -318,7 +308,7 @@ export default function OmnichannelFeature() {
               <div style={{ width: 42, height: 42, borderRadius: 12, background: `${WA_GREEN}18`, display: 'flex', alignItems: 'center', justifyContent: 'center', marginBottom: 14 }}>
                 <r.icon size={20} color={WA_GREEN} />
               </div>
-              <div style={{ fontWeight: 700, fontSize: 14, color: TEXT, marginBottom: 8 }}>{r.label}</div>
+              <div style={{ fontWeight: 700, fontSize: 14, color: '#E9EDF0', marginBottom: 8 }}>{r.label}</div>
               <div style={{ fontSize: 13, color: MUTED, lineHeight: 1.65 }}>{r.desc}</div>
             </div>
           ))}
@@ -326,13 +316,13 @@ export default function OmnichannelFeature() {
 
         <div style={{ marginTop: 36, background: SURFACE, borderRadius: 16, border: `1px solid ${SURFACE2}`, padding: '24px 28px', display: 'flex', gap: 24, flexWrap: 'wrap', alignItems: 'center' }}>
           <div style={{ flex: '1 1 260px' }}>
-            <div style={{ fontWeight: 700, fontSize: 15, color: TEXT, marginBottom: 6 }}>SLA tracking built in</div>
+            <div style={{ fontWeight: 700, fontSize: 15, color: '#E9EDF0', marginBottom: 6 }}>SLA tracking built in</div>
             <div style={{ fontSize: 13, color: MUTED, lineHeight: 1.65 }}>
               Set a response-time target on every conversation. Get a live countdown and a breach alert before the clock hits zero — so no customer ever waits too long.
             </div>
           </div>
           <div style={{ flex: '1 1 260px' }}>
-            <div style={{ fontWeight: 700, fontSize: 15, color: TEXT, marginBottom: 6 }}>Agent performance reports</div>
+            <div style={{ fontWeight: 700, fontSize: 15, color: '#E9EDF0', marginBottom: 6 }}>Agent performance reports</div>
             <div style={{ fontSize: 13, color: MUTED, lineHeight: 1.65 }}>
               Resolution rates, response times, and conversation volumes — ranked by agent, visible to admins and sales managers at a glance.
             </div>
@@ -346,7 +336,7 @@ export default function OmnichannelFeature() {
 
           {/* Copy */}
           <div style={{ flex: '1 1 340px' }}>
-            {pill('Automated follow-ups')}
+            {<Pill label="Automated follow-ups" />}
             <h2 style={{ fontSize: 'clamp(24px, 3.5vw, 38px)', fontWeight: 800, margin: '16px 0 16px', lineHeight: 1.15 }}>
               Cold leads don't close themselves.<br />
               <span style={{ color: WA_GREEN }}>Your bot will.</span>
@@ -370,7 +360,7 @@ export default function OmnichannelFeature() {
               ))}
             </ul>
             <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap' }}>
-              <Link to="/features/whatsapp-chatbots" style={{ display: 'inline-flex', alignItems: 'center', gap: 8, background: SURFACE2, color: TEXT, textDecoration: 'none', fontWeight: 600, fontSize: 14, padding: '12px 22px', borderRadius: 10 }}>
+              <Link to="/features/whatsapp-chatbots" style={{ display: 'inline-flex', alignItems: 'center', gap: 8, background: SURFACE2, color: '#E9EDF0', textDecoration: 'none', fontWeight: 600, fontSize: 14, padding: '12px 22px', borderRadius: 10 }}>
                 About the AI agent →
               </Link>
               <Link to="/register" style={{ display: 'inline-flex', alignItems: 'center', gap: 8, background: WA_GREEN, color: '#fff', textDecoration: 'none', fontWeight: 700, fontSize: 14, padding: '12px 22px', borderRadius: 10 }}>
@@ -394,7 +384,7 @@ export default function OmnichannelFeature() {
                     )}
                   </div>
                   <div style={{ paddingTop: 8, paddingBottom: i < FOLLOWUP_FLOW.length - 1 ? 16 : 0 }}>
-                    <div style={{ fontWeight: 700, fontSize: 13, color: TEXT, marginBottom: 2 }}>{step.step}</div>
+                    <div style={{ fontWeight: 700, fontSize: 13, color: '#E9EDF0', marginBottom: 2 }}>{step.step}</div>
                     <div style={{ fontSize: 12, color: MUTED }}>{step.note}</div>
                   </div>
                 </div>
@@ -410,7 +400,7 @@ export default function OmnichannelFeature() {
       {/* ── PRICING ──────────────────────────────────────────────────────── */}
       <section id="pricing" style={{ maxWidth: 1060, margin: '0 auto', padding: '88px 24px' }}>
         <div style={{ textAlign: 'center', marginBottom: 52 }}>
-          {pill('Pricing')}
+          {<Pill label="Pricing" />}
           <h2 style={{ fontSize: 'clamp(26px, 4vw, 42px)', fontWeight: 800, margin: '16px 0 14px' }}>
             Broadcasts on Growth. AI follow-ups on Scale.
           </h2>
@@ -427,9 +417,9 @@ export default function OmnichannelFeature() {
                   MOST POPULAR
                 </div>
               )}
-              <div style={{ fontWeight: 800, fontSize: 17, color: TEXT, marginBottom: 6 }}>{plan.name}</div>
+              <div style={{ fontWeight: 800, fontSize: 17, color: '#E9EDF0', marginBottom: 6 }}>{plan.name}</div>
               <div style={{ display: 'flex', alignItems: 'baseline', gap: 4, marginBottom: 6 }}>
-                <span style={{ fontSize: 32, fontWeight: 800, color: plan.highlight ? WA_GREEN : TEXT }}>{plan.price}</span>
+                <span style={{ fontSize: 32, fontWeight: 800, color: plan.highlight ? WA_GREEN : '#E9EDF0' }}>{plan.price}</span>
                 <span style={{ color: MUTED, fontSize: 14 }}>{plan.period}</span>
               </div>
               <div style={{ fontSize: 13, color: MUTED, marginBottom: 24, paddingBottom: 20, borderBottom: `1px solid ${SURFACE2}` }}>
@@ -444,7 +434,7 @@ export default function OmnichannelFeature() {
               </ul>
               <Link
                 to={plan.key === 'scale' ? CONTACT_WHATSAPP : '/register'}
-                style={{ display: 'block', textAlign: 'center', textDecoration: 'none', fontWeight: 700, fontSize: 14, padding: '13px', borderRadius: 10, background: plan.highlight ? WA_GREEN : SURFACE2, color: plan.highlight ? '#fff' : TEXT, border: `1px solid ${plan.highlight ? WA_GREEN : SURFACE2}` }}
+                style={{ display: 'block', textAlign: 'center', textDecoration: 'none', fontWeight: 700, fontSize: 14, padding: '13px', borderRadius: 10, background: plan.highlight ? WA_GREEN : SURFACE2, color: plan.highlight ? '#fff' : '#E9EDF0', border: `1px solid ${plan.highlight ? WA_GREEN : SURFACE2}` }}
               >
                 {plan.cta}
               </Link>
@@ -464,12 +454,12 @@ export default function OmnichannelFeature() {
             { quote: 'Before Nyasadesk we had WhatsApp on one phone and email in a Gmail. Now everything is in one place and we haven\'t missed a single lead.', name: 'Techno Mart', role: 'Electronics Retailer, Lilongwe' },
             { quote: 'The broadcast feature saved us hours. We sent a campaign to 800+ contacts and the replies came straight back in as normal conversations.', name: 'Brandfletch Media', role: 'Digital Agency, Blantyre' },
           ].map(t => (
-            <div key={t.name} style={{ background: BG, border: `1px solid ${SURFACE2}`, borderRadius: 16, padding: '28px 26px' }}>
+            <div key={t.name} style={{ background: '#111B21', border: `1px solid ${SURFACE2}`, borderRadius: 16, padding: '28px 26px' }}>
               <div style={{ display: 'flex', gap: 3, marginBottom: 16 }}>
                 {[...Array(5)].map((_, i) => <Star key={i} size={14} fill={WA_GREEN} color={WA_GREEN} />)}
               </div>
-              <p style={{ fontSize: 15, color: TEXT, lineHeight: 1.75, marginBottom: 20, fontStyle: 'italic' }}>"{t.quote}"</p>
-              <div style={{ fontWeight: 700, fontSize: 13, color: TEXT }}>{t.name}</div>
+              <p style={{ fontSize: 15, color: '#E9EDF0', lineHeight: 1.75, marginBottom: 20, fontStyle: 'italic' }}>"{t.quote}"</p>
+              <div style={{ fontWeight: 700, fontSize: 13, color: '#E9EDF0' }}>{t.name}</div>
               <div style={{ fontSize: 12, color: MUTED }}>{t.role}</div>
             </div>
           ))}
@@ -491,14 +481,12 @@ export default function OmnichannelFeature() {
             <Link to="/register" style={{ background: WA_GREEN, color: '#fff', textDecoration: 'none', fontWeight: 700, fontSize: 15, padding: '15px 32px', borderRadius: 12, display: 'flex', alignItems: 'center', gap: 8 }}>
               Get started free <ArrowRight size={18} />
             </Link>
-            <a href={CONTACT_WHATSAPP} target="_blank" rel="noreferrer" style={{ background: SURFACE2, color: TEXT, textDecoration: 'none', fontWeight: 600, fontSize: 15, padding: '15px 28px', borderRadius: 12 }}>
+            <a href={CONTACT_WHATSAPP} target="_blank" rel="noreferrer" style={{ background: SURFACE2, color: '#E9EDF0', textDecoration: 'none', fontWeight: 600, fontSize: 15, padding: '15px 28px', borderRadius: 12 }}>
               Chat with us on WhatsApp
             </a>
           </div>
         </div>
       </section>
-
-      <MarketingFooter />
-    </div>
+    </MarketingLayout>
   );
 }
