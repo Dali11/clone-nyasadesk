@@ -41,6 +41,14 @@ if ('serviceWorker' in navigator) {
         navigator.serviceWorker.addEventListener('controllerchange', () => {
           injectSecret(navigator.serviceWorker.controller);
         });
+
+        // When the new SW activates and sends SW_UPDATED, reload to pick up fresh JS
+        navigator.serviceWorker.addEventListener('message', (event) => {
+          if (event.data?.type === 'SW_UPDATED') {
+            console.log('[SW] New version active — reloading for fresh bundle');
+            window.location.reload();
+          }
+        });
       })
       .catch((err) => console.warn('[SW] Registration failed:', err));
   });

@@ -1,4 +1,4 @@
-// ── Nyasadesk Service Worker v6 ────────────────────────────────────────────
+// ── Nyasadesk Service Worker v7 ────────────────────────────────────────────
 // Full offline-first PWA:
 //  - Pre-caches ALL Vite build chunks at install (app shell + all routes)
 //  - Cache-first for assets, network-first for navigation
@@ -7,8 +7,8 @@
 //  - Inline reply from notification bar
 //  - Badge icon support
 
-const STATIC_CACHE  = 'nyasadesk-static-v6';   // versioned static assets
-const DYNAMIC_CACHE = 'nyasadesk-dynamic-v6';   // runtime HTML pages
+const STATIC_CACHE  = 'nyasadesk-static-v7';   // versioned static assets
+const DYNAMIC_CACHE = 'nyasadesk-dynamic-v7';   // runtime HTML pages
 const SECRET_CACHE  = 'nyasa-sw-secrets-v1';    // inline reply secret
 const NOTIF_REPLY_ENDPOINT = '/api/team?action=notif-reply';
 
@@ -59,16 +59,24 @@ self.addEventListener('install', (event) => {
   })());
 });
 
-// ── Activate: purge old caches ─────────────────────────────────────────────
+// ── Activate: purge old caches + take control immediately ──────────────────
 self.addEventListener('activate', (event) => {
   const KEEP = [STATIC_CACHE, DYNAMIC_CACHE, SECRET_CACHE];
-  event.waitUntil(
-    caches.keys()
-      .then(keys => Promise.all(
-        keys.filter(k => !KEEP.includes(k)).map(k => caches.delete(k))
-      ))
-      .then(() => self.clients.claim())
-  );
+  event.waitUntil((async () => {
+    // Delete all stale caches
+    const keys = await caches.keys();
+    await Promise.all(keys.filter(k => !KEEP.includes(k)).map(k => caches.delete(k)));
+
+    // Take control of all open clients immediately (no reload required)
+    await self.clients.claim();
+
+    // Tell all open windows to reload so they pick up the new JS bundle
+    // (avoids "React is not defined" when old cached HTML loads new SW)
+    const clients = await self.clients.matchAll({ type: 'window' });
+    for (const client of clients) {
+      client.postMessage({ type: 'SW_UPDATED' });
+    }
+  })());
 });
 
 // ── Fetch: offline-first strategy ──────────────────────────────────────────
