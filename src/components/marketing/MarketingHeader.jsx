@@ -10,6 +10,7 @@ const PRODUCT_ITEMS = [
   { icon: Users2,     title: 'Automation & Team', desc: 'Assignment rules, SLA tracking, roles — built for real sales teams.',         href: '/#product' },
   { icon: Users2,     title: 'Multi-Agent Inbox',  desc: 'One WhatsApp number shared across your whole team. No personal phones.',      href: '/features/multi-agent' },
   { icon: Bot,        title: 'WhatsApp Chatbots',  desc: 'AI chatbot included in Scale — replies, qualifies leads, and sends quotes 24/7.', href: '/features/whatsapp-chatbots' },
+  { icon: Inbox,      title: 'Omnichannel & Broadcasts', desc: '6 channels in one inbox — plus broadcasts and automated follow-ups.', href: '/features/omnichannel' },
 ];
 
 export default function MarketingHeader() {

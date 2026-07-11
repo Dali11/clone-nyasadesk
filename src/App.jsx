@@ -11,6 +11,7 @@ import ScrollToTop from "./components/ScrollToTop";
 import Landing              from "./pages/Landing";
 import MultiAgentFeature   from "./pages/MultiAgentFeature";
 import WhatsappChatbots    from "./pages/WhatsappChatbots";
+import OmnichannelFeature  from "./pages/OmnichannelFeature";
 import Pricing         from "./pages/Pricing";
 import Login           from "./pages/Login";
 import Register        from "./pages/Register";
@@ -86,6 +87,7 @@ function AppRoutes() {
         <Route path="/data-deletion"    element={<DataDeletion />} />
         <Route path="/features/multi-agent" element={<MultiAgentFeature />} />
         <Route path="/features/whatsapp-chatbots" element={<WhatsappChatbots />} />
+        <Route path="/features/omnichannel" element={<OmnichannelFeature />} />
         <Route path="*"                element={<Navigate to="/" replace />} />
       </Routes>
     );
