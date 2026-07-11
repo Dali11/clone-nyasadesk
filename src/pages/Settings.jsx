@@ -462,6 +462,23 @@ function WhatsAppCard({ saved, workspaceId, onSave, onDelete }) {
               </div>
             )}
 
+            {/* Webhook info for Meta configuration */}
+            <div className="bg-[var(--nyasa-surface-1)] rounded-xl p-3 space-y-1.5 border border-white/5">
+              <p className="text-[10px] text-gray-500 font-medium uppercase tracking-wide">Webhook Config (for Meta Dashboard)</p>
+              <div className="flex items-center gap-2">
+                <span className="text-[10px] text-gray-500 w-20 shrink-0">Callback URL</span>
+                <span className="text-[10px] font-mono text-gray-300 flex-1 truncate">https://nyasadesk.com/api/webhooks/whatsapp</span>
+                <CopyBtn text="https://nyasadesk.com/api/webhooks/whatsapp" />
+              </div>
+              {saved.config?.verify_token && (
+                <div className="flex items-center gap-2">
+                  <span className="text-[10px] text-gray-500 w-20 shrink-0">Verify Token</span>
+                  <span className="text-[10px] font-mono text-gray-300 flex-1">{saved.config.verify_token}</span>
+                  <CopyBtn text={saved.config.verify_token} />
+                </div>
+              )}
+            </div>
+
             {embeddedSetupPin && (
               <div className="bg-amber-500/10 border border-amber-500/30 rounded-lg p-3">
                 <p className="text-[11px] font-semibold text-amber-400">Save your 2FA PIN: <span className="font-mono text-white">{embeddedSetupPin}</span></p>
@@ -497,28 +514,9 @@ function WhatsAppCard({ saved, workspaceId, onSave, onDelete }) {
 
           {/* Manual entry — primary method */}
           {!regWizard && (
-            {/* Step 1 — Webhook config info */}
-          <div className="bg-blue-500/10 border border-blue-500/20 rounded-xl p-4 space-y-2">
-            <p className="text-xs font-bold text-blue-300">Step 1 — Configure Webhook in Meta</p>
-            <p className="text-[11px] text-gray-400">In your Meta App Dashboard → WhatsApp → Configuration, set:</p>
-            <div className="space-y-1.5">
-              <div className="flex items-center gap-2 bg-[var(--nyasa-bg)] rounded-lg px-3 py-2">
-                <span className="text-[10px] text-gray-500 w-24 shrink-0">Callback URL</span>
-                <span className="text-[10px] font-mono text-white flex-1 truncate">https://nyasadesk.com/api/webhooks/whatsapp</span>
-                <CopyBtn text="https://nyasadesk.com/api/webhooks/whatsapp" />
-              </div>
-              <div className="flex items-center gap-2 bg-[var(--nyasa-bg)] rounded-lg px-3 py-2">
-                <span className="text-[10px] text-gray-500 w-24 shrink-0">Verify Token</span>
-                <span className="text-[10px] font-mono text-white flex-1">{manualWabaId.trim().length >= 8 ? `nyasa_${manualWabaId.trim().slice(-8)}` : "nyasa_XXXXXXXX — enter WABA ID below"}</span>
-                {manualWabaId.trim().length >= 8 && <CopyBtn text={`nyasa_${manualWabaId.trim().slice(-8)}`} />}
-              </div>
-            </div>
-            <p className="text-[10px] text-gray-500">Also subscribe to the <span className="text-white font-medium">messages</span> webhook field. Then enter your credentials below.</p>
-          </div>
-
-          <div className="bg-[var(--nyasa-surface-1)] rounded-xl p-4 space-y-3">
+            <div className="bg-[var(--nyasa-surface-1)] rounded-xl p-4 space-y-3">
               <div>
-                <p className="text-xs font-bold text-white mb-0.5">Step 2 — Cloud API Credentials</p>
+                <p className="text-xs font-bold text-white mb-0.5">Cloud API Credentials</p>
                 <p className="text-[11px] text-gray-400 leading-relaxed">
                   Find these in <strong>Meta Business Suite → WhatsApp Manager</strong>. Use a permanent System User access token.
                 </p>
