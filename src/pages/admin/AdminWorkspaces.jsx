@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Loader2, Users, MessageSquare, Calendar, Clock, Crown, Plus, Lock, Unlock, Eye } from 'lucide-react';
+import { Loader2, Users, MessageSquare, Calendar, Clock, Crown, Plus, Lock, Unlock, Eye, X } from 'lucide-react';
 import { adminFetch } from '@/lib/adminApi';
 import { useDocumentTitle } from '@/hooks/useDocumentTitle';
 import { useToast } from '@/components/ui/use-toast';
@@ -207,9 +207,8 @@ export default function AdminWorkspaces() {
                       <Lock className="w-3 h-3" /> Suspend
                     </button>
                   )}
-                  <button onClick={() => setViewingId(w.id)}
-                    className="flex items-center gap-1 text-[10px] font-semibold px-2.5 py-1 rounded-lg bg-white/5 text-gray-300 hover:bg-white/10 transition-colors ml-auto">
-                    <Eye className="w-3 h-3" /> View details
+                  <button onClick={() => setViewingId(w.id)} className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-indigo-500/15 hover:bg-indigo-500/25 text-indigo-400 text-xs font-medium transition-colors ml-auto">
+                    <Eye className="w-3.5 h-3.5" /> <span className="hidden sm:inline">Open</span>
                   </button>
                 </div>
               </div>
@@ -225,94 +224,102 @@ export default function AdminWorkspaces() {
 
 // ── Workspace detail modal ("view as", read-only) ──────────────────────────
 function WorkspaceDetailModal({ workspaceId, onClose }) {
-  const [data, setData] = useState(null);
+  const [detail, setDetail] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
 
   useEffect(() => {
-    (async () => {
-      setLoading(true);
-      try {
-        const res = await adminFetch(`/api/admin/workspaces?resource=workspace-detail&workspace_id=${workspaceId}`);
-        const json = await res.json();
-        if (!res.ok) throw new Error(json.error || 'Failed to load workspace detail');
-        setData(json);
-      } catch (e) {
-        setError(e.message || 'Failed to load');
-      } finally {
-        setLoading(false);
-      }
-    })();
+    if (!workspaceId) return;
+    setLoading(true);
+    adminFetch(`/api/admin/workspaces?resource=workspace-detail&workspace_id=${workspaceId}`)
+      .then(r => r.json())
+      .then(d => { if (d.error) throw new Error(d.error); setDetail(d); })
+      .catch(e => setError(e.message))
+      .finally(() => setLoading(false));
   }, [workspaceId]);
 
+  if (!workspaceId) return null;
+
   return (
-    <div className="fixed inset-0 z-50 bg-black/70 flex items-center justify-center p-4" onClick={onClose}>
-      <div className="bg-[var(--nyasa-surface-2)] rounded-2xl border border-[var(--nyasa-border)] w-full max-w-2xl max-h-[85vh] overflow-y-auto p-5" onClick={e => e.stopPropagation()}>
-        <div className="flex items-center justify-between mb-4">
-          <h2 className="text-white font-bold text-lg">
-            {data?.workspace?.workspace_name || data?.workspace?.full_name || 'Workspace'}
-          </h2>
-          <button onClick={onClose} className="text-gray-500 hover:text-gray-300">✕</button>
+    <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4" onClick={onClose}>
+      <div className="absolute inset-0 bg-black/70 backdrop-blur-sm" />
+      <div className="relative bg-[var(--nyasa-surface-1)] border border-[var(--nyasa-border)] rounded-t-3xl sm:rounded-2xl w-full sm:max-w-lg max-h-[90vh] overflow-y-auto shadow-2xl z-10" onClick={e => e.stopPropagation()}>
+        {/* Header */}
+        <div className="sticky top-0 bg-[var(--nyasa-surface-1)] border-b border-[var(--nyasa-border)] px-5 py-4 flex items-center justify-between">
+          <div>
+            <p className="font-bold text-white">{detail?.workspace?.workspace_name || 'Workspace'}</p>
+            <p className="text-[11px] text-gray-500">{detail?.workspace?.email}</p>
+          </div>
+          <button onClick={onClose} className="p-2 rounded-xl hover:bg-white/8 text-gray-400"><X className="w-4 h-4" /></button>
         </div>
 
-        {loading ? (
-          <div className="flex justify-center py-16"><Loader2 className="w-5 h-5 text-indigo-400 animate-spin" /></div>
-        ) : error ? (
-          <p className="text-red-400 text-sm">{error}</p>
-        ) : (
-          <div className="space-y-5">
-            <div>
-              <p className="text-xs font-bold text-gray-500 uppercase tracking-wide mb-2">Team ({data.team.length})</p>
-              <div className="space-y-1">
-                {data.team.map(t => (
-                  <div key={t.id} className="flex items-center justify-between text-xs bg-white/5 rounded-lg px-3 py-2">
-                    <span className="text-white">{t.full_name || 'Unnamed'}</span>
-                    <span className="text-gray-500 capitalize">{t.role}</span>
-                  </div>
-                ))}
-                {data.team.length === 0 && <p className="text-xs text-gray-600">No team members</p>}
+        {loading && <div className="flex items-center justify-center py-16"><Loader2 className="w-6 h-6 text-indigo-400 animate-spin" /></div>}
+        {error && <div className="m-4 p-3 rounded-xl bg-red-500/10 text-red-400 text-sm">{error}</div>}
+
+        {detail && (
+          <div className="p-5 space-y-5">
+            {/* Stats row */}
+            <div className="grid grid-cols-3 gap-3">
+              <div className="bg-[var(--nyasa-surface-2)] rounded-xl p-3 text-center">
+                <p className="text-xl font-bold text-white">{detail.stats?.conversations ?? '—'}</p>
+                <p className="text-[10px] text-gray-500">Conversations</p>
+              </div>
+              <div className="bg-[var(--nyasa-surface-2)] rounded-xl p-3 text-center">
+                <p className="text-xl font-bold text-white">{detail.stats?.messages ?? '—'}</p>
+                <p className="text-[10px] text-gray-500">Messages</p>
+              </div>
+              <div className="bg-[var(--nyasa-surface-2)] rounded-xl p-3 text-center">
+                <p className="text-xl font-bold text-white">{detail.team?.length ?? '—'}</p>
+                <p className="text-[10px] text-gray-500">Members</p>
               </div>
             </div>
 
+            {/* WhatsApp status */}
+            {detail.channels?.whatsapp && (
+              <div className="bg-[#25D366]/8 border border-[#25D366]/20 rounded-xl p-3 flex items-center gap-3">
+                <div className="w-8 h-8 rounded-lg bg-[#25D366]/15 flex items-center justify-center">
+                  <MessageSquare className="w-4 h-4 text-[#25D366]" />
+                </div>
+                <div className="flex-1 min-w-0">
+                  <p className="text-xs font-semibold text-white">WhatsApp Connected</p>
+                  <p className="text-[11px] text-gray-400 truncate">{detail.channels.whatsapp.config?.phone_number || detail.channels.whatsapp.config?.phone_number_id}</p>
+                </div>
+                <span className="text-[9px] font-bold px-2 py-0.5 rounded-full bg-[#25D366]/15 text-[#25D366]">Live</span>
+              </div>
+            )}
+
+            {/* Team members */}
             <div>
-              <p className="text-xs font-bold text-gray-500 uppercase tracking-wide mb-2">Recent conversations</p>
-              <div className="space-y-1">
-                {data.recent_conversations.map(cvo => (
-                  <div key={cvo.id} className="text-xs bg-white/5 rounded-lg px-3 py-2">
-                    <div className="flex items-center justify-between">
-                      <span className="text-white font-semibold">{cvo.contact_name || 'Unknown'}</span>
-                      <span className="text-gray-500 capitalize">{cvo.channel}</span>
+              <p className="text-xs font-semibold text-gray-400 mb-2 uppercase tracking-wide">Team Members</p>
+              <div className="space-y-2">
+                {(detail.team || []).length === 0 && <p className="text-xs text-gray-600">No members found.</p>}
+                {(detail.team || []).map(m => (
+                  <div key={m.id} className="flex items-center gap-3 bg-[var(--nyasa-surface-2)] rounded-xl px-3 py-2.5">
+                    <div className="w-8 h-8 rounded-full bg-indigo-500/20 flex items-center justify-center shrink-0">
+                      <span className="text-[11px] font-bold text-indigo-400">{(m.full_name || m.email || '?')[0].toUpperCase()}</span>
                     </div>
-                    <p className="text-gray-500 truncate mt-0.5">{cvo.last_message || '—'}</p>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-xs font-medium text-white truncate">{m.full_name || m.email}</p>
+                      <p className="text-[10px] text-gray-500 truncate">{m.email}</p>
+                    </div>
+                    <span className="text-[9px] font-bold px-2 py-0.5 rounded-full bg-white/8 text-gray-400 capitalize">{m.role || 'agent'}</span>
                   </div>
                 ))}
-                {data.recent_conversations.length === 0 && <p className="text-xs text-gray-600">No conversations yet</p>}
               </div>
             </div>
 
+            {/* Recent conversations */}
             <div>
-              <p className="text-xs font-bold text-gray-500 uppercase tracking-wide mb-2">AI agents</p>
-              <div className="space-y-1">
-                {data.ai_agents.map(a => (
-                  <div key={a.id} className="flex items-center justify-between text-xs bg-white/5 rounded-lg px-3 py-2">
-                    <span className="text-white">{a.name}</span>
-                    <span className={a.status === 'active' ? 'text-[#25D366]' : 'text-yellow-400'}>{a.status}</span>
+              <p className="text-xs font-semibold text-gray-400 mb-2 uppercase tracking-wide">Recent Conversations</p>
+              <div className="space-y-1.5">
+                {(detail.recent_conversations || []).length === 0 && <p className="text-xs text-gray-600">No conversations yet.</p>}
+                {(detail.recent_conversations || []).slice(0, 5).map(c => (
+                  <div key={c.id} className="flex items-center gap-2 bg-[var(--nyasa-surface-2)] rounded-xl px-3 py-2">
+                    <div className="w-1.5 h-1.5 rounded-full shrink-0" style={{ background: c.status === 'open' ? '#25D366' : c.status === 'resolved' ? '#6366F1' : '#F59E0B' }} />
+                    <p className="text-xs text-white truncate flex-1">{c.contact_name}</p>
+                    <p className="text-[10px] text-gray-600 shrink-0">{c.last_message ? c.last_message.slice(0, 30) + '…' : ''}</p>
                   </div>
                 ))}
-                {data.ai_agents.length === 0 && <p className="text-xs text-gray-600">No AI agents configured</p>}
-              </div>
-            </div>
-
-            <div>
-              <p className="text-xs font-bold text-gray-500 uppercase tracking-wide mb-2">Recent transactions</p>
-              <div className="space-y-1">
-                {data.recent_transactions.map(t => (
-                  <div key={t.id} className="flex items-center justify-between text-xs bg-white/5 rounded-lg px-3 py-2">
-                    <span className="text-white capitalize">{t.plan} · {t.currency} {Number(t.amount).toLocaleString()}</span>
-                    <span className="text-gray-500 capitalize">{t.status}</span>
-                  </div>
-                ))}
-                {data.recent_transactions.length === 0 && <p className="text-xs text-gray-600">No transactions yet</p>}
               </div>
             </div>
           </div>
