@@ -174,6 +174,7 @@ function AppRoutes() {
       <Route path="/ai-agents"  element={<AiAgents />} />
       <Route path="/documents"  element={<Documents />} />
       <Route path="/sales"      element={<Sales />} />
+      <Route path="/commissions" element={<MyCommissions />} />
       <Route path="/privacy"        element={<PrivacyPolicy />} />
       <Route path="/data-deletion"   element={<DataDeletion />} />
       <Route path="/settings"   element={<Settings />} />
@@ -188,6 +189,7 @@ function AppRoutes() {
         <Route path="ai-usage"    element={<AdminAiUsage />} />
         <Route path="transactions" element={<AdminTransactions />} />
         <Route path="audit-log"   element={<AdminAuditLog />} />
+        <Route path="commissions" element={<AdminCommissions />} />
       </Route>
       {/* Redirect /login and /register back to inbox when already logged in */}
       <Route path="/login"      element={<Navigate to="/" replace />} />

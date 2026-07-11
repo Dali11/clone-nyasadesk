@@ -180,6 +180,157 @@ export default async function handler(req, res) {
       return res.status(200).json({ status: vJson?.data?.status || 'pending' });
     }
 
+
+    // ── COMMISSIONS ─────────────────────────────────────────────────────────
+
+    // GET ?action=get-commission-settings
+    if (req.method === 'GET' && action === 'get-commission-settings') {
+      const { data } = await sb.from('commission_settings').select('*').eq('workspace_id', workspaceId).maybeSingle();
+      return res.status(200).json(data || { workspace_id: workspaceId, enabled: false });
+    }
+
+    // POST action=save-commission-settings  { enabled: bool }
+    if (req.method === 'POST' && action === 'save-commission-settings') {
+      if (!isOwner && !isAdmin) return res.status(403).json({ error: 'Admin only' });
+      const { enabled } = body;
+      const { data, error: uErr } = await sb.from('commission_settings')
+        .upsert({ workspace_id: workspaceId, enabled: !!enabled, updated_at: new Date().toISOString() },
+                 { onConflict: 'workspace_id' }).select().single();
+      if (uErr) return res.status(500).json({ error: uErr.message });
+      return res.status(200).json(data);
+    }
+
+    // GET ?action=list-policies[&agent_id=xxx]
+    if (req.method === 'GET' && action === 'list-policies') {
+      const agentId = req.query.agent_id;
+      let q = sb.from('commission_policies').select('*').eq('workspace_id', workspaceId).order('created_at', { ascending: false });
+      if (agentId) {
+        // Return workspace-level + individual policies for this agent
+        q = q.or(`applies_to.eq.workspace,and(applies_to.eq.individual,applies_to_id.eq.${agentId})`);
+      }
+      const { data, error: qErr } = await q;
+      if (qErr) return res.status(500).json({ error: qErr.message });
+      return res.status(200).json({ policies: data || [] });
+    }
+
+    // POST action=save-policy  { id?, name, description, status, effective_date, expiry_date, applies_to, applies_to_id, calc_method, calc_value, tiers, trigger_event }
+    if (req.method === 'POST' && action === 'save-policy') {
+      if (!isOwner && !isAdmin) return res.status(403).json({ error: 'Admin only' });
+      const { id, name, description, status, effective_date, expiry_date,
+              applies_to, applies_to_id, calc_method, calc_value, tiers, trigger_event } = body;
+      if (!name) return res.status(400).json({ error: 'Policy name is required' });
+      const payload = {
+        workspace_id: workspaceId, name, description: description || null,
+        status: status || 'active',
+        effective_date: effective_date || new Date().toISOString().split('T')[0],
+        expiry_date: expiry_date || null,
+        applies_to: applies_to || 'workspace', applies_to_id: applies_to_id || null,
+        calc_method: calc_method || 'fixed', calc_value: calc_value ?? null,
+        tiers: tiers || null, trigger_event: trigger_event || 'deal_won',
+        created_by: callerId, updated_at: new Date().toISOString(),
+      };
+      let result;
+      if (id) {
+        const { data, error: uErr } = await sb.from('commission_policies').update(payload).eq('id', id).select().single();
+        if (uErr) return res.status(500).json({ error: uErr.message });
+        result = data;
+      } else {
+        const { data, error: iErr } = await sb.from('commission_policies').insert(payload).select().single();
+        if (iErr) return res.status(500).json({ error: iErr.message });
+        result = data;
+      }
+      return res.status(200).json(result);
+    }
+
+    // POST action=archive-policy  { id }
+    if (req.method === 'POST' && action === 'archive-policy') {
+      if (!isOwner && !isAdmin) return res.status(403).json({ error: 'Admin only' });
+      const { id } = body;
+      const { error: aErr } = await sb.from('commission_policies').update({ status: 'archived', updated_at: new Date().toISOString() }).eq('id', id).eq('workspace_id', workspaceId);
+      if (aErr) return res.status(500).json({ error: aErr.message });
+      return res.status(200).json({ ok: true });
+    }
+
+    // GET ?action=list-commissions[&agent_id=&status=&from=&to=&policy_id=&limit=&offset=]
+    if (req.method === 'GET' && action === 'list-commissions') {
+      const isMgr = callerProfile?.role === 'sales_manager';
+      let q = sb.from('commissions').select('*').eq('workspace_id', workspaceId).order('created_at', { ascending: false });
+      // Agents only see their own; admins/managers see all
+      if (!isOwner && !isAdmin && !isMgr) {
+        q = q.eq('agent_id', callerId);
+      }
+      if (req.query.agent_id) q = q.eq('agent_id', req.query.agent_id);
+      if (req.query.status)   q = q.eq('status', req.query.status);
+      if (req.query.policy_id) q = q.eq('policy_id', req.query.policy_id);
+      if (req.query.from)     q = q.gte('created_at', req.query.from);
+      if (req.query.to)       q = q.lte('created_at', req.query.to);
+      const limit  = parseInt(req.query.limit  || '100', 10);
+      const offset = parseInt(req.query.offset || '0',   10);
+      q = q.range(offset, offset + limit - 1);
+      const { data, error: qErr } = await q;
+      if (qErr) return res.status(500).json({ error: qErr.message });
+      return res.status(200).json({ commissions: data || [] });
+    }
+
+    // POST action=update-commission-status  { id, status, notes?, reversal_reason? }
+    if (req.method === 'POST' && action === 'update-commission-status') {
+      if (!isOwner && !isAdmin) return res.status(403).json({ error: 'Admin only' });
+      const { id, status: newStatus, notes, reversal_reason } = body;
+      const allowed = ['awaiting_approval','approved','paid','rejected','cancelled','reversed'];
+      if (!allowed.includes(newStatus)) return res.status(400).json({ error: 'Invalid status' });
+      const update = {
+        status: newStatus, updated_at: new Date().toISOString(),
+        reviewed_by: callerId, reviewed_at: new Date().toISOString(),
+      };
+      if (notes)            update.notes = notes;
+      if (newStatus === 'paid')     update.paid_at = new Date().toISOString();
+      if (newStatus === 'reversed') {
+        update.reversed_at = new Date().toISOString();
+        update.reversal_reason = reversal_reason || 'Manual reversal';
+      }
+      const { data, error: uErr } = await sb.from('commissions').update(update).eq('id', id).eq('workspace_id', workspaceId).select().single();
+      if (uErr) return res.status(500).json({ error: uErr.message });
+      return res.status(200).json(data);
+    }
+
+    // GET ?action=commission-stats
+    if (req.method === 'GET' && action === 'commission-stats') {
+      const isMgr = callerProfile?.role === 'sales_manager';
+      if (!isOwner && !isAdmin && !isMgr) return res.status(403).json({ error: 'Admin only' });
+      const { data: rows } = await sb.from('commissions').select('commission_amount,status,agent_id,agent_name,created_at').eq('workspace_id', workspaceId);
+      const all = rows || [];
+      const sum = (filter) => all.filter(filter).reduce((acc, r) => acc + Number(r.commission_amount), 0);
+      const stats = {
+        total:    sum(() => true),
+        pending:  sum(r => ['pending','awaiting_approval'].includes(r.status)),
+        approved: sum(r => r.status === 'approved'),
+        paid:     sum(r => r.status === 'paid'),
+        reversed: sum(r => r.status === 'reversed'),
+        count:    all.length,
+      };
+      // Top agents
+      const agentMap = {};
+      all.forEach(r => {
+        if (!agentMap[r.agent_id]) agentMap[r.agent_id] = { agent_id: r.agent_id, agent_name: r.agent_name, total: 0, count: 0 };
+        agentMap[r.agent_id].total += Number(r.commission_amount);
+        agentMap[r.agent_id].count++;
+      });
+      const topAgents = Object.values(agentMap).sort((a, b) => b.total - a.total).slice(0, 10);
+      // Monthly (last 6 months)
+      const now = new Date();
+      const monthly = [];
+      for (let i = 5; i >= 0; i--) {
+        const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
+        const label = d.toLocaleString('default', { month: 'short', year: '2-digit' });
+        const monthRows = all.filter(r => {
+          const rd = new Date(r.created_at);
+          return rd.getFullYear() === d.getFullYear() && rd.getMonth() === d.getMonth();
+        });
+        monthly.push({ label, total: monthRows.reduce((a, r) => a + Number(r.commission_amount), 0), count: monthRows.length });
+      }
+      return res.status(200).json({ stats, topAgents, monthly });
+    }
+
     return res.status(400).json({ error: 'Unknown action' });
   } catch (e) {
     console.error('[billing] error:', e);
