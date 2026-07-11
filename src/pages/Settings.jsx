@@ -1,10 +1,12 @@
 import { useState, useEffect } from 'react';
 import { useSearchParams, useNavigate } from 'react-router-dom';
 import { User, Users, Globe, Bell, Building2, Check, Loader2,
-         Trash2, Copy, ExternalLink, ChevronDown, AlertCircle, Code2, ShieldCheck, CreditCard, Crown, Clock, CheckCircle2 } from 'lucide-react';
+         Trash2, Copy, ExternalLink, ChevronDown, AlertCircle, Code2, ShieldCheck, CreditCard, Crown, Clock, CheckCircle2,
+         Megaphone, Pin, PinOff, Edit2, X, Plus } from 'lucide-react';
 import Sidebar from '@/components/Sidebar';
 import Avatar from '@/components/Avatar';
 import TeamSection from '@/components/settings/TeamSection';
+import NoticeboardSection from '@/components/settings/NoticeboardSection';
 import { useNyasaAuth } from '@/lib/NyasaAuth';
 import { getChannelConfigs, saveChannelConfig, deleteChannelConfig } from '@/lib/channels';
 import { supabase } from '@/lib/supabase';
@@ -22,6 +24,7 @@ const SECTIONS = [
   { id: 'channels',  label: 'Channels',  icon: Globe,     adminOnly: true  },
   { id: 'sla',       label: 'SLA',       icon: Bell,      adminOnly: true  },
   { id: 'subscription', label: 'Subscription', icon: CreditCard, adminOnly: true  },
+  { id: 'noticeboard', label: 'Noticeboard', icon: Megaphone, adminOnly: false },
 ];
 
 const inputCls = 'w-full bg-[var(--nyasa-surface-4)] text-white text-sm rounded-xl px-4 py-2.5 focus:outline-none focus:ring-1 focus:ring-[#25D366] border-0 placeholder:text-gray-600';
@@ -1893,6 +1896,14 @@ export default function Settings() {
                   <p className="text-sm text-gray-500">Could not load subscription info.</p>
                 )}
               </div>
+            )}
+
+            {section === 'noticeboard' && (
+              <NoticeboardSection
+                workspaceOwnerId={workspaceOwnerId}
+                canPost={isWorkspaceAdmin || profile?.role === 'sales_manager'}
+                currentUser={user}
+              />
             )}
 
           </div>
