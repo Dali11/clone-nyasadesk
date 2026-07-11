@@ -336,11 +336,16 @@ function WhatsAppCard({ saved, workspaceId, onSave, onDelete }) {
     if (!/^\d{6}$/.test(regPin.trim())) { setRegError('PIN must be exactly 6 digits'); return; }
     setRegBusy(true); setRegError('');
     try {
-      const regData = await apiCall('whatsapp-guided-register-phone', { access_token: activeToken, phone_number_id: regWizard.phone_number_id, pin: regPin.trim() });
-      if (!regData.ok) { setRegError(regData.error || 'Registration failed'); return; }
-      const connectData = await apiCall('whatsapp-guided-connect', { workspace_id: workspaceId, access_token: activeToken, waba_id: regWizard.waba_id, phone_number_id: regWizard.phone_number_id });
-      if (!connectData.ok) { setRegError(connectData.error || 'Connect failed after registration'); return; }
-      if (onSave) onSave('whatsapp', connectData.config);
+      // Single action: register phone + update existing config (webhooks already subscribed by manual-connect)
+      const data = await apiCall('whatsapp-complete-registration', {
+        workspace_id: workspaceId,
+        access_token: activeToken,
+        phone_number_id: regWizard.phone_number_id,
+        waba_id: regWizard.waba_id,
+        pin: regPin.trim(),
+      });
+      if (!data.ok) { setRegError(data.error || 'Registration failed'); return; }
+      if (onSave) onSave('whatsapp', data.config);
       setRegWizard(null); setManualToken(''); setManualWabaId(''); setManualPhoneId('');
     } catch (e) { setRegError(e.message); } finally { setRegBusy(false); }
   };

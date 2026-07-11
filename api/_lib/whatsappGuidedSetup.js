@@ -200,7 +200,25 @@ export async function requestVerificationCode(accessToken, phoneNumberId, codeMe
     body: JSON.stringify({ access_token: accessToken, code_method: codeMethod === 'VOICE' ? 'VOICE' : 'SMS', language: 'en_US' }),
   });
   const data = await res.json();
-  if (data.error) throw new Error(data.error.message || 'Failed to send a verification code to this number.');
+  if (data.error) {
+    const msg = data.error.message || '';
+    const code = data.error.code;
+    // Error 132000 = number is registered on WhatsApp Business App.
+    // SMS will never arrive — only Embedded Signup coexistence QR can bridge it.
+    const isAppNumber =
+      code === 132000 ||
+      msg.includes('132000') ||
+      msg.toLowerCase().includes('already registered') ||
+      msg.toLowerCase().includes('currently registered') ||
+      msg.toLowerCase().includes('registered on whatsapp');
+    const err = new Error(
+      isAppNumber
+        ? 'This number is currently active on the WhatsApp Business App — Meta blocks SMS verification for it. You need to delete the account from the app first (Settings → Account → Delete my account), then retry.'
+        : (msg || 'Failed to send a verification code to this number.')
+    );
+    if (isAppNumber) err.code = 'WHATSAPP_APP_NUMBER';
+    throw err;
+  }
   return { ok: true };
 }
 

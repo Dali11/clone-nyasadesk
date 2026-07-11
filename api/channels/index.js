@@ -79,6 +79,7 @@ export default async function handler(req, res) {
   if (action === 'whatsapp-guided-fresh-setup')   return handleWhatsappGuidedFreshSetup(req, res);
   if (action === 'whatsapp-manual-connect') return handleWhatsappManualConnect(req, res);
   if (action === 'whatsapp-refresh-status') return handleWhatsappRefreshStatus(req, res);
+  if (action === 'whatsapp-complete-registration') return handleWhatsappCompleteRegistration(req, res);
   if (action === 'sales-create')  return handleSalesCreate(req, res);
   if (action === 'sales-list')    return handleSalesList(req, res);
   if (action === 'sales-verify')  return handleSalesVerify(req, res);
@@ -1100,6 +1101,54 @@ async function handleWhatsappManualConnect(req, res) {
   }
 }
 
+
+
+// ── WhatsApp Complete Registration (after manual-connect needs_registration) ──
+// Registers the phone number on Cloud API and updates the EXISTING config
+// (which was already saved with verify_token + webhook subscription by
+// whatsapp-manual-connect). Does NOT re-subscribe webhooks — that's already done.
+async function handleWhatsappCompleteRegistration(req, res) {
+  try {
+    const { workspace_id, access_token, phone_number_id, waba_id, pin } = req.body || {};
+    if (!workspace_id || !access_token || !phone_number_id || !pin) {
+      return res.status(400).json({ ok: false, error: 'workspace_id, access_token, phone_number_id and pin are required' });
+    }
+
+    // Step 1: Register the phone number on Cloud API
+    const { registerPhoneNumber } = await import('../_lib/whatsappGuidedSetup.js');
+    await registerPhoneNumber(access_token, phone_number_id, pin);
+
+    // Step 2: Fetch fresh phone details to confirm registration
+    const { getPhoneDetails, isPhoneRegistered } = await import('../_lib/whatsappSetup.js');
+    const phone = await getPhoneDetails(access_token, phone_number_id);
+    if (!isPhoneRegistered(phone)) {
+      return res.status(400).json({ ok: false, error: 'Registration was accepted by Meta but the number is not yet showing as VERIFIED. Wait 30 seconds and try connecting again.' });
+    }
+
+    // Step 3: Update the existing config with full phone details (webhook already subscribed)
+    const { createClient } = await import('@supabase/supabase-js');
+    const sb = createClient('https://pfbaepibelomiutlotkn.supabase.co', process.env.SUPABASE_SERVICE_ROLE_KEY);
+    const { data: existing } = await sb.from('channel_configs').select('config').eq('workspace_id', workspace_id).eq('channel', 'whatsapp').maybeSingle();
+    if (!existing?.config) {
+      return res.status(400).json({ ok: false, error: 'No pending WhatsApp config found. Please restart the connection flow.' });
+    }
+    const updatedConfig = {
+      ...existing.config,
+      phone_number: phone.display_phone_number,
+      verified_name: phone.verified_name,
+      quality_rating: phone.quality_rating,
+      name_status: phone.name_status,
+      account_mode: phone.account_mode,
+      code_verification_status: phone.code_verification_status,
+    };
+    await sb.from('channel_configs').update({ config: updatedConfig, updated_at: new Date().toISOString() }).eq('workspace_id', workspace_id).eq('channel', 'whatsapp');
+
+    return res.status(200).json({ ok: true, config: updatedConfig });
+  } catch (e) {
+    console.error('[channels/whatsapp-complete-registration]', e);
+    return res.status(400).json({ ok: false, error: e.message });
+  }
+}
 
 // ── WhatsApp Refresh Status ───────────────────────────────────────────────
 async function handleWhatsappRefreshStatus(req, res) {
