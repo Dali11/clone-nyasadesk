@@ -177,12 +177,6 @@ function WhatsAppCard({ saved, workspaceId, onSave, onDelete }) {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ workspace_id: workspaceId, channel: 'whatsapp' }),
       });
-      // Guard against non-JSON responses (e.g. Vercel 500 HTML pages)
-      const contentType = res.headers.get('content-type') || '';
-      if (!contentType.includes('application/json')) {
-        setVerifyResult({ ok: false, error: `Server error (HTTP ${res.status}) — check Vercel function logs` });
-        return;
-      }
       const data = await res.json();
       setVerifyResult(data);
     } catch (e) { setVerifyResult({ ok: false, error: e.message }); } finally { setVerifying(false); }
@@ -510,16 +504,8 @@ function WhatsAppCard({ saved, workspaceId, onSave, onDelete }) {
           </div>
 
           {verifyResult && (
-            <div className={`rounded-lg p-3 text-xs space-y-1 ${verifyResult.ok && verifyResult.healthy ? 'bg-emerald-500/10 text-emerald-400' : 'bg-red-500/10 text-red-400'}`}>
-              {verifyResult.ok && verifyResult.healthy ? (
-                <>
-                  <p className="font-semibold">✓ Connection healthy</p>
-                  {verifyResult.verified_name && <p className="opacity-80">{verifyResult.verified_name} · {verifyResult.phone_number}</p>}
-                  {verifyResult.quality_rating && <p className="opacity-70">Quality: {verifyResult.quality_rating} · Webhooks: {verifyResult.webhook_subscribed ? 'subscribed' : 'not subscribed'}</p>}
-                </>
-              ) : (
-                <p>{verifyResult.error || 'Verification failed — check your Meta access token'}</p>
-              )}
+            <div className={`rounded-lg p-3 text-xs ${verifyResult.ok ? 'bg-emerald-500/10 text-emerald-400' : 'bg-red-500/10 text-red-400'}`}>
+              {verifyResult.ok ? 'Webhook verified — messages are routing correctly.' : `Verification failed: ${verifyResult.error}`}
             </div>
           )}
           {error && <p className="text-xs text-red-400">{error}</p>}
@@ -1385,7 +1371,16 @@ export default function Settings() {
       if (data.checkout_url) window.location.href = data.checkout_url;
     } catch (e) {
       console.error('[Settings] checkout error:', e);
-      toast({ variant: 'destructive', title: 'Error', description: e.message || 'Could not start checkout' });
+      const msg = e.message || 'Could not start checkout';
+      const isConfig = msg.toLowerCase().includes('not configured') || msg.toLowerCase().includes('contact support');
+      toast({
+        variant: 'destructive',
+        title: isConfig ? 'Payments not set up yet' : 'Payment Error',
+        description: isConfig
+          ? 'The payment gateway is not configured. Please contact Nyasadesk support.'
+          : msg,
+        duration: 6000,
+      });
     } finally {
       setCheckoutLoading(null);
     }
@@ -1796,23 +1791,50 @@ export default function Settings() {
                       {Object.entries(subStatus.pricing || {}).map(([key, price]) => {
                         const isCurrent = subStatus.plan === key;
                         const labels = subStatus.plan_labels || {};
+                        const isLoading = checkoutLoading === key;
                         return (
-                          <div key={key} className={`rounded-2xl border p-5 ${isCurrent ? 'border-[#25D366] bg-[#25D366]/5' : 'border-[var(--nyasa-border)] bg-[var(--nyasa-surface-2)]'}`}>
+                          <div
+                            key={key}
+                            onClick={() => !isCurrent && !checkoutLoading && handleCheckout(key)}
+                            className={`rounded-2xl border p-5 transition-all select-none
+                              ${isCurrent
+                                ? 'border-[#25D366] bg-[#25D366]/5 cursor-default'
+                                : checkoutLoading
+                                  ? 'border-[var(--nyasa-border)] bg-[var(--nyasa-surface-2)] cursor-wait opacity-70'
+                                  : 'border-[var(--nyasa-border)] bg-[var(--nyasa-surface-2)] cursor-pointer hover:border-[#25D366]/50 active:scale-[0.98] active:bg-[#25D366]/5'
+                              }`}
+                          >
+                            {/* Plan name */}
                             <p className="text-sm font-bold text-white">{labels[key] || key}</p>
-                            <p className="text-2xl font-black text-white mt-2">K{price.toLocaleString()}<span className="text-xs font-normal text-gray-400">/mo</span></p>
-                            <div className="mt-4">
-                              {isCurrent ? (
-                                <span className="block text-center py-2.5 rounded-xl text-xs font-bold text-[#25D366] bg-[#25D366]/10">Current Plan</span>
-                              ) : (
-                                <button
-                                  onClick={() => handleCheckout(key)}
-                                  disabled={checkoutLoading === key}
-                                  className="w-full py-2.5 rounded-xl text-xs font-bold text-white bg-[#25D366] hover:bg-[#20BA5A] transition-colors disabled:opacity-50 flex items-center justify-center gap-2"
-                                >
-                                  {checkoutLoading === key ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : `Switch to ${labels[key] || key}`}
-                                </button>
+
+                            {/* Price — big and tappable */}
+                            <div className="mt-2 mb-4">
+                              <p className="text-2xl font-black text-white">
+                                K{price.toLocaleString()}
+                                <span className="text-xs font-normal text-gray-400">/mo</span>
+                              </p>
+                              {!isCurrent && (
+                                <p className="text-[10px] text-gray-500 mt-0.5">Tap anywhere to switch</p>
                               )}
                             </div>
+
+                            {/* CTA */}
+                            {isCurrent ? (
+                              <span className="block text-center py-2.5 rounded-xl text-xs font-bold text-[#25D366] bg-[#25D366]/10">
+                                ✓ Current Plan
+                              </span>
+                            ) : (
+                              <button
+                                onClick={e => { e.stopPropagation(); handleCheckout(key); }}
+                                disabled={!!checkoutLoading}
+                                className="w-full py-2.5 rounded-xl text-xs font-bold text-white bg-[#25D366] hover:bg-[#20BA5A] active:bg-[#1da851] transition-colors disabled:opacity-50 flex items-center justify-center gap-2"
+                              >
+                                {isLoading
+                                  ? <><Loader2 className="w-3.5 h-3.5 animate-spin" />Opening payment…</>
+                                  : `Switch to ${labels[key] || key}`
+                                }
+                              </button>
+                            )}
                           </div>
                         );
                       })}
