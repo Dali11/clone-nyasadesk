@@ -1,13 +1,40 @@
-import { useState, useEffect, useRef, Fragment } from 'react';
-import { Send, StickyNote, Loader2, Check, CheckCheck, X, Zap, Bot, Sparkles, Paperclip, Mic, Square, Play, Pause,
-         ChevronDown, Copy, Share2, Forward, MapPin, FileText, Pin, PinOff, Trash2, Ban, Reply, Palette, Download, Maximize2 } from 'lucide-react';
-import { formatDistanceToNow, isToday, isYesterday, format as formatDate } from 'date-fns';
-import { motion, AnimatePresence } from 'framer-motion';
-import { getMessages, sendMessage, sendMediaMessage, addNote, deleteMessage, setMessagePinned, subscribeToMessages, getCannedResponses, setChatBackground, getAiAgents, generateAiDraft } from '@/lib/channels';
-import { supabase } from '@/lib/supabase';
-import { useNyasaAuth } from '@/lib/NyasaAuth';
-import { useToast } from '@/components/ui/use-toast';
-import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger, DropdownMenuSeparator } from '@/components/ui/dropdown-menu';
+import {useState, useEffect, useRef, Fragment}from 'react';
+import {
+  Send,
+  StickyNote,
+  Loader2,
+  Check,
+  CheckCheck,
+  X,
+  Zap,
+  Bot,
+  Sparkles,
+  Paperclip,
+  Mic,
+  Square,
+  Play,
+  Pause,
+  ChevronDown,
+  Copy,
+  Share2,
+  Forward,
+  MapPin,
+  Pin,
+  PinOff,
+  Trash2,
+  Ban,
+  Reply,
+  Palette,
+  Download,
+  Maximize2,
+}from 'lucide-react';
+import {formatDistanceToNow, isToday, isYesterday, format as formatDate}from 'date-fns';
+import {motion, AnimatePresence}from 'framer-motion';
+import {getMessages, sendMessage, sendMediaMessage, addNote, deleteMessage, setMessagePinned, subscribeToMessages, getCannedResponses, setChatBackground, getAiAgents, generateAiDraft}from '@/lib/channels';
+
+import {useNyasaAuth}from '@/lib/NyasaAuth';
+import {useToast}from '@/components/ui/use-toast';
+import {DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger, DropdownMenuSeparator}from '@/components/ui/dropdown-menu';
 
 const CHANNEL_COLOR = {
   whatsapp: '#DCF8C6',
@@ -619,7 +646,6 @@ function groupMessages(messages) {
   }
   return result;
 }
-
 
 function Bubble({ msg, menuOpenId, onOpenMenu, onCopy, onShare, onForward, onDelete, onTogglePin, onReply, onJumpToReply, bubbleRef, onOpenMedia }) {
   const isNote     = msg.direction === 'note';
