@@ -477,6 +477,7 @@ export async function sendMessage(workspaceId, conversationId, body, senderName,
 
       // Dispatch via edge function
       const { data: conv } = await supabase.from('conversations').select('channel,external_id,workspace_id').eq('id', conversationId).single();
+      if (!conv) throw new Error('Conversation not found — cannot send');
       const res = await fetch('/api/channels?action=send', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -513,14 +514,8 @@ export async function sendMessage(workspaceId, conversationId, body, senderName,
 // ── Realtime subscriptions ───────────────────────────────────────────────────
 
 export function subscribeToConversations(workspaceId, callback) {
-  // Use a unique channel name each time — Supabase v2 throws if you try to
-  // add postgres_changes listeners to an already-subscribed channel. A suffix
-  // ensures every call gets a fresh channel object even if the previous one
-  // was torn down asynchronously (React StrictMode double-invoke, fast
-  // workspaceOwnerId change, HMR, etc.).
-  const uid = Date.now();
   return supabase
-    .channel(`conversations:${workspaceId}:${uid}`)
+    .channel('conversations:' + workspaceId)
     .on('postgres_changes', {
       event: '*',
       schema: 'public',
@@ -537,9 +532,8 @@ export function subscribeToConversations(workspaceId, callback) {
 }
 
 export function subscribeToMessages(conversationId, callback) {
-  const uid = Date.now();
   return supabase
-    .channel(`messages:${conversationId}:${uid}`)
+    .channel('messages:' + conversationId)
     .on('postgres_changes', {
       // '*' (not just INSERT) — a message's status flips from 'sending' to
       // 'delivered'/'failed' via a later UPDATE once dispatch completes, and
