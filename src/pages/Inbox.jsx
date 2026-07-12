@@ -51,6 +51,9 @@ export default function Inbox() {
   const [pinnedConvs, setPinnedConvs] = useState([]);
   const [ctxMenu, setCtxMenu] = useState(null);
   const ctxTimeout = useRef(null);
+  // Stable ref for loadConversations — prevents the realtime subscription
+  // useEffect from re-firing every time loadConversations is recreated.
+  const loadConversationsRef = useRef(null);
 
   // Deep-link from push notification: ?conv=<id> → auto-open that conversation
   const location = useLocation();
@@ -90,6 +93,8 @@ export default function Inbox() {
       setLoading(false);
     }
   }, [workspaceOwnerId, canViewAllChats, user?.id]);
+  // Keep ref in sync so realtime subscription can call latest version
+  loadConversationsRef.current = loadConversations;
 
   // Initial load
   useEffect(() => { loadConversations(); }, [loadConversations]);
@@ -160,7 +165,7 @@ export default function Inbox() {
           }
           // isNowMine — if not in list yet, reload to get full joined contact data
           setConversations(prev => {
-            if (!isInList(prev)) { loadConversations(); return prev; }
+            if (!isInList(prev)) { if (loadConversationsRef.current) loadConversationsRef.current(); return prev; }
             return prev.map(c => c.id === payload.new.id ? { ...c, ...payload.new } : c);
           });
           setActiveConv(prev => (prev?.id === payload.new.id ? { ...prev, ...payload.new } : prev));
@@ -169,11 +174,14 @@ export default function Inbox() {
         setConversations(prev => prev.map(c => c.id === payload.new.id ? { ...c, ...payload.new } : c));
         setActiveConv(prev => (prev?.id === payload.new.id ? { ...prev, ...payload.new } : prev));
       } else {
-        loadConversations();
+        if (loadConversationsRef.current) loadConversationsRef.current();
       }
     });
     return () => sub?.unsubscribe?.();
-  }, [workspaceOwnerId, loadConversations, canViewAllChats, user?.id]);
+  // loadConversations intentionally excluded from deps — we use loadConversationsRef
+  // to avoid re-subscribing on every render when loadConversations is recreated.
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [workspaceOwnerId]);
 
   const filtered = conversations.filter(c => {
     // Exclude internal conversations from the main list — they only appear
