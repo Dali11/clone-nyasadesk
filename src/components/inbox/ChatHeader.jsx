@@ -56,10 +56,10 @@ export default function ChatHeader({ conversation, users = [], currentUserId, cu
 
   return (
     <>
-    <div className="bg-[var(--nyasa-surface-2)] border-b border-[var(--nyasa-border)] px-4 py-2.5 flex items-center gap-3 shrink-0">
+    <div className="flex items-center gap-2 shrink-0 px-2 py-1.5" style={{background:"#1F2C34",minHeight:56,borderBottom:"1px solid rgba(255,255,255,0.06)"}}>
       {/* Back button: only visible on mobile */}
       {onBack && (
-        <button onClick={onBack} className="md:hidden p-1.5 -ml-1 text-gray-400 hover:text-white transition-colors">
+        <button onClick={onBack} className="md:hidden p-2 text-white hover:text-gray-200 transition-colors">
           <ArrowLeft className="w-5 h-5" />
         </button>
       )}
@@ -67,7 +67,7 @@ export default function ChatHeader({ conversation, users = [], currentUserId, cu
         <Avatar name={conversation.contact_name || '?'} src={conversation.contact_avatar_url} size="md" />
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-2">
-            <p className="text-sm font-semibold text-white truncate">{conversation.contact_name}</p>
+            <p className="font-semibold text-white truncate" style={{fontSize:15}}>{conversation.contact_name}</p>
             {/* Save as Contact badge — WhatsApp style */}
             {canSaveContact && !contactSaved && (
               <button
@@ -86,9 +86,9 @@ export default function ChatHeader({ conversation, users = [], currentUserId, cu
               </span>
             )}
           </div>
-          <div className="flex items-center gap-1.5 text-xs text-gray-500">
+          <div className="flex items-center gap-1.5 text-xs" style={{color:"#8696A0"}}>
             <span className={`w-1.5 h-1.5 rounded-full ${STATUS_COLOR[conversation.status] || 'bg-gray-500'}`} />
-            <span className="capitalize">{conversation.status}</span>
+            <span className="capitalize" style={{color:"#8696A0"}}>{conversation.contact_phone || conversation.status}</span>
             {conversation.assigned_to_name
               ? <><span>·</span><span className="text-[#25D366]/80 text-[10px]">
                   {conversation.assigned_to === currentUserId
@@ -128,8 +128,8 @@ export default function ChatHeader({ conversation, users = [], currentUserId, cu
 
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
-            <button className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-[#25D366] text-white text-xs font-semibold hover:bg-[#20BA5A] transition-colors">
-              <span className="capitalize">{conversation.status}</span>
+            <button className="flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold transition-colors" style={{background:"rgba(0,168,132,0.15)",color:"#00A884"}}>
+              <span className="capitalize" style={{color:"#8696A0"}}>{conversation.contact_phone || conversation.status}</span>
               <ChevronDown className="w-3 h-3" />
             </button>
           </DropdownMenuTrigger>
@@ -142,7 +142,7 @@ export default function ChatHeader({ conversation, users = [], currentUserId, cu
 
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
-            <button className="p-2 rounded-lg text-gray-500 hover:bg-white/10 transition-colors">
+            <button className="p-2 rounded-full text-[#AEBAC1] hover:text-white hover:bg-white/10 transition-colors">
               <MoreVertical className="w-4 h-4" />
             </button>
           </DropdownMenuTrigger>
