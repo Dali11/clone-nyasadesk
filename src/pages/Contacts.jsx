@@ -3,7 +3,7 @@ import {
   Search, Plus, Trash2, X, Loader2, SlidersHorizontal, ChevronDown,
   UserCircle2, Phone, Mail, MessageSquare, Upload, Download, Ban,
   Star, Tag, Calendar, MapPin, Globe, MoreVertical, Check, AlertCircle,
-  ArrowLeft, Edit2, Camera,
+  ArrowLeft, Edit2, Camera, Smartphone,
 } from 'lucide-react';
 import Sidebar from '@/components/Sidebar';
 import Avatar from '@/components/Avatar';
@@ -468,6 +468,7 @@ export default function Contacts() {
   const [selected, setSelected]       = useState(() => new Set());
   const [showNew, setShowNew]         = useState(false);
   const [showImport, setShowImport]   = useState(false);
+  const [showSyncModal, setShowSyncModal] = useState(false);
   const [toast, setToast]             = useState(null);
   const [searchOpen, setSearchOpen]   = useState(false);
 
@@ -586,7 +587,7 @@ export default function Contacts() {
   return (
     <div className="flex h-screen bg-[var(--nyasa-bg)] overflow-hidden">
       <Sidebar />
-      <div className="flex-1 flex flex-col min-w-0 relative">
+      <div className="flex-1 flex flex-col min-w-0 relative pt-14 pb-[56px] md:pt-0 md:pb-0">
 
         {/* Header */}
         <div className="px-4 pt-4 pb-2 border-b border-[var(--nyasa-border)] space-y-2 shrink-0">
@@ -610,7 +611,15 @@ export default function Contacts() {
               </button>
             )}
 
-            {/* Import */}
+            {/* Sync phone contacts */}
+            {canManage && (
+              <button onClick={() => setShowSyncModal(true)} title="Sync phone contacts"
+                className="p-2 text-gray-400 hover:text-white hover:bg-white/10 rounded-lg">
+                <Smartphone className="w-4 h-4" />
+              </button>
+            )}
+
+            {/* Import CSV */}
             {canManage && (
               <button onClick={() => setShowImport(true)} title="Import CSV"
                 className="p-2 text-gray-400 hover:text-white hover:bg-white/10 rounded-lg">
@@ -851,6 +860,23 @@ export default function Contacts() {
       )}
       {showNew    && <NewContactModal onClose={() => setShowNew(false)}    onSave={handleCreate} />}
       {showImport && <CSVImportModal  onClose={() => setShowImport(false)} onImport={handleImport} />}
+
+      {/* Phone Contact Sync modal */}
+      {showSyncModal && (
+        <div className="fixed inset-0 z-50 bg-black/60 flex items-end sm:items-center justify-center p-4"
+             onClick={() => setShowSyncModal(false)}>
+          <div className="w-full max-w-md" onClick={e => e.stopPropagation()}>
+            <div className="flex items-center justify-between px-1 mb-3">
+              <p className="text-sm font-semibold text-white">Sync phone contacts</p>
+              <button onClick={() => setShowSyncModal(false)}
+                className="p-1.5 text-gray-400 hover:text-white hover:bg-white/10 rounded-lg">
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+            <PhoneContactSync onSynced={() => { load(); setShowSyncModal(false); }} />
+          </div>
+        </div>
+      )}
       {toast && <Toast msg={toast.msg} type={toast.type} onDone={() => setToast(null)} />}
     </div>
   );
