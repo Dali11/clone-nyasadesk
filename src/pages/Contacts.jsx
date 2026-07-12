@@ -15,7 +15,6 @@ import {
   uploadContactAvatar, startConversationWithContact,
 } from '@/lib/channels';
 import { useNavigate } from 'react-router-dom';
-import PhoneContactSync from '@/components/PhoneContactSync';
 
 /* ── Constants ──────────────────────────────────────────────────────── */
 const STAGES = ['All', 'New Lead', 'Contacted', 'Qualified', 'Proposal Sent', 'Negotiation', 'Closed Won', 'Closed Lost'];
@@ -209,121 +208,109 @@ function ContactProfile({ contact: initial, workspaceId, onClose, onSave, onDele
                   </button>
                 </div>
               )}
-            </div>
+            </div>}
           </div>
         </div>
 
         <div className="flex-1 overflow-y-auto scrollbar-thin">
-          {/* Avatar + Name */}
-          <div className="flex flex-col items-center px-5 py-6 border-b border-[var(--nyasa-border)] bg-[var(--nyasa-surface-2)]">
-            <div className="relative group">
-              <Avatar name={contact.full_name} src={contact.avatar_url} size="2xl" />
-              {avatarLoading && (
-                <div className="absolute inset-0 flex items-center justify-center bg-black/50 rounded-full">
-                  <Loader2 className="w-5 h-5 text-white animate-spin" />
+          {/* Name + action buttons — no avatar/initials */}
+          <div className="flex flex-col items-center px-5 pt-5 pb-4 border-b border-[var(--nyasa-border)] bg-[var(--nyasa-surface-2)]">
+            {/* Hidden avatar input still available for future use */}
+            <input ref={avatarRef} type="file" accept="image/*" className="hidden" onChange={handleAvatarUpload} />
+
+            {/* Name & company — tap to edit inline */}
+            <div className="text-center w-full">
+              {editing ? (
+                <div className="space-y-2 px-2">
+                  <input autoFocus className={inp + ' text-center font-semibold'} placeholder="Full name *"
+                    value={contact.full_name || ''} onChange={e => set('full_name', e.target.value)} />
+                  <input className={inp + ' text-center text-sm'} placeholder="Company"
+                    value={contact.company || ''} onChange={e => set('company', e.target.value)} />
                 </div>
+              ) : (
+                <button onClick={() => setEditing(true)} className="group w-full">
+                  <h2 className="text-white font-bold text-xl leading-tight group-active:text-[#25D366] transition-colors">
+                    {contact.full_name || '—'}
+                  </h2>
+                  {contact.company && (
+                    <p className="text-gray-400 text-sm mt-0.5">{contact.company}</p>
+                  )}
+                </button>
               )}
-              <button onClick={() => avatarRef.current?.click()}
-                className="absolute bottom-0 right-0 p-1.5 bg-[#25D366] rounded-full opacity-0 group-hover:opacity-100 transition-opacity shadow-lg">
-                <Camera className="w-3 h-3 text-white" />
-              </button>
-              <input ref={avatarRef} type="file" accept="image/*" className="hidden" onChange={handleAvatarUpload} />
+              {contact.blocked && (
+                <span className="inline-flex items-center gap-1 mt-2 text-xs text-red-400 bg-red-400/10 px-2 py-0.5 rounded-full">
+                  <Ban className="w-3 h-3" />Blocked
+                </span>
+              )}
             </div>
 
-            {editing ? (
-              <div className="w-full mt-4 space-y-2">
-                <input className={inp} placeholder="Full name *" value={contact.full_name || ''} onChange={e => set('full_name', e.target.value)} />
-                <input className={inp} placeholder="Phone number" value={contact.phone || ''} onChange={e => set('phone', e.target.value)} />
-                <input className={inp} placeholder="Email address" value={contact.email || ''} onChange={e => set('email', e.target.value)} />
-                <input className={inp} placeholder="Company" value={contact.company || ''} onChange={e => set('company', e.target.value)} />
-              </div>
-            ) : (
-              <div className="text-center mt-3">
-                <h2 className="text-white font-semibold text-lg">{contact.full_name || '—'}</h2>
-                {contact.company && <p className="text-gray-400 text-sm mt-0.5">{contact.company}</p>}
-                {contact.blocked && (
-                  <span className="inline-flex items-center gap-1 mt-1 text-xs text-red-400 bg-red-400/10 px-2 py-0.5 rounded-full">
-                    <Ban className="w-3 h-3" />Blocked
-                  </span>
-                )}
-              </div>
-            )}
-
-            {/* Action buttons — WhatsApp style */}
-            {!editing && (
-              <div className="flex gap-6 mt-4">
-                {contact.phone && (
-                  <a href={`tel:${contact.phone}`} className="flex flex-col items-center gap-1 group">
-                    <div className="w-10 h-10 bg-[#25D366]/20 rounded-full flex items-center justify-center group-hover:bg-[#25D366]/30 transition-colors">
-                      <Phone className="w-4 h-4 text-[#25D366]" />
-                    </div>
-                    <span className="text-[10px] text-gray-500">Call</span>
-                  </a>
-                )}
-                <button onClick={() => onStartChat(contact)} className="flex flex-col items-center gap-1 group">
-                  <div className="w-10 h-10 bg-[#25D366]/20 rounded-full flex items-center justify-center group-hover:bg-[#25D366]/30 transition-colors">
-                    <MessageSquare className="w-4 h-4 text-[#25D366]" />
+            {/* Action buttons — hide during edit */}
+            {!editing && <div className="flex gap-8 mt-5">
+              {contact.phone && (
+                <a href={`tel:${contact.phone}`} className="flex flex-col items-center gap-1.5 group">
+                  <div className="w-12 h-12 bg-[#25D366]/20 rounded-full flex items-center justify-center group-hover:bg-[#25D366]/30 transition-colors">
+                    <Phone className="w-5 h-5 text-[#25D366]" />
                   </div>
-                  <span className="text-[10px] text-gray-500">Message</span>
-                </button>
-                {contact.email && (
-                  <a href={`mailto:${contact.email}`} className="flex flex-col items-center gap-1 group">
-                    <div className="w-10 h-10 bg-[#25D366]/20 rounded-full flex items-center justify-center group-hover:bg-[#25D366]/30 transition-colors">
-                      <Mail className="w-4 h-4 text-[#25D366]" />
-                    </div>
-                    <span className="text-[10px] text-gray-500">Email</span>
-                  </a>
-                )}
-              </div>
-            )}
+                  <span className="text-[11px] text-gray-500">Call</span>
+                </a>
+              )}
+              <button onClick={() => onStartChat(contact)} className="flex flex-col items-center gap-1.5 group">
+                <div className="w-12 h-12 bg-[#25D366]/20 rounded-full flex items-center justify-center group-hover:bg-[#25D366]/30 transition-colors">
+                  <MessageSquare className="w-5 h-5 text-[#25D366]" />
+                </div>
+                <span className="text-[11px] text-gray-500">Message</span>
+              </button>
+              {contact.email && (
+                <a href={`mailto:${contact.email}`} className="flex flex-col items-center gap-1.5 group">
+                  <div className="w-12 h-12 bg-[#25D366]/20 rounded-full flex items-center justify-center group-hover:bg-[#25D366]/30 transition-colors">
+                    <Mail className="w-5 h-5 text-[#25D366]" />
+                  </div>
+                  <span className="text-[11px] text-gray-500">Email</span>
+                </a>
+              )}
+            </div>
           </div>
 
           {/* Info sections */}
           <div className="divide-y divide-[var(--nyasa-border)]">
 
-            {/* Phone */}
-            {(contact.phone || editing) && (
-              <div className="px-5 py-3 flex items-start gap-3">
-                <Phone className="w-4 h-4 text-gray-500 mt-0.5 shrink-0" />
-                <div className="flex-1 min-w-0">
-                  {editing
-                    ? <input className={inp} placeholder="Phone" value={contact.phone || ''} onChange={e => set('phone', e.target.value)} />
-                    : <a href={`tel:${contact.phone}`} className="text-sm text-white hover:text-[#25D366]">{contact.phone}</a>
-                  }
-                  <p className="text-[10px] text-gray-600 mt-0.5">Mobile</p>
-                </div>
+            {/* Phone — tap to edit */}
+            <div className="px-5 py-3.5 flex items-start gap-3 cursor-pointer" onClick={() => setEditing(true)}>
+              <Phone className="w-4 h-4 text-gray-500 mt-0.5 shrink-0" />
+              <div className="flex-1 min-w-0">
+                {editing
+                  ? <input autoFocus className={inp} placeholder="Phone number" value={contact.phone || ''} onChange={e => set('phone', e.target.value)} onClick={e => e.stopPropagation()} />
+                  : <p className="text-sm text-[#25D366] font-medium">{contact.phone || <span className="text-gray-600 italic">Add phone number</span>}</p>
+                }
+                <p className="text-[10px] text-gray-600 mt-0.5">Mobile</p>
               </div>
-            )}
+              {!editing && <Edit2 className="w-3.5 h-3.5 text-gray-700 mt-0.5 shrink-0 opacity-0 group-hover:opacity-100" />}
+            </div>
 
-            {/* Email */}
-            {(contact.email || editing) && (
-              <div className="px-5 py-3 flex items-start gap-3">
-                <Mail className="w-4 h-4 text-gray-500 mt-0.5 shrink-0" />
-                <div className="flex-1 min-w-0">
-                  {editing
-                    ? <input className={inp} placeholder="Email" value={contact.email || ''} onChange={e => set('email', e.target.value)} />
-                    : <a href={`mailto:${contact.email}`} className="text-sm text-white hover:text-[#25D366] truncate block">{contact.email}</a>
-                  }
-                  <p className="text-[10px] text-gray-600 mt-0.5">Email</p>
-                </div>
+            {/* Email — tap to edit */}
+            <div className="px-5 py-3.5 flex items-start gap-3 cursor-pointer" onClick={() => setEditing(true)}>
+              <Mail className="w-4 h-4 text-gray-500 mt-0.5 shrink-0" />
+              <div className="flex-1 min-w-0">
+                {editing
+                  ? <input className={inp} placeholder="Email address" value={contact.email || ''} onChange={e => set('email', e.target.value)} onClick={e => e.stopPropagation()} />
+                  : <p className="text-sm text-white truncate">{contact.email || <span className="text-gray-600 italic">Add email</span>}</p>
+                }
+                <p className="text-[10px] text-gray-600 mt-0.5">Email</p>
               </div>
-            )}
+            </div>
 
-            {/* Deal Stage */}
-            <div className="px-5 py-3 flex items-start gap-3">
+            {/* Deal Stage — always shows select (tap badge opens it) */}
+            <div className="px-5 py-3.5 flex items-start gap-3">
               <Star className="w-4 h-4 text-gray-500 mt-0.5 shrink-0" />
               <div className="flex-1">
-                <p className="text-[10px] text-gray-600 mb-1">Deal Stage</p>
-                {editing ? (
-                  <select value={contact.deal_stage || 'New Lead'} onChange={e => set('deal_stage', e.target.value)}
-                    className="w-full bg-[var(--nyasa-surface-4)] text-white text-sm rounded-xl px-3 py-2 border-0 focus:outline-none">
-                    {STAGES.slice(1).map(s => <option key={s}>{s}</option>)}
-                  </select>
-                ) : (
-                  <span className={`text-xs font-medium px-2 py-0.5 rounded-full ${STAGE_COLORS[contact.deal_stage] || 'text-gray-400 bg-white/5'}`}>
-                    {contact.deal_stage || 'New Lead'}
-                  </span>
-                )}
+                <p className="text-[10px] text-gray-600 mb-1.5">Deal Stage</p>
+                <select
+                  value={contact.deal_stage || 'New Lead'}
+                  onChange={async e => { const v = e.target.value; set('deal_stage', v); await onSave({ ...contact, deal_stage: v }); }}
+                  className="bg-transparent text-xs font-semibold border border-[var(--nyasa-border)] rounded-full px-3 py-1 focus:outline-none focus:ring-1 focus:ring-[#25D366] cursor-pointer appearance-none"
+                  style={{ color: 'inherit' }}>
+                  {STAGES.slice(1).map(s => <option key={s} value={s} className="bg-[#1a1a1a] text-white">{s}</option>)}
+                </select>
               </div>
             </div>
 
@@ -371,17 +358,18 @@ function ContactProfile({ contact: initial, workspaceId, onClose, onSave, onDele
               </div>
             )}
 
-            {/* Notes */}
-            <div className="px-5 py-3 flex items-start gap-3">
+            {/* Notes — tap to edit */}
+            <div className="px-5 py-3.5 flex items-start gap-3 cursor-pointer" onClick={() => setEditing(true)}>
               <Edit2 className="w-4 h-4 text-gray-500 mt-0.5 shrink-0" />
               <div className="flex-1">
                 <p className="text-[10px] text-gray-600 mb-1">Notes</p>
                 {editing ? (
-                  <textarea rows={3} value={contact.notes || ''} onChange={e => set('notes', e.target.value)}
+                  <textarea autoFocus rows={3} value={contact.notes || ''} onChange={e => set('notes', e.target.value)}
                     placeholder="Add notes…"
+                    onClick={e => e.stopPropagation()}
                     className="w-full bg-[var(--nyasa-surface-4)] text-white text-sm rounded-xl px-3 py-2 focus:outline-none focus:ring-1 focus:ring-[#25D366] border-0 resize-none placeholder:text-gray-600" />
                 ) : (
-                  <p className="text-sm text-gray-300 whitespace-pre-wrap">{contact.notes || <span className="text-gray-600 italic">No notes</span>}</p>
+                  <p className="text-sm text-gray-300 whitespace-pre-wrap">{contact.notes || <span className="text-gray-600 italic">Tap to add notes</span>}</p>
                 )}
               </div>
             </div>
@@ -596,118 +584,99 @@ export default function Contacts() {
   const sortLabel = SORT_OPTIONS.find(o => o.value === sort)?.label || 'Sort';
 
   return (
-    <div className="flex h-screen bg-[var(--nyasa-bg)] overflow-hidden pt-14 pb-[56px] md:pt-0 md:pb-0">
+    <div className="flex h-screen bg-[var(--nyasa-bg)] overflow-hidden">
       <Sidebar />
       <div className="flex-1 flex flex-col min-w-0 relative">
 
-        {/* Header — WhatsApp-style: title + 3 icon buttons max on mobile */}
-        <div className="shrink-0 border-b border-[var(--nyasa-border)] sticky top-0 z-20 bg-[var(--nyasa-bg)]">
-
-          {/* Top bar */}
-          <div className="flex items-center gap-1 px-4 pt-3 pb-2">
+        {/* Header */}
+        <div className="px-4 pt-4 pb-2 border-b border-[var(--nyasa-border)] space-y-2 shrink-0">
+          {/* Row 1: title + actions */}
+          <div className="flex items-center gap-2">
             <h1 className="text-white font-semibold text-lg flex-1">
               Contacts
-              {contacts.length > 0 && <span className="ml-1.5 text-xs text-gray-500 font-normal">{contacts.length}</span>}
+              {contacts.length > 0 && <span className="ml-2 text-xs text-gray-500 font-normal">{contacts.length}</span>}
             </h1>
 
-            {/* Search — always just an icon on mobile */}
-            <button onClick={() => setSearchOpen(o => !o)}
-              className={`p-2 rounded-full transition-colors ${searchOpen ? 'text-[#25D366] bg-[#25D366]/10' : 'text-gray-400 hover:text-white hover:bg-white/10'}`}>
-              <Search className="w-5 h-5" />
+            {/* Search toggle (mobile) */}
+            <button onClick={() => setSearchOpen(o => !o)} className="md:hidden p-2 text-gray-400 hover:text-white hover:bg-white/10 rounded-lg">
+              <Search className="w-4 h-4" />
             </button>
 
-            {/* Overflow menu — all secondary actions collapsed here on mobile */}
+            {/* Export */}
+            {contacts.length > 0 && (
+              <button onClick={handleExport} title="Export CSV"
+                className="p-2 text-gray-400 hover:text-white hover:bg-white/10 rounded-lg">
+                <Download className="w-4 h-4" />
+              </button>
+            )}
+
+            {/* Import */}
+            {canManage && (
+              <button onClick={() => setShowImport(true)} title="Import CSV"
+                className="p-2 text-gray-400 hover:text-white hover:bg-white/10 rounded-lg">
+                <Upload className="w-4 h-4" />
+              </button>
+            )}
+
+            {/* Sort */}
             <div className="relative">
               <button onClick={() => setShowSort(s => !s)}
-                className="p-2 text-gray-400 hover:text-white hover:bg-white/10 rounded-full transition-colors">
-                <MoreVertical className="w-5 h-5" />
+                className="flex items-center gap-1.5 px-3 py-2 text-xs text-gray-400 hover:text-white bg-white/5 hover:bg-white/10 rounded-xl transition-colors shrink-0">
+                <SlidersHorizontal className="w-3.5 h-3.5" />
+                <span className="hidden sm:inline">{sortLabel}</span>
+                <ChevronDown className="w-3 h-3 shrink-0" />
               </button>
               {showSort && (
-                <>
-                  <div className="fixed inset-0 z-20" onClick={() => setShowSort(false)} />
-                  <div className="absolute right-0 top-full mt-1 bg-[var(--nyasa-surface-2)] border border-[var(--nyasa-border)] rounded-xl shadow-2xl z-30 min-w-[200px] py-1.5 overflow-hidden">
-                    {/* Sort options */}
-                    <p className="px-4 pt-1 pb-1 text-[10px] font-semibold text-gray-600 uppercase tracking-wider">Sort by</p>
-                    {SORT_OPTIONS.map(o => (
-                      <button key={o.value} onClick={() => { setSort(o.value); setShowSort(false); }}
-                        className={`w-full text-left px-4 py-2 text-sm hover:bg-white/5 flex items-center justify-between ${sort === o.value ? 'text-[#25D366]' : 'text-gray-300'}`}>
-                        {o.label}
-                        {sort === o.value && <Check className="w-3.5 h-3.5" />}
-                      </button>
-                    ))}
-                    {canManage && (
-                      <>
-                        <div className="my-1 border-t border-[var(--nyasa-border)]" />
-                        <p className="px-4 pt-1 pb-1 text-[10px] font-semibold text-gray-600 uppercase tracking-wider">Actions</p>
-                        <button onClick={() => { setShowImport(true); setShowSort(false); }}
-                          className="w-full text-left px-4 py-2 text-sm text-gray-300 hover:bg-white/5 flex items-center gap-3">
-                          <Upload className="w-4 h-4 text-gray-500" />Import CSV
-                        </button>
-                        {contacts.length > 0 && (
-                          <button onClick={() => { handleExport(); setShowSort(false); }}
-                            className="w-full text-left px-4 py-2 text-sm text-gray-300 hover:bg-white/5 flex items-center gap-3">
-                            <Download className="w-4 h-4 text-gray-500" />Export CSV
-                          </button>
-                        )}
-                      </>
-                    )}
-                  </div>
-                </>
+                <div className="absolute right-0 top-full mt-1 bg-[var(--nyasa-surface-2)] border border-[var(--nyasa-border)] rounded-xl shadow-xl z-30 min-w-[160px] py-1">
+                  {SORT_OPTIONS.map(o => (
+                    <button key={o.value} onClick={() => { setSort(o.value); setShowSort(false); }}
+                      className={`w-full text-left px-4 py-2 text-xs hover:bg-white/5 flex items-center justify-between ${sort === o.value ? 'text-[#25D366] font-semibold' : 'text-gray-300'}`}>
+                      {o.label}
+                      {sort === o.value && <Check className="w-3 h-3" />}
+                    </button>
+                  ))}
+                </div>
               )}
             </div>
 
-            {/* New contact — primary CTA, always visible */}
+            {/* New contact */}
             {canManage && (
               <button onClick={() => setShowNew(true)}
-                className="ml-1 w-9 h-9 flex items-center justify-center bg-[#25D366] text-white rounded-full hover:bg-[#20BA5A] transition-colors shrink-0">
-                <Plus className="w-5 h-5" />
+                className="flex items-center gap-1.5 px-3 py-2 bg-[#25D366] text-white text-xs font-semibold rounded-xl hover:bg-[#20BA5A] shrink-0">
+                <Plus className="w-4 h-4" />
+                <span className="hidden sm:inline">New</span>
               </button>
             )}
           </div>
 
-          {/* Expandable search bar */}
-          {searchOpen && (
-            <div className="px-4 pb-2">
-              <div className="relative">
-                <Search className="w-4 h-4 text-gray-500 absolute left-3 top-1/2 -translate-y-1/2" />
-                <input
-                  autoFocus
-                  value={search}
-                  onChange={e => setSearch(e.target.value)}
-                  placeholder="Search contacts…"
-                  className="w-full pl-9 pr-8 py-2 text-sm bg-[var(--nyasa-surface-4)] rounded-xl text-white placeholder:text-gray-600 focus:outline-none focus:ring-1 focus:ring-[#25D366] border-0"
-                />
-                {search
-                  ? <button onClick={() => setSearch('')} className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-500 hover:text-white"><X className="w-4 h-4" /></button>
-                  : <button onClick={() => setSearchOpen(false)} className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-500 hover:text-white"><X className="w-4 h-4" /></button>
-                }
-              </div>
+          {/* Search bar */}
+          <div className={`${searchOpen ? 'flex' : 'hidden md:flex'} mb-1`}>
+            <div className="relative w-full">
+              <Search className="w-3.5 h-3.5 text-gray-500 absolute left-3 top-1/2 -translate-y-1/2" />
+              <input value={search} onChange={e => setSearch(e.target.value)}
+                placeholder="Search by name, phone, company…"
+                autoFocus={searchOpen}
+                className="w-full pl-8 pr-8 py-2 text-sm bg-[var(--nyasa-surface-2)] rounded-xl border border-[var(--nyasa-border)] text-white placeholder:text-gray-600 focus:outline-none focus:ring-1 focus:ring-[#25D366]" />
+              {search && <button onClick={() => setSearch('')} className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-500 hover:text-white"><X className="w-3.5 h-3.5" /></button>}
             </div>
-          )}
+          </div>
 
-          {/* Stage filter tabs — horizontally scrollable, no wrapping */}
-          <div className="flex gap-0.5 overflow-x-auto scrollbar-none px-3 pb-2">
-            {STAGES.map(s => {
-              const count = s === 'All' ? contacts.length : contacts.filter(c => c.deal_stage === s).length;
-              const active = stageFilter === s;
-              return (
-                <button key={s} onClick={() => setStageFilter(s)}
-                  className={`flex items-center gap-1 px-3 py-1.5 rounded-full text-xs font-medium whitespace-nowrap transition-all shrink-0
-                    ${active ? 'bg-[#25D366]/20 text-[#25D366]' : 'text-gray-500 hover:text-gray-300'}`}>
-                  {s}
-                  {count > 0 && <span className={`text-[9px] font-semibold ${active ? 'text-[#25D366]' : 'text-gray-600'}`}>{count}</span>}
-                </button>
-              );
-            })}
+          {/* Stage filter tabs */}
+          <div className="flex gap-1 overflow-x-auto scrollbar-none -mx-1 px-1 pb-1">
+            {STAGES.map(s => (
+              <button key={s} onClick={() => setStageFilter(s)}
+                className={`px-3 py-1.5 rounded-full text-xs font-medium whitespace-nowrap transition-all shrink-0
+                  ${stageFilter === s ? 'bg-[#25D366]/20 text-[#25D366] font-semibold' : 'text-gray-500 hover:text-gray-300'}`}>
+                {s}
+                {s !== 'All' && contacts.filter(c => c.deal_stage === s).length > 0 && (
+                  <span className="ml-1 text-[9px] opacity-60">
+                    {contacts.filter(c => c.deal_stage === s).length}
+                  </span>
+                )}
+              </button>
+            ))}
           </div>
         </div>
-
-        {/* Phone Sync Banner — shown when contact list is empty or on demand */}
-        {contacts.length === 0 && !loading && (
-          <div className="px-4 pt-3">
-            <PhoneContactSync onSynced={load} />
-          </div>
-        )}
 
         {/* List */}
         <div className="flex-1 overflow-y-auto scrollbar-thin">
