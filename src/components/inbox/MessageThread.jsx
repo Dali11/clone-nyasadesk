@@ -208,11 +208,21 @@ function MediaAttachment({ att, onOpen }) {
   if (!att) return null;
 
   if (att.type === 'image') return (
-    <button type="button" onClick={() => onOpen?.(att)} className="group relative block mb-1 rounded-lg overflow-hidden">
-      <img src={att.url} alt="attachment" className="rounded-lg max-w-[240px] max-h-[240px] object-cover" />
-      <span className="absolute inset-0 bg-black/0 group-hover:bg-black/20 transition-colors flex items-center justify-center">
-        <Maximize2 className="w-4 h-4 text-white opacity-0 group-hover:opacity-90 transition-opacity" />
-      </span>
+    <button type="button" onClick={() => att.sending ? undefined : onOpen?.(att)}
+      className="group relative block mb-1 rounded-lg overflow-hidden">
+      <img src={att.url} alt="attachment"
+        className={`rounded-lg max-w-[240px] max-h-[240px] object-cover transition-opacity ${att.sending ? 'opacity-60' : 'opacity-100'}`} />
+      {att.sending ? (
+        /* Upload-in-progress overlay — shimmer + spinner + label */
+        <span className="absolute inset-0 flex flex-col items-center justify-center bg-black/40 rounded-lg">
+          <Loader2 className="w-7 h-7 text-white animate-spin mb-1" />
+          <span className="text-white text-[10px] font-semibold tracking-wide">Sending…</span>
+        </span>
+      ) : (
+        <span className="absolute inset-0 bg-black/0 group-hover:bg-black/20 transition-colors flex items-center justify-center">
+          <Maximize2 className="w-4 h-4 text-white opacity-0 group-hover:opacity-90 transition-opacity" />
+        </span>
+      )}
     </button>
   );
 
@@ -234,15 +244,26 @@ function MediaAttachment({ att, onOpen }) {
     const EXT_ICON = { PDF: '📄', DOC: '📝', DOCX: '📝', XLS: '📊', XLSX: '📊', PPT: '📋', PPTX: '📋', CSV: '📊', TXT: '📝', ZIP: '🗜️' };
     const icon = EXT_ICON[ext] || '📎';
     return (
-      <a href={att.url} target="_blank" rel="noopener noreferrer" download={att.filename}
-         className="flex items-center gap-3 mb-1 p-3 rounded-lg bg-black/10 hover:bg-black/20 transition-colors min-w-[180px] max-w-[240px]">
+      <div className="flex items-center gap-3 mb-1 p-3 rounded-lg bg-black/10 min-w-[180px] max-w-[240px]
+                      hover:bg-black/20 transition-colors relative">
         <span className="text-2xl shrink-0">{icon}</span>
         <div className="min-w-0 flex-1">
           <p className="text-xs font-semibold truncate">{att.filename || 'Document'}</p>
-          <p className="text-[10px] text-gray-500 mt-0.5">{ext} · Tap to open</p>
+          <p className="text-[10px] text-gray-500 mt-0.5">
+            {att.sending ? (
+              <span className="flex items-center gap-1 text-blue-400">
+                <Loader2 className="w-3 h-3 animate-spin" />Uploading…
+              </span>
+            ) : `${ext} · Tap to open`}
+          </p>
         </div>
-        <Download className="w-4 h-4 shrink-0 text-[#128C7E]" />
-      </a>
+        {att.sending
+          ? <Loader2 className="w-4 h-4 shrink-0 text-blue-400 animate-spin" />
+          : <a href={att.url} target="_blank" rel="noopener noreferrer" download={att.filename}>
+              <Download className="w-4 h-4 shrink-0 text-[#128C7E]" />
+            </a>
+        }
+      </div>
     );
   }
 
@@ -598,6 +619,7 @@ export default function MessageThread({ conversation, workspaceId }) {
   const [tab, setTab]             = useState('reply'); // reply | note
   const [sending, setSending]     = useState(false);
   const [uploading, setUploading] = useState(false);
+  const [uploadProgress, setUploadProgress] = useState({ current: 0, total: 0 }); // X of N counter
   const [showLocationSender, setShowLocationSender] = useState(false);
   const [showCanned, setShowCanned] = useState(false);
   const [recording, setRecording] = useState(false);
@@ -793,7 +815,9 @@ export default function MessageThread({ conversation, workspaceId }) {
       id: tempId, conversation_id: conversation.id, direction: 'outbound',
       body: kind === 'image' ? '📷 Photo' : kind === 'video' ? '🎥 Video' : kind === 'audio' ? '🎤 Voice message' : '📎 Document',
       channel: conversation.channel, sender_name: user?.full_name || 'You', status: 'sending',
-      created_at: new Date().toISOString(), attachments: [{ url: localUrl, type: kind }],
+      created_at: new Date().toISOString(),
+      // Mark attachment as sending so the bubble shows the upload overlay
+      attachments: [{ url: localUrl, type: kind, sending: true }],
     }]);
     try {
       const msg = await sendMediaMessage(wId, conversation.id, file, kind, user?.full_name || 'You', '', user?.id || null);
@@ -935,24 +959,26 @@ export default function MessageThread({ conversation, workspaceId }) {
 
   const sendMediaQueue = async (files) => {
     setUploading(true);
+    setUploadProgress({ current: 0, total: files.length });
     try {
       // Meta Cloud API does NOT support multi-image messages —
       // each file must be sent as a separate API call, one at a time.
-      // We add a 300ms gap between sends to stay within Meta rate limits.
+      // We add a 350ms gap between sends to stay within Meta rate limits.
       for (let i = 0; i < files.length; i++) {
+        setUploadProgress({ current: i + 1, total: files.length });
         const file = files[i];
         const kind = file.type.startsWith('image/') ? 'image'
                    : file.type.startsWith('video/') ? 'video'
                    : file.type.startsWith('audio/') ? 'audio'
                    : 'document';
         await handleSendMedia(file, kind);
-        // Brief pause between multiple sends to avoid Meta rate-limit rejections
         if (i < files.length - 1) {
           await new Promise(r => setTimeout(r, 350));
         }
       }
     } finally {
       setUploading(false);
+      setUploadProgress({ current: 0, total: 0 });
     }
   };
 
@@ -1139,6 +1165,23 @@ export default function MessageThread({ conversation, workspaceId }) {
 
       {/* Composer */}
       <div className="shrink-0 border-t border-[var(--nyasa-border)] bg-[var(--nyasa-surface-2)] px-3 py-2">
+        {/* Upload progress banner — shown when sending multiple files */}
+        {uploading && uploadProgress.total > 1 && (
+          <div className="flex items-center gap-2.5 px-4 py-2 border-t border-[var(--nyasa-border)] bg-[#075E54]/20">
+            <Loader2 className="w-3.5 h-3.5 text-[#25D366] animate-spin shrink-0" />
+            <span className="text-xs text-[#25D366] font-semibold">
+              Sending {uploadProgress.current} of {uploadProgress.total}…
+            </span>
+            {/* Progress bar */}
+            <div className="flex-1 h-1 bg-white/10 rounded-full overflow-hidden">
+              <div
+                className="h-full bg-[#25D366] rounded-full transition-all duration-300"
+                style={{ width: `${(uploadProgress.current / uploadProgress.total) * 100}%` }}
+              />
+            </div>
+          </div>
+        )}
+
         {/* Reply preview bar */}
         {replyingTo && (
           <div className="flex items-center gap-2 bg-[var(--nyasa-surface-2)] rounded-lg pl-2 pr-1 py-1.5 mb-2 border-l-[3px] border-[#25D366]">
@@ -1244,7 +1287,7 @@ export default function MessageThread({ conversation, workspaceId }) {
         ) : (
           <div className="flex items-end gap-2">
             <input ref={fileInputRef} type="file" accept="image/*,video/*,audio/*,application/pdf,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document,application/vnd.ms-excel,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,text/plain,text/csv" multiple className="hidden" onChange={onFilePicked} />
-            <button onClick={() => fileInputRef.current?.click()} disabled={uploading || tab === 'note'}
+            <button onClick={() => fileInputRef.current?.click()} disabled={tab === 'note'}
               className="w-10 h-10 rounded-full flex items-center justify-center shrink-0 text-gray-400 hover:text-gray-200 hover:bg-white/5 transition-colors disabled:opacity-30">
               <Paperclip className="w-4.5 h-4.5" />
             </button>
