@@ -826,16 +826,18 @@ async function handleSendDebug(req, res) {
       });
     }
 
-    const { data: conv } = await sb.from('conversations').select('*').eq('id', conversation_id).single();
+    const { to_override } = req.body || {};
+    const { data: conv } = conversation_id && conversation_id !== '00000000-0000-0000-0000-000000000000' ? await sb.from('conversations').select('*').eq('id', conversation_id).single() : { data: null };
     const { data: cfg } = await sb.from('channel_configs').select('*').eq('workspace_id', workspace_id).eq('channel', 'whatsapp').single();
     const { phone_number_id, access_token } = cfg?.config || {};
     const GRAPH = 'https://graph.facebook.com/v19.0';
+    const to = to_override || conv?.external_id;
     const r = await fetch(`${GRAPH}/${phone_number_id}/messages`, {
       method: 'POST',
       headers: { Authorization: `Bearer ${access_token}`, 'Content-Type': 'application/json' },
       body: JSON.stringify({
         messaging_product: 'whatsapp',
-        to: conv?.external_id,
+        to,
         type: 'text',
         text: { body: 'Debug test' },
       }),
