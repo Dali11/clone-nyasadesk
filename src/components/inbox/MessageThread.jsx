@@ -36,6 +36,7 @@ import {getMessages, sendMessage, sendMediaMessage, addNote, deleteMessage, setM
 import {useNyasaAuth}from '@/lib/NyasaAuth';
 import {useToast}from '@/components/ui/use-toast';
 import {DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger, DropdownMenuSeparator}from '@/components/ui/dropdown-menu';
+import EmojiPicker from 'emoji-picker-react';
 
 const CHANNEL_COLOR = {
   whatsapp: '#DCF8C6',
@@ -783,6 +784,7 @@ export default function MessageThread({ conversation, workspaceId }) {
   const { toast } = useToast();
   const [bg, setBg] = useState(profile?.chat_background || 'default');
   const [showBgPicker, setShowBgPicker] = useState(false);
+  const [showEmojiPicker, setShowEmojiPicker] = useState(false);
   const [messages, setMessages]   = useState([]);
   const [loading, setLoading]     = useState(true);
   const [body, setBody]           = useState('');
@@ -845,6 +847,18 @@ export default function MessageThread({ conversation, workspaceId }) {
     if (!wId) return;
     getCannedResponses(wId).then(setCanned).catch(() => setCanned([]));
   }, [wId]);
+
+  // Close emoji picker when clicking outside
+  useEffect(() => {
+    if (!showEmojiPicker) return;
+    const handler = (e) => {
+      if (!e.target.closest('.EmojiPickerReact') && !e.target.closest('[data-emoji-btn]')) {
+        setShowEmojiPicker(false);
+      }
+    };
+    document.addEventListener('mousedown', handler);
+    return () => document.removeEventListener('mousedown', handler);
+  }, [showEmojiPicker]);
 
   // Load active AI agents for the "Draft with AI" picker
   useEffect(() => {
@@ -1526,9 +1540,32 @@ export default function MessageThread({ conversation, workspaceId }) {
             {/* Left pill: emoji + textarea + clip + camera */}
             <div className="flex items-end flex-1 bg-[#2A3942] rounded-full px-3 py-1 gap-2 min-w-0">
               {/* Emoji button */}
-              <button className="shrink-0 text-[#8696A0] hover:text-gray-200 pb-1.5 transition-colors" tabIndex={-1}>
-                <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8"><circle cx="12" cy="12" r="10"/><path d="M8 13s1.5 2 4 2 4-2 4-2"/><line x1="9" y1="9" x2="9.01" y2="9"/><line x1="15" y1="9" x2="15.01" y2="9"/></svg>
-              </button>
+              <div className="relative shrink-0">
+                <button
+                  className="text-[#8696A0] hover:text-gray-200 pb-1.5 transition-colors"
+                  tabIndex={-1}
+                  onClick={() => setShowEmojiPicker(s => !s)}
+                  data-emoji-btn
+                >
+                  <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8"><circle cx="12" cy="12" r="10"/><path d="M8 13s1.5 2 4 2 4-2 4-2"/><line x1="9" y1="9" x2="9.01" y2="9"/><line x1="15" y1="9" x2="15.01" y2="9"/></svg>
+                </button>
+                {showEmojiPicker && (
+                  <div className="absolute bottom-10 left-0 z-50" onClick={e => e.stopPropagation()}>
+                    <EmojiPicker
+                      theme="dark"
+                      onEmojiClick={(emojiData) => {
+                        setBody(prev => prev + emojiData.emoji);
+                        setShowEmojiPicker(false);
+                        inputRef.current?.focus();
+                      }}
+                      searchPlaceholder="Search emoji…"
+                      skinTonesDisabled
+                      height={380}
+                      width={320}
+                    />
+                  </div>
+                )}
+              </div>
 
               {/* Text input */}
               <textarea
