@@ -75,32 +75,7 @@ export default function ConvList({ conversations, activeId, onSelect, loading, u
 
   return (
     <div className="flex flex-col relative bg-[#0B141A] min-h-screen text-white select-none">
-      {/* WhatsApp Header */}
-      <div className="flex items-center justify-between px-4 pt-4 pb-2 bg-[#0B141A]">
-        <h1 className="text-xl font-bold text-white tracking-wide">Nyasadesk</h1>
-        <div className="flex items-center gap-4 text-[#8696A0]">
-          <MoreVertical className="w-5 h-5 cursor-pointer hover:text-white" />
-        </div>
-      </div>
-
-      {/* WhatsApp Search Bar */}
-      <div className="px-4 py-2 bg-[#0B141A]">
-        <div className="flex items-center gap-3 px-3 py-1.5 rounded-full bg-[#1F2C34] text-[#8696A0]">
-          <Search className="w-4 h-4 shrink-0" />
-          <input
-            type="text"
-            placeholder="Search or start new chat"
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-            className="bg-transparent border-none outline-none text-sm text-white placeholder-[#8696A0] w-full"
-          />
-          {searchQuery && (
-            <X className="w-4 h-4 shrink-0 cursor-pointer text-white" onClick={() => setSearchQuery('')} />
-          )}
-        </div>
-      </div>
-
-      {/* Filter Tabs / Pill-style */}
+      {/* Filter Tabs */}
       <div className="flex items-center gap-2 px-4 py-2 bg-[#0B141A] overflow-x-auto scrollbar-none">
         {['All', 'Unread', 'Groups'].map(tab => {
           const active = activeTab === tab;
