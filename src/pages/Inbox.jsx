@@ -350,25 +350,8 @@ export default function Inbox() {
         w-full md:w-80 lg:w-96 shrink-0 md:flex
         ${showChat ? 'hidden' : 'flex'}`}>
 
-        {/* Filter tabs + action buttons */}
-        <div className="px-3 pt-2 pb-2 shrink-0">
-          {/* Action row */}
-          <div className="flex items-center justify-between mb-2">
-            <span className="text-white font-bold text-base">Chats</span>
-            <div className="flex items-center gap-1.5">
-              {canViewAllChats && (
-                <button onClick={() => { handleLoadDmMembers(); setShowInternalMsg(true); }}
-                  className="w-8 h-8 rounded-full bg-[var(--nyasa-surface-2)] flex items-center justify-center hover:bg-[var(--nyasa-surface-4)] transition-colors"
-                  title="New internal message">
-                  <Pencil className="w-4 h-4 text-gray-300" />
-                </button>
-              )}
-              <button onClick={() => setShowNew(true)}
-                className="w-8 h-8 rounded-full bg-[#25D366] flex items-center justify-center hover:bg-[#20BA5A] transition-colors">
-                <Plus className="w-4 h-4 text-white" />
-              </button>
-            </div>
-          </div>
+        {/* Status filter tabs — Sidebar top bar is the only branding chrome */}
+        <div className="px-3 pt-2 pb-1 shrink-0">
           {/* Status tabs */}
           <div className="flex gap-0.5 overflow-x-auto scrollbar-none">
             {STATUS_TABS.map(t => (
