@@ -39,29 +39,6 @@ export function usePushNotifications(workspaceOwnerId) {
   const [loading, setLoading] = useState(false);
   const didAutoSubscribe = useRef(false);
 
-  useEffect(() => {
-    const isSupported = 'serviceWorker' in navigator && 'PushManager' in window && !!VAPID_PUBLIC_KEY;
-    setSupported(isSupported);
-    if (!isSupported) return;
-
-    navigator.serviceWorker.register('/sw.js').then(async (reg) => {
-      const sub = await reg.pushManager.getSubscription();
-      setSubscribed(!!sub && !isDeadEndpoint(sub?.endpoint));
-    }).catch(() => {});
-  }, []);
-
-  // Auto-subscribe on mount when permission already granted
-  // This also handles clearing dead subscriptions and re-registering
-  useEffect(() => {
-    if (!supported || !workspaceOwnerId || didAutoSubscribe.current) return;
-    if (typeof Notification === 'undefined' || Notification.permission !== 'granted') return;
-    didAutoSubscribe.current = true;
-    // Small delay so SW has time to register first
-    setTimeout(() => {
-      subscribeInternal(workspaceOwnerId).catch(() => {});
-    }, 1500);
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [supported, workspaceOwnerId]);
 
   const subscribeInternal = useCallback(async (wsId) => {
     if (!wsId) return;
@@ -97,6 +74,30 @@ export function usePushNotifications(workspaceOwnerId) {
     }
   }, []);
 
+  useEffect(() => {
+    if (!supported || !workspaceOwnerId || didAutoSubscribe.current) return;
+    if (typeof Notification === 'undefined' || Notification.permission !== 'granted') return;
+    didAutoSubscribe.current = true;
+    // Small delay so SW has time to register first
+    setTimeout(() => {
+      subscribeInternal(workspaceOwnerId).catch(() => {});
+    }, 1500);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [supported, workspaceOwnerId]);
+
+  useEffect(() => {
+    const isSupported = 'serviceWorker' in navigator && 'PushManager' in window && !!VAPID_PUBLIC_KEY;
+    setSupported(isSupported);
+    if (!isSupported) return;
+
+    navigator.serviceWorker.register('/sw.js').then(async (reg) => {
+      const sub = await reg.pushManager.getSubscription();
+      setSubscribed(!!sub && !isDeadEndpoint(sub?.endpoint));
+    }).catch(() => {});
+  }, []);
+
+  // Auto-subscribe on mount when permission already granted
+  // This also handles clearing dead subscriptions and re-registering
   const subscribe = useCallback(async () => {
     if (!supported || !workspaceOwnerId) return;
     setLoading(true);
