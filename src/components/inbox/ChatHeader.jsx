@@ -88,7 +88,7 @@ export default function ChatHeader({ conversation, users = [], currentUserId, cu
           </div>
           <div className="flex items-center gap-1.5 text-xs" style={{color:"#8696A0"}}>
             <span className={`w-1.5 h-1.5 rounded-full ${STATUS_COLOR[conversation.status] || 'bg-gray-500'}`} />
-            <span className="capitalize" style={{color:"#8696A0"}}>{conversation.contact_phone || conversation.status}</span>
+            <span style={{color:"#8696A0"}}>{conversation.contact_phone || conversation.channel || '—'}</span>
             {conversation.assigned_to_name
               ? <><span>·</span><span className="text-[#25D366]/80 text-[10px]">
                   {conversation.assigned_to === currentUserId
@@ -126,8 +126,8 @@ export default function ChatHeader({ conversation, users = [], currentUserId, cu
           );
         })()}
 
-        {/* Phone call — dials contact directly via tel: link */}
-        {conversation.contact_phone && (
+        {/* Phone call — only shown on WhatsApp/SMS channels where a phone number exists */}
+        {conversation.contact_phone && ['whatsapp','sms','phone'].includes(conversation.channel) && (
           <a
             href={`tel:${conversation.contact_phone.replace(/\s/g, '')}`}
             className="p-2 rounded-full hover:bg-white/10 transition-colors text-[#8696A0] hover:text-white"
@@ -139,8 +139,12 @@ export default function ChatHeader({ conversation, users = [], currentUserId, cu
 
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
-            <button className="flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold transition-colors" style={{background:"rgba(0,168,132,0.15)",color:"#00A884"}}>
-              <span className="capitalize" style={{color:"#8696A0"}}>{conversation.contact_phone || conversation.status}</span>
+            <button className="flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold transition-all hover:opacity-80"
+              style={{
+                background: conversation.status === 'open' ? 'rgba(37,211,102,0.12)' : conversation.status === 'snoozed' ? 'rgba(245,158,11,0.12)' : 'rgba(134,150,160,0.12)',
+                color: conversation.status === 'open' ? '#25D366' : conversation.status === 'snoozed' ? '#F59E0B' : '#8696A0'
+              }}>
+              <span className="capitalize">{conversation.status || 'open'}</span>
               <ChevronDown className="w-3 h-3" />
             </button>
           </DropdownMenuTrigger>
