@@ -1,6 +1,6 @@
-import { Link, useLocation } from 'react-router-dom';
-import { Inbox, BarChart2, Users, Settings, Zap, LogOut } from 'lucide-react';
-import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
+import {Link, useLocation}from 'react-router-dom';
+import {Inbox, BarChart2, Users, Settings, Zap}from 'lucide-react';
+import {Tooltip, TooltipContent, TooltipProvider, TooltipTrigger}from '@/components/ui/tooltip';
 
 const navItems = [
   { icon: Inbox, label: 'Inbox', path: '/' },
