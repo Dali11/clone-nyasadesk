@@ -1441,43 +1441,16 @@ export default function MessageThread({ conversation, workspaceId }) {
           </div>
         )}
         {/* Tab row */}
-        <div className="flex gap-1 mb-1.5 items-center">
-          {['reply', 'note'].map(t => (
-            <button key={t} onClick={() => setTab(t)}
-              className={`text-[11px] font-semibold px-3 py-1 rounded-full transition-colors capitalize
-                ${tab === t ? 'bg-[#00A884]/20 text-[#00A884]' : 'text-[#8696A0] hover:text-gray-300'}`}>
-              {t === 'note' ? '📝 Note' : '💬 Reply'}
-            </button>
-          ))}
-
-          {/* Background picker */}
-          <div className="relative ml-auto">
-            <button onClick={() => setShowBgPicker(s => !s)}
-              className="flex items-center gap-1 text-[11px] text-gray-500 hover:text-gray-300 px-2 py-1 rounded-lg hover:bg-white/5 transition-colors">
-              <Palette className="w-3.5 h-3.5" />
-            </button>
-            {showBgPicker && (
-              <div className="absolute right-0 bottom-full mb-1 z-10 bg-[var(--nyasa-surface-3)] border border-[var(--nyasa-border)] rounded-xl p-2 w-40 shadow-lg space-y-0.5">
-                <p className="text-[10px] text-gray-500 px-2 pb-1">Chat background (only for you)</p>
-                {Object.entries(CHAT_BACKGROUNDS).map(([key, v]) => (
-                  <button key={key} onClick={() => chooseBackground(key)}
-                    className={`w-full text-left text-xs px-2 py-1.5 rounded-lg hover:bg-white/10 transition-colors ${bg === key ? 'text-[#25D366] font-semibold' : 'text-gray-300'}`}>
-                    {v.label}
-                  </button>
-                ))}
-                <button onClick={chooseCustomBackground}
-                  className="w-full text-left text-xs px-2 py-1.5 rounded-lg hover:bg-white/10 transition-colors text-gray-300">
-                  Custom image URL…
-                </button>
-              </div>
-            )}
+        <div className="flex gap-1 mb-1.5 items-center justify-between">
+          <div className="flex gap-1 items-center">
+            {['reply', 'note'].map(t => (
+              <button key={t} onClick={() => setTab(t)}
+                className={`text-[11px] font-semibold px-3 py-1 rounded-full transition-colors capitalize
+                  ${tab === t ? 'bg-[#00A884]/20 text-[#00A884]' : 'text-[#8696A0] hover:text-gray-300'}`}>
+                {t === 'note' ? '📝 Note' : '💬 Reply'}
+              </button>
+            ))}
           </div>
-
-          {/* Canned response trigger */}
-          <button onClick={() => setShowCanned(s => !s)}
-            className="flex items-center gap-1 text-[11px] text-gray-500 hover:text-gray-300 px-2 py-1 rounded-lg hover:bg-white/5 transition-colors">
-            <Zap className="w-3.5 h-3.5" /> Quick
-          </button>
 
           {/* AI draft trigger — only shows if the workspace has any active agents */}
           {aiAgents.length > 0 && (
@@ -1487,7 +1460,7 @@ export default function MessageThread({ conversation, workspaceId }) {
                 {aiDrafting ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Sparkles className="w-3.5 h-3.5" />} AI draft
               </button>
               {showAiPicker && (
-                <div className="absolute left-0 bottom-full mb-1 z-10 bg-[var(--nyasa-surface-3)] border border-[var(--nyasa-border)] rounded-xl p-1.5 w-52 shadow-lg space-y-0.5">
+                <div className="absolute right-0 bottom-full mb-1 z-10 bg-[var(--nyasa-surface-3)] border border-[var(--nyasa-border)] rounded-xl p-1.5 w-52 shadow-lg space-y-0.5">
                   <p className="text-[10px] text-gray-500 px-2 pb-1">Draft a reply using…</p>
                   {aiAgents.map(a => (
                     <button key={a.id} onClick={() => handleAiDraft(a)}
@@ -1574,7 +1547,17 @@ export default function MessageThread({ conversation, workspaceId }) {
                 style={{ scrollbarWidth: 'thin' }}
                 placeholder={tab === 'note' ? 'Add a note…' : 'Message'}
                 value={body}
-                onChange={e => { setBody(e.target.value); e.target.style.height = 'auto'; e.target.style.height = Math.min(e.target.scrollHeight, 128) + 'px'; }}
+                onChange={e => {
+                  const val = e.target.value;
+                  setBody(val);
+                  e.target.style.height = 'auto';
+                  e.target.style.height = Math.min(e.target.scrollHeight, 128) + 'px';
+                  if (val.startsWith('/')) {
+                    setShowCanned(true);
+                  } else {
+                    setShowCanned(false);
+                  }
+                }}
                 onKeyDown={handleKeyDown}
               />
 

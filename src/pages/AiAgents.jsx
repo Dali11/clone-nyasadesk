@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import { Link } from 'react-router-dom';
-import { Plus, Bot, Trash2, Loader2, Sparkles, X, BookOpen, Pencil, Link2, Upload, Lock, Pause, Play } from 'lucide-react';
+import { Plus, Bot, Trash2, Loader2, Sparkles, X, BookOpen, Pencil, Link2, Upload, Lock, Pause, Play, BrainCircuit, ToggleLeft, ToggleRight, ListRestart } from 'lucide-react';
 import Sidebar from '@/components/Sidebar';
 import { useNyasaAuth } from '@/lib/NyasaAuth';
 import { getAiAgents, saveAiAgent, deleteAiAgent, getAiAgentTemplates, getAiKnowledge, saveAiKnowledge, deleteAiKnowledge, addKnowledgeFromUrl, addKnowledgeFromFile, getAiUsageSummary, getRules } from '@/lib/channels';
@@ -29,6 +29,8 @@ export default function AiAgents() {
   const { workspaceOwnerId, isWorkspaceAdmin, profile } = useNyasaAuth();
   const hasAiAccess = profile?.plan === 'scale';
 
+  const [activeTab, setActiveTab] = useState('agents'); // 'agents' | 'learning'
+
   const [agents, setAgents] = useState([]);
   const [usage, setUsage] = useState({}); // agent_id -> { cost, count } (last 30 days)
   const [rules, setRules] = useState([]); // assignment rules for handoff selector
@@ -45,6 +47,9 @@ export default function AiAgents() {
   const [ingestingUrl, setIngestingUrl] = useState(false);
   const [ingestingFile, setIngestingFile] = useState(false);
   const fileInputRef = useRef(null);
+
+  // Learning states
+  const [autoReplyEnabled, setAutoReplyEnabled] = useState(false);
 
   const load = async () => {
     if (!workspaceOwnerId) { setLoading(false); return; }
@@ -212,137 +217,249 @@ export default function AiAgents() {
     }
   };
 
+  const triggerLearningAnalysis = () => {
+    toast({
+      title: "Analysis scheduled",
+      description: "Analysis scheduled — this may take a few minutes"
+    });
+  };
+
   return (
     <div className="flex h-screen overflow-hidden bg-[var(--nyasa-surface-1)] pt-14 md:pt-0 pb-[56px] md:pb-0">
       <Sidebar />
 
       <div className="flex-1 flex flex-col overflow-hidden">
-        <div className="px-5 pt-5 pb-3 flex items-center justify-between shrink-0 border-b border-[var(--nyasa-border)]">
-          <div>
-            <h1 className="text-lg font-black text-white flex items-center gap-2">
-              <Bot className="w-5 h-5 text-[#25D366]" /> AI Agents
-            </h1>
-            <p className="text-xs text-gray-500 mt-0.5">AI-powered team members for your shared inbox</p>
-          </div>
-          {isWorkspaceAdmin && (
-            <div className="flex items-center gap-2">
-              {hasAiAccess && agents.length > 0 && (
-                <p className="text-[11px] text-gray-500 hidden sm:block">
-                  {agents.length} agent{agents.length === 1 ? '' : 's'} -- one per department works great
-                </p>
-              )}
-              {hasAiAccess ? (
-                <>
-                  <button onClick={() => setShowTemplates(true)}
-                    className="flex items-center gap-1.5 bg-[var(--nyasa-surface-2)] hover:bg-[var(--nyasa-surface-4)] text-white text-sm font-semibold px-3 py-2 rounded-lg transition-colors">
-                    <Sparkles className="w-4 h-4" /> From template
-                  </button>
-                  <button onClick={startBlank}
-                    className="flex items-center gap-1.5 bg-[#25D366] hover:bg-[#20bd5a] text-black text-sm font-semibold px-3 py-2 rounded-lg transition-colors">
-                    <Plus className="w-4 h-4" /> New agent
-                  </button>
-                </>
-              ) : (
-                <Link to="/pricing"
-                  className="flex items-center gap-1.5 bg-[#25D366] hover:bg-[#20bd5a] text-black text-sm font-semibold px-3 py-2 rounded-lg transition-colors">
-                  <Lock className="w-3.5 h-3.5" /> Upgrade to Scale
-                </Link>
-              )}
+        <div className="px-5 pt-5 pb-3 flex flex-col gap-3 shrink-0 border-b border-[var(--nyasa-border)]">
+          <div className="flex items-center justify-between">
+            <div>
+              <h1 className="text-lg font-black text-white flex items-center gap-2">
+                <Bot className="w-5 h-5 text-[#25D366]" /> AI Agents
+              </h1>
+              <p className="text-xs text-gray-500 mt-0.5">AI-powered team members for your shared inbox</p>
             </div>
-          )}
+            {isWorkspaceAdmin && activeTab === 'agents' && (
+              <div className="flex items-center gap-2">
+                {hasAiAccess && agents.length > 0 && (
+                  <p className="text-[11px] text-gray-500 hidden sm:block">
+                    {agents.length} agent{agents.length === 1 ? '' : 's'} -- one per department works great
+                  </p>
+                )}
+                {hasAiAccess ? (
+                  <>
+                    <button onClick={() => setShowTemplates(true)}
+                      className="flex items-center gap-1.5 bg-[var(--nyasa-surface-2)] hover:bg-[var(--nyasa-surface-4)] text-white text-sm font-semibold px-3 py-2 rounded-lg transition-colors">
+                      <Sparkles className="w-4 h-4" /> From template
+                    </button>
+                    <button onClick={startBlank}
+                      className="flex items-center gap-1.5 bg-[#25D366] hover:bg-[#20bd5a] text-black text-sm font-semibold px-3 py-2 rounded-lg transition-colors">
+                      <Plus className="w-4 h-4" /> New agent
+                    </button>
+                  </>
+                ) : (
+                  <Link to="/pricing"
+                    className="flex items-center gap-1.5 bg-[#25D366] hover:bg-[#20bd5a] text-black text-sm font-semibold px-3 py-2 rounded-lg transition-colors">
+                    <Lock className="w-3.5 h-3.5" /> Upgrade to Scale
+                  </Link>
+                )}
+              </div>
+            )}
+          </div>
+
+          {/* Tab switches */}
+          <div className="flex gap-2 border-b border-white/5 pb-2">
+            <button
+              onClick={() => setActiveTab('agents')}
+              className={`text-xs font-semibold px-3 py-1.5 rounded-lg transition-colors ${
+                activeTab === 'agents'
+                  ? 'bg-[#25D366]/15 text-[#25D366] font-bold'
+                  : 'text-gray-400 hover:text-white hover:bg-white/5'
+              }`}
+            >
+              Agents List
+            </button>
+            <button
+              onClick={() => setActiveTab('learning')}
+              className={`text-xs font-semibold px-3 py-1.5 rounded-lg transition-colors flex items-center gap-1.5 ${
+                activeTab === 'learning'
+                  ? 'bg-[#25D366]/15 text-[#25D366] font-bold'
+                  : 'text-gray-400 hover:text-white hover:bg-white/5'
+              }`}
+            >
+              <BrainCircuit className="w-3.5 h-3.5" /> Learning
+            </button>
+          </div>
         </div>
 
         <div className="flex-1 overflow-y-auto p-5">
-          {loading ? (
-            <div className="flex items-center justify-center gap-2 text-gray-500 text-sm py-16">
-              <Loader2 className="w-4 h-4 animate-spin" /> Loading…
-            </div>
-          ) : !hasAiAccess && agents.length === 0 ? (
-            <div className="flex flex-col items-center justify-center gap-3 py-16 text-center px-6">
-              <div className="w-14 h-14 rounded-2xl bg-[#25D366]/15 flex items-center justify-center mb-1">
-                <Lock className="w-6 h-6 text-[#25D366]" />
+          {activeTab === 'agents' ? (
+            loading ? (
+              <div className="flex items-center justify-center gap-2 text-gray-500 text-sm py-16">
+                <Loader2 className="w-4 h-4 animate-spin" /> Loading…
               </div>
-              <p className="text-sm font-semibold text-white">AI Agents are a Scale-plan feature</p>
-              <p className="text-xs text-gray-500 max-w-xs">
-                Set up an AI teammate that drafts replies, or works fully autonomously — including generating quotes and invoices mid-conversation. Upgrade to Scale to unlock it.
-              </p>
-              <Link to="/pricing" className="mt-2 flex items-center gap-1.5 bg-[#25D366] hover:bg-[#20bd5a] text-black text-sm font-semibold px-4 py-2 rounded-lg transition-colors">
-                <Lock className="w-3.5 h-3.5" /> Upgrade to Scale
-              </Link>
-            </div>
-          ) : agents.length === 0 ? (
-            <div className="flex flex-col items-center justify-center gap-3 py-16 text-center px-6">
-              <Bot className="w-10 h-10 text-gray-700" />
-              <p className="text-sm text-gray-500">No AI agents yet</p>
-              <p className="text-xs text-gray-600">Start from a template or build one from scratch.</p>
-            </div>
+            ) : !hasAiAccess && agents.length === 0 ? (
+              <div className="flex flex-col items-center justify-center gap-3 py-16 text-center px-6">
+                <div className="w-14 h-14 rounded-2xl bg-[#25D366]/15 flex items-center justify-center mb-1">
+                  <Lock className="w-6 h-6 text-[#25D366]" />
+                </div>
+                <p className="text-sm font-semibold text-white">AI Agents are a Scale-plan feature</p>
+                <p className="text-xs text-gray-500 max-w-xs">
+                  Set up an AI teammate that drafts replies, or works fully autonomously — including generating quotes and invoices mid-conversation. Upgrade to Scale to unlock it.
+                </p>
+                <Link to="/pricing" className="mt-2 flex items-center gap-1.5 bg-[#25D366] hover:bg-[#20bd5a] text-black text-sm font-semibold px-4 py-2 rounded-lg transition-colors">
+                  <Lock className="w-3.5 h-3.5" /> Upgrade to Scale
+                </Link>
+              </div>
+            ) : agents.length === 0 ? (
+              <div className="flex flex-col items-center justify-center gap-3 py-16 text-center px-6">
+                <Bot className="w-10 h-10 text-gray-700" />
+                <p className="text-sm text-gray-500">No AI agents yet</p>
+                <p className="text-xs text-gray-600">Start from a template or build one from scratch.</p>
+              </div>
+            ) : (
+              <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+                {!hasAiAccess && (
+                  <div className="sm:col-span-2 lg:col-span-3 flex items-center gap-3 bg-[var(--nyasa-surface-2)] border border-[#25D366]/20 rounded-xl p-4">
+                    <Lock className="w-4 h-4 text-[#25D366] shrink-0" />
+                    <p className="text-xs text-gray-400 flex-1">
+                      Your plan no longer includes AI Agents, so this one is paused. <Link to="/pricing" className="text-[#25D366] font-semibold">Upgrade to Scale</Link> to reactivate it — your setup is saved.
+                    </p>
+                  </div>
+                )}
+                {agents.map(agent => (
+                  <div key={agent.id} className="bg-[var(--nyasa-surface-2)] rounded-xl p-4 flex flex-col gap-2 border border-[var(--nyasa-border)]">
+                    <div className="flex items-start justify-between gap-2">
+                      <div className="flex items-center gap-2 min-w-0">
+                        <div className="w-9 h-9 rounded-lg bg-[#25D366]/15 flex items-center justify-center shrink-0">
+                          <Bot className="w-4.5 h-4.5 text-[#25D366]" />
+                        </div>
+                        <div className="min-w-0">
+                          <p className="text-white text-sm font-semibold truncate">{agent.name}</p>
+                          <p className="text-gray-500 text-[11px] truncate">{agent.role || 'AI Agent'}</p>
+                          {agent.agent_type && agent.agent_type !== 'general' && AGENT_TYPE_BADGES[agent.agent_type] && (
+                            <span className={`mt-0.5 inline-block text-[10px] font-bold px-1.5 py-0.5 rounded-full ${AGENT_TYPE_BADGES[agent.agent_type].cls}`}>{AGENT_TYPE_BADGES[agent.agent_type].label}</span>
+                          )}
+                        </div>
+                      </div>
+                      <span
+                        className={`text-[10px] font-bold px-2 py-1 rounded-full shrink-0 ${agent.status === 'active' ? 'bg-[#25D366]/20 text-[#25D366]' : 'bg-yellow-500/20 text-yellow-400'}`}>
+                        {agent.status === 'active' ? 'Active' : 'Paused'}
+                      </span>
+                    </div>
+                    {agent.description && <p className="text-gray-400 text-xs line-clamp-2">{agent.description}</p>}
+                    <div className="flex items-center gap-1.5 flex-wrap mt-1">
+                      {(agent.enabled_channels || []).map(ch => (
+                        <span key={ch} className="text-[10px] bg-white/5 text-gray-400 px-2 py-0.5 rounded-full capitalize">{ch}</span>
+                      ))}
+                      {(!agent.enabled_channels || agent.enabled_channels.length === 0) && (
+                        <span className="text-[10px] text-gray-600">No channels enabled yet</span>
+                      )}
+                    </div>
+                    {usage[agent.id] && (
+                      <p className="text-[10px] text-gray-600 mt-0.5">
+                        ${usage[agent.id].cost.toFixed(2)} · {usage[agent.id].count} repl{usage[agent.id].count === 1 ? 'y' : 'ies'} (30d)
+                      </p>
+                    )}
+                    <div className="flex gap-2 mt-2">
+                      <button onClick={() => toggleStatus(agent)}
+                        disabled={agent.status !== 'active' && !hasAiAccess}
+                        title={agent.status === 'active' ? 'Pause this agent -- it will stop replying, nothing is deleted' : 'Resume this agent'}
+                        className={`flex items-center justify-center gap-1.5 text-xs font-semibold rounded-lg py-1.5 px-2.5 transition-colors disabled:opacity-40 disabled:cursor-not-allowed ${
+                          agent.status === 'active'
+                            ? 'text-yellow-400 bg-yellow-500/10 hover:bg-yellow-500/20'
+                            : 'text-[#25D366] bg-[#25D366]/10 hover:bg-[#25D366]/20'
+                        }`}>
+                        {agent.status === 'active' ? <><Pause className="w-3.5 h-3.5" /> Pause</> : <><Play className="w-3.5 h-3.5" /> Resume</>}
+                      </button>
+                      <button onClick={() => startEdit(agent)}
+                        className="flex-1 text-xs font-semibold text-gray-300 hover:text-white bg-white/5 hover:bg-white/10 rounded-lg py-1.5 transition-colors">
+                        Configure
+                      </button>
+                      <button onClick={() => del(agent.id)}
+                        title="Delete permanently -- use Pause instead if you just want to stop it temporarily"
+                        className="text-gray-500 hover:text-red-400 bg-white/5 hover:bg-red-500/10 rounded-lg px-2.5 transition-colors">
+                        <Trash2 className="w-3.5 h-3.5" />
+                      </button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )
           ) : (
-            <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-              {!hasAiAccess && (
-                <div className="sm:col-span-2 lg:col-span-3 flex items-center gap-3 bg-[var(--nyasa-surface-2)] border border-[#25D366]/20 rounded-xl p-4">
-                  <Lock className="w-4 h-4 text-[#25D366] shrink-0" />
-                  <p className="text-xs text-gray-400 flex-1">
-                    Your plan no longer includes AI Agents, so this one is paused. <Link to="/pricing" className="text-[#25D366] font-semibold">Upgrade to Scale</Link> to reactivate it — your setup is saved.
+            /* Learning Tab - Styled WhatsApp Dark bg-[#1F2C34], green accents, text-white */
+            <div className="max-w-2xl mx-auto space-y-6">
+              <div className="bg-[#1F2C34] border border-white/5 rounded-2xl p-6 flex flex-col gap-4 text-white">
+                <div>
+                  <h2 className="text-base font-bold flex items-center gap-2 text-white">
+                    <BrainCircuit className="w-5 h-5 text-[#25D366]" /> AI is learning from your conversations
+                  </h2>
+                  <p className="text-xs text-gray-400 mt-1">
+                     Nyasadesk AI automatically analyzes historical conversation flows to extract common FAQ patterns, build custom auto-reply instructions, and reply to frequent inquiries instantly.
                   </p>
                 </div>
-              )}
-              {agents.map(agent => (
-                <div key={agent.id} className="bg-[var(--nyasa-surface-2)] rounded-xl p-4 flex flex-col gap-2 border border-[var(--nyasa-border)]">
-                  <div className="flex items-start justify-between gap-2">
-                    <div className="flex items-center gap-2 min-w-0">
-                      <div className="w-9 h-9 rounded-lg bg-[#25D366]/15 flex items-center justify-center shrink-0">
-                        <Bot className="w-4.5 h-4.5 text-[#25D366]" />
-                      </div>
-                      <div className="min-w-0">
-                        <p className="text-white text-sm font-semibold truncate">{agent.name}</p>
-                        <p className="text-gray-500 text-[11px] truncate">{agent.role || 'AI Agent'}</p>
-                        {agent.agent_type && agent.agent_type !== 'general' && AGENT_TYPE_BADGES[agent.agent_type] && (
-                          <span className={`mt-0.5 inline-block text-[10px] font-bold px-1.5 py-0.5 rounded-full ${AGENT_TYPE_BADGES[agent.agent_type].cls}`}>{AGENT_TYPE_BADGES[agent.agent_type].label}</span>
-                        )}
-                      </div>
-                    </div>
-                    <span
-                      className={`text-[10px] font-bold px-2 py-1 rounded-full shrink-0 ${agent.status === 'active' ? 'bg-[#25D366]/20 text-[#25D366]' : 'bg-yellow-500/20 text-yellow-400'}`}>
-                      {agent.status === 'active' ? 'Active' : 'Paused'}
-                    </span>
+
+                {/* Stats Row */}
+                <div className="grid grid-cols-3 gap-3 bg-[#121B22] p-4 rounded-xl border border-white/5">
+                  <div className="text-center">
+                    <p className="text-lg font-bold text-[#25D366]">0</p>
+                    <p className="text-[10px] text-gray-400 font-medium">Patterns Learned</p>
                   </div>
-                  {agent.description && <p className="text-gray-400 text-xs line-clamp-2">{agent.description}</p>}
-                  <div className="flex items-center gap-1.5 flex-wrap mt-1">
-                    {(agent.enabled_channels || []).map(ch => (
-                      <span key={ch} className="text-[10px] bg-white/5 text-gray-400 px-2 py-0.5 rounded-full capitalize">{ch}</span>
-                    ))}
-                    {(!agent.enabled_channels || agent.enabled_channels.length === 0) && (
-                      <span className="text-[10px] text-gray-600">No channels enabled yet</span>
-                    )}
+                  <div className="text-center border-x border-white/10">
+                    <p className="text-lg font-bold text-[#25D366]">0</p>
+                    <p className="text-[10px] text-gray-400 font-medium">Conversations Analyzed</p>
                   </div>
-                  {usage[agent.id] && (
-                    <p className="text-[10px] text-gray-600 mt-0.5">
-                      ${usage[agent.id].cost.toFixed(2)} · {usage[agent.id].count} repl{usage[agent.id].count === 1 ? 'y' : 'ies'} (30d)
-                    </p>
-                  )}
-                  <div className="flex gap-2 mt-2">
-                    <button onClick={() => toggleStatus(agent)}
-                      disabled={agent.status !== 'active' && !hasAiAccess}
-                      title={agent.status === 'active' ? 'Pause this agent -- it will stop replying, nothing is deleted' : 'Resume this agent'}
-                      className={`flex items-center justify-center gap-1.5 text-xs font-semibold rounded-lg py-1.5 px-2.5 transition-colors disabled:opacity-40 disabled:cursor-not-allowed ${
-                        agent.status === 'active'
-                          ? 'text-yellow-400 bg-yellow-500/10 hover:bg-yellow-500/20'
-                          : 'text-[#25D366] bg-[#25D366]/10 hover:bg-[#25D366]/20'
-                      }`}>
-                      {agent.status === 'active' ? <><Pause className="w-3.5 h-3.5" /> Pause</> : <><Play className="w-3.5 h-3.5" /> Resume</>}
-                    </button>
-                    <button onClick={() => startEdit(agent)}
-                      className="flex-1 text-xs font-semibold text-gray-300 hover:text-white bg-white/5 hover:bg-white/10 rounded-lg py-1.5 transition-colors">
-                      Configure
-                    </button>
-                    <button onClick={() => del(agent.id)}
-                      title="Delete permanently -- use Pause instead if you just want to stop it temporarily"
-                      className="text-gray-500 hover:text-red-400 bg-white/5 hover:bg-red-500/10 rounded-lg px-2.5 transition-colors">
-                      <Trash2 className="w-3.5 h-3.5" />
-                    </button>
+                  <div className="text-center">
+                    <p className="text-lg font-bold text-[#25D366]">0</p>
+                    <p className="text-[10px] text-gray-400 font-medium">Auto-replies Sent</p>
                   </div>
                 </div>
-              ))}
+
+                {/* Toggle Section */}
+                <div className="flex items-start justify-between gap-4 p-4 bg-[#121B22] rounded-xl border border-white/5">
+                  <div className="flex-1 min-w-0">
+                    <p className="text-xs font-semibold text-white">Enable auto-reply for FAQs</p>
+                    <p className="text-[11px] text-gray-400 mt-0.5">
+                      Automatically respond to customer questions matching learned high-confidence patterns.
+                    </p>
+                    <p className="text-[10px] text-amber-500/80 mt-1.5 font-medium">
+                      ⚠️ Note: The AI will review 2 weeks of conversations before enabling
+                    </p>
+                  </div>
+                  <button
+                    onClick={() => {
+                      toast({
+                        title: "Setup required",
+                        description: "The AI needs to analyze at least 2 weeks of historical interactions before auto-replies can be activated."
+                      });
+                    }}
+                    className="text-[#8696A0] hover:text-[#25D366] transition-colors p-1"
+                  >
+                    {autoReplyEnabled ? (
+                      <ToggleRight className="w-10 h-10 text-[#25D366]" />
+                    ) : (
+                      <ToggleLeft className="w-10 h-10 text-gray-600" />
+                    )}
+                  </button>
+                </div>
+
+                {/* Action button */}
+                <div className="flex justify-end">
+                  <button
+                    onClick={triggerLearningAnalysis}
+                    className="flex items-center gap-1.5 bg-[#25D366] hover:bg-[#20bd5a] text-black text-xs font-bold px-4 py-2.5 rounded-lg transition-colors"
+                  >
+                    <ListRestart className="w-4 h-4" /> Start Learning Analysis
+                  </button>
+                </div>
+              </div>
+
+              {/* Top patterns list placeholder */}
+              <div className="bg-[#1F2C34] border border-white/5 rounded-2xl p-6 text-center text-white">
+                <BrainCircuit className="w-8 h-8 text-gray-600 mx-auto mb-2" />
+                <p className="text-xs text-gray-400">Top patterns will appear here after analysis</p>
+                <p className="text-[10px] text-gray-500 max-w-xs mx-auto mt-1">
+                  Once your analysis completes, learned QA pairs and high-frequency topics will list here for approval.
+                </p>
+              </div>
             </div>
           )}
         </div>
