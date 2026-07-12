@@ -9,7 +9,8 @@
 // is all these templates need. Logo/signature images are fetched and
 // embedded as base64 at render time.
 
-import { jsPDF } from 'jspdf';
+// jsPDF is loaded dynamically to avoid crashing the Node.js serverless runtime
+// on module load — Vercel's esbuild bundles the browser build by default.
 
 const PAGE_W = 210; // A4 mm
 const PAGE_H = 297;
@@ -42,6 +43,7 @@ function hexToRgb(hex) {
 
 // docType: 'quotation' | 'invoice'
 export async function generateDocumentPdf(doc, docType, settings) {
+  const { jsPDF } = await import('jspdf');
   const pdf = new jsPDF({ unit: 'mm', format: 'a4' });
   const brand = hexToRgb(settings?.brand_color);
   const currency = doc.currency || settings?.currency || 'MWK';
