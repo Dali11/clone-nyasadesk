@@ -521,6 +521,9 @@ async function handleListTemplates(req, res) {
     const templates = await provider.listTemplates(cfg.config);
     return res.status(200).json({ ok: true, templates });
   } catch (e) {
+    // OAuth/token errors are not server crashes — return 200 + empty list
+    const isAuthError = /token|oauth|expired|unauthorized|invalid.*access/i.test(e.message || '');
+    if (isAuthError) return res.status(200).json({ ok: true, templates: [], warning: 'WhatsApp not connected or token expired' });
     console.error('[channels/templates] error:', e);
     return res.status(500).json({ ok: false, error: e.message, templates: [] });
   }
