@@ -27,6 +27,7 @@ import {
   Palette,
   Download,
   Maximize2,
+  Camera,
 }from 'lucide-react';
 import {formatDistanceToNow, isToday, isYesterday, format as formatDate}from 'date-fns';
 import {motion, AnimatePresence}from 'framer-motion';
