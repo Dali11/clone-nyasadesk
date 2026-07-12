@@ -355,11 +355,24 @@ export async function sendMessage(workspaceId, conversationId, body, senderName,
         }),
       });
       if (!res.ok) {
-        await supabase.from('messages').update({ status: 'failed' }).eq('id', msg.id);
+        // Try to extract the server's error message so the UI can show it
+        let errReason = 'Send failed';
+        try {
+          const errJson = await res.json();
+          errReason = errJson?.error || errJson?.message || `HTTP ${res.status}`;
+        } catch (_) { errReason = `HTTP ${res.status}`; }
+        await supabase.from('messages').update({
+          status: 'failed',
+          error_reason: errReason.slice(0, 500),
+        }).eq('id', msg.id);
       }
-      // On success: leave status alone. send.js already set it to 'sent' server-side.
+      // On success: leave status alone. server already set it to 'sent'.
     } catch (e) {
-      await supabase.from('messages').update({ status: 'failed' }).eq('id', msg.id);
+      // Network-level failure (no response at all)
+      await supabase.from('messages').update({
+        status: 'failed',
+        error_reason: (e?.message || 'Network error — could not reach server').slice(0, 500),
+      }).eq('id', msg.id);
     }
   })();
 
