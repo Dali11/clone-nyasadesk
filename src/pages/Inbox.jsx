@@ -345,32 +345,29 @@ export default function Inbox() {
         w-full md:w-80 lg:w-96 shrink-0 md:flex
         ${showChat ? 'hidden' : 'flex'}`}>
 
-        {/* Header */}
-        <div className="px-4 pt-4 pb-2 shrink-0">
-          <div className="flex items-center justify-between mb-3">
-            <h1 className="text-lg font-black text-white">Inbox</h1>
-            <div className="flex items-center gap-2">
-              {canViewAllChats && (
-                <button onClick={() => { handleLoadDmMembers(); setShowInternalMsg(true); }}
-                  className="w-8 h-8 rounded-full bg-[var(--nyasa-surface-2)] flex items-center justify-center hover:bg-[var(--nyasa-surface-4)] transition-colors"
-                  title="New internal message">
-                  <Pencil className="w-4 h-4 text-gray-300" />
-                </button>
-              )}
-              <button onClick={() => setShowNew(true)}
-                className="w-8 h-8 rounded-full bg-[#25D366] flex items-center justify-center hover:bg-[#20BA5A] transition-colors">
-                <Plus className="w-4 h-4 text-white" />
-              </button>
+        {/* Header — search + actions (Sidebar already provides the top branding bar) */}
+        <div className="px-3 pt-2 pb-2 shrink-0">
+          <div className="relative mb-2 flex items-center gap-2">
+            <div className="relative flex-1">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-500 pointer-events-none" />
+              <input
+                className="w-full bg-[var(--nyasa-surface-2)] text-white text-sm rounded-xl pl-9 pr-4 py-2 focus:outline-none focus:ring-1 focus:ring-[#25D366] placeholder:text-gray-600"
+                placeholder="Search conversations…"
+                value={search}
+                onChange={e => setSearch(e.target.value)}
+              />
             </div>
-          </div>
-          <div className="relative mb-3">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-500 pointer-events-none" />
-            <input
-              className="w-full bg-[var(--nyasa-surface-2)] text-white text-sm rounded-xl pl-9 pr-4 py-2 focus:outline-none focus:ring-1 focus:ring-[#25D366] placeholder:text-gray-600"
-              placeholder="Search conversations…"
-              value={search}
-              onChange={e => setSearch(e.target.value)}
-            />
+            {canViewAllChats && (
+              <button onClick={() => { handleLoadDmMembers(); setShowInternalMsg(true); }}
+                className="w-8 h-8 rounded-full bg-[var(--nyasa-surface-2)] flex items-center justify-center hover:bg-[var(--nyasa-surface-4)] transition-colors shrink-0"
+                title="New internal message">
+                <Pencil className="w-4 h-4 text-gray-300" />
+              </button>
+            )}
+            <button onClick={() => setShowNew(true)}
+              className="w-8 h-8 rounded-full bg-[#25D366] flex items-center justify-center hover:bg-[#20BA5A] transition-colors shrink-0">
+              <Plus className="w-4 h-4 text-white" />
+            </button>
           </div>
 
           {/* Status tabs */}
