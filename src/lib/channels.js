@@ -8,6 +8,112 @@ import {
 } from '@/lib/offlineDb';
 import { applyAssignmentRules } from '../../api/_lib/assignRules.js';
 
+// ── Phone number utilities ────────────────────────────────────────────────────
+// Strips all non-digit characters, removes leading zeros, normalises to E.164-ish
+export function normalisePhone(raw) {
+  if (!raw) return null;
+  let digits = String(raw).replace(/[^0-9+]/g, '');
+  // Remove leading + if present for digit comparison
+  const stripped = digits.replace(/^\+/, '');
+  return stripped;
+}
+
+export function phonesMatch(a, b) {
+  if (!a || !b) return false;
+  const na = normalisePhone(a);
+  const nb = normalisePhone(b);
+  // Direct match
+  if (na === nb) return true;
+  // Country code prefix match: 0999... == 265999... (Malawi +265)
+  // Generic: check if one ends with the other (last 9 digits)
+  const short = Math.min(na.length, nb.length);
+  if (short >= 9) {
+    return na.slice(-9) === nb.slice(-9);
+  }
+  return false;
+}
+
+// Import contacts from the browser Contact Picker API (Android Chrome)
+export async function pickPhoneContacts() {
+  if (!navigator.contacts?.select) {
+    throw new Error('Contact Picker API not available on this browser/device');
+  }
+  const props = ['name', 'tel'];
+  const opts  = { multiple: true };
+  const raw = await navigator.contacts.select(props, opts);
+  // Flatten — each entry can have multiple tel values
+  const contacts = [];
+  for (const entry of raw) {
+    const name = (entry.name || [])[0] || '';
+    const tels = entry.tel || [];
+    if (tels.length === 0) {
+      contacts.push({ full_name: name, phone: '' });
+    } else {
+      tels.forEach(tel => contacts.push({ full_name: name, phone: tel }));
+    }
+  }
+  return contacts.filter(c => c.full_name || c.phone);
+}
+
+// Sync a list of phone contacts into Nyasadesk — insert new, skip existing
+export async function syncPhoneContacts(workspaceId, phoneContacts) {
+  const { data: existing, error } = await supabase
+    .from('contacts')
+    .select('phone, full_name')
+    .eq('workspace_id', workspaceId);
+  if (error) throw error;
+
+  const toAdd = [];
+  for (const pc of phoneContacts) {
+    if (!pc.phone) continue;
+    const alreadyExists = (existing || []).some(e => phonesMatch(e.phone, pc.phone));
+    if (!alreadyExists) {
+      toAdd.push({
+        workspace_id: workspaceId,
+        full_name: pc.full_name || pc.phone,
+        phone: pc.phone,
+        channel: 'manual',
+        lead_source: 'phone',
+      });
+    }
+  }
+
+  if (toAdd.length === 0) return { added: 0, skipped: phoneContacts.length };
+
+  const { error: insErr } = await supabase.from('contacts').insert(toAdd);
+  if (insErr) throw insErr;
+  return { added: toAdd.length, skipped: phoneContacts.length - toAdd.length };
+}
+
+// Resolve an unknown phone number to a saved contact (used in inbox)
+export async function resolvePhoneToContact(workspaceId, phone) {
+  if (!phone) return null;
+  const { data, error } = await supabase
+    .from('contacts')
+    .select('*')
+    .eq('workspace_id', workspaceId);
+  if (error || !data) return null;
+  return data.find(c => phonesMatch(c.phone, phone)) || null;
+}
+
+// Auto-link a conversation to a contact by phone number match
+export async function autoLinkConversationContact(workspaceId, conversationId, contactPhone) {
+  const contact = await resolvePhoneToContact(workspaceId, contactPhone);
+  if (!contact) return null;
+  // Update conversation with the found contact_id and correct contact_name
+  const { error } = await supabase
+    .from('conversations')
+    .update({
+      contact_id: contact.id,
+      contact_name: contact.full_name,
+    })
+    .eq('id', conversationId)
+    .is('contact_id', null); // only if not already linked
+  if (error) console.warn('[autoLink] could not update conversation:', error.message);
+  return contact;
+}
+
+
 // ── Channel Configs ──────────────────────────────────────────────────────────
 
 export async function getChannelConfigs(workspaceId) {
@@ -51,7 +157,7 @@ function normalizeConversation(row) {
   const c = row.contact || {};
   return {
     ...row,
-    contact_name: c.full_name || 'Unknown Contact',
+    contact_name: c.full_name || row.contact_name || row.contact_phone || 'Unknown Contact',
     contact_email: c.email || null,
     contact_phone: c.phone || null,
     contact_company: c.company || null,
@@ -1083,6 +1189,62 @@ export async function uploadContactAvatar(workspaceId, contactId, file) {
   await updateContact(contactId, { avatar_url: publicUrl });
   return publicUrl;
 }
+
+// ── Auto-resolve unknown conversation contacts by phone ───────────────────────
+// Call this after loading conversations. It checks any conversation that has
+// a phone number but no linked contact, finds a matching contact by phone,
+// updates the DB row, and returns the enriched conversation list.
+export async function resolveUnknownContacts(workspaceId, conversations) {
+  if (!workspaceId || !conversations?.length) return conversations;
+  try {
+    // Fetch all contacts once for efficiency
+    const { data: allContacts } = await supabase
+      .from('contacts')
+      .select('id, full_name, phone, avatar_url')
+      .eq('workspace_id', workspaceId);
+
+    if (!allContacts?.length) return conversations;
+
+    const updates = [];
+    const resolved = conversations.map(conv => {
+      // Already has a linked contact with a name — skip
+      if (conv.contact_id && conv.contact_name !== 'Unknown Contact') return conv;
+
+      const phone = conv.contact_phone || conv.contact_phone;
+      if (!phone) return conv;
+
+      // Find matching contact
+      const match = allContacts.find(c => phonesMatch(c.phone, phone));
+      if (!match) return conv;
+
+      // Queue a DB update (non-blocking)
+      if (!conv.contact_id) {
+        updates.push(
+          supabase.from('conversations')
+            .update({ contact_id: match.id, contact_name: match.full_name })
+            .eq('id', conv.id)
+            .is('contact_id', null)
+        );
+      }
+
+      return {
+        ...conv,
+        contact_id: match.id,
+        contact_name: match.full_name,
+        contact_avatar_url: match.avatar_url || conv.contact_avatar_url,
+      };
+    });
+
+    // Fire updates in background — don't await
+    if (updates.length) Promise.all(updates).catch(e => console.warn('[resolveUnknown] update err:', e));
+
+    return resolved;
+  } catch (e) {
+    console.warn('[resolveUnknownContacts] error:', e);
+    return conversations;
+  }
+}
+
 
 export async function getContactByPhone(workspaceId, phone) {
   const { data, error } = await supabase
