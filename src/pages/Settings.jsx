@@ -218,6 +218,15 @@ function WhatsAppCard({ saved, workspaceId, onSave, onDelete }) {
       return;
     }
     await loadFacebookSDK();
+    const waitForFB = () => new Promise((resolve) => {
+      if (window.FB) return resolve();
+      const prevInit = window.fbAsyncInit;
+      window.fbAsyncInit = () => {
+        if (prevInit) prevInit();
+        resolve();
+      };
+    });
+    await waitForFB();
     if (!window.FB) { setEmbeddedError('Facebook SDK failed to load. Try refreshing the page.'); return; }
     window.FB.init({ appId: configData.app_id, version: 'v21.0', cookie: true });
 
@@ -225,8 +234,14 @@ function WhatsAppCard({ saved, workspaceId, onSave, onDelete }) {
     window._nyasaWAListener = (e) => {
       try {
         const data = typeof e.data === 'string' ? JSON.parse(e.data) : e.data;
-        if (data?.type === 'WA_EMBEDDED_SIGNUP' && data?.event === 'FINISH') {
-          embeddedSignupDataRef.current = data.data || null;
+        if (data?.type === 'WA_EMBEDDED_SIGNUP') {
+          if (data.data?.waba_id || data.data?.phone_number_id) {
+            embeddedSignupDataRef.current = data.data;
+          } else if (data.waba_id || data.phone_number_id) {
+            embeddedSignupDataRef.current = data;
+          } else if (data.event === 'FINISH' && data.data) {
+            embeddedSignupDataRef.current = data.data;
+          }
         }
       } catch {}
     };
@@ -1134,7 +1149,6 @@ function WebsiteCard({ saved, workspaceId, onSave, onDelete }) {
   );
 }
 
-
 function InstagramCard({ saved, workspaceId, onSave, onDelete }) {
   const [fields, setFields] = useState(saved ? saved.config || {} : {});
   const [saving, setSaving] = useState(false);
@@ -1389,12 +1403,7 @@ export default function Settings() {
       setTimeout(() => setBanner(null), 5000);
     }
     if (searchParams.get("wa") === "check") {
-      // Returning from WasapFlow hosted page — auto-trigger sync
       syncWaba();
-    }
-    if (searchParams.get("wa_error")) {
-      setBanner({ type: "error", msg: "WhatsApp connection failed: " + decodeURIComponent(searchParams.get("wa_error")) });
-      setTimeout(() => setBanner(null), 6000);
     }
   }, [searchParams]);
 

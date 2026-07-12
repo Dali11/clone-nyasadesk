@@ -505,8 +505,24 @@ export async function autoSetup(accessToken, wabaId, phoneNumberId) {
     throw new Error('accessToken, wabaId and phoneNumberId are all required for autoSetup.');
   }
 
-  // Step 1: Get full phone details.
-  const phone = await getPhoneDetails(accessToken, phoneNumberId);
+  // Step 1: Get full phone details with retry mechanism for propagation delays.
+  let phone;
+  let lastError;
+  for (let attempt = 1; attempt <= 4; attempt++) {
+    try {
+      phone = await getPhoneDetails(accessToken, phoneNumberId);
+      break;
+    } catch (err) {
+      lastError = err;
+      if (attempt < 4) {
+        console.warn(`[autoSetup] Failed to get phone details on attempt ${attempt}. Retrying in ${attempt * 1000}ms...`, err);
+        await new Promise((resolve) => setTimeout(resolve, attempt * 1000));
+      }
+    }
+  }
+  if (!phone) {
+    throw new Error(`Failed to fetch phone number details after multiple attempts. Meta may still be processing the registration or there may be a permission delay. Error: ${lastError?.message || 'Unknown error'}`);
+  }
 
   let autoRegistered = false;
   let autoPin = null;
@@ -518,8 +534,19 @@ export async function autoSetup(accessToken, wabaId, phoneNumberId) {
     autoPin = regResult.pin;
   }
 
-  // Step 3: Subscribe webhooks.
-  await subscribeWebhooks(accessToken, wabaId);
+  // Step 3: Subscribe webhooks with retry mechanism for propagation delays.
+  for (let attempt = 1; attempt <= 4; attempt++) {
+    try {
+      await subscribeWebhooks(accessToken, wabaId);
+      break;
+    } catch (err) {
+      if (attempt === 4) {
+        throw new Error(`Failed to subscribe webhooks after multiple attempts. Error: ${err.message || 'Unknown error'}`);
+      }
+      console.warn(`[autoSetup] Failed to subscribe webhooks on attempt ${attempt}. Retrying in ${attempt * 1000}ms...`, err);
+      await new Promise((resolve) => setTimeout(resolve, attempt * 1000));
+    }
+  }
 
   // Step 4: Fetch messaging limits (non-fatal).
   let wabaLimits = null;

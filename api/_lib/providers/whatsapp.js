@@ -264,6 +264,17 @@ export class WhatsAppCloudProvider extends MessagingProvider {
           ...(waType === 'document' && media.filename ? { filename: media.filename } : {}),
         },
       };
+    } else if (message.location) {
+      const loc = message.location;
+      payload = {
+        messaging_product: 'whatsapp', to, type: 'location',
+        location: {
+          latitude: loc.latitude,
+          longitude: loc.longitude,
+          ...(loc.name ? { name: loc.name } : {}),
+          ...(loc.address ? { address: loc.address } : {}),
+        },
+      };
     } else {
       payload = { messaging_product: 'whatsapp', to, type: 'text', text: { body: text } };
     }
@@ -321,20 +332,51 @@ export class WhatsAppCloudProvider extends MessagingProvider {
             body = msg.text?.body || `[${msg.type}]`;
           }
           let attachments = null;
-          const mediaKindMap = { image: 'image', video: 'video', audio: 'audio' };
+          const mediaKindMap = { image: 'image', video: 'video', audio: 'audio', document: 'document', sticker: 'sticker' };
           const mediaKind = mediaKindMap[msg.type];
 
           if (mediaKind && msg[msg.type]?.id) {
             try {
               const mediaResult = await this.fetchMedia(msg[msg.type].id, config, ctx);
               if (mediaResult?.url) {
-                attachments = [mediaResult];
-                body = msg[msg.type]?.caption
-                  || (mediaKind === 'image' ? '📷 Photo' : mediaKind === 'video' ? '🎥 Video' : '🎤 Voice message');
+                if (msg.type === 'document') {
+                  attachments = [{ ...mediaResult, type: 'document', filename: msg.document?.filename || 'document' }];
+                  body = msg.document?.filename || '📎 Document';
+                } else if (msg.type === 'sticker') {
+                  attachments = [{ ...mediaResult, type: 'sticker' }];
+                  body = '🪄 Sticker';
+                } else {
+                  attachments = [mediaResult];
+                  body = msg[msg.type]?.caption
+                    || (mediaKind === 'image' ? '📷 Photo' : mediaKind === 'video' ? '🎥 Video' : '🎤 Voice message');
+                }
               }
             } catch (mediaErr) {
               console.error('WhatsApp media fetch error:', mediaErr);
             }
+          }
+
+          // Location — store as structured attachment so the UI can render a map card
+          if (msg.type === 'location' && msg.location) {
+            const loc = msg.location;
+            attachments = [{
+              type: 'location',
+              latitude: loc.latitude,
+              longitude: loc.longitude,
+              name: loc.name || '',
+              address: loc.address || '',
+              url: `https://maps.google.com/?q=${loc.latitude},${loc.longitude}`,
+            }];
+          }
+
+          // Contacts (vCard) — store first contact as structured attachment
+          if (msg.type === 'contacts' && msg.contacts?.length) {
+            const ct = msg.contacts[0];
+            attachments = [{
+              type: 'contact',
+              name: ct.name?.formatted_name || ct.name?.first_name || 'Contact',
+              phone: ct.phones?.[0]?.phone || '',
+            }];
           }
 
           // Click-to-WhatsApp ad attribution (first-touch)

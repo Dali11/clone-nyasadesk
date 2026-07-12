@@ -1,36 +1,30 @@
 import { useEffect, useState } from 'react';
-import { Loader2, Building2, Users, MessageSquare, DollarSign, TrendingUp, ChevronRight } from 'lucide-react';
+import { Loader2, Building2, Users, MessageSquare, DollarSign, TrendingUp, ChevronRight, Banknote, Zap } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { adminFetch } from '@/lib/adminApi';
 
 const PLAN_LABEL = { starter: 'Starter', growth: 'Growth', scale: 'Scale' };
 
-function StatCard({ icon: Icon, label, value, sub, href }) {
+function StatCard({ icon: Icon, label, value, sub, href, accent }) {
+  const accentCls = accent === 'green'  ? 'text-[#25D366]'
+                  : accent === 'yellow' ? 'text-yellow-400'
+                  : accent === 'indigo' ? 'text-indigo-400'
+                  : 'text-white';
+
   const content = (
     <>
       <div className="flex items-center gap-2 text-gray-400 text-xs font-medium mb-2">
         <Icon className="w-3.5 h-3.5" /> {label}
       </div>
-      <p className="text-2xl font-bold text-white">{value}</p>
+      <p className={`text-2xl font-bold ${accentCls}`}>{value}</p>
       {sub && <p className="text-[11px] text-gray-500 mt-1">{sub}</p>}
     </>
   );
 
-  const className = "block bg-[var(--nyasa-surface-2)] rounded-2xl border border-[var(--nyasa-border)] p-5 transition-colors hover:bg-white/5";
-
-  if (href) {
-    return (
-      <Link to={href} className={className}>
-        {content}
-      </Link>
-    );
-  }
-
-  return (
-    <div className="bg-[var(--nyasa-surface-2)] rounded-2xl border border-[var(--nyasa-border)] p-5">
-      {content}
-    </div>
-  );
+  const cls = "block bg-[var(--nyasa-surface-2)] rounded-2xl border border-[var(--nyasa-border)] p-5 transition-colors hover:bg-white/5";
+  return href
+    ? <Link to={href} className={cls}>{content}</Link>
+    : <div className={cls}>{content}</div>;
 }
 
 export default function AdminOverview() {
@@ -62,6 +56,7 @@ export default function AdminOverview() {
   }
 
   const { totals, plan_breakdown, recent_workspaces } = data;
+  const convRate = totals.conversion_rate ?? null;
 
   return (
     <div>
@@ -70,11 +65,36 @@ export default function AdminOverview() {
         <p className="text-xs md:text-sm text-gray-400">Platform-wide stats across all Nyasadesk workspaces</p>
       </div>
 
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-8">
-        <StatCard icon={Building2} label="Workspaces" value={totals.workspaces} href="/admin/workspaces" />
-        <StatCard icon={Users} label="Users" value={totals.users} href="/admin/workspaces" />
+      {/* Row 1: workspace/user/conversation stats */}
+      <div className="grid grid-cols-2 md:grid-cols-3 gap-3 mb-3">
+        <StatCard icon={Building2}    label="Workspaces"    value={totals.workspaces} href="/admin/workspaces" />
+        <StatCard icon={Users}        label="Users"         value={totals.users}      href="/admin/workspaces" />
         <StatCard icon={MessageSquare} label="Conversations" value={totals.conversations} sub={`${totals.messages} messages`} />
-        <StatCard icon={DollarSign} label="Est. MRR (MWK)" value={`K${totals.mrr.toLocaleString()}`} />
+      </div>
+
+      {/* Row 2: Revenue split */}
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-3 mb-8">
+        <StatCard
+          icon={Banknote}
+          label="Locked MRR"
+          value={`K${(totals.mrr_locked ?? 0).toLocaleString()}`}
+          sub={`${totals.active_count ?? 0} paying workspace${totals.active_count !== 1 ? 's' : ''}`}
+          accent="green"
+        />
+        <StatCard
+          icon={Zap}
+          label="Pipeline MRR"
+          value={`K${(totals.mrr_pipeline ?? 0).toLocaleString()}`}
+          sub={`${totals.trial_count ?? 0} trial${totals.trial_count !== 1 ? 's' : ''} in progress`}
+          accent="yellow"
+        />
+        <StatCard
+          icon={DollarSign}
+          label="Trial → Paid Rate"
+          value={convRate !== null ? `${convRate}%` : '—'}
+          sub="of trialing + active workspaces"
+          accent="indigo"
+        />
       </div>
 
       <div className="bg-[var(--nyasa-surface-2)] rounded-2xl border border-[var(--nyasa-border)] p-5 mb-8">

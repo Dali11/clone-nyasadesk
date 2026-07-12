@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef, Fragment } from 'react';
 import { Send, StickyNote, Loader2, Check, CheckCheck, X, Zap, Bot, Sparkles, Paperclip, Mic, Square, Play, Pause,
-         ChevronDown, Copy, Share2, Pin, PinOff, Trash2, Ban, Reply, Palette, Download, Maximize2 } from 'lucide-react';
+         ChevronDown, Copy, Share2, Forward, MapPin, FileText, Pin, PinOff, Trash2, Ban, Reply, Palette, Download, Maximize2 } from 'lucide-react';
 import { formatDistanceToNow, isToday, isYesterday, format as formatDate } from 'date-fns';
 import { motion, AnimatePresence } from 'framer-motion';
 import { getMessages, sendMessage, sendMediaMessage, addNote, deleteMessage, setMessagePinned, subscribeToMessages, getCannedResponses, setChatBackground, getAiAgents, generateAiDraft } from '@/lib/channels';
@@ -195,6 +195,7 @@ function AudioPlayer({ url }) {
 
 function MediaAttachment({ att, onOpen }) {
   if (!att) return null;
+
   if (att.type === 'image') return (
     <button type="button" onClick={() => onOpen?.(att)} className="group relative block mb-1 rounded-lg overflow-hidden">
       <img src={att.url} alt="attachment" className="rounded-lg max-w-[240px] max-h-[240px] object-cover" />
@@ -203,6 +204,7 @@ function MediaAttachment({ att, onOpen }) {
       </span>
     </button>
   );
+
   if (att.type === 'video') return (
     <button type="button" onClick={() => onOpen?.(att)} className="group relative block mb-1 rounded-lg overflow-hidden max-w-[240px]">
       <video src={att.url} className="rounded-lg max-w-[240px] max-h-[240px] w-full pointer-events-none" />
@@ -213,7 +215,58 @@ function MediaAttachment({ att, onOpen }) {
       </span>
     </button>
   );
+
   if (att.type === 'audio') return <AudioPlayer url={att.url} />;
+
+  if (att.type === 'document') {
+    const ext = att.filename ? att.filename.split('.').pop().toUpperCase() : 'FILE';
+    const EXT_ICON = { PDF: '📄', DOC: '📝', DOCX: '📝', XLS: '📊', XLSX: '📊', PPT: '📋', PPTX: '📋', CSV: '📊', TXT: '📝', ZIP: '🗜️' };
+    const icon = EXT_ICON[ext] || '📎';
+    return (
+      <a href={att.url} target="_blank" rel="noopener noreferrer" download={att.filename}
+         className="flex items-center gap-3 mb-1 p-3 rounded-lg bg-black/10 hover:bg-black/20 transition-colors min-w-[180px] max-w-[240px]">
+        <span className="text-2xl shrink-0">{icon}</span>
+        <div className="min-w-0 flex-1">
+          <p className="text-xs font-semibold truncate">{att.filename || 'Document'}</p>
+          <p className="text-[10px] text-gray-500 mt-0.5">{ext} · Tap to open</p>
+        </div>
+        <Download className="w-4 h-4 shrink-0 text-[#128C7E]" />
+      </a>
+    );
+  }
+
+  if (att.type === 'sticker') return (
+    <img src={att.url} alt="sticker" className="w-28 h-28 object-contain mb-1" />
+  );
+
+  if (att.type === 'contact') return (
+    <div className="flex items-center gap-2 mb-1 p-2.5 rounded-lg bg-black/10 min-w-[160px] max-w-[220px]">
+      <div className="w-8 h-8 rounded-full bg-[#128C7E]/30 flex items-center justify-center text-sm font-bold text-[#128C7E] shrink-0">
+        {(att.name || '?')[0].toUpperCase()}
+      </div>
+      <div className="min-w-0">
+        <p className="text-xs font-semibold truncate">{att.name || 'Contact'}</p>
+        {att.phone && <p className="text-[10px] text-gray-500">{att.phone}</p>}
+      </div>
+    </div>
+  );
+
+  if (att.type === 'location') return (
+    <a href={`https://maps.google.com/?q=${att.latitude},${att.longitude}`}
+       target="_blank" rel="noopener noreferrer"
+       className="flex items-center gap-2.5 mb-1 p-2.5 rounded-lg bg-black/10 hover:bg-black/20 transition-colors min-w-[180px] max-w-[240px]">
+      <MapPin className="w-8 h-8 text-[#25D366] shrink-0" />
+      <div className="min-w-0">
+        {att.name && <p className="text-xs font-semibold truncate">{att.name}</p>}
+        {att.address && <p className="text-[11px] text-gray-500 truncate">{att.address}</p>}
+        {!att.name && !att.address && (
+          <p className="text-xs font-semibold">{Number(att.latitude).toFixed(4)}, {Number(att.longitude).toFixed(4)}</p>
+        )}
+        <p className="text-[10px] text-[#128C7E] mt-0.5">Open in Maps ↗</p>
+      </div>
+    </a>
+  );
+
   return null;
 }
 
@@ -258,10 +311,101 @@ function MediaLightbox({ att, onClose }) {
   );
 }
 
+// ── Forward Message Modal ────────────────────────────────────────────────────
+// Lets the agent forward any message to another conversation in the workspace.
+function ForwardModal({ msg, workspaceId, onClose }) {
+  const [query, setQuery] = useState('');
+  const [convs, setConvs] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [sending, setSending] = useState(null);
+  const [done, setDone] = useState(null);
+
+  useEffect(() => {
+    if (!workspaceId) return;
+    fetch(`/api/channels?action=list_conversations&workspace_id=${workspaceId}`)
+      .then(r => r.json())
+      .then(d => setConvs(d.conversations || []))
+      .catch(() => {})
+      .finally(() => setLoading(false));
+  }, [workspaceId]);
+
+  const filtered = convs.filter(c => {
+    if (!query.trim()) return true;
+    const q = query.toLowerCase();
+    return (c.contact_name || '').toLowerCase().includes(q) || (c.channel || '').toLowerCase().includes(q);
+  });
+
+  const forward = async (target) => {
+    setSending(target.id);
+    try {
+      await fetch('/api/channels', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          action: 'send_message',
+          workspace_id: workspaceId,
+          conversation_id: target.id,
+          channel: target.channel,
+          message: msg.body || '',
+          ...(msg.attachments?.[0] ? { media_url: msg.attachments[0].url, media_type: msg.attachments[0].type } : {}),
+        }),
+      });
+      setDone(target.contact_name || 'conversation');
+      setTimeout(onClose, 1500);
+    } catch {
+      setSending(null);
+    }
+  };
+
+  return (
+    <div className="fixed inset-0 z-[90] bg-black/60 flex items-center justify-center p-4" onClick={onClose}>
+      <div className="bg-[var(--nyasa-surface-2)] rounded-2xl w-full max-w-sm shadow-2xl border border-[var(--nyasa-border)]"
+           onClick={e => e.stopPropagation()}>
+        <div className="flex items-center justify-between px-4 py-3 border-b border-[var(--nyasa-border)]">
+          <p className="text-sm font-semibold text-white flex items-center gap-2">
+            <Forward className="w-4 h-4 text-[#25D366]" />Forward to…
+          </p>
+          <button onClick={onClose} className="text-gray-500 hover:text-white transition-colors"><X className="w-4 h-4" /></button>
+        </div>
+        <div className="p-3">
+          <input
+            autoFocus
+            value={query}
+            onChange={e => setQuery(e.target.value)}
+            placeholder="Search conversations…"
+            className="w-full bg-[var(--nyasa-surface-4)] text-white text-sm rounded-lg px-3 py-2 focus:outline-none focus:ring-1 focus:ring-[#25D366] placeholder:text-gray-600"
+          />
+        </div>
+        <div className="max-h-64 overflow-y-auto px-2 pb-3" style={{ scrollbarWidth: 'thin' }}>
+          {loading && <p className="text-xs text-gray-500 text-center py-4">Loading…</p>}
+          {done && <p className="text-xs text-[#25D366] text-center py-4 font-medium">✓ Forwarded to {done}</p>}
+          {!loading && !done && filtered.map(c => (
+            <button key={c.id} onClick={() => forward(c)}
+              disabled={!!sending}
+              className="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl hover:bg-white/5 transition-colors text-left disabled:opacity-60">
+              <div className="w-8 h-8 rounded-full bg-[#25D366]/20 flex items-center justify-center text-sm font-bold text-[#25D366] shrink-0">
+                {(c.contact_name || '?')[0].toUpperCase()}
+              </div>
+              <div className="min-w-0 flex-1">
+                <p className="text-sm font-medium text-white truncate">{c.contact_name || 'Unknown'}</p>
+                <p className="text-[10px] text-gray-500 capitalize">{c.channel}</p>
+              </div>
+              {sending === c.id && <Loader2 className="w-3.5 h-3.5 text-[#25D366] animate-spin shrink-0" />}
+            </button>
+          ))}
+          {!loading && !done && !filtered.length && (
+            <p className="text-xs text-gray-600 text-center py-4">No conversations found</p>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
 // WhatsApp-style action menu: a small always-reachable "chevron" button, a
 // long-press (pointer-hold) on the bubble itself, and right-click on desktop
 // all open the same dropdown — Copy / Share / Pin / Delete.
-function MessageActionsMenu({ msg, isOut, open, onOpenChange, onCopy, onShare, onTogglePin, onDelete, onReply }) {
+function MessageActionsMenu({ msg, isOut, open, onOpenChange, onCopy, onShare, onForward, onTogglePin, onDelete, onReply }) {
   return (
     <DropdownMenu open={open} onOpenChange={onOpenChange}>
       <DropdownMenuTrigger asChild>
@@ -284,8 +428,11 @@ function MessageActionsMenu({ msg, isOut, open, onOpenChange, onCopy, onShare, o
             <Copy className="w-3.5 h-3.5" />Copy
           </DropdownMenuItem>
         )}
+        <DropdownMenuItem onClick={onForward} className="text-xs gap-2 hover:bg-white/10 focus:bg-white/10 cursor-pointer">
+          <Forward className="w-3.5 h-3.5" />Forward
+        </DropdownMenuItem>
         <DropdownMenuItem onClick={onShare} className="text-xs gap-2 hover:bg-white/10 focus:bg-white/10 cursor-pointer">
-          <Share2 className="w-3.5 h-3.5" />Share
+          <Share2 className="w-3.5 h-3.5" />Share externally
         </DropdownMenuItem>
         <DropdownMenuItem onClick={onTogglePin} className="text-xs gap-2 hover:bg-white/10 focus:bg-white/10 cursor-pointer">
           {msg.pinned ? <><PinOff className="w-3.5 h-3.5" />Unpin</> : <><Pin className="w-3.5 h-3.5" />Pin</>}
@@ -299,7 +446,7 @@ function MessageActionsMenu({ msg, isOut, open, onOpenChange, onCopy, onShare, o
   );
 }
 
-function Bubble({ msg, menuOpenId, onOpenMenu, onCopy, onShare, onDelete, onTogglePin, onReply, onJumpToReply, bubbleRef, onOpenMedia }) {
+function Bubble({ msg, menuOpenId, onOpenMenu, onCopy, onShare, onForward, onDelete, onTogglePin, onReply, onJumpToReply, bubbleRef, onOpenMedia }) {
   const isNote     = msg.direction === 'note';
   const isActivity = msg.direction === 'activity';
   const isOut      = msg.direction === 'outbound';
@@ -344,7 +491,7 @@ function Bubble({ msg, menuOpenId, onOpenMenu, onCopy, onShare, onDelete, onTogg
         {!isDeleted && (
           <MessageActionsMenu msg={msg} isOut={false} open={menuOpen}
             onOpenChange={v => onOpenMenu(v ? msg.id : null)}
-            onCopy={() => onCopy(msg)} onShare={() => onShare(msg)}
+            onCopy={() => onCopy(msg)} onShare={() => onShare(msg)} onForward={() => onForward(msg)}
             onTogglePin={() => onTogglePin(msg)} onDelete={() => onDelete(msg)}
             onReply={() => onReply(msg)} />
         )}
@@ -420,7 +567,7 @@ function Bubble({ msg, menuOpenId, onOpenMenu, onCopy, onShare, onDelete, onTogg
         {!isDeleted && (
           <MessageActionsMenu msg={msg} isOut={isOut} open={menuOpen}
             onOpenChange={v => onOpenMenu(v ? msg.id : null)}
-            onCopy={() => onCopy(msg)} onShare={() => onShare(msg)}
+            onCopy={() => onCopy(msg)} onShare={() => onShare(msg)} onForward={() => onForward(msg)}
             onTogglePin={() => onTogglePin(msg)} onDelete={() => onDelete(msg)}
             onReply={() => onReply(msg)} />
         )}
@@ -440,6 +587,8 @@ export default function MessageThread({ conversation, workspaceId }) {
   const [tab, setTab]             = useState('reply'); // reply | note
   const [sending, setSending]     = useState(false);
   const [uploading, setUploading] = useState(false);
+  const [showLocationSender, setShowLocationSender] = useState(false);
+  const [locationForm, setLocationForm] = useState({ lat: '', lng: '', name: '' });
   const [showCanned, setShowCanned] = useState(false);
   const [recording, setRecording] = useState(false);
   const [recordSecs, setRecordSecs] = useState(0);
@@ -448,6 +597,7 @@ export default function MessageThread({ conversation, workspaceId }) {
   const [showAiPicker, setShowAiPicker] = useState(false);
   const [aiDrafting, setAiDrafting] = useState(false);
   const [menuOpenId, setMenuOpenId] = useState(null);
+  const [forwardMsg, setForwardMsg] = useState(null);
   const [replyingTo, setReplyingTo] = useState(null);
   const [lightboxMedia, setLightboxMedia] = useState(null); // { url, type } or null
   const bottomRef = useRef(null);
@@ -617,7 +767,7 @@ export default function MessageThread({ conversation, workspaceId }) {
     const localUrl = URL.createObjectURL(file);
     setMessages(prev => [...prev, {
       id: tempId, conversation_id: conversation.id, direction: 'outbound',
-      body: kind === 'image' ? '📷 Photo' : kind === 'video' ? '🎥 Video' : '🎤 Voice message',
+      body: kind === 'image' ? '📷 Photo' : kind === 'video' ? '🎥 Video' : kind === 'audio' ? '🎤 Voice message' : '📎 Document',
       channel: conversation.channel, sender_name: user?.full_name || 'You', status: 'sending',
       created_at: new Date().toISOString(), attachments: [{ url: localUrl, type: kind }],
     }]);
@@ -634,11 +784,37 @@ export default function MessageThread({ conversation, workspaceId }) {
 
   // Queue for multi-file uploads — processes files one at a time so the
   // UI shows each optimistic bubble before the next upload starts.
+  const handleSendLocation = async () => {
+    const { lat, lng, name } = locationForm;
+    if (!lat || !lng) return;
+    setShowLocationSender(false);
+    setLocationForm({ lat: '', lng: '', name: '' });
+    try {
+      await fetch('/api/channels', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          action: 'send_message',
+          workspace_id: workspaceId,
+          conversation_id: conversation.id,
+          channel: conversation.channel,
+          message_type: 'location',
+          location: { latitude: parseFloat(lat), longitude: parseFloat(lng), name: name || undefined },
+        }),
+      });
+    } catch (e) {
+      console.error('[sendLocation]', e);
+    }
+  };
+
   const sendMediaQueue = async (files) => {
     setUploading(true);
     try {
       for (const file of files) {
-        const kind = file.type.startsWith('video/') ? 'video' : 'image';
+        const kind = file.type.startsWith('video/') ? 'video'
+                     : file.type.startsWith('audio/') ? 'audio'
+                     : file.type.startsWith('image/') ? 'image'
+                     : 'document';
         await handleSendMedia(file, kind);
       }
     } finally {
@@ -694,6 +870,10 @@ export default function MessageThread({ conversation, workspaceId }) {
   const handleCopyMessage = (msg) => {
     const text = msg.body || msg.attachments?.[0]?.url || '';
     if (text) navigator.clipboard?.writeText(text).catch(() => {});
+  };
+
+  const handleForwardMessage = (msg) => {
+    setForwardMsg(msg);
   };
 
   const handleShareMessage = async (msg) => {
@@ -809,6 +989,7 @@ export default function MessageThread({ conversation, workspaceId }) {
                   onOpenMenu={setMenuOpenId}
                   onCopy={handleCopyMessage}
                   onShare={handleShareMessage}
+                  onForward={handleForwardMessage}
                   onTogglePin={handleTogglePinMessage}
                   onDelete={handleDeleteMessage}
                   onReply={handleReplyMessage}
@@ -928,11 +1109,34 @@ export default function MessageThread({ conversation, workspaceId }) {
           </div>
         ) : (
           <div className="flex items-end gap-2">
-            <input ref={fileInputRef} type="file" accept="image/*,video/*" multiple className="hidden" onChange={onFilePicked} />
+            <input ref={fileInputRef} type="file" accept="image/*,video/*,audio/*,application/pdf,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document,application/vnd.ms-excel,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,text/plain,text/csv" multiple className="hidden" onChange={onFilePicked} />
             <button onClick={() => fileInputRef.current?.click()} disabled={uploading || tab === 'note'}
               className="w-10 h-10 rounded-full flex items-center justify-center shrink-0 text-gray-400 hover:text-gray-200 hover:bg-white/5 transition-colors disabled:opacity-30">
               <Paperclip className="w-4.5 h-4.5" />
             </button>
+            {conversation.channel === 'whatsapp' && tab !== 'note' && (
+              <div className="relative">
+                <button onClick={() => setShowLocationSender(s => !s)} disabled={uploading}
+                  className="w-10 h-10 rounded-full flex items-center justify-center shrink-0 text-gray-400 hover:text-gray-200 hover:bg-white/5 transition-colors disabled:opacity-30">
+                  <MapPin className="w-4 h-4" />
+                </button>
+                {showLocationSender && (
+                  <div className="absolute bottom-12 left-0 bg-[var(--nyasa-surface-2)] border border-[var(--nyasa-border)] rounded-xl p-3 z-50 w-56 shadow-xl">
+                    <p className="text-xs font-semibold text-white mb-2 flex items-center gap-1.5"><MapPin className="w-3.5 h-3.5 text-[#25D366]" />Send Location</p>
+                    <input value={locationForm.lat} onChange={e => setLocationForm(f => ({ ...f, lat: e.target.value }))}
+                      placeholder="Latitude" className="w-full bg-[var(--nyasa-surface-4)] text-white text-xs rounded-lg px-2.5 py-1.5 mb-1.5 focus:outline-none focus:ring-1 focus:ring-[#25D366] placeholder:text-gray-600" />
+                    <input value={locationForm.lng} onChange={e => setLocationForm(f => ({ ...f, lng: e.target.value }))}
+                      placeholder="Longitude" className="w-full bg-[var(--nyasa-surface-4)] text-white text-xs rounded-lg px-2.5 py-1.5 mb-1.5 focus:outline-none focus:ring-1 focus:ring-[#25D366] placeholder:text-gray-600" />
+                    <input value={locationForm.name} onChange={e => setLocationForm(f => ({ ...f, name: e.target.value }))}
+                      placeholder="Name / label (optional)" className="w-full bg-[var(--nyasa-surface-4)] text-white text-xs rounded-lg px-2.5 py-1.5 mb-2 focus:outline-none placeholder:text-gray-600" />
+                    <button onClick={handleSendLocation} disabled={!locationForm.lat || !locationForm.lng}
+                      className="w-full bg-[#25D366] hover:bg-[#22c55e] disabled:opacity-40 text-white text-xs font-semibold rounded-lg py-1.5 transition-colors">
+                      Send
+                    </button>
+                  </div>
+                )}
+              </div>
+            )}
             <textarea
               ref={inputRef}
               rows={1}
@@ -960,6 +1164,13 @@ export default function MessageThread({ conversation, workspaceId }) {
       </div>
 
       {lightboxMedia && <MediaLightbox att={lightboxMedia} onClose={() => setLightboxMedia(null)} />}
+      {forwardMsg && (
+        <ForwardModal
+          msg={forwardMsg}
+          workspaceId={workspaceId}
+          onClose={() => setForwardMsg(null)}
+        />
+      )}
     </div>
   );
 }

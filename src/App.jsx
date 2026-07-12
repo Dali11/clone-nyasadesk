@@ -43,6 +43,7 @@ import DataDeletion    from './pages/DataDeletion';
 import SupportPage     from './pages/SupportPage';
 import MyCommissions    from './pages/MyCommissions';
 import AdminCommissions from './pages/admin/AdminCommissions';
+import AdminUsers      from './pages/admin/AdminUsers';
 import { LockKeyhole } from 'lucide-react';
 import InstallPrompt from './components/InstallPrompt';
 import { supabase } from '@/lib/supabase';
@@ -192,6 +193,7 @@ function AppRoutes() {
         <Route path="transactions" element={<AdminTransactions />} />
         <Route path="audit-log"   element={<AdminAuditLog />} />
         <Route path="commissions" element={<AdminCommissions />} />
+        <Route path="users"       element={<AdminUsers />} />
       </Route>
       {/* Redirect /login and /register back to inbox when already logged in */}
       <Route path="/login"      element={<Navigate to="/" replace />} />

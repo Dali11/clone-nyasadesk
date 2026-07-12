@@ -27,6 +27,7 @@ export default async function handler(req, res) {
   if (resource === 'ai-usage') return handleAiUsage(req, res, sb);
   if (resource === 'audit-log') return handleAuditLog(req, res, sb);
   if (resource === 'workspace-detail') return handleWorkspaceDetail(req, res, sb);
+  if (resource === 'users') return handleUsers(req, res, sb, admin);
   return handleWorkspaces(req, res, sb, admin);
 }
 
@@ -161,13 +162,36 @@ async function handleOverview(req, res, sb) {
     const plan_breakdown = {};
     for (const key of Object.keys(PLAN_LIMITS)) plan_breakdown[key] = { count: 0, mrr: 0 };
 
-    let mrr = 0;
+    // Split revenue: locked = paid workspaces (active + past_due, already
+    // converted and committed). Pipeline = trialing workspaces (potential
+    // revenue if they convert, NOT yet real MRR). past_due is treated as
+    // locked because they already converted — it's a collections issue, not
+    // a pre-conversion pipeline issue.
+    let mrr_locked = 0;
+    let mrr_pipeline = 0;
+    let trial_count = 0;
+    let active_count = 0;
+
     for (const o of owners) {
       const plan = plan_breakdown[o.plan] ? o.plan : 'starter';
+      const price = livePricing.pricing[plan] || 0;
       plan_breakdown[plan].count += 1;
-      plan_breakdown[plan].mrr += livePricing.pricing[plan] || 0;
-      mrr += livePricing.pricing[plan] || 0;
+      plan_breakdown[plan].mrr += price;
+
+      const status = o.subscription_status || 'trialing';
+      if (status === 'active' || status === 'past_due') {
+        mrr_locked += price;
+        active_count += 1;
+      } else if (status === 'trialing') {
+        mrr_pipeline += price;
+        trial_count += 1;
+      }
+      // canceled/suspended: excluded from both (no revenue)
     }
+
+    const conversion_rate = (trial_count + active_count) > 0
+      ? Math.round((active_count / (trial_count + active_count)) * 100)
+      : 0;
 
     const recent_workspaces = [...owners]
       .sort((a, b) => new Date(b.updated_at || 0) - new Date(a.updated_at || 0))
@@ -179,7 +203,12 @@ async function handleOverview(req, res, sb) {
         users: usersRes.count || 0,
         conversations: convRes.count || 0,
         messages: msgRes.count || 0,
-        mrr,
+        mrr: mrr_locked + mrr_pipeline,   // legacy field — kept for back-compat
+        mrr_locked,
+        mrr_pipeline,
+        trial_count,
+        active_count,
+        conversion_rate,
       },
       plan_breakdown,
       recent_workspaces,
@@ -461,4 +490,97 @@ async function handleWorkspaceDetail(req, res, sb) {
     console.error('[admin/workspace-detail] GET error:', e);
     return res.status(500).json({ error: e.message || 'Internal server error' });
   }
+}
+
+// ── Users (?resource=users) ───────────────────────────────────────────────
+// Individual user management across all workspaces.
+// GET  — list all profiles with workspace info
+// POST — { action: 'reset_password', user_id, email } — send reset email
+// DELETE — { user_id } — delete the user (cannot delete platform admins)
+async function handleUsers(req, res, sb, admin) {
+  if (req.method === 'GET') {
+    try {
+      const { data: profiles, error } = await sb
+        .from('profiles')
+        .select('id, full_name, workspace_id, workspace_name, role, created_at')
+        .order('created_at', { ascending: false });
+      if (error) throw error;
+
+      // Resolve email from auth.users for each profile
+      const { data: adminEmails } = await sb
+        .from('platform_admin_emails')
+        .select('email');
+      const adminEmailSet = new Set((adminEmails || []).map(r => r.email));
+
+      const users = await Promise.all((profiles || []).map(async (p) => {
+        const { data: authUser } = await sb.auth.admin.getUserById(p.id).catch(() => ({ data: null }));
+        // For teammates, look up their owner's workspace_name
+        let workspaceName = p.workspace_name;
+        if (!workspaceName && p.workspace_id) {
+          const { data: owner } = await sb.from('profiles').select('workspace_name, full_name').eq('id', p.workspace_id).maybeSingle();
+          workspaceName = owner?.workspace_name || owner?.full_name || null;
+        }
+        const email = authUser?.user?.email || null;
+        return {
+          id:                p.id,
+          full_name:         p.full_name || null,
+          email,
+          role:              p.role || (p.workspace_id ? 'agent' : 'owner'),
+          workspace_id:      p.workspace_id || p.id,
+          workspace_name:    workspaceName || null,
+          joined_at:         authUser?.user?.created_at || p.created_at,
+          is_platform_admin: email ? adminEmailSet.has(email) : false,
+        };
+      }));
+
+      return res.status(200).json({ users });
+    } catch (e) {
+      console.error('[admin/users] GET error:', e);
+      return res.status(500).json({ error: e.message || 'Internal server error' });
+    }
+  }
+
+  if (req.method === 'POST') {
+    const { action, user_id, email } = req.body || {};
+    if (action === 'reset_password') {
+      if (!email) return res.status(400).json({ error: 'email is required' });
+      try {
+        const { error } = await sb.auth.admin.generateLink({
+          type: 'recovery',
+          email,
+          options: { redirectTo: 'https://nyasadesk.com/reset-password' },
+        });
+        if (error) throw error;
+        await logAudit(sb, admin, 'user_password_reset', user_id, { email });
+        return res.status(200).json({ success: true });
+      } catch (e) {
+        console.error('[admin/users] reset_password error:', e);
+        return res.status(500).json({ error: e.message || 'Failed to send reset email' });
+      }
+    }
+    return res.status(400).json({ error: 'Unknown action' });
+  }
+
+  if (req.method === 'DELETE') {
+    const { user_id } = req.body || {};
+    if (!user_id) return res.status(400).json({ error: 'user_id is required' });
+    try {
+      // Safety: cannot delete platform admins
+      const { data: authUser } = await sb.auth.admin.getUserById(user_id);
+      const email = authUser?.user?.email;
+      if (email) {
+        const { data: adminRow } = await sb.from('platform_admin_emails').select('email').eq('email', email).maybeSingle();
+        if (adminRow) return res.status(403).json({ error: 'Cannot remove platform admins' });
+      }
+      const { error } = await sb.auth.admin.deleteUser(user_id);
+      if (error) throw error;
+      await logAudit(sb, admin, 'user_deleted', user_id, { email });
+      return res.status(200).json({ success: true });
+    } catch (e) {
+      console.error('[admin/users] DELETE error:', e);
+      return res.status(500).json({ error: e.message || 'Failed to remove user' });
+    }
+  }
+
+  return res.status(405).json({ error: 'Method not allowed' });
 }

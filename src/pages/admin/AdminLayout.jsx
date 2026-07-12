@@ -1,6 +1,7 @@
 import { Outlet, Link, useLocation, useNavigate } from 'react-router-dom';
 import { useEffect, useState } from 'react';
-import { ShieldCheck, LayoutGrid, Building2, Users2, DollarSign, ArrowLeftCircle, AlertTriangle, Bot, Receipt, ScrollText, MoreHorizontal } from 'lucide-react';
+import { ShieldCheck, LayoutGrid, Building2, Users2, UserCog, DollarSign, ArrowLeftCircle, AlertTriangle, Bot, Receipt, ScrollText, MoreHorizontal } from 'lucide-react';
+import GodModeBanner from '@/components/GodModeBanner';
 import { useNyasaAuth } from '@/lib/NyasaAuth';
 import { useDocumentTitle } from '@/hooks/useDocumentTitle';
 import { Sheet, SheetContent, SheetTrigger } from '@/components/ui/sheet';
@@ -11,6 +12,7 @@ import { Sheet, SheetContent, SheetTrigger } from '@/components/ui/sheet';
 const ADMIN_NAV = [
   { path: '/admin',             icon: LayoutGrid,   label: 'Overview',   end: true },
   { path: '/admin/workspaces',  icon: Building2,    label: 'Workspaces' },
+  { path: '/admin/users',        icon: UserCog,      label: 'Users'      },
   { path: '/admin/churn',       icon: AlertTriangle, label: 'Churn'      },
   { path: '/admin/ai-usage',    icon: Bot,          label: 'AI Usage'   },
   { path: '/admin/transactions', icon: Receipt,     label: 'Transactions' },
@@ -42,6 +44,8 @@ export default function AdminLayout() {
   if (!isPlatformAdmin) return null;
 
   return (
+    <>
+    <GodModeBanner />
     <div className="flex h-screen overflow-hidden bg-[var(--nyasa-surface-1)] pt-14 md:pt-0 pb-[56px] md:pb-0">
       {/* ── Desktop rail ─────────────────────────────────────────────── */}
       <div className="hidden lg:flex w-64 flex-col shrink-0 bg-[var(--nyasa-surface-1)] border-r border-[var(--nyasa-border)]">
@@ -151,5 +155,6 @@ export default function AdminLayout() {
         </div>
       </div>
     </div>
+    </>
   );
 }

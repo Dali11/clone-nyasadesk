@@ -7,8 +7,8 @@
 //  - Inline reply from notification bar
 //  - Badge icon support
 
-const STATIC_CACHE  = 'nyasadesk-static-v7';   // versioned static assets
-const DYNAMIC_CACHE = 'nyasadesk-dynamic-v7';   // runtime HTML pages
+const STATIC_CACHE  = 'nyasadesk-static-v8';   // versioned static assets
+const DYNAMIC_CACHE = 'nyasadesk-dynamic-v8';   // runtime HTML pages
 const SECRET_CACHE  = 'nyasa-sw-secrets-v1';    // inline reply secret
 const NOTIF_REPLY_ENDPOINT = '/api/team?action=notif-reply';
 
@@ -280,6 +280,9 @@ self.addEventListener('message', (event) => {
 });
 
 // ── Notification click ─────────────────────────────────────────────────────
+// v8 fix: focus() BEFORE postMessage (window must be active to receive it),
+// and fall back to openWindow() which navigates directly — no postMessage
+// needed for a fresh window. Also: open action on summary notif handled.
 self.addEventListener('notificationclick', (event) => {
   event.notification.close();
 
@@ -290,29 +293,30 @@ self.addEventListener('notificationclick', (event) => {
   const relativeUrl = event.notification.data?.url || '/inbox';
   const targetUrl   = relativeUrl.startsWith('http')
     ? relativeUrl
-    : self.location.origin + relativeUrl;
+    : new URL(relativeUrl, self.location.origin).href;
 
   event.waitUntil((async () => {
     try {
       const all = await self.clients.matchAll({ type: 'window', includeUncontrolled: true });
 
-      // Prefer an existing focused window on our origin
+      // Prefer an existing window on our origin
       const existing = all.find(c =>
         c.url.startsWith(self.location.origin) && 'focus' in c
       );
 
       if (existing) {
-        // Use postMessage to drive navigation — more reliable than client.navigate()
-        // which can silently fail cross-origin or on non-WindowClients
+        // Focus first — window must be active before it can receive postMessage
+        await existing.focus();
+        // Then tell React Router to navigate without a full reload
         existing.postMessage({ type: 'NOTIF_NAVIGATE', url: targetUrl });
-        return existing.focus();
+        return;
       }
 
-      // No existing window — open a new one
+      // No existing window — openWindow navigates directly, no postMessage needed
       return self.clients.openWindow(targetUrl);
     } catch (e) {
       // Last resort: open a new window
-      return self.clients.openWindow(targetUrl);
+      try { return self.clients.openWindow(targetUrl); } catch (_) {}
     }
   })());
 });

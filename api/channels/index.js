@@ -25,7 +25,6 @@ import { jsPDF } from 'jspdf';
 const SUPABASE_URL = 'https://pfbaepibelomiutlotkn.supabase.co';
 const SUPABASE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY;
 const PROD_URL = 'https://nyasadesk.com';
-const BRIDGE_API = 'https://officialapi.wasapflow.com/bridge/v1';
 
 export default async function handler(req, res) {
   // AI Agents actions live here too -- api/ is hard-capped at 12 files on
@@ -34,7 +33,6 @@ export default async function handler(req, res) {
   // api/_lib/aiAgents.js, this file just dispatches.
   // Quotation/Invoice Builder actions live here too, same reasoning as AI
   // Agents above -- logic itself lives in api/_lib/documents.js.
-  const getActions = ['hosted-connect', 'templates', 'ai-agents-list', 'ai-templates',
     'doc-settings-get', 'quotation-list', 'quotation-get', 'invoice-list', 'invoice-get',
     'sales-list', 'sales-commission-report', 'gmail-oauth-url'];
   if (req.method !== 'POST' && !getActions.includes(req.query.action)) return res.status(405).json({ error: 'Method Not Allowed' });
@@ -44,10 +42,6 @@ export default async function handler(req, res) {
   if (action === 'connect')        return handleConnect(req, res);
   if (action === 'disconnect')     return handleDisconnect(req, res);
   if (action === 'verify')          return handleVerify(req, res);
-  if (action === 'signup-config')  return handleSignupConfig(req, res);
-  if (action === 'hosted-connect') return handleHostedConnect(req, res);
-  if (action === 'save-waba')     return handleSaveWaba(req, res);
-  if (action === 'sync-waba')     return handleSyncWaba(req, res);
   if (action === 'templates')     return handleListTemplates(req, res);
   if (action === 'ai-templates')   return handleAiTemplates(req, res);
   if (action === 'ai-agents-list') return handleAiAgentsList(req, res);
@@ -334,11 +328,7 @@ async function handleDocumentSend(req, res) {
     } else if (channel !== 'website') {
       const { data: cfg } = await sb.from('channel_configs').select('*').eq('workspace_id', workspace_id).eq('channel', channel).single();
       if (!cfg?.enabled) return res.status(400).json({ ok: false, error: 'Channel not configured' });
-      const providerKey = channel === 'whatsapp'
-        ? (cfg.config?.provider === 'wasapflow' ? 'whatsapp:wasapflow'
-           : cfg.config?.bird_workspace_id ? 'whatsapp:bird'
-           : cfg.config?.d360_api_key ? 'whatsapp:360dialog' : 'whatsapp:cloud')
-        : channel;
+      const providerKey = channel === 'whatsapp' ? 'whatsapp:cloud' : channel;
       const provider = getProvider(providerKey);
       await provider.sendMessage(cfg.config, {
         to: conv.external_id, media: { type: 'document', url: pdfUrl, filename },
@@ -527,10 +517,8 @@ async function handleConnect(req, res) {
       return res.status(400).json({ ok: false, error: 'channel and workspace_id are required' });
     }
 
-    // For WhatsApp, default to WasapFlow Bridge (BSP), unless a specific provider is requested
     const channelType = authData.provider_key
       ? `whatsapp:${authData.provider_key}`
-      : (channel === 'whatsapp' ? 'whatsapp:wasapflow'
          : channel === 'telegram' ? 'telegram' : channel);
 
     const provider = getProvider(channelType);
@@ -662,11 +650,7 @@ async function handleDisconnect(req, res) {
       .select('*').eq('workspace_id', workspace_id).eq('channel', channel).single();
 
     if (cfg) {
-      const providerKey = channel === 'whatsapp'
-        ? (cfg.config?.provider === 'wasapflow' ? 'whatsapp:wasapflow'
-           : cfg.config?.bird_workspace_id ? 'whatsapp:bird'
-           : cfg.config?.d360_api_key ? 'whatsapp:360dialog' : 'whatsapp:cloud')
-        : channel;
+      const providerKey = channel === 'whatsapp' ? 'whatsapp:cloud' : channel;
       const provider = getProvider(providerKey);
       await provider.disconnect(cfg.config);
       await sb.from('channel_configs')
@@ -680,7 +664,6 @@ async function handleDisconnect(req, res) {
     return res.status(500).json({ ok: false, error: e.message });
   }
 }
-
 
 // ── Verify a channel connection is actually working ──────────────────────
 // Checks the stored credentials are still valid AND (for WhatsApp) that
@@ -748,20 +731,13 @@ async function handleVerify(req, res) {
   }
 }
 
-// ── Get WasapFlow Embedded Signup config (for frontend FB.login) ─────────
-async function handleSignupConfig(req, res) {
   try {
-    const { WhatsAppWasapFlowProvider } = await import('../_lib/providers/whatsapp-wasapflow.js');
-    const config = await WhatsAppWasapFlowProvider.getEmbeddedSignupConfig();
     return res.status(200).json({ ok: true, ...config });
   } catch (e) {
-    console.error('[channels/signup-config] error:', e);
     return res.status(500).json({ ok: false, error: e.message });
   }
 }
 
-// ── Save WABA config (called after WasapFlow hosted connect success) ────
-async function handleSaveWaba(req, res) {
   try {
     const { workspace_id, waba_id, phone_number_id, display_name, quality_rating, connection_mode } = req.body || {};
     if (!workspace_id || !waba_id || !phone_number_id) {
@@ -771,10 +747,8 @@ async function handleSaveWaba(req, res) {
     const sb = createClient(SUPABASE_URL, SUPABASE_KEY);
 
     // Save the WhatsApp channel config — the WABA is already registered on
-    // WasapFlow's side (the hosted page did that). We just store the config
     // so our app knows which WABA/phone to use for this workspace.
     const config = {
-      provider: 'wasapflow',
       waba_id,
       phone_number_id,
       phone_number: null,
@@ -783,7 +757,6 @@ async function handleSaveWaba(req, res) {
       connected_at: new Date().toISOString(),
       quality_rating: quality_rating || null,
       connection_mode: connection_mode || 'coexistence',
-      wasapflow_client_id: waba_id,
     };
 
     const { error } = await sb.from('channel_configs').upsert({
@@ -798,28 +771,20 @@ async function handleSaveWaba(req, res) {
 
     return res.status(200).json({ ok: true, config });
   } catch (e) {
-    console.error('[channels/save-waba] error:', e);
     return res.status(500).json({ ok: false, error: e.message });
   }
 }
 
-// ── Sync WABA from WasapFlow (poll for registered clients) ──────────────
-async function handleSyncWaba(req, res) {
   try {
     const { workspace_id } = req.body || {};
     const wsId = workspace_id || req.query.workspace_id;
     if (!wsId) return res.status(400).json({ ok: false, error: 'workspace_id is required' });
 
-    const partnerKey = process.env.WASAPFLOW_PARTNER_KEY;
-    if (!partnerKey) return res.status(500).json({ ok: false, error: 'WASAPFLOW_PARTNER_KEY not configured' });
-
-    // List all registered clients from WasapFlow
     const listRes = await fetch(`${BRIDGE_API}/clients`, {
       headers: { 'x-partner-key': partnerKey },
     });
     const listData = await listRes.json();
     if (!listRes.ok || !listData.success) {
-      return res.status(500).json({ ok: false, error: listData.message || 'Failed to list WasapFlow clients' });
     }
 
     const sb = createClient(SUPABASE_URL, SUPABASE_KEY);
@@ -853,7 +818,6 @@ async function handleSyncWaba(req, res) {
 
     // Save/update the config
     const config = {
-      provider: 'wasapflow',
       waba_id: client.waba_id,
       phone_number_id: client.phone_number_id,
       phone_number: client.phone_number || null,
@@ -862,7 +826,6 @@ async function handleSyncWaba(req, res) {
       connected_at: new Date().toISOString(),
       quality_rating: client.quality_rating || null,
       connection_mode: client.connection_mode || 'coexistence',
-      wasapflow_client_id: client.id || client.waba_id,
     };
 
     const { error } = await sb.from('channel_configs').upsert({
@@ -877,16 +840,11 @@ async function handleSyncWaba(req, res) {
 
     return res.status(200).json({ ok: true, config });
   } catch (e) {
-    console.error('[channels/sync-waba] error:', e);
     return res.status(500).json({ ok: false, error: e.message });
   }
 }
 
-// ── WasapFlow hosted connect (redirects to their pre-whitelisted page) ───
-async function handleHostedConnect(req, res) {
   try {
-    const partnerKey = process.env.WASAPFLOW_PARTNER_KEY;
-    if (!partnerKey) return res.status(500).json({ ok: false, error: 'WASAPFLOW_PARTNER_KEY not configured' });
 
     const workspaceId = (req.query.workspace_id) || (req.body?.workspace_id);
     if (!workspaceId) return res.status(400).json({ ok: false, error: 'workspace_id is required' });
@@ -894,12 +852,9 @@ async function handleHostedConnect(req, res) {
     const redirectUri = encodeURIComponent(PROD_URL + '/api/auth/whatsapp-embedded');
 
     // Try the hosted connect page with partner_key as query param
-    // WasapFlow's hosted page is on their domain (already whitelisted with Meta)
-    const hostedUrl = `https://partner.wasapflow.com/bridge/connect?partner_key=${encodeURIComponent(partnerKey)}&redirect_uri=${redirectUri}&state=${workspaceId}`;
 
     // First, try a server-side fetch to see what the page returns
     try {
-      const probe = await fetch(`https://partner.wasapflow.com/bridge/connect?partner_key=${encodeURIComponent(partnerKey)}&redirect_uri=${redirectUri}&state=${workspaceId}`, {
         headers: { 'x-partner-key': partnerKey },
         redirect: 'manual',
       });
@@ -917,7 +872,6 @@ async function handleHostedConnect(req, res) {
         const body = await probe.text().catch(() => '');
         return res.status(200).json({
           ok: false,
-          error: `WasapFlow hosted connect returned status ${probe.status}`,
           status: probe.status,
           bodyPreview: body.substring(0, 500),
           hostedUrl: hostedUrl
@@ -926,7 +880,6 @@ async function handleHostedConnect(req, res) {
     } catch (fetchErr) {
       return res.status(200).json({
         ok: false,
-        error: 'Could not reach WasapFlow hosted connect: ' + fetchErr.message,
         hostedUrl: hostedUrl
       });
     }
@@ -938,12 +891,14 @@ async function handleHostedConnect(req, res) {
 // ── Send an outbound message via provider abstraction ────────────────────
 async function handleSend(req, res) {
   try {
-    const { message_id, conversation_id, workspace_id, channel, body: text, attachments, template } = req.body || {};
+    const { message_id, conversation_id, workspace_id, channel, body: text, attachments, template, message_type, location, media_url, media_type } = req.body || {};
     if (!conversation_id || !workspace_id || !channel) {
       return res.status(400).json({ error: 'Missing fields: conversation_id, workspace_id, channel' });
     }
-    const media = Array.isArray(attachments) && attachments.length ? attachments[0] : null;
-    if (!text && !media && !template?.name) return res.status(400).json({ error: 'Message must have text, an attachment, or a template' });
+    let media = Array.isArray(attachments) && attachments.length ? attachments[0] : null;
+    if (!media && media_url && media_type) media = { url: media_url, type: media_type };
+    const isLocation = message_type === 'location' && location?.latitude;
+    if (!text && !media && !template?.name && !isLocation) return res.status(400).json({ error: 'Message must have text, an attachment, or a template' });
 
     const sb = createClient(SUPABASE_URL, SUPABASE_KEY);
 
@@ -970,14 +925,11 @@ async function handleSend(req, res) {
 
     // 3. Send through the provider abstraction
     // Detect which WhatsApp provider to use based on the stored config
-    const providerKey = channel === 'whatsapp'
-      ? (cfg.config?.provider === 'wasapflow' ? 'whatsapp:wasapflow'
-         : cfg.config?.bird_workspace_id ? 'whatsapp:bird'
-         : cfg.config?.d360_api_key ? 'whatsapp:360dialog' : 'whatsapp:cloud')
-      : channel;
+    const providerKey = channel === 'whatsapp' ? 'whatsapp:cloud' : channel;
     const provider = getProvider(providerKey);
     const result = await provider.sendMessage(cfg.config, {
       to: conv.external_id, text, media, template, message_id, conversation_id, workspace_id,
+      ...(isLocation ? { location } : {}),
     }, { sb });
 
     // 4. Update message status
@@ -1100,8 +1052,6 @@ async function handleWhatsappManualConnect(req, res) {
     return res.status(400).json({ ok: false, error: e.message });
   }
 }
-
-
 
 // ── WhatsApp Complete Registration (after manual-connect needs_registration) ──
 // Registers the phone number on Cloud API and updates the EXISTING config

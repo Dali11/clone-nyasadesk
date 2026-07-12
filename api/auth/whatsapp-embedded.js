@@ -28,7 +28,8 @@ const ALLOWED_ORIGINS = ['https://nyasadesk.com', 'https://nyasadesk1.vercel.app
 
 export default async function handler(req, res) {
   const origin = req.headers.origin;
-  res.setHeader('Access-Control-Allow-Origin', ALLOWED_ORIGINS.includes(origin) ? origin : ALLOWED_ORIGINS[0]);
+  const isAllowed = ALLOWED_ORIGINS.includes(origin) || (origin && /\.vercel\.app$/.test(origin));
+  res.setHeader('Access-Control-Allow-Origin', isAllowed ? origin : ALLOWED_ORIGINS[0]);
   res.setHeader('Access-Control-Allow-Methods', 'POST,OPTIONS');
   res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
   if (req.method === 'OPTIONS') return res.status(200).end();
@@ -54,7 +55,7 @@ export default async function handler(req, res) {
   let shortToken;
   try {
     const tokenRes = await fetch(
-      `https://graph.facebook.com/v21.0/oauth/access_token?client_id=${APP_ID}&redirect_uri=${encodeURIComponent("https://nyasadesk.com")}&client_secret=${APP_SECRET}&code=${code}`
+      `https://graph.facebook.com/v21.0/oauth/access_token?client_id=${APP_ID}&redirect_uri=&client_secret=${APP_SECRET}&code=${code}`
     );
     const tokenData = await tokenRes.json();
     if (tokenData.error) throw new Error(tokenData.error.message);

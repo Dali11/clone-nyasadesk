@@ -1,7 +1,8 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Loader2, Users, MessageSquare, Calendar, Clock, Crown, Plus, Lock, Unlock, Eye, X } from 'lucide-react';
+import { Loader2, Users, MessageSquare, Calendar, Clock, Crown, Plus, Lock, Unlock, Eye, X, LogIn } from 'lucide-react';
 import { adminFetch } from '@/lib/adminApi';
+import { enterGodMode } from '@/lib/godMode';
 import { useDocumentTitle } from '@/hooks/useDocumentTitle';
 import { useToast } from '@/components/ui/use-toast';
 
@@ -60,6 +61,12 @@ export default function AdminWorkspaces() {
   };
 
   useEffect(() => { load(); }, []);
+
+  const enterWorkspace = (workspaceId, workspaceName) => {
+    enterGodMode({ workspaceId, workspaceName });
+    navigate('/'); // navigate to inbox as that workspace
+    window.location.reload();
+  };
 
   const patchWorkspace = async (workspaceId, updates) => {
     setUpdating(workspaceId);
@@ -190,6 +197,13 @@ export default function AdminWorkspaces() {
                       Cancel
                     </button>
                   )}
+                  <button
+                    onClick={() => enterWorkspace(w.id, w.workspace_name || w.full_name || w.email)}
+                    title="Enter workspace as God Mode"
+                    className="text-[10px] font-semibold px-2.5 py-1 rounded-lg bg-amber-500/10 text-amber-400 hover:bg-amber-500/20 transition-colors flex items-center gap-1"
+                  >
+                    <LogIn className="w-3 h-3" /> Enter workspace
+                  </button>
                   {w.subscription_status === 'canceled' && (
                     <button onClick={() => setSubStatus(w.id, 'trialing')}
                       className="text-[10px] font-semibold px-2.5 py-1 rounded-lg bg-yellow-500/10 text-yellow-400 hover:bg-yellow-500/20 transition-colors">

@@ -1,6 +1,7 @@
 import React, { createContext, useContext, useEffect, useState } from 'react';
 import { useAuth } from '@/lib/AuthContext';
 import { supabase } from '@/lib/supabase';
+import { getGodModeTarget } from '@/lib/godMode';
 
 const NyasaAuthContext = createContext(null);
 
@@ -18,6 +19,12 @@ export function NyasaAuthProvider({ children }) {
   const [loadingProfile, setLoadingProfile]         = useState(true);
   const [isPlatformAdmin, setIsPlatformAdmin]       = useState(false);
 
+  // God Mode: if a platform admin has entered god mode, load the target
+  // workspace's profile instead of the admin's own. The admin's own auth
+  // session (and isPlatformAdmin) are unaffected — only the workspace-level
+  // profile (workspace_name, plan, teammates etc.) is overridden.
+  const godTarget = getGodModeTarget();
+
   useEffect(() => {
     if (authLoading) return;
 
@@ -31,7 +38,11 @@ export function NyasaAuthProvider({ children }) {
 
     let cancelled = false;
 
-    const loadProfile = () => supabase.from('profiles').select('*').eq('id', user.id).single();
+    // In God Mode, load the target workspace owner's profile. The admin's
+    // own auth token is still used for all API calls (they're still 'logged in'
+    // as themselves), but the profile rendered is the target workspace's.
+    const godModeId = godTarget?.workspaceId || null;
+    const loadProfile = () => supabase.from('profiles').select('*').eq('id', godModeId || user.id).single();
 
     // Generous timeout — only trips the "proceed without profile" fallback on
     // a genuinely stuck connection. Even then, it does NOT assume onboarding
@@ -107,7 +118,7 @@ export function NyasaAuthProvider({ children }) {
     })();
 
     return () => { cancelled = true; clearTimeout(timeout); };
-  }, [user?.id, authLoading]);
+  }, [user?.id, authLoading, godTarget?.workspaceId]);
 
   const nyasaUser = user ? {
     id:           user.id,

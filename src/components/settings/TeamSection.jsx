@@ -397,13 +397,13 @@ export default function TeamSection() {
       )}
 
       {/* Seat usage */}
-      <SeatBar used={users.length} limit={seatLimit} />
+      <SeatBar used={users.filter(u => u.id !== workspaceId && u.role !== 'admin').length} limit={seatLimit} />
 
       {/* Header row */}
       <div className="flex items-center gap-2 mb-1">
         <div className="flex items-center gap-2 flex-1 flex-wrap">
           <p className="text-sm font-semibold text-[var(--nyasa-text)]">
-            {users.length} member{users.length !== 1 ? 's' : ''}
+            {users.filter(u => u.id !== workspaceId && u.role !== 'admin').length} agent{users.filter(u => u.id !== workspaceId && u.role !== 'admin').length !== 1 ? 's' : ''}
             {pendingCount > 0 && (
               <span className="ml-2 text-[10px] text-amber-400 bg-amber-500/10 px-2 py-0.5 rounded-full font-bold">
                 {pendingCount} pending
@@ -425,7 +425,7 @@ export default function TeamSection() {
           </div>
         </div>
 
-        {canManage && !showForm && users.length < seatLimit && (
+        {canManage && !showForm && users.filter(u => u.id !== workspaceId && u.role !== 'admin').length < seatLimit && (
           <button onClick={() => setShowForm(true)}
             className="flex items-center gap-1.5 px-3 py-2 bg-[#25D366] text-white text-xs font-bold rounded-xl hover:bg-[#20BA5A] transition-colors shrink-0">
             <Plus className="w-3.5 h-3.5" /> Add Agent
