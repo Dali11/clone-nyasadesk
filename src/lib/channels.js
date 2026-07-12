@@ -1052,3 +1052,69 @@ export async function unpinConversation(workspaceId, convId, pinnedFor, accessTo
   if (!res.ok) throw new Error(json.error || 'Failed to unpin conversation');
   return json;
 }
+
+// ── Contacts Extended ─────────────────────────────────────────────────────
+
+export async function importContactsCSV(workspaceId, contacts) {
+  // contacts = array of {full_name, phone, email, company, ...}
+  const rows = contacts.map(c => ({ workspace_id: workspaceId, channel: 'manual', ...c }));
+  const { data, error } = await supabase.from('contacts').insert(rows).select();
+  if (error) throw error;
+  return data;
+}
+
+export async function blockContact(contactId, blocked) {
+  const { data, error } = await supabase
+    .from('contacts')
+    .update({ blocked })
+    .eq('id', contactId)
+    .select()
+    .single();
+  if (error) throw error;
+  return data;
+}
+
+export async function uploadContactAvatar(workspaceId, contactId, file) {
+  const ext = file.name.split('.').pop();
+  const path = `${workspaceId}/avatars/${contactId}.${ext}`;
+  const { error: upErr } = await supabase.storage.from('media').upload(path, file, { upsert: true });
+  if (upErr) throw upErr;
+  const { data: { publicUrl } } = supabase.storage.from('media').getPublicUrl(path);
+  await updateContact(contactId, { avatar_url: publicUrl });
+  return publicUrl;
+}
+
+export async function getContactByPhone(workspaceId, phone) {
+  const { data, error } = await supabase
+    .from('contacts')
+    .select('*')
+    .eq('workspace_id', workspaceId)
+    .eq('phone', phone)
+    .maybeSingle();
+  if (error) throw error;
+  return data;
+}
+
+export async function startConversationWithContact(workspaceId, contact) {
+  // Check if conversation already exists
+  const { data: existing } = await supabase
+    .from('conversations')
+    .select('id')
+    .eq('workspace_id', workspaceId)
+    .eq('contact_id', contact.id)
+    .eq('channel', 'whatsapp')
+    .maybeSingle();
+  if (existing) return existing.id;
+  // Create a new conversation
+  const { data, error } = await supabase.from('conversations').insert({
+    workspace_id: workspaceId,
+    contact_id: contact.id,
+    contact_name: contact.full_name,
+    contact_phone: contact.phone,
+    channel: 'whatsapp',
+    status: 'open',
+    last_message_preview: '',
+  }).select('id').single();
+  if (error) throw error;
+  return data.id;
+}
