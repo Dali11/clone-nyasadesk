@@ -14,10 +14,10 @@
 
 import { useState, useEffect } from 'react';
 import {
-  Smartphone, Upload, RefreshCw, Check, X, Loader2,
+  Smartphone, Upload, RefreshCw, Check, Loader2,
   Users, AlertCircle, ChevronRight, Info,
 } from 'lucide-react';
-import { syncPhoneContacts, importContactsCSV } from '@/lib/channels';
+import { syncPhoneContacts } from '@/lib/channels';
 import { useNyasaAuth } from '@/lib/NyasaAuth';
 
 /* ── Detect Contact Picker API availability ─────────────────────────── */
