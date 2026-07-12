@@ -429,10 +429,33 @@ export class WhatsAppCloudProvider extends MessagingProvider {
             };
           }
 
+          // ── WhatsApp context/quote (client tagged/quoted a message) ──────
+          // msg.context.id is the external_id of the message the customer replied to.
+          // We resolve it to the actual stored message so the UI can render the
+          // quoted preview (sender name + body snippet), exactly like WhatsApp does.
+          let replyTo = null;
+          if (msg.context?.id) {
+            const { data: quotedMsg } = await sb
+              .from('messages')
+              .select('id, body, sender_name, direction, attachments')
+              .eq('external_id', msg.context.id)
+              .eq('workspace_id', workspaceId)
+              .maybeSingle();
+            if (quotedMsg) {
+              replyTo = {
+                id: quotedMsg.id,
+                sender_name: quotedMsg.direction === 'outbound' ? 'You' : (quotedMsg.sender_name || contactName),
+                body: quotedMsg.body || (Array.isArray(quotedMsg.attachments) && quotedMsg.attachments[0]
+                  ? `[${quotedMsg.attachments[0].type}]` : ''),
+              };
+            }
+          }
+
           const { conversation: conv } = await persistInboundMessage(sb, workspaceId, {
             channel: 'whatsapp', externalId: from, contactName, phone: '+' + from,
             body, attachments, externalMsgId: msgId, senderId: from, senderName: contactName,
             timestamp: ts, leadSource, adAttribution,
+            ...(replyTo ? { replyTo } : {}),
           });
 
           if (conv?.id && !conv.assigned_to) {
