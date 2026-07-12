@@ -1,13 +1,25 @@
-import { useState, useEffect, useCallback } from 'react';
+import {useState, useEffect, useCallback}from 'react';
 import AdminLayout from './AdminLayout';
-import { useNyasaAuth } from '@/lib/NyasaAuth';
-import { supabase } from '@/lib/supabase';
-import { useToast } from '@/components/ui/use-toast';
+import {useNyasaAuth}from '@/lib/NyasaAuth';
+import {supabase}from '@/lib/supabase';
+import {useToast}from '@/components/ui/use-toast';
 import {
-  BadgeDollarSign, Plus, Edit2, Archive, Copy, Check, X,
-  Loader2, ChevronDown, Trash2, TrendingUp, Users, Clock,
-  CheckCircle2, DollarSign, RefreshCw, Eye, AlertCircle
-} from 'lucide-react';
+  BadgeDollarSign,
+  Plus,
+  Edit2,
+  Archive,
+  Copy,
+  Check,
+  X,
+  Loader2,
+  TrendingUp,
+  Clock,
+  CheckCircle2,
+  DollarSign,
+  RefreshCw,
+  Eye,
+  AlertCircle,
+}from 'lucide-react';
 
 // ── helpers ────────────────────────────────────────────────────────────────
 const STATUS_COLORS = {
