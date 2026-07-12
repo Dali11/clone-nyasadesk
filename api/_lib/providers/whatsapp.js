@@ -305,13 +305,33 @@ export class WhatsAppCloudProvider extends MessagingProvider {
           const contactName = value.contacts?.find(c => c.wa_id === from)?.profile?.name || from;
           const ts = new Date(parseInt(msg.timestamp || Date.now() / 1000) * 1000).toISOString();
 
+          // ── Reactions: update the original message, don't create a new row ──
+          if (msg.type === 'reaction') {
+            const emoji = msg.reaction?.emoji || '';
+            const targetMsgId = msg.reaction?.message_id;
+            if (targetMsgId) {
+              // Fetch current reactions on the target message
+              const { data: origMsg } = await sb.from('messages')
+                .select('id, reactions')
+                .eq('external_id', targetMsgId)
+                .eq('workspace_id', workspaceId)
+                .maybeSingle();
+              if (origMsg) {
+                const reactions = origMsg.reactions || {};
+                if (emoji) {
+                  reactions[from] = { emoji, sender: contactName, at: ts };
+                } else {
+                  delete reactions[from]; // empty emoji = reaction removed
+                }
+                await sb.from('messages').update({ reactions }).eq('id', origMsg.id);
+              }
+            }
+            continue; // don't fall through to persistInboundMessage
+          }
+
           // Resolve body based on message type
           let body;
-          if (msg.type === 'reaction') {
-            // msg.reaction = { message_id, emoji }  (emoji can be '' to remove a reaction)
-            const emoji = msg.reaction?.emoji || '';
-            body = emoji ? emoji : '[reaction removed]';
-          } else if (msg.type === 'sticker') {
+          if (msg.type === 'sticker') {
             body = '🪄 Sticker';
           } else if (msg.type === 'location') {
             const loc = msg.location || {};
