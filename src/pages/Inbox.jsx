@@ -12,6 +12,7 @@ import { useToast } from '@/components/ui/use-toast';
 import { getConversations, updateConversation, deleteConversation, subscribeToConversations, getPinnedConvs, createInternalConv, pinConversation, unpinConversation, getTeamMembers, resolveUnknownContacts } from '@/lib/channels';
 import { supabase } from '@/lib/supabase';
 import { useDocumentTitle } from '@/hooks/useDocumentTitle';
+import { usePushNotifications } from '@/lib/usePushNotifications';
 
 const STATUS_TABS = [
   { key: 'all',        label: 'All'        },
@@ -27,6 +28,17 @@ const CHANNELS_FILTER = ['all', 'whatsapp', 'website'];
 export default function Inbox() {
   useDocumentTitle('Inbox');
   const { user, profile, workspaceOwnerId, canViewAllChats } = useNyasaAuth();
+  // Auto-subscribe to push notifications if the user already granted permission
+  // (e.g. they granted during the InstallPrompt flow on a previous session).
+  // This is the only place we mount the hook — once, in the root authenticated view.
+  const { subscribe: subscribePush } = usePushNotifications(workspaceOwnerId);
+  useEffect(() => {
+    if (!workspaceOwnerId) return;
+    if (typeof Notification !== 'undefined' && Notification.permission === 'granted') {
+      subscribePush();
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [workspaceOwnerId]);
   const { toast } = useToast();
   const [conversations, setConversations] = useState([]);
   const [loading, setLoading] = useState(true);
