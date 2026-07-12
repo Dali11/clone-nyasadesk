@@ -161,7 +161,7 @@ export default function MyCommissions() {
   return (
     <div className="flex h-screen overflow-hidden bg-[var(--nyasa-bg)]">
       <Sidebar />
-      <div className="flex-1 overflow-y-auto">
+      <div className="flex-1 overflow-y-auto pt-14 pb-[56px] md:pt-0 md:pb-0">
         <div className="max-w-4xl mx-auto px-4 sm:px-6 py-6 space-y-6">
 
           {/* Header */}
