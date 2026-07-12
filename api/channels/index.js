@@ -25,6 +25,13 @@ const SUPABASE_URL = 'https://pfbaepibelomiutlotkn.supabase.co';
 const SUPABASE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY;
 const PROD_URL = 'https://nyasadesk.com';
 
+// Quick UUID format guard — Postgres will throw "invalid input syntax for type uuid"
+// if we pass an arbitrary string (e.g. 'test') directly into a UUID column.
+function isUUID(str) {
+  return /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(str);
+}
+
+
 export default async function handler(req, res) {
   // AI Agents actions live here too -- api/ is hard-capped at 12 files on
   // Vercel Hobby (see AGENTS.md), so new modules get added as actions on an
@@ -97,6 +104,7 @@ async function handleDocSettingsGet(req, res) {
   try {
     const workspace_id = req.query.workspace_id;
     if (!workspace_id) return res.status(400).json({ error: 'workspace_id is required' });
+    if (!isUUID(workspace_id)) return res.status(400).json({ ok: false, error: 'Invalid workspace_id format' });
     const sb = createClient(SUPABASE_URL, SUPABASE_KEY);
     const settings = await getOrCreateSettings(sb, workspace_id);
     return res.status(200).json({ ok: true, settings });
@@ -750,6 +758,7 @@ async function handleWhatsappEmbeddedSave(req, res) {
     if (!workspace_id || !waba_id || !phone_number_id) {
       return res.status(400).json({ ok: false, error: 'workspace_id, waba_id, and phone_number_id are required' });
     }
+    if (!isUUID(workspace_id)) return res.status(400).json({ ok: false, error: 'Invalid workspace_id format' });
 
     const sb = createClient(SUPABASE_URL, SUPABASE_KEY);
 
@@ -1384,7 +1393,7 @@ async function handleGmailOAuthUrl(req, res) {
   try {
     const { workspace_id } = req.query;
     if (!workspace_id) return res.status(400).json({ ok: false, error: 'workspace_id is required' });
-    if (!GOOGLE_CLIENT_ID) return res.status(500).json({ ok: false, error: 'Google OAuth is not configured on this server. Add GOOGLE_CLIENT_ID and GOOGLE_CLIENT_SECRET in Vercel environment variables.' });
+    if (!GOOGLE_CLIENT_ID) return res.status(400).json({ ok: false, error: 'Google OAuth is not configured on this server. Add GOOGLE_CLIENT_ID and GOOGLE_CLIENT_SECRET in Vercel environment variables.' });
 
     // Encode workspace_id in state param so we know whose token this is on callback
     const state = Buffer.from(JSON.stringify({ workspace_id })).toString('base64url');
