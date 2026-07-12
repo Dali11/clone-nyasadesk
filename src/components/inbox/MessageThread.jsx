@@ -890,9 +890,9 @@ export default function MessageThread({ conversation, workspaceId }) {
         const reason = incoming.error_reason;
         toast({
           title: 'Message failed to send',
-          description: reason || 'Unknown error — tap the ✕ on the message for details',
+          description: reason || 'Check your WhatsApp token or channel config — tap the ✕ on the message to retry.',
           variant: 'destructive',
-          duration: 8000,
+          duration: 10000,
         });
       }
 
