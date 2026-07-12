@@ -329,6 +329,11 @@ function ContactsPermissionBanner() {
   );
 }
 
+function InstallPromptWithAuth() {
+  const { workspaceOwnerId } = useNyasaAuth();
+  return <InstallPrompt workspaceOwnerId={workspaceOwnerId} />;
+}
+
 export default function App() {
   return (
     <AuthProvider>
@@ -341,7 +346,7 @@ export default function App() {
           <ContactsPermissionBanner />
           <OfflineBanner />
       <Toaster />
-        <InstallPrompt />
+        <InstallPromptWithAuth />
         </NyasaAuthProvider>
       </QueryClientProvider>
     </AuthProvider>
