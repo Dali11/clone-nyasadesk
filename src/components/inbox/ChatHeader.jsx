@@ -1,8 +1,9 @@
-import { ChevronDown, MoreVertical, ArrowLeft, Trash2, Bot, TrendingUp, Pin, PinOff } from 'lucide-react';
+import { ChevronDown, MoreVertical, ArrowLeft, Trash2, Bot, TrendingUp, Pin, PinOff, UserPlus, Check } from 'lucide-react';
 import { useState } from 'react';
 import { RecordSaleModal } from '@/pages/Sales';
 import Avatar from '@/components/Avatar';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger, DropdownMenuSeparator } from '@/components/ui/dropdown-menu';
+import { createContact, getContactByPhone } from '@/lib/channels';
 
 const PRIORITIES = ['low', 'normal', 'high', 'urgent'];
 const STATUSES = ['open', 'snoozed', 'closed'];
@@ -19,11 +20,39 @@ export default function ChatHeader({ conversation, users = [], currentUserId, cu
   });
   const updateStatus = (status) => onUpdate({ id: conversation.id, status });
   const updatePriority = (priority) => onUpdate({ id: conversation.id, priority });
-  // Hands the conversation back to the AI: clearing assigned_to is exactly
-  // the signal aiAutoReply.js checks (assigned_to IS NULL) before it'll
-  // auto-reply again on the next inbound message. No other state to touch.
   const resumeAutomation = () => onUpdate({ id: conversation.id, assigned_to: null, assigned_to_name: null });
   const [showSaleModal, setShowSaleModal] = useState(false);
+  const [savingContact, setSavingContact] = useState(false);
+  const [contactSaved, setContactSaved] = useState(false);
+
+  // "Save as Contact" — only show when there's a phone number and no contact_id yet
+  const canSaveContact = conversation.contact_phone && !conversation.contact_id;
+
+  const handleSaveAsContact = async () => {
+    if (!canSaveContact || savingContact) return;
+    setSavingContact(true);
+    try {
+      const workspaceId = conversation.workspace_id || conversation.created_by;
+      // Check if contact already exists with this phone
+      const existing = await getContactByPhone(workspaceId, conversation.contact_phone).catch(() => null);
+      if (existing) {
+        setContactSaved(true);
+        return;
+      }
+      await createContact(workspaceId, {
+        full_name: conversation.contact_name || conversation.contact_phone,
+        phone: conversation.contact_phone,
+        channel: conversation.channel || 'whatsapp',
+        lead_source: conversation.channel || 'whatsapp',
+      });
+      setContactSaved(true);
+      setTimeout(() => setContactSaved(false), 3000);
+    } catch (e) {
+      console.error('[ChatHeader] save contact:', e);
+    } finally {
+      setSavingContact(false);
+    }
+  };
 
   return (
     <>
@@ -37,7 +66,26 @@ export default function ChatHeader({ conversation, users = [], currentUserId, cu
       <button onClick={onOpenContact} className="flex items-center gap-3 flex-1 min-w-0 text-left hover:opacity-80 transition-opacity">
         <Avatar name={conversation.contact_name || '?'} src={conversation.contact_avatar_url} size="md" />
         <div className="flex-1 min-w-0">
-          <p className="text-sm font-semibold text-white truncate">{conversation.contact_name}</p>
+          <div className="flex items-center gap-2">
+            <p className="text-sm font-semibold text-white truncate">{conversation.contact_name}</p>
+            {/* Save as Contact badge — WhatsApp style */}
+            {canSaveContact && !contactSaved && (
+              <button
+                onClick={e => { e.stopPropagation(); handleSaveAsContact(); }}
+                disabled={savingContact}
+                className="flex items-center gap-1 text-[9px] font-semibold text-[#25D366] bg-[#25D366]/10 hover:bg-[#25D366]/20 px-1.5 py-0.5 rounded-full transition-colors shrink-0"
+                title="Save as contact"
+              >
+                <UserPlus className="w-2.5 h-2.5" />
+                <span className="hidden sm:inline">Save</span>
+              </button>
+            )}
+            {contactSaved && (
+              <span className="flex items-center gap-1 text-[9px] font-semibold text-[#25D366] bg-[#25D366]/10 px-1.5 py-0.5 rounded-full shrink-0">
+                <Check className="w-2.5 h-2.5" />Saved
+              </span>
+            )}
+          </div>
           <div className="flex items-center gap-1.5 text-xs text-gray-500">
             <span className={`w-1.5 h-1.5 rounded-full ${STATUS_COLOR[conversation.status] || 'bg-gray-500'}`} />
             <span className="capitalize">{conversation.status}</span>
@@ -54,11 +102,10 @@ export default function ChatHeader({ conversation, users = [], currentUserId, cu
       </button>
 
       <div className="flex items-center gap-2 shrink-0">
-        {/* Assignment indicator — shown to admins/managers when chat belongs to another agent */}
+        {/* Assignment indicator */}
         {conversation.assigned_to && conversation.assigned_to_name && (() => {
           const isMyChat = conversation.assigned_to === currentUserId;
           const isElevated = currentUserRole === 'admin' || currentUserRole === 'sales_manager';
-          // Agents see nothing (they know it's theirs). Admins/managers see a pill.
           if (isMyChat) return null;
           if (!isElevated) return null;
           const firstName = conversation.assigned_to_name.split(' ')[0];
@@ -69,7 +116,6 @@ export default function ChatHeader({ conversation, users = [], currentUserId, cu
               title={`Assigned to ${conversation.assigned_to_name} — you're managing this chat`}
               className="hidden sm:flex items-center gap-1 bg-[var(--nyasa-surface-3)] border border-[var(--nyasa-border)] rounded-full pl-0.5 pr-2 py-0.5 shrink-0"
             >
-              {/* Mini avatar */}
               <div className="w-5 h-5 rounded-full bg-[#25D366]/20 flex items-center justify-center text-[9px] font-bold text-[#25D366] shrink-0">
                 {initials}
               </div>
@@ -79,6 +125,7 @@ export default function ChatHeader({ conversation, users = [], currentUserId, cu
             </div>
           );
         })()}
+
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
             <button className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-[#25D366] text-white text-xs font-semibold hover:bg-[#20BA5A] transition-colors">
@@ -100,6 +147,15 @@ export default function ChatHeader({ conversation, users = [], currentUserId, cu
             </button>
           </DropdownMenuTrigger>
           <DropdownMenuContent align="end" className="w-44 bg-[var(--nyasa-surface-3)] border-[var(--nyasa-border)] text-gray-200">
+            {/* Save as Contact option in dropdown too */}
+            {canSaveContact && (
+              <>
+                <DropdownMenuItem onClick={handleSaveAsContact} className="text-xs hover:bg-white/10 focus:bg-white/10 cursor-pointer gap-2 text-[#25D366]">
+                  <UserPlus className="w-3.5 h-3.5" />{contactSaved ? 'Contact saved ✓' : 'Save as contact'}
+                </DropdownMenuItem>
+                <DropdownMenuSeparator className="bg-white/10" />
+              </>
+            )}
             {canAssign && (<>
               <div className="px-2 py-1.5 text-[10px] text-gray-500 font-semibold uppercase">Assign to</div>
               {(users || []).map(u => (
