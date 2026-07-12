@@ -67,14 +67,24 @@ function StatusIcon({ status, errorReason }) {
   if (status === 'failed')    return <FailedIcon reason={errorReason} />;
   return null;
 }
-function FailedIcon({ reason }) {
-  const msg = reason ? `Failed to send: ${reason}` : 'Failed to send (no reason recorded)';
+function FailedIcon({ reason, onRetry }) {
+  const msg = reason ? `Failed: ${reason}` : 'Failed to send — tap for details';
   return (
-    <X
-      className="w-3 h-3 text-red-400 cursor-help"
-      title={msg}
-      onClick={(e) => { e.stopPropagation(); window.alert(msg); }}
-    />
+    <span className="inline-flex items-center gap-1">
+      <X
+        className="w-3 h-3 text-red-400 cursor-help shrink-0"
+        title={msg}
+        onClick={(e) => { e.stopPropagation(); window.alert(msg); }}
+      />
+      {onRetry && (
+        <button
+          className="text-[10px] text-red-400 hover:text-red-300 underline underline-offset-1 leading-none"
+          onClick={(e) => { e.stopPropagation(); onRetry(); }}
+        >
+          Retry
+        </button>
+      )}
+    </span>
   );
 }
 
