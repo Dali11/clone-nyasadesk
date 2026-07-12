@@ -32,8 +32,13 @@ export default async function handler(req, res) {
   // api/_lib/aiAgents.js, this file just dispatches.
   // Quotation/Invoice Builder actions live here too, same reasoning as AI
   // Agents above -- logic itself lives in api/_lib/documents.js.
+  const getActions = [
+    'templates', 'ai-templates', 'ai-agent-list', 'ai-agent-get',
+    'knowledge-list', 'knowledge-search', 'billing-status',
     'doc-settings-get', 'quotation-list', 'quotation-get', 'invoice-list', 'invoice-get',
-    'sales-list', 'sales-commission-report', 'gmail-oauth-url'];
+    'sales-list', 'sales-commission-report', 'gmail-oauth-url',
+    'gmail-oauth-callback', 'whatsapp-refresh-status',
+  ];
   if (req.method !== 'POST' && !getActions.includes(req.query.action)) return res.status(405).json({ error: 'Method Not Allowed' });
   const action = req.query.action || 'send';
 
@@ -73,6 +78,7 @@ export default async function handler(req, res) {
   if (action === 'whatsapp-manual-connect') return handleWhatsappManualConnect(req, res);
   if (action === 'whatsapp-refresh-status') return handleWhatsappRefreshStatus(req, res);
   if (action === 'whatsapp-complete-registration') return handleWhatsappCompleteRegistration(req, res);
+  if (action === 'whatsapp-embedded-save')   return handleWhatsappEmbeddedSave(req, res);
   if (action === 'sales-create')  return handleSalesCreate(req, res);
   if (action === 'sales-list')    return handleSalesList(req, res);
   if (action === 'sales-verify')  return handleSalesVerify(req, res);
@@ -518,7 +524,7 @@ async function handleConnect(req, res) {
 
     const channelType = authData.provider_key
       ? `whatsapp:${authData.provider_key}`
-         : channel === 'telegram' ? 'telegram' : channel);
+      : (channel === 'telegram' ? 'telegram' : channel);
 
     const provider = getProvider(channelType);
     const sb = createClient(SUPABASE_URL, SUPABASE_KEY);
@@ -738,13 +744,7 @@ async function handleVerify(req, res) {
   }
 }
 
-  try {
-    return res.status(200).json({ ok: true, ...config });
-  } catch (e) {
-    return res.status(500).json({ ok: false, error: e.message });
-  }
-}
-
+async function handleWhatsappEmbeddedSave(req, res) {
   try {
     const { workspace_id, waba_id, phone_number_id, display_name, quality_rating, connection_mode } = req.body || {};
     if (!workspace_id || !waba_id || !phone_number_id) {
@@ -782,118 +782,6 @@ async function handleVerify(req, res) {
   }
 }
 
-  try {
-    const { workspace_id } = req.body || {};
-    const wsId = workspace_id || req.query.workspace_id;
-    if (!wsId) return res.status(400).json({ ok: false, error: 'workspace_id is required' });
-
-    const listRes = await fetch(`${BRIDGE_API}/clients`, {
-      headers: { 'x-partner-key': partnerKey },
-    });
-    const listData = await listRes.json();
-    if (!listRes.ok || !listData.success) {
-    }
-
-    const sb = createClient(SUPABASE_URL, SUPABASE_KEY);
-
-    // Check if we already have a WhatsApp config for this workspace
-    const { data: existing } = await sb.from('channel_configs')
-      .select('*').eq('workspace_id', wsId).eq('channel', 'whatsapp').single();
-
-    const clients = listData.clients || listData.data || [];
-    if (!clients.length) {
-      return res.status(200).json({ ok: false, error: 'No WhatsApp accounts found. Complete the signup first.' });
-    }
-
-    // If we already have a config, try to find a matching client or a new one
-    let client = null;
-    if (existing?.config?.waba_id) {
-      // Find the client that matches our existing WABA
-      client = clients.find(c => c.waba_id === existing.config.waba_id);
-    }
-
-    // If no match, take the most recently created client
-    if (!client) {
-      // Sort by created_at descending and take the first one
-      clients.sort((a, b) => new Date(b.created_at || 0) - new Date(a.created_at || 0));
-      client = clients[0];
-    }
-
-    if (!client) {
-      return res.status(200).json({ ok: false, error: 'No WhatsApp account found.' });
-    }
-
-    // Save/update the config
-    const config = {
-      waba_id: client.waba_id,
-      phone_number_id: client.phone_number_id,
-      phone_number: client.phone_number || null,
-      business_name: client.display_name || client.business_name || null,
-      connected_via: 'embedded_signup_hosted',
-      connected_at: new Date().toISOString(),
-      quality_rating: client.quality_rating || null,
-      connection_mode: client.connection_mode || 'coexistence',
-    };
-
-    const { error } = await sb.from('channel_configs').upsert({
-      workspace_id: wsId,
-      channel: 'whatsapp',
-      enabled: true,
-      config,
-      updated_at: new Date().toISOString(),
-    }, { onConflict: 'workspace_id,channel' });
-
-    if (error) throw error;
-
-    return res.status(200).json({ ok: true, config });
-  } catch (e) {
-    return res.status(500).json({ ok: false, error: e.message });
-  }
-}
-
-  try {
-
-    const workspaceId = (req.query.workspace_id) || (req.body?.workspace_id);
-    if (!workspaceId) return res.status(400).json({ ok: false, error: 'workspace_id is required' });
-
-    const redirectUri = encodeURIComponent(PROD_URL + '/api/auth/whatsapp-embedded');
-
-    // Try the hosted connect page with partner_key as query param
-
-    // First, try a server-side fetch to see what the page returns
-    try {
-        headers: { 'x-partner-key': partnerKey },
-        redirect: 'manual',
-      });
-
-      if (probe.status === 200) {
-        // Page exists and returns HTML — redirect the user there
-        return res.redirect(302, hostedUrl);
-      } else if (probe.status >= 300 && probe.status < 400) {
-        // It's a redirect — follow it
-        const location = probe.headers.get('location');
-        if (location) return res.redirect(302, location);
-        return res.redirect(302, hostedUrl);
-      } else {
-        // Return the status so we can debug
-        const body = await probe.text().catch(() => '');
-        return res.status(200).json({
-          ok: false,
-          status: probe.status,
-          bodyPreview: body.substring(0, 500),
-          hostedUrl: hostedUrl
-        });
-      }
-    } catch (fetchErr) {
-      return res.status(200).json({
-        ok: false,
-        hostedUrl: hostedUrl
-      });
-    }
-  } catch (e) {
-    return res.status(500).json({ ok: false, error: e.message });
-  }
-}
 
 // ── Send an outbound message via provider abstraction ────────────────────
 async function handleSend(req, res) {
