@@ -3,7 +3,7 @@ import {
   Search, Plus, Trash2, X, Loader2, SlidersHorizontal, ChevronDown,
   UserCircle2, Phone, Mail, MessageSquare, Upload, Download, Ban,
   Star, Tag, Globe, MoreVertical, Check, AlertCircle,
-  ArrowLeft, Edit2, Smartphone,
+  ArrowLeft, Edit2, Smartphone, Camera,
 } from 'lucide-react';
 import Sidebar from '@/components/Sidebar';
 import Avatar from '@/components/Avatar';
@@ -126,13 +126,11 @@ function CSVImportModal({ onClose, onImport }) {
 
 /* ── Contact Profile (full WhatsApp-style) ──────────────────────────── */
 function ContactProfile({ contact: initial, workspaceId, onClose, onSave, onDelete, onStartChat }) {
-  const [contact, setContact]       = useState({ ...initial });
-  const [editing, setEditing]       = useState(false);
-  const [conversations, setConvs]   = useState([]);
+  const [contact, setContact]     = useState({ ...initial });
+  const [editing, setEditing]     = useState(false);
+  const [conversations, setConvs] = useState([]);
   const [avatarLoading, setAvLoading] = useState(false);
-  const [saving, setSaving]         = useState(false);
-  const [tab, setTab]               = useState('info'); // info | activity
-  const [showMenu, setShowMenu]     = useState(false);
+  const [saving, setSaving]       = useState(false);
   const [labelInput, setLabelInput] = useState('');
   const avatarRef = useRef();
   const set = (k, v) => setContact(c => ({ ...c, [k]: v }));
@@ -172,239 +170,254 @@ function ContactProfile({ contact: initial, workspaceId, onClose, onSave, onDele
 
   const removeLabel = (tag) => set('tags', (contact.tags || []).filter(t => t !== tag));
 
-  const handleBlock = async () => {
-    const blocked = !contact.blocked;
-    await blockContact(contact.id, blocked);
-    setContact(c => ({ ...c, blocked }));
-    setShowMenu(false);
-  };
+  const handleDelete = () => { onDelete(contact.id); onClose(); };
+
+  const initials = (contact.full_name || '?').split(' ').map(w => w[0]).join('').slice(0, 2).toUpperCase();
 
   return (
-    <div className="fixed inset-0 z-50 flex">
-      <div className="flex-1 bg-black/60" onClick={onClose} />
-      <div className="w-full max-w-sm md:w-[420px] bg-[var(--nyasa-surface-1)] border-l border-[var(--nyasa-border)] flex flex-col overflow-hidden">
+    <div
+      className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4"
+      style={{ background: 'rgba(0,0,0,0.75)', backdropFilter: 'blur(4px)' }}
+      onClick={onClose}
+    >
+      <style>{`
+        @keyframes slideUp { from { transform: translateY(40px); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
+        .contact-modal { animation: slideUp 0.22s cubic-bezier(0.34,1.56,0.64,1) both; }
+      `}</style>
 
-        {/* Header */}
-        <div className="px-4 py-3 border-b border-[var(--nyasa-border)] flex items-center gap-3">
-          <button onClick={onClose} className="p-1.5 hover:bg-white/10 rounded-lg text-gray-400">
-            <ArrowLeft className="w-4 h-4" />
-          </button>
-          <span className="font-semibold text-white flex-1">Contact info</span>
-          <div className="flex items-center gap-1">
-            <button onClick={() => setEditing(e => !e)} className="p-1.5 hover:bg-white/10 rounded-lg text-gray-400">
-              <Edit2 className="w-4 h-4" />
-            </button>
-            <div className="relative">
-              <button onClick={() => setShowMenu(m => !m)} className="p-1.5 hover:bg-white/10 rounded-lg text-gray-400">
-                <MoreVertical className="w-4 h-4" />
-              </button>
-              {showMenu && (
-                <div className="absolute right-0 top-full mt-1 bg-[var(--nyasa-surface-2)] border border-[var(--nyasa-border)] rounded-xl shadow-xl z-30 min-w-[180px] py-1">
-                  <button onClick={handleBlock} className="w-full text-left px-4 py-2 text-sm hover:bg-white/5 flex items-center gap-2 text-red-400">
-                    <Ban className="w-4 h-4" />{contact.blocked ? 'Unblock contact' : 'Block contact'}
-                  </button>
-                  <button onClick={() => { onDelete(contact.id); onClose(); }} className="w-full text-left px-4 py-2 text-sm hover:bg-white/5 flex items-center gap-2 text-red-400">
-                    <Trash2 className="w-4 h-4" />Delete contact
-                  </button>
+      <div
+        className="contact-modal w-full sm:max-w-md bg-[#1F2C34] rounded-t-2xl sm:rounded-2xl overflow-hidden shadow-2xl flex flex-col"
+        style={{ maxHeight: '92vh' }}
+        onClick={e => e.stopPropagation()}
+      >
+        {/* Close button */}
+        <button
+          onClick={onClose}
+          className="absolute top-4 right-4 z-10 w-8 h-8 rounded-full bg-black/40 flex items-center justify-center text-white/60 hover:text-white hover:bg-black/60 transition-colors"
+          style={{ position: 'absolute' }}
+        >
+          <X className="w-4 h-4" />
+        </button>
+
+        {/* Hero banner + floating avatar */}
+        <div className="relative" style={{ background: 'linear-gradient(135deg, #1F6B48 0%, #0B3D2E 100%)', paddingBottom: '48px', paddingTop: '40px' }}>
+          <div className="flex flex-col items-center">
+            <div
+              className="relative w-24 h-24 rounded-full border-4 border-[#1F2C34] overflow-hidden cursor-pointer shadow-xl"
+              onClick={() => !avatarLoading && avatarRef.current?.click()}
+            >
+              {contact.avatar_url
+                ? <img src={contact.avatar_url} alt="" className="w-full h-full object-cover" />
+                : <div className="w-full h-full flex items-center justify-center text-3xl font-bold text-white" style={{ background: '#075E54' }}>{initials}</div>
+              }
+              {avatarLoading && (
+                <div className="absolute inset-0 flex items-center justify-center bg-black/50">
+                  <Loader2 className="w-6 h-6 text-white animate-spin" />
                 </div>
               )}
+              {/* Camera overlay */}
+              <div className="absolute inset-0 bg-black/0 hover:bg-black/30 transition-colors flex items-center justify-center opacity-0 hover:opacity-100">
+                <Camera className="w-5 h-5 text-white" />
+              </div>
             </div>
-          </div>
-        </div>
-
-        <div className="flex-1 overflow-y-auto scrollbar-thin">
-          {/* Name + action buttons — no avatar/initials */}
-          <div className="flex flex-col items-center px-5 pt-5 pb-4 border-b border-[var(--nyasa-border)] bg-[var(--nyasa-surface-2)]">
-            {/* Hidden avatar input still available for future use */}
             <input ref={avatarRef} type="file" accept="image/*" className="hidden" onChange={handleAvatarUpload} />
-
-            {/* Name & company — tap to edit inline */}
-            <div className="text-center w-full">
-              {editing ? (
-                <div className="space-y-2 px-2">
-                  <input autoFocus className={inp + ' text-center font-semibold'} placeholder="Full name *"
-                    value={contact.full_name || ''} onChange={e => set('full_name', e.target.value)} />
-                  <input className={inp + ' text-center text-sm'} placeholder="Company"
-                    value={contact.company || ''} onChange={e => set('company', e.target.value)} />
-                </div>
-              ) : (
-                <button onClick={() => setEditing(true)} className="group w-full">
-                  <h2 className="text-white font-bold text-xl leading-tight group-active:text-[#25D366] transition-colors">
-                    {contact.full_name || '—'}
-                  </h2>
-                  {contact.company && (
-                    <p className="text-gray-400 text-sm mt-0.5">{contact.company}</p>
-                  )}
-                </button>
-              )}
-              {contact.blocked && (
-                <span className="inline-flex items-center gap-1 mt-2 text-xs text-red-400 bg-red-400/10 px-2 py-0.5 rounded-full">
-                  <Ban className="w-3 h-3" />Blocked
-                </span>
-              )}
-            </div>
-
-            {/* Action buttons — hide during edit */}
-            {!editing && <div className="flex gap-8 mt-5">
-              {contact.phone && (
-                <a href={`tel:${contact.phone}`} className="flex flex-col items-center gap-1.5 group">
-                  <div className="w-12 h-12 bg-[#25D366]/20 rounded-full flex items-center justify-center group-hover:bg-[#25D366]/30 transition-colors">
-                    <Phone className="w-5 h-5 text-[#25D366]" />
-                  </div>
-                  <span className="text-[11px] text-gray-500">Call</span>
-                </a>
-              )}
-              <button onClick={() => onStartChat(contact)} className="flex flex-col items-center gap-1.5 group">
-                <div className="w-12 h-12 bg-[#25D366]/20 rounded-full flex items-center justify-center group-hover:bg-[#25D366]/30 transition-colors">
-                  <MessageSquare className="w-5 h-5 text-[#25D366]" />
-                </div>
-                <span className="text-[11px] text-gray-500">Message</span>
-              </button>
-              {contact.email && (
-                <a href={`mailto:${contact.email}`} className="flex flex-col items-center gap-1.5 group">
-                  <div className="w-12 h-12 bg-[#25D366]/20 rounded-full flex items-center justify-center group-hover:bg-[#25D366]/30 transition-colors">
-                    <Mail className="w-5 h-5 text-[#25D366]" />
-                  </div>
-                  <span className="text-[11px] text-gray-500">Email</span>
-                </a>
-              )}
-            </div>}
-          </div>
-
-          {/* Info sections */}
-          <div className="divide-y divide-[var(--nyasa-border)]">
-
-            {/* Phone — tap to edit */}
-            <div className="px-5 py-3.5 flex items-start gap-3 cursor-pointer" onClick={() => setEditing(true)}>
-              <Phone className="w-4 h-4 text-gray-500 mt-0.5 shrink-0" />
-              <div className="flex-1 min-w-0">
-                {editing
-                  ? <input autoFocus className={inp} placeholder="Phone number" value={contact.phone || ''} onChange={e => set('phone', e.target.value)} onClick={e => e.stopPropagation()} />
-                  : <p className="text-sm text-[#25D366] font-medium">{contact.phone || <span className="text-gray-600 italic">Add phone number</span>}</p>
-                }
-                <p className="text-[10px] text-gray-600 mt-0.5">Mobile</p>
-              </div>
-              {!editing && <Edit2 className="w-3.5 h-3.5 text-gray-700 mt-0.5 shrink-0 opacity-0 group-hover:opacity-100" />}
-            </div>
-
-            {/* Email — tap to edit */}
-            <div className="px-5 py-3.5 flex items-start gap-3 cursor-pointer" onClick={() => setEditing(true)}>
-              <Mail className="w-4 h-4 text-gray-500 mt-0.5 shrink-0" />
-              <div className="flex-1 min-w-0">
-                {editing
-                  ? <input className={inp} placeholder="Email address" value={contact.email || ''} onChange={e => set('email', e.target.value)} onClick={e => e.stopPropagation()} />
-                  : <p className="text-sm text-white truncate">{contact.email || <span className="text-gray-600 italic">Add email</span>}</p>
-                }
-                <p className="text-[10px] text-gray-600 mt-0.5">Email</p>
-              </div>
-            </div>
-
-            {/* Deal Stage — always shows select (tap badge opens it) */}
-            <div className="px-5 py-3.5 flex items-start gap-3">
-              <Star className="w-4 h-4 text-gray-500 mt-0.5 shrink-0" />
-              <div className="flex-1">
-                <p className="text-[10px] text-gray-600 mb-1.5">Deal Stage</p>
-                <select
-                  value={contact.deal_stage || 'New Lead'}
-                  onChange={async e => { const v = e.target.value; set('deal_stage', v); await onSave({ ...contact, deal_stage: v }); }}
-                  className="bg-transparent text-xs font-semibold border border-[var(--nyasa-border)] rounded-full px-3 py-1 focus:outline-none focus:ring-1 focus:ring-[#25D366] cursor-pointer appearance-none"
-                  style={{ color: 'inherit' }}>
-                  {STAGES.slice(1).map(s => <option key={s} value={s} className="bg-[#1a1a1a] text-white">{s}</option>)}
-                </select>
-              </div>
-            </div>
-
-            {/* Labels / Tags */}
-            <div className="px-5 py-3 flex items-start gap-3">
-              <Tag className="w-4 h-4 text-gray-500 mt-0.5 shrink-0" />
-              <div className="flex-1">
-                <p className="text-[10px] text-gray-600 mb-2">Labels</p>
-                <div className="flex flex-wrap gap-1.5 mb-2">
-                  {(contact.tags || []).map(tag => (
-                    <span key={tag} className="inline-flex items-center gap-1 text-[11px] bg-[#25D366]/15 text-[#25D366] px-2 py-0.5 rounded-full">
-                      {tag}
-                      {editing && <button onClick={() => removeLabel(tag)}><X className="w-2.5 h-2.5" /></button>}
-                    </span>
-                  ))}
-                </div>
-                {editing && (
-                  <div className="flex gap-2">
-                    <input value={labelInput} onChange={e => setLabelInput(e.target.value)}
-                      onKeyDown={e => e.key === 'Enter' && addLabel()}
-                      placeholder="Add label…"
-                      className="flex-1 bg-[var(--nyasa-surface-4)] text-white text-xs rounded-lg px-3 py-1.5 focus:outline-none focus:ring-1 focus:ring-[#25D366] border-0 placeholder:text-gray-600" />
-                    <button onClick={addLabel} className="px-2 py-1.5 text-xs bg-[#25D366]/20 text-[#25D366] rounded-lg hover:bg-[#25D366]/30">Add</button>
-                  </div>
-                )}
-              </div>
-            </div>
-
-            {/* Lead Source */}
-            {(contact.lead_source || editing) && (
-              <div className="px-5 py-3 flex items-start gap-3">
-                <Globe className="w-4 h-4 text-gray-500 mt-0.5 shrink-0" />
-                <div className="flex-1">
-                  <p className="text-[10px] text-gray-600 mb-1">Lead Source</p>
-                  {editing ? (
-                    <select value={contact.lead_source || ''} onChange={e => set('lead_source', e.target.value)}
-                      className="w-full bg-[var(--nyasa-surface-4)] text-white text-sm rounded-xl px-3 py-2 border-0 focus:outline-none">
-                      <option value="">— None —</option>
-                      {['email','whatsapp','chat','phone','referral','website','other'].map(s => <option key={s} value={s}>{s.charAt(0).toUpperCase()+s.slice(1)}</option>)}
-                    </select>
-                  ) : (
-                    <p className="text-sm text-white capitalize">{contact.lead_source}</p>
-                  )}
-                </div>
-              </div>
-            )}
-
-            {/* Notes — tap to edit */}
-            <div className="px-5 py-3.5 flex items-start gap-3 cursor-pointer" onClick={() => setEditing(true)}>
-              <Edit2 className="w-4 h-4 text-gray-500 mt-0.5 shrink-0" />
-              <div className="flex-1">
-                <p className="text-[10px] text-gray-600 mb-1">Notes</p>
-                {editing ? (
-                  <textarea autoFocus rows={3} value={contact.notes || ''} onChange={e => set('notes', e.target.value)}
-                    placeholder="Add notes…"
-                    onClick={e => e.stopPropagation()}
-                    className="w-full bg-[var(--nyasa-surface-4)] text-white text-sm rounded-xl px-3 py-2 focus:outline-none focus:ring-1 focus:ring-[#25D366] border-0 resize-none placeholder:text-gray-600" />
-                ) : (
-                  <p className="text-sm text-gray-300 whitespace-pre-wrap">{contact.notes || <span className="text-gray-600 italic">Tap to add notes</span>}</p>
-                )}
-              </div>
-            </div>
-
-            {/* Conversations */}
-            {conversations.length > 0 && (
-              <div className="px-5 py-4">
-                <p className="text-[10px] font-semibold text-gray-500 uppercase tracking-wide mb-2">
-                  Conversations ({conversations.length})
-                </p>
-                <div className="space-y-2">
-                  {conversations.map(cv => (
-                    <div key={cv.id} className="bg-[var(--nyasa-surface-4)] rounded-xl px-3 py-2.5 flex items-center gap-2.5">
-                      <ChannelBadge channel={cv.channel} />
-                      <div className="flex-1 min-w-0">
-                        <p className="text-xs text-gray-300 truncate">{cv.last_message_preview || cv.last_message || 'No messages yet'}</p>
-                        <p className="text-[10px] text-gray-600 mt-0.5 capitalize">{cv.status}</p>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            )}
           </div>
         </div>
 
-        {/* Footer */}
+        {/* Name + phone row below banner */}
+        <div className="text-center px-6 pt-3 pb-4 border-b border-white/5">
+          {editing ? (
+            <div className="space-y-2">
+              <input
+                autoFocus
+                className="w-full bg-white/5 text-white text-center font-bold text-lg rounded-xl px-3 py-2 focus:outline-none focus:ring-1 focus:ring-[#25D366] placeholder:text-gray-500"
+                placeholder="Full name *"
+                value={contact.full_name || ''}
+                onChange={e => set('full_name', e.target.value)}
+              />
+              <input
+                className="w-full bg-white/5 text-white text-center text-sm rounded-xl px-3 py-2 focus:outline-none focus:ring-1 focus:ring-[#25D366] placeholder:text-gray-500"
+                placeholder="Company"
+                value={contact.company || ''}
+                onChange={e => set('company', e.target.value)}
+              />
+            </div>
+          ) : (
+            <button onClick={() => setEditing(true)} className="group w-full">
+              <h2 className="text-white font-bold text-xl leading-tight">{contact.full_name || '—'}</h2>
+              {contact.company && <p className="text-[#8696A0] text-sm mt-0.5">{contact.company}</p>}
+            </button>
+          )}
+          {contact.blocked && (
+            <span className="inline-flex items-center gap-1 mt-2 text-xs text-red-400 bg-red-400/10 px-2 py-0.5 rounded-full">
+              <Ban className="w-3 h-3" />Blocked
+            </span>
+          )}
+        </div>
+
+        {/* Action buttons row */}
+        <div className="flex justify-center gap-8 px-6 py-4 border-b border-white/5">
+          <button onClick={() => onStartChat(contact)} className="flex flex-col items-center gap-1.5 group">
+            <div className="w-12 h-12 rounded-full bg-[#00A884]/20 flex items-center justify-center group-hover:bg-[#00A884]/30 transition-colors">
+              <MessageSquare className="w-5 h-5 text-[#00A884]" />
+            </div>
+            <span className="text-[11px] text-[#8696A0]">Message</span>
+          </button>
+          {contact.phone && (
+            <a href={`tel:${contact.phone}`} className="flex flex-col items-center gap-1.5 group">
+              <div className="w-12 h-12 rounded-full bg-[#00A884]/20 flex items-center justify-center group-hover:bg-[#00A884]/30 transition-colors">
+                <Phone className="w-5 h-5 text-[#00A884]" />
+              </div>
+              <span className="text-[11px] text-[#8696A0]">Call</span>
+            </a>
+          )}
+          {contact.email && (
+            <a href={`mailto:${contact.email}`} className="flex flex-col items-center gap-1.5 group">
+              <div className="w-12 h-12 rounded-full bg-[#00A884]/20 flex items-center justify-center group-hover:bg-[#00A884]/30 transition-colors">
+                <Mail className="w-5 h-5 text-[#00A884]" />
+              </div>
+              <span className="text-[11px] text-[#8696A0]">Email</span>
+            </a>
+          )}
+          <button onClick={handleDelete} className="flex flex-col items-center gap-1.5 group">
+            <div className="w-12 h-12 rounded-full bg-red-500/10 flex items-center justify-center group-hover:bg-red-500/20 transition-colors">
+              <Trash2 className="w-5 h-5 text-red-400" />
+            </div>
+            <span className="text-[11px] text-[#8696A0]">Delete</span>
+          </button>
+        </div>
+
+        {/* Scrollable body */}
+        <div className="flex-1 overflow-y-auto divide-y divide-white/5 pb-safe">
+
+          {/* Phone */}
+          <div className="px-5 py-3.5 flex items-center gap-3">
+            <Phone className="w-4 h-4 text-[#8696A0] shrink-0" />
+            <div className="flex-1 min-w-0">
+              {editing
+                ? <input className="w-full bg-white/5 text-white text-sm rounded-xl px-3 py-1.5 focus:outline-none focus:ring-1 focus:ring-[#25D366] placeholder:text-gray-600" placeholder="Phone number" value={contact.phone || ''} onChange={e => set('phone', e.target.value)} />
+                : <p className="text-sm text-[#00A884] font-medium">{contact.phone || <span className="text-gray-600 italic text-xs">Add phone</span>}</p>
+              }
+              <p className="text-[10px] text-[#8696A0] mt-0.5">Mobile</p>
+            </div>
+          </div>
+
+          {/* Email */}
+          <div className="px-5 py-3.5 flex items-center gap-3">
+            <Mail className="w-4 h-4 text-[#8696A0] shrink-0" />
+            <div className="flex-1 min-w-0">
+              {editing
+                ? <input className="w-full bg-white/5 text-white text-sm rounded-xl px-3 py-1.5 focus:outline-none focus:ring-1 focus:ring-[#25D366] placeholder:text-gray-600" placeholder="Email address" value={contact.email || ''} onChange={e => set('email', e.target.value)} />
+                : <p className="text-sm text-white truncate">{contact.email || <span className="text-gray-600 italic text-xs">Add email</span>}</p>
+              }
+              <p className="text-[10px] text-[#8696A0] mt-0.5">Email</p>
+            </div>
+          </div>
+
+          {/* Deal Stage */}
+          <div className="px-5 py-3.5">
+            <p className="text-[10px] text-[#8696A0] uppercase tracking-wider font-semibold mb-2">Deal Stage</p>
+            <div className="flex gap-2 overflow-x-auto scrollbar-none pb-1">
+              {STAGES.slice(1).map(s => (
+                <button
+                  key={s}
+                  onClick={async () => { set('deal_stage', s); await onSave({ ...contact, deal_stage: s }); }}
+                  className="whitespace-nowrap px-3 py-1.5 rounded-full text-xs font-semibold transition-all shrink-0"
+                  style={{
+                    background: contact.deal_stage === s ? '#00A884' : 'rgba(255,255,255,0.07)',
+                    color: contact.deal_stage === s ? '#0B141A' : '#8696A0',
+                  }}
+                >
+                  {s}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {/* Tags */}
+          <div className="px-5 py-3.5">
+            <p className="text-[10px] text-[#8696A0] uppercase tracking-wider font-semibold mb-2">Labels</p>
+            <div className="flex flex-wrap gap-1.5 mb-2">
+              {(contact.tags || []).map(tag => (
+                <span key={tag} className="inline-flex items-center gap-1 text-xs px-2.5 py-1 rounded-full" style={{ background: 'rgba(0,168,132,0.15)', color: '#00A884' }}>
+                  {tag}
+                  <button onClick={() => removeLabel(tag)} className="opacity-60 hover:opacity-100 ml-0.5">
+                    <X className="w-3 h-3" />
+                  </button>
+                </span>
+              ))}
+            </div>
+            <div className="flex gap-2">
+              <input
+                className="flex-1 bg-white/5 text-white text-xs rounded-full px-3 py-1.5 focus:outline-none focus:ring-1 focus:ring-[#00A884] placeholder:text-gray-600"
+                placeholder="Add label…"
+                value={labelInput}
+                onChange={e => setLabelInput(e.target.value)}
+                onKeyDown={e => e.key === 'Enter' && addLabel()}
+              />
+              <button onClick={addLabel} className="px-3 py-1.5 rounded-full bg-[#00A884]/20 text-[#00A884] text-xs font-semibold hover:bg-[#00A884]/30 transition-colors">
+                Add
+              </button>
+            </div>
+          </div>
+
+          {/* Notes */}
+          <div className="px-5 py-3.5">
+            <p className="text-[10px] text-[#8696A0] uppercase tracking-wider font-semibold mb-2">Notes</p>
+            <textarea
+              className="w-full bg-white/5 text-white text-sm rounded-xl px-3 py-2.5 focus:outline-none focus:ring-1 focus:ring-[#00A884] placeholder:text-gray-600 resize-none"
+              rows={3}
+              placeholder="Add a note about this contact…"
+              value={contact.notes || ''}
+              onChange={e => set('notes', e.target.value)}
+              onBlur={() => contact.notes !== initial.notes && onSave(contact)}
+            />
+          </div>
+
+          {/* Recent conversations */}
+          {conversations.length > 0 && (
+            <div className="px-5 py-3.5">
+              <p className="text-[10px] text-[#8696A0] uppercase tracking-wider font-semibold mb-2">Recent Chats ({conversations.length})</p>
+              <div className="space-y-2">
+                {conversations.slice(0, 3).map(cv => (
+                  <div key={cv.id} className="bg-white/5 rounded-xl px-3 py-2.5 flex items-center gap-2.5">
+                    <ChannelBadge channel={cv.channel} />
+                    <div className="flex-1 min-w-0">
+                      <p className="text-xs text-gray-300 truncate">{cv.last_message_preview || 'No messages yet'}</p>
+                      <p className="text-[10px] text-[#8696A0] mt-0.5 capitalize">{cv.status}</p>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* Block contact */}
+          <div className="px-5 py-3.5">
+            <button
+              onClick={async () => { const blocked = !contact.blocked; await blockContact(contact.id, blocked); setContact(c => ({ ...c, blocked })); }}
+              className="w-full flex items-center gap-3 text-sm text-red-400 hover:text-red-300 transition-colors py-1"
+            >
+              <Ban className="w-4 h-4" />
+              {contact.blocked ? 'Unblock contact' : 'Block contact'}
+            </button>
+          </div>
+        </div>
+
+        {/* Save footer — only when editing */}
         {editing && (
-          <div className="px-5 py-4 border-t border-[var(--nyasa-border)] flex gap-2">
-            <button onClick={() => { setContact({ ...initial }); setEditing(false); }}
-              className="flex-1 py-2.5 bg-white/5 text-gray-300 font-medium rounded-xl hover:bg-white/10 text-sm">
+          <div className="px-5 py-4 border-t border-white/5 flex gap-2 shrink-0">
+            <button
+              onClick={() => { setContact({ ...initial }); setEditing(false); }}
+              className="flex-1 py-2.5 bg-white/5 text-gray-300 font-medium rounded-xl hover:bg-white/10 text-sm transition-colors"
+            >
               Cancel
             </button>
-            <button onClick={handleSave} disabled={saving || !contact.full_name}
-              className="flex-1 py-2.5 bg-[#25D366] text-white font-semibold rounded-xl hover:bg-[#20BA5A] text-sm flex items-center justify-center gap-2 disabled:opacity-50">
+            <button
+              onClick={handleSave}
+              disabled={saving || !contact.full_name}
+              className="flex-1 py-2.5 bg-[#00A884] text-white font-semibold rounded-xl hover:bg-[#00A884]/90 text-sm flex items-center justify-center gap-2 disabled:opacity-50 transition-colors"
+            >
               {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Check className="w-4 h-4" />}
               Save
             </button>
