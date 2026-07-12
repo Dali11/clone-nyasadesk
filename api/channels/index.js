@@ -96,6 +96,7 @@ export default async function handler(req, res) {
   if (action === 'gmail-oauth-callback')  return handleGmailOAuthCallback(req, res);
   if (action === 'email-test')            return handleEmailTest(req, res);
   if (action === 'email-send')            return handleEmailSend(req, res);
+  if (action === 'send-debug')   return handleSendDebug(req, res);
   return handleSend(req, res);
 }
 
@@ -800,6 +801,42 @@ async function handleWhatsappEmbeddedSave(req, res) {
 
 
 // ── Send an outbound message via provider abstraction ────────────────────
+// ── Debug send: returns the raw Meta API error for diagnosis ───────────
+async function handleSendDebug(req, res) {
+  try {
+    const { conversation_id, workspace_id } = req.body || {};
+    const sb = createClient(SUPABASE_URL, SUPABASE_KEY);
+    const { data: conv } = await sb.from('conversations').select('*').eq('id', conversation_id).single();
+    const { data: cfg } = await sb.from('channel_configs').select('*').eq('workspace_id', workspace_id).eq('channel', 'whatsapp').single();
+    const { phone_number_id, access_token } = cfg?.config || {};
+    const GRAPH = 'https://graph.facebook.com/v19.0';
+    const r = await fetch(`${GRAPH}/${phone_number_id}/messages`, {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${access_token}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        messaging_product: 'whatsapp',
+        to: conv?.external_id,
+        type: 'text',
+        text: { body: 'Debug test' },
+      }),
+    });
+    const json = await r.json();
+    return res.status(200).json({
+      ok: r.ok,
+      status: r.status,
+      meta_response: json,
+      phone_number_id,
+      token_preview: access_token ? access_token.slice(0, 12) + '...' : null,
+      to: conv?.external_id,
+      channel: conv?.channel,
+      cfg_enabled: cfg?.enabled,
+    });
+  } catch (e) {
+    return res.status(200).json({ ok: false, error: e.message });
+  }
+}
+
+
 async function handleSend(req, res) {
   try {
     const { message_id, conversation_id, workspace_id, channel, body: text, attachments, template, message_type, location, media_url, media_type } = req.body || {};
