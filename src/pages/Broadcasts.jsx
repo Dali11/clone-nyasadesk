@@ -81,18 +81,15 @@ export default function Broadcasts() {
 
   // Compute targeted contacts based on Stage Filter
   const getFilteredContacts = () => {
-    // Only send to contacts that have a phone number (WhatsApp needs it)
-    const withPhone = contacts.filter(c => c.phone);
     if (!form.stageFilter) return [];
-    if (form.stageFilter === '_all_') return withPhone;
-    return withPhone.filter(c => c.deal_stage === form.stageFilter);
+    return contacts.filter(c => c.deal_stage === form.stageFilter);
   };
 
   const targetedContacts = getFilteredContacts();
 
   // Create Campaign
   const createCampaign = async () => {
-    if (!form.name.trim() || !form.message.trim() || !form.stageFilter || !targetedContacts.length || creating) return;
+    if (!form.name.trim() || !form.message.trim() || !targetedContacts.length || creating) return;
     setCreating(true);
     try {
       const audienceIds = targetedContacts.map(c => c.id);
@@ -474,16 +471,15 @@ export default function Broadcasts() {
 
                 {/* Deal Stage Audience selection */}
                 <div className="space-y-1.5">
-                  <label className="text-xs font-semibold text-gray-400 uppercase tracking-wider block">Target Audience</label>
+                  <label className="text-xs font-semibold text-gray-400 uppercase tracking-wider block">Target Stage Audience</label>
                   <select
                     value={form.stageFilter}
                     onChange={e => set('stageFilter', e.target.value)}
                     className="w-full bg-[var(--nyasa-surface-4)] text-white text-sm rounded-xl px-4 py-2.5 focus:outline-none border border-[var(--nyasa-border)]"
                   >
-                    <option value="">Select audience *</option>
-                    <option value="_all_">All contacts (with phone)</option>
+                    <option value="">Select Deal Stage *</option>
                     {STAGES.map(s => (
-                      <option key={s} value={s}>{s} stage only</option>
+                      <option key={s} value={s}>{s}</option>
                     ))}
                   </select>
                 </div>
