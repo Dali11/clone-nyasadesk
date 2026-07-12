@@ -709,11 +709,7 @@ function Bubble({ msg, menuOpenId, onOpenMenu, onCopy, onShare, onForward, onDel
       transition={{ duration: 0.15 }}
       className={`flex items-end gap-2 ${isOut ? 'flex-row-reverse' : 'flex-row'}`}
     >
-      {!isOut && (
-        <div className="w-6 h-6 rounded-full bg-[var(--nyasa-surface-4)] flex items-center justify-center text-[9px] font-bold text-white shrink-0 mb-1">
-          {(msg.sender_name || '?')[0].toUpperCase()}
-        </div>
-      )}
+
       <div
         className="group relative max-w-[72%] px-3 py-2 shadow-sm text-sm leading-relaxed"
         style={{
