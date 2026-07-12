@@ -397,7 +397,7 @@ export default function TeamSection() {
       )}
 
       {/* Seat usage */}
-      <SeatBar used={users.filter(u => u.id !== workspaceId && u.role !== 'admin').length} limit={seatLimit} />
+      <SeatBar used={users.filter(u => u.id !== workspaceId).length} limit={seatLimit} />
 
       {/* Header row */}
       <div className="flex items-center gap-2 mb-1">
@@ -425,7 +425,7 @@ export default function TeamSection() {
           </div>
         </div>
 
-        {canManage && !showForm && users.filter(u => u.id !== workspaceId && u.role !== 'admin').length < seatLimit && (
+        {canManage && !showForm && users.filter(u => u.id !== workspaceId).length < seatLimit && (
           <button onClick={() => setShowForm(true)}
             className="flex items-center gap-1.5 px-3 py-2 bg-[#25D366] text-white text-xs font-bold rounded-xl hover:bg-[#20BA5A] transition-colors shrink-0">
             <Plus className="w-3.5 h-3.5" /> Add Agent
