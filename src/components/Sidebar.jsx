@@ -1,13 +1,23 @@
-import { useState, useEffect } from 'react';
-import { Link, useLocation, useNavigate } from 'react-router-dom';
+import {useState, useEffect}from 'react';
+import {Link, useLocation}from 'react-router-dom';
 import {
-  MessageSquare, BarChart2, Users, Megaphone, Settings,
-  Zap, BookOpen, ShieldCheck, Bot, FileText, TrendingUp, BadgeDollarSign,
-} from 'lucide-react';
+  MessageSquare,
+  BarChart2,
+  Users,
+  Megaphone,
+  Settings,
+  Zap,
+  BookOpen,
+  ShieldCheck,
+  Bot,
+  FileText,
+  TrendingUp,
+  BadgeDollarSign,
+}from 'lucide-react';
 import Avatar from './Avatar';
-import { supabase } from '@/lib/supabase';
-import { useNyasaAuth } from '@/lib/NyasaAuth';
-import { ProfileMenuMobile, ProfileMenuDesktop } from '@/components/ProfileMenu';
+import {supabase}from '@/lib/supabase';
+import {useNyasaAuth}from '@/lib/NyasaAuth';
+import {ProfileMenuMobile, ProfileMenuDesktop}from '@/components/ProfileMenu';
 
 // ── Nav definitions ────────────────────────────────────────────────────────
 const NAV = [
