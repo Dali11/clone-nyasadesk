@@ -38,10 +38,10 @@ const NAV = [
 
 // Mobile bottom bar: WhatsApp bottom nav exactly
 const MOBILE_NAV = [
-  { path: '/',          icon: MessageSquare, label: 'Chats'       },
-  { path: '/dashboard', icon: RefreshCw,     label: 'Updates'     },
-  { path: '/contacts',  icon: Users,         label: 'Communities' },
-  { path: '/settings',  icon: Phone,         label: 'Calls'       },
+  { path: '/',          icon: MessageSquare, label: 'Chats'    },
+  { path: '/dashboard', icon: BarChart2,     label: 'Reports'  },
+  { path: '/contacts',  icon: Users,         label: 'Contacts' },
+  { path: '/settings',  icon: Settings,      label: 'Settings' },
 ];
 
 export default function Sidebar({ hideMobileChrome = false } = {}) {
