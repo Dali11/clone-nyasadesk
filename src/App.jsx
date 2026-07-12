@@ -203,7 +203,134 @@ function AppRoutes() {
   );
 }
 
-export default function App() {
+export default 
+/* ── ContactsPermissionBanner ──────────────────────────────────────────────
+ * Shows once after login if the Contact Picker API is available AND the user
+ * has not yet synced their phone contacts. After sync (or dismiss), stores a
+ * flag in localStorage so it never appears again.
+ * WhatsApp does the same on first launch — this gives Nyasadesk the same UX.
+ */
+function ContactsPermissionBanner() {
+  const { user, profile, workspaceOwnerId } = useNyasaAuth();
+  const [show, setShow]         = React.useState(false);
+  const [syncing, setSyncing]   = React.useState(false);
+  const [done, setDone]         = React.useState(false);
+
+  // Only show if: Contact Picker API available + not yet synced + user is logged in
+  React.useEffect(() => {
+    if (!user) return;
+    const synced = localStorage.getItem('nyasa_contacts_synced');
+    const dismissed = localStorage.getItem('nyasa_contacts_dismissed');
+    const hasApi = typeof navigator !== 'undefined'
+      && 'contacts' in navigator
+      && 'ContactsManager' in window;
+    if (hasApi && !synced && !dismissed) {
+      // Delay slightly so the app is fully rendered first
+      const t = setTimeout(() => setShow(true), 2000);
+      return () => clearTimeout(t);
+    }
+  }, [user]);
+
+  const handleSync = async () => {
+    setSyncing(true);
+    try {
+      const { pickPhoneContacts, syncPhoneContacts } = await import('@/lib/channels');
+      const wId = workspaceOwnerId || profile?.workspace_id || user?.id;
+      const picked = await pickPhoneContacts();
+      if (picked.length === 0) {
+        localStorage.setItem('nyasa_contacts_dismissed', '1');
+        setShow(false);
+        return;
+      }
+      await syncPhoneContacts(wId, picked);
+      localStorage.setItem('nyasa_contacts_synced', Date.now().toString());
+      setDone(true);
+      setTimeout(() => setShow(false), 2500);
+    } catch (e) {
+      // User cancelled or API error — mark dismissed so we don't pester them
+      localStorage.setItem('nyasa_contacts_dismissed', '1');
+      setShow(false);
+    } finally {
+      setSyncing(false);
+    }
+  };
+
+  const handleDismiss = () => {
+    localStorage.setItem('nyasa_contacts_dismissed', '1');
+    setShow(false);
+  };
+
+  if (!show) return null;
+
+  return (
+    <div style={{
+      position: 'fixed', bottom: 72, left: '50%', transform: 'translateX(-50%)',
+      zIndex: 9999, width: 'calc(100% - 32px)', maxWidth: 400,
+      background: '#1C2030', border: '1px solid rgba(255,255,255,0.1)',
+      borderRadius: 16, padding: '14px 16px',
+      boxShadow: '0 8px 32px rgba(0,0,0,0.5)',
+      display: 'flex', alignItems: 'flex-start', gap: 12,
+    }}>
+      {/* Icon */}
+      <div style={{
+        width: 40, height: 40, borderRadius: 12, flexShrink: 0,
+        background: 'rgba(37,211,102,0.15)',
+        display: 'flex', alignItems: 'center', justifyContent: 'center',
+      }}>
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#25D366" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+          <rect x="5" y="2" width="14" height="20" rx="2"/>
+          <path d="M12 18h.01"/>
+          <path d="M9 7h6M9 11h6M9 15h4"/>
+        </svg>
+      </div>
+
+      <div style={{ flex: 1, minWidth: 0 }}>
+        {done ? (
+          <p style={{ color: '#25D366', fontWeight: 700, fontSize: 14, margin: 0 }}>
+            ✓ Contacts synced — names will appear in your inbox
+          </p>
+        ) : (
+          <>
+            <p style={{ color: 'white', fontWeight: 700, fontSize: 14, margin: '0 0 2px' }}>
+              See names instead of numbers
+            </p>
+            <p style={{ color: '#9CA3AF', fontSize: 12, margin: '0 0 10px', lineHeight: 1.5 }}>
+              Allow Nyasadesk to read your phone contacts so customers appear by name — just like WhatsApp.
+            </p>
+            <div style={{ display: 'flex', gap: 8 }}>
+              <button
+                onClick={handleSync}
+                disabled={syncing}
+                style={{
+                  background: '#25D366', color: 'white', border: 'none',
+                  borderRadius: 10, padding: '7px 14px', fontSize: 13,
+                  fontWeight: 700, cursor: 'pointer', opacity: syncing ? 0.7 : 1,
+                }}>
+                {syncing ? 'Syncing…' : 'Sync contacts'}
+              </button>
+              <button
+                onClick={handleDismiss}
+                style={{
+                  background: 'transparent', color: '#6B7280', border: '1px solid rgba(255,255,255,0.1)',
+                  borderRadius: 10, padding: '7px 12px', fontSize: 13,
+                  fontWeight: 600, cursor: 'pointer',
+                }}>
+                Not now
+              </button>
+            </div>
+          </>
+        )}
+      </div>
+
+      {/* Close */}
+      <button onClick={handleDismiss} style={{ background: 'none', border: 'none', color: '#6B7280', cursor: 'pointer', padding: 2, marginTop: -2 }}>
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M18 6 6 18M6 6l12 12"/></svg>
+      </button>
+    </div>
+  );
+}
+
+function App() {
   return (
     <AuthProvider>
       <QueryClientProvider client={queryClientInstance}>
@@ -212,6 +339,7 @@ export default function App() {
             <ScrollToTop />
             <AppRoutes />
           </Router>
+          <ContactsPermissionBanner />
           <OfflineBanner />
       <Toaster />
         <InstallPrompt />
