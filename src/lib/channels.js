@@ -513,8 +513,14 @@ export async function sendMessage(workspaceId, conversationId, body, senderName,
 // ── Realtime subscriptions ───────────────────────────────────────────────────
 
 export function subscribeToConversations(workspaceId, callback) {
+  // Use a unique channel name each time — Supabase v2 throws if you try to
+  // add postgres_changes listeners to an already-subscribed channel. A suffix
+  // ensures every call gets a fresh channel object even if the previous one
+  // was torn down asynchronously (React StrictMode double-invoke, fast
+  // workspaceOwnerId change, HMR, etc.).
+  const uid = Date.now();
   return supabase
-    .channel('conversations:' + workspaceId)
+    .channel(`conversations:${workspaceId}:${uid}`)
     .on('postgres_changes', {
       event: '*',
       schema: 'public',
@@ -531,8 +537,9 @@ export function subscribeToConversations(workspaceId, callback) {
 }
 
 export function subscribeToMessages(conversationId, callback) {
+  const uid = Date.now();
   return supabase
-    .channel('messages:' + conversationId)
+    .channel(`messages:${conversationId}:${uid}`)
     .on('postgres_changes', {
       // '*' (not just INSERT) — a message's status flips from 'sending' to
       // 'delivered'/'failed' via a later UPDATE once dispatch completes, and
