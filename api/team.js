@@ -131,7 +131,7 @@ async function inviteHandler(req, res, sb, sbAnon) {
       .from('profiles')
       .select('id', { count: 'exact', head: true })
       .eq('workspace_id', workspace_id)
-      .in('role', ['user', 'sales_manager']); // only agents count — owner & admins are free
+      .in('role', ['user', 'sales_manager', 'admin']); // owner is excluded (owner id === workspace_id); admins consume seats
     if ((currentSeats || 0) >= limit) {
       return res.status(403).json({
         error: `Your ${plan} plan is limited to ${limit} seat${limit === 1 ? '' : 's'} (not counting you as owner). Upgrade your plan to invite more.`,
