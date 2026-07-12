@@ -126,6 +126,17 @@ export default function ChatHeader({ conversation, users = [], currentUserId, cu
           );
         })()}
 
+        {/* Phone call — dials contact directly via tel: link */}
+        {conversation.contact_phone && (
+          <a
+            href={`tel:${conversation.contact_phone.replace(/\s/g, '')}`}
+            className="p-2 rounded-full hover:bg-white/10 transition-colors text-[#8696A0] hover:text-white"
+            title={`Call ${conversation.contact_phone}`}
+          >
+            <Phone className="w-5 h-5" />
+          </a>
+        )}
+
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
             <button className="flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold transition-colors" style={{background:"rgba(0,168,132,0.15)",color:"#00A884"}}>
