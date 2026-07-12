@@ -2,7 +2,7 @@ import { AnimatePresence, motion } from 'framer-motion';
 import { useState } from 'react';
 import ConvRow from './ConvRow';
 import Avatar from '@/components/Avatar';
-import { MessageSquare, X, CheckSquare, Square, UserCheck, CheckCircle, Clock, XCircle, Trash2, Search, MoreVertical, Plus } from 'lucide-react';
+import { X, CheckSquare, Square, UserCheck, CheckCircle, Clock, XCircle, Trash2, Plus, Search } from 'lucide-react';
 
 export default function ConvList({ conversations, activeId, onSelect, loading, users = [], onBulkAction, canAssign = false }) {
   const [selectedIds, setSelectedIds] = useState(new Set());
@@ -75,6 +75,24 @@ export default function ConvList({ conversations, activeId, onSelect, loading, u
 
   return (
     <div className="flex flex-col relative bg-[#0B141A] min-h-screen text-white select-none">
+      {/* Search bar */}
+      <div className="px-3 pb-1 bg-[#0B141A]">
+        <div className="flex items-center gap-2 px-3 py-1.5 rounded-full bg-[#1F2C34]">
+          <Search className="w-4 h-4 text-[#8696A0] shrink-0" />
+          <input
+            type="text"
+            placeholder="Search conversations…"
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            className="bg-transparent border-none outline-none text-sm text-white placeholder-[#8696A0] w-full"
+          />
+          {searchQuery && (
+            <X className="w-4 h-4 shrink-0 cursor-pointer text-[#8696A0] hover:text-white"
+              onClick={() => setSearchQuery('')} />
+          )}
+        </div>
+      </div>
+
       {/* Filter Tabs */}
       <div className="flex items-center gap-2 px-4 py-2 bg-[#0B141A] overflow-x-auto scrollbar-none">
         {['All', 'Unread', 'Groups'].map(tab => {
