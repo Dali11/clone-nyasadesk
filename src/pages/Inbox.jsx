@@ -9,7 +9,7 @@ import ContactPanel from '@/components/inbox/ContactPanel';
 import NewConvModal from '@/components/inbox/NewConvModal';
 import { useNyasaAuth } from '@/lib/NyasaAuth';
 import { useToast } from '@/components/ui/use-toast';
-import { getConversations, updateConversation, deleteConversation, subscribeToConversations, getPinnedConvs, createInternalConv, pinConversation, unpinConversation, getTeamMembers } from '@/lib/channels';
+import { getConversations, updateConversation, deleteConversation, subscribeToConversations, getPinnedConvs, createInternalConv, pinConversation, unpinConversation, getTeamMembers, resolveUnknownContacts } from '@/lib/channels';
 import { supabase } from '@/lib/supabase';
 import { useDocumentTitle } from '@/hooks/useDocumentTitle';
 
@@ -66,7 +66,9 @@ export default function Inbox() {
       // Admins and Sales Managers get everything (no agentId filter).
       const filters = canViewAllChats ? {} : { agentId: user?.id };
       const data = await getConversations(workspaceOwnerId, filters);
-      setConversations(data);
+      // Auto-resolve: match phone numbers against saved contacts for proper names
+      const resolved = await resolveUnknownContacts(workspaceOwnerId, data).catch(() => data);
+      setConversations(resolved);
     } catch (e) {
       console.error('Failed to load conversations:', e);
     } finally {
