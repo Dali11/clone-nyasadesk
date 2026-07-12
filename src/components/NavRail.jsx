@@ -1,70 +1,39 @@
-import {Link, useLocation}from 'react-router-dom';
-import {Inbox, BarChart2, Users, Settings, Zap}from 'lucide-react';
-import {Tooltip, TooltipContent, TooltipProvider, TooltipTrigger}from '@/components/ui/tooltip';
-
-const navItems = [
-  { icon: Inbox, label: 'Inbox', path: '/' },
-  { icon: BarChart2, label: 'Dashboard', path: '/dashboard' },
-  { icon: Users, label: 'Contacts', path: '/contacts' },
-  { icon: Zap, label: 'Rules', path: '/rules' },
-  { icon: Settings, label: 'Settings', path: '/settings' },
-];
+import { Link, useLocation } from 'react-router-dom';
+import { MessageSquare, RefreshCw, Users, Phone } from 'lucide-react';
 
 export default function NavRail({ user }) {
   const location = useLocation();
 
-  const initials = user?.full_name
-    ? user.full_name.split(' ').map(n => n[0]).join('').slice(0, 2).toUpperCase()
-    : '??';
+  // Mapping Nyasadesk current application tabs to closest WhatsApp equivalents:
+  // Inbox -> Chats (MessageSquare)
+  // Dashboard -> Updates (RefreshCw as circle-dot)
+  // Contacts -> Communities (Users)
+  // Settings / Rules / other -> Calls / other
+  // We provide the exact 4-tab bar layout from mobile WhatsApp
+  const tabs = [
+    { label: 'Chats', path: '/', icon: MessageSquare },
+    { label: 'Updates', path: '/dashboard', icon: RefreshCw },
+    { label: 'Communities', path: '/contacts', icon: Users },
+    { label: 'Calls', path: '/settings', icon: Phone },
+  ];
 
   return (
-    <TooltipProvider delayDuration={0}>
-      <nav className="nav-rail flex flex-col items-center py-4 w-16 min-h-screen shrink-0 z-30">
-        {/* Logo */}
-        <img src="/icon-192.png" alt="Nyasadesk" className="mb-8 w-9 h-9 rounded-xl shadow-lg" />
-
-        {/* Nav items */}
-        <div className="flex flex-col items-center gap-1 flex-1">
-          {navItems.map(({ icon: Icon, label, path }) => {
-            const active = location.pathname === path || (path !== '/' && location.pathname.startsWith(path));
-            return (
-              <Tooltip key={path}>
-                <TooltipTrigger asChild>
-                  <Link
-                    to={path}
-                    className={`flex items-center justify-center w-10 h-10 rounded-xl transition-all duration-150 group
-                      ${active
-                        ? 'bg-[#5C6CF7] text-white shadow-md'
-                        : 'text-[#6B7280] hover:bg-[#1C2030] hover:text-white'
-                      }`}
-                  >
-                    <Icon className="w-5 h-5" />
-                  </Link>
-                </TooltipTrigger>
-                <TooltipContent side="right" className="text-xs font-medium">
-                  {label}
-                </TooltipContent>
-              </Tooltip>
-            );
-          })}
-        </div>
-
-        {/* Bottom section */}
-        <div className="flex flex-col items-center gap-2 mt-auto">
-          {/* Avatar */}
-          <Tooltip>
-            <TooltipTrigger asChild>
-              <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-[#5C6CF7] to-[#00A8BD] flex items-center justify-center text-white text-xs font-semibold cursor-pointer select-none">
-                {initials}
-              </div>
-            </TooltipTrigger>
-            <TooltipContent side="right" className="text-xs">
-              {user?.full_name || 'You'}<br />
-              <span className="text-[#9CA3AF] capitalize">{user?.role}</span>
-            </TooltipContent>
-          </Tooltip>
-        </div>
-      </nav>
-    </TooltipProvider>
+    <nav className="fixed bottom-0 left-0 right-0 h-[56px] bg-[#1F2C34] flex items-stretch justify-around border-t border-white/[0.06] z-50">
+      {tabs.map(({ label, path, icon: Icon }) => {
+        const active = location.pathname === path || (path !== '/' && location.pathname.startsWith(path));
+        return (
+          <Link
+            key={path}
+            to={path}
+            className="flex-1 flex flex-col items-center justify-center gap-1 transition-all"
+          >
+            <Icon className={`w-5 h-5 ${active ? 'text-[#00A884]' : 'text-[#8696A0]'}`} />
+            <span className={`text-[11px] font-medium ${active ? 'text-[#00A884]' : 'text-[#8696A0]'}`}>
+              {label}
+            </span>
+          </Link>
+        );
+      })}
+    </nav>
   );
 }

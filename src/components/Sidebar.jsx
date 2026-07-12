@@ -13,6 +13,8 @@ import {
   FileText,
   TrendingUp,
   BadgeDollarSign,
+  RefreshCw,
+  Phone,
 }from 'lucide-react';
 import Avatar from './Avatar';
 import {supabase}from '@/lib/supabase';
@@ -34,12 +36,12 @@ const NAV = [
   { path: '/settings',   icon: Settings,      label: 'Settings'          },
 ];
 
-// Mobile bottom bar: 4 primary tabs — Settings replaces "More"
+// Mobile bottom bar: WhatsApp bottom nav exactly
 const MOBILE_NAV = [
-  { path: '/',          icon: MessageSquare, label: 'Inbox'    },
-  { path: '/contacts',  icon: Users,         label: 'Contacts' },
-  { path: '/dashboard', icon: BarChart2,     label: 'Reports'  },
-  { path: '/settings',  icon: Settings,      label: 'Settings' },
+  { path: '/',          icon: MessageSquare, label: 'Chats'       },
+  { path: '/dashboard', icon: RefreshCw,     label: 'Updates'     },
+  { path: '/contacts',  icon: Users,         label: 'Communities' },
+  { path: '/settings',  icon: Phone,         label: 'Calls'       },
 ];
 
 export default function Sidebar({ hideMobileChrome = false } = {}) {
@@ -87,10 +89,10 @@ export default function Sidebar({ hideMobileChrome = false } = {}) {
   return (
     <>
       {/* ── Desktop (≥1024px): full labeled rail ──────────────────────── */}
-      <div className="hidden lg:flex w-64 flex-col shrink-0 bg-[var(--nyasa-surface-1)] border-r border-[var(--nyasa-border)]">
+      <div className="hidden lg:flex w-64 flex-col shrink-0 bg-[#0B141A] border-r border-white/5">
 
         {/* Logo header */}
-        <div className="px-5 pt-5 pb-4 border-b border-[var(--nyasa-border)]"
+        <div className="px-5 pt-5 pb-4 border-b border-white/5"
              style={{ background: 'linear-gradient(135deg, #075E54 0%, #128C7E 100%)' }}>
           <div className="flex items-center gap-3">
             <img src="/icon-192.png" alt="Nyasadesk" className="w-9 h-9 rounded-xl shrink-0 shadow-inner" />
@@ -113,8 +115,8 @@ export default function Sidebar({ hideMobileChrome = false } = {}) {
               <Link key={path} to={path}
                 className={`flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-all
                   ${active
-                    ? 'bg-[#25D366]/15 text-[#25D366]'
-                    : 'text-gray-400 hover:bg-white/5 hover:text-gray-200'}`}>
+                    ? 'bg-[#00A884]/15 text-[#00A884]'
+                    : 'text-[#8696A0] hover:bg-[#1F2C34] hover:text-white'}`}>
                 <Icon className="w-4 h-4 shrink-0" />
                 {label}
               </Link>
@@ -123,18 +125,18 @@ export default function Sidebar({ hideMobileChrome = false } = {}) {
         </div>
 
         {/* User footer — rich dropdown */}
-        <div className="p-3 border-t border-[var(--nyasa-border)]">
+        <div className="p-3 border-t border-white/5">
           <ProfileMenuDesktop
             side="top"
             align="start"
             trigger={
-              <div className="flex items-center gap-3 px-2 py-2 rounded-xl hover:bg-white/5 transition-colors cursor-pointer">
+              <div className="flex items-center gap-3 px-2 py-2 rounded-xl hover:bg-[#1F2C34] transition-colors cursor-pointer">
                 <Avatar name={user?.full_name || ''} size="sm" status={user?.status || 'online'} />
                 <div className="min-w-0 flex-1">
-                  <p className="text-sm font-semibold text-[var(--nyasa-text)] truncate leading-tight">
+                  <p className="text-sm font-semibold text-white truncate leading-tight">
                     {user?.full_name || user?.email || 'You'}
                   </p>
-                  <p className="text-[11px] text-gray-500 truncate leading-tight capitalize">
+                  <p className="text-[11px] text-[#8696A0] truncate leading-tight capitalize">
                     {user?.role || 'agent'}
                   </p>
                 </div>
@@ -145,8 +147,8 @@ export default function Sidebar({ hideMobileChrome = false } = {}) {
       </div>
 
       {/* ── Tablet (768–1023px): compact icon-only rail ───────────────── */}
-      <div className="hidden md:flex lg:hidden w-16 flex-col shrink-0 bg-[var(--nyasa-surface-1)] border-r border-[var(--nyasa-border)]">
-        <div className="h-14 flex items-center justify-center border-b border-[var(--nyasa-border)] shrink-0"
+      <div className="hidden md:flex lg:hidden w-16 flex-col shrink-0 bg-[#0B141A] border-r border-white/5">
+        <div className="h-14 flex items-center justify-center border-b border-white/5 shrink-0"
              style={{ background: 'linear-gradient(135deg, #075E54 0%, #128C7E 100%)' }}>
           <div className="w-8 h-8 rounded-lg bg-white/20 flex items-center justify-center">
             <span className="text-white font-black text-sm leading-none">N</span>
@@ -160,15 +162,15 @@ export default function Sidebar({ hideMobileChrome = false } = {}) {
               <Link key={path} to={path} title={label}
                 className={`flex items-center justify-center w-10 h-10 rounded-xl transition-all
                   ${active
-                    ? 'bg-[#25D366]/15 text-[#25D366]'
-                    : 'text-gray-400 hover:bg-white/5 hover:text-gray-200'}`}>
+                    ? 'bg-[#00A884]/15 text-[#00A884]'
+                    : 'text-[#8696A0] hover:bg-[#1F2C34] hover:text-white'}`}>
                 <Icon className="w-4.5 h-4.5" />
               </Link>
             );
           })}
         </div>
 
-        <div className="p-2 border-t border-[var(--nyasa-border)] flex items-center justify-center">
+        <div className="p-2 border-t border-white/5 flex items-center justify-center">
           <ProfileMenuDesktop
             side="right"
             align="end"
@@ -184,8 +186,8 @@ export default function Sidebar({ hideMobileChrome = false } = {}) {
       {/* ── Mobile (<768px) ────────────────────────────────────────────── */}
       {/* Top header */}
       <div className={`md:hidden fixed top-0 left-0 right-0 z-50 flex items-center gap-3 px-4 h-14
-                       border-b border-white/10 ${hideMobileChrome ? 'hidden' : ''}`}
-           style={{ background: 'linear-gradient(135deg, #075E54 0%, #128C7E 100%)' }}>
+                       border-b border-white/5 ${hideMobileChrome ? 'hidden' : ''}`}
+           style={{ background: '#0B141A' }}>
         <img src="/icon-192.png" alt="Nyasadesk" className="w-8 h-8 rounded-lg shrink-0" />
         <div className="min-w-0 flex-1">
           <p className="text-white font-bold text-sm leading-tight">Nyasadesk</p>
@@ -206,18 +208,20 @@ export default function Sidebar({ hideMobileChrome = false } = {}) {
         />
       </div>
 
-      {/* Bottom tab bar — Settings (not "More") as 4th tab */}
-      <nav className={`md:hidden fixed bottom-0 left-0 right-0 z-50 bg-[var(--nyasa-surface-1)]
-                       border-t border-[var(--nyasa-border)] flex items-stretch px-2 pb-safe
+      {/* Bottom tab bar — WhatsApp bottom nav style */}
+      <nav className={`md:hidden fixed bottom-0 left-0 right-0 h-[56px] z-50 bg-[#1F2C34]
+                       border-t border-white/[0.06] flex items-stretch px-2 pb-safe
                        ${hideMobileChrome ? 'hidden' : ''}`}>
         {MOBILE_NAV.map(({ path, icon: Icon, label }) => {
           const active = pathname === path;
           return (
             <Link key={path} to={path}
-              className={`flex-1 flex flex-col items-center gap-0.5 py-2 transition-colors
-                ${active ? 'text-[#25D366]' : 'text-gray-500'}`}>
-              <Icon className="w-5 h-5" />
-              <span className="text-[10px] font-medium">{label}</span>
+              className="flex-1 flex flex-col items-center justify-center gap-1 transition-all"
+            >
+              <Icon className={`w-5 h-5 ${active ? 'text-[#00A884]' : 'text-[#8696A0]'}`} />
+              <span className={`text-[11px] font-medium ${active ? 'text-[#00A884]' : 'text-[#8696A0]'}`}>
+                {label}
+              </span>
             </Link>
           );
         })}

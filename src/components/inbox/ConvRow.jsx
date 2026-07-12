@@ -1,7 +1,7 @@
 import {formatDistanceToNow}from 'date-fns';
 import Avatar from '@/components/Avatar';
 import SLABadge from '@/components/SLABadge';
-import {Bell, Mail, Globe, Send, Pin, Check}from 'lucide-react';
+import {Bell, Mail, Globe, Send, Pin, Check, VolumeX}from 'lucide-react';
 import {lookupPhoneContact}from '@/lib/usePhoneContacts';
 
 function WhatsAppIcon({ className }) {
@@ -59,66 +59,79 @@ export default function ConvRow({ conv, active, onClick, pinned = false, selecta
     };
   })();
 
+  // Whether the message was sent by an agent/system
+  const isFromAgent = conv.last_message_direction === 'outbound' || conv.last_message_by_agent;
+
   return (
     <div
       onClick={handleClick}
       {...(!selectable ? handleLongPress : {})}
-      className={`flex items-start gap-3 px-4 py-3 cursor-pointer border-b border-[var(--nyasa-border)] transition-colors select-none
-        ${active && !selectable ? 'bg-white/10' : ''}
-        ${selected ? 'bg-[#25D366]/10' : !active ? 'hover:bg-white/5' : ''}`}
+      className={`flex items-center gap-3 px-4 h-[72px] cursor-pointer transition-colors select-none w-full
+        ${active && !selectable ? 'bg-[#2A3942]' : selected ? 'bg-[#2A3942]/80' : 'hover:bg-[#202C33]'}`}
     >
       {/* Checkbox / Avatar */}
-      <div className="relative shrink-0 mt-0.5">
+      <div className="relative shrink-0 flex items-center justify-center w-12 h-12">
         {selectable ? (
-          <div className={`w-10 h-10 rounded-full flex items-center justify-center border-2 transition-all
-            ${selected ? 'bg-[#25D366] border-[#25D366]' : 'border-[var(--nyasa-border)] bg-[var(--nyasa-surface-3)]'}`}>
+          <div className={`w-12 h-12 rounded-full flex items-center justify-center border-2 transition-all
+            ${selected ? 'bg-[#00A884] border-[#00A884]' : 'border-white/10 bg-[#1F2C34]'}`}>
             {selected
-              ? <Check className="w-5 h-5 text-white" />
-              : <span className="text-sm font-bold text-gray-500">{(displayName)[0]}</span>
+              ? <Check className="w-6 h-6 text-white" />
+              : <span className="text-sm font-bold text-gray-400">{(displayName)[0]}</span>
             }
           </div>
         ) : (
           <>
-            <Avatar name={displayName} src={displayPhoto} size="md" />
-            <span className={`absolute -bottom-0.5 -right-0.5 w-4 h-4 rounded-full ${cfg.bg} flex items-center justify-center`}>
+            <Avatar name={displayName} src={displayPhoto} size="md" className="w-12 h-12 rounded-full" />
+            <span className={`absolute bottom-0 right-0 w-4 h-4 rounded-full ${cfg.bg} flex items-center justify-center border border-[#0B141A]`}>
               <Icon className="w-2.5 h-2.5 text-white" />
             </span>
           </>
         )}
       </div>
 
-      <div className="flex-1 min-w-0">
-        <div className="flex items-center justify-between mb-0.5">
-          <span className={`text-sm truncate ${conv.unread ? 'font-bold text-white' : 'font-normal text-gray-300'}`}>
+      {/* Main content right side with left-inset divider starting AFTER avatar */}
+      <div className="flex-1 min-w-0 flex flex-col justify-center h-full border-b border-white/5 pr-1 py-1">
+        <div className="flex items-center justify-between mb-1">
+          <span className={`text-[15px] truncate font-medium text-white`}>
             {displayName}
           </span>
-          <div className="flex items-center gap-1.5 shrink-0 ml-2">
-            {conv.is_reminder_active && <Bell className="w-3 h-3 text-yellow-400" />}
-            <span className={`text-[10px] ${conv.unread ? 'text-[#25D366] font-semibold' : 'text-gray-600'}`}>
-              {timeAgo(conv.last_message_at)}
+          <span className={`text-xs shrink-0 ml-2 ${conv.unread ? 'text-[#00A884] font-semibold' : 'text-[#8696A0]'}`}>
+            {timeAgo(conv.last_message_at)}
+          </span>
+        </div>
+
+        <div className="flex items-center justify-between">
+          <div className="flex items-center min-w-0 flex-1 gap-1 text-[14px]">
+            {/* Sent by Agent Double Tick indicator */}
+            {isFromAgent && (
+              <span className="text-[#53bdeb] shrink-0 font-bold">✓✓</span>
+            )}
+            {/* Muted icon indicator */}
+            {conv.is_muted && (
+              <VolumeX className="w-3.5 h-3.5 text-[#8696A0] shrink-0 mr-0.5" />
+            )}
+            <span className="text-[#8696A0] truncate max-w-full">
+              {conv.last_message_preview || 'No messages yet'}
             </span>
           </div>
-        </div>
-        {conv.subject && conv.subject !== conv.contact_name && (
-          <div className={`text-xs truncate mb-1 ${conv.unread ? 'text-gray-200 font-medium' : 'text-gray-600'}`}>
-            {conv.subject}
-          </div>
-        )}
-        <div className={`text-xs truncate mb-1 ${conv.unread ? 'text-gray-300 font-medium' : 'text-gray-700'}`}>
-          {conv.last_message_preview || 'No messages yet'}
-        </div>
-        <div className="flex items-center justify-between">
-          <SLABadge slaBreachAt={conv.sla_breach_at} />
-          <div className="flex items-center gap-1.5 ml-auto">
-            {pinned && <Pin className="w-3 h-3 text-[#25D366] fill-[#25D366]/20 shrink-0" />}
-            {!conv.assigned_to && <span className="text-[9px] text-yellow-500 font-semibold">Unassigned</span>}
+
+          <div className="flex items-center gap-2 shrink-0 ml-2">
+            {pinned && <Pin className="w-3.5 h-3.5 text-[#8696A0] shrink-0" />}
             {conv.unread_count > 0 && (
-              <span className="min-w-[18px] h-[18px] px-1 rounded-full bg-[#25D366] text-white text-[10px] font-bold flex items-center justify-center leading-none">
+              <span className="min-w-[20px] h-[20px] px-1.5 rounded-full bg-[#00A884] text-[#0B141A] text-xs font-bold flex items-center justify-center leading-none">
                 {conv.unread_count > 99 ? '99+' : conv.unread_count}
               </span>
             )}
           </div>
         </div>
+
+        {/* Support original secondary UI features nicely */}
+        {(conv.subject && conv.subject !== conv.contact_name) || !conv.assigned_to || conv.sla_breach_at ? (
+          <div className="flex items-center justify-between mt-1 h-3 overflow-hidden">
+            <SLABadge slaBreachAt={conv.sla_breach_at} />
+            {!conv.assigned_to && <span className="text-[9px] text-yellow-500 font-semibold uppercase tracking-wider ml-auto">Unassigned</span>}
+          </div>
+        ) : null}
       </div>
     </div>
   );
