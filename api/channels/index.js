@@ -826,7 +826,18 @@ async function handleSendDebug(req, res) {
       });
     }
 
-    const { to_override } = req.body || {};
+    const { to_override, list_convs } = req.body || {};
+
+    // List conversations mode
+    if (list_convs) {
+      const { data: convs } = await sb.from('conversations')
+        .select('id,external_id,channel,last_message,updated_at')
+        .eq('workspace_id', workspace_id)
+        .eq('channel', 'whatsapp')
+        .order('updated_at', { ascending: false })
+        .limit(10);
+      return res.status(200).json({ conversations: convs || [] });
+    }
     const { data: conv } = conversation_id && conversation_id !== '00000000-0000-0000-0000-000000000000' ? await sb.from('conversations').select('*').eq('id', conversation_id).single() : { data: null };
     const { data: cfg } = await sb.from('channel_configs').select('*').eq('workspace_id', workspace_id).eq('channel', 'whatsapp').single();
     const { phone_number_id, access_token } = cfg?.config || {};
