@@ -29,6 +29,7 @@ export async function persistInboundMessage(sb, workspaceId, params) {
     channel, externalId, contactName, phone, email,
     body, attachments, externalMsgId, senderId, senderName,
     timestamp, leadSource, adAttribution, avatarUrl,
+    replyTo,  // optional { id, sender_name, body } — set when customer quoted a message
   } = params;
 
   const { data: contact } = await sb.from('contacts')
@@ -89,6 +90,8 @@ export async function persistInboundMessage(sb, workspaceId, params) {
       sender_id: senderId || externalId,
       status: 'delivered', created_at: timestamp,
       ...(attachments ? { attachments } : {}),
+      // Quoted/tagged message context — stored so the UI renders the reply preview
+      ...(replyTo ? { reply_to: replyTo } : {}),
     }, { onConflict: 'conversation_id,external_id' });
 
     // IMPORTANT: must be awaited. On Vercel's serverless runtime, once the
