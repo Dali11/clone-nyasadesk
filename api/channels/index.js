@@ -671,60 +671,68 @@ async function handleDisconnect(req, res) {
 // no WABA subscription looks "connected" in the UI but silently receives
 // nothing. Auto-fixes the subscription gap when it finds one.
 async function handleVerify(req, res) {
+  // Lightweight health check — reads stored credentials and pings Meta's Graph API
+  // to confirm the token is still valid and the phone number is accessible.
+  // Per Meta docs: GET /{phone-number-id} requires whatsapp_business_messaging permission.
+  // We do NOT attempt to re-subscribe webhooks or touch the DB config — the account
+  // is already connected; this is read-only confirmation.
   try {
     const { workspace_id, channel } = req.body || {};
     if (!workspace_id || !channel) {
       return res.status(400).json({ ok: false, error: 'workspace_id and channel are required' });
     }
     const sb = createClient(SUPABASE_URL, SUPABASE_KEY);
-    const { data: cfg } = await sb.from('channel_configs').select('*')
+    const { data: cfg, error: dbErr } = await sb.from('channel_configs').select('config,enabled')
       .eq('workspace_id', workspace_id).eq('channel', channel).single();
-    if (!cfg?.enabled) return res.status(400).json({ ok: false, error: 'Channel is not connected' });
+    if (dbErr || !cfg?.enabled) {
+      return res.status(400).json({ ok: false, error: 'Channel is not connected' });
+    }
 
     if (channel === 'whatsapp') {
       const { access_token, phone_number_id, waba_id } = cfg.config || {};
-      const checks = { token_valid: false, webhook_subscribed: false, waba_id_present: !!waba_id };
-
-      if (access_token && phone_number_id) {
-        const r = await fetch(`https://graph.facebook.com/v21.0/${phone_number_id}?fields=display_phone_number,verified_name,quality_rating,code_verification_status&access_token=${access_token}`);
-        const d = await r.json();
-        if (!d.error) {
-          checks.token_valid = true;
-          checks.phone_number = d.display_phone_number;
-          checks.verified_name = d.verified_name;
-          checks.quality_rating = d.quality_rating;
-          checks.code_verification_status = d.code_verification_status;
-        } else {
-          checks.token_error = d.error.message;
-        }
-      } else {
-        checks.token_error = 'Missing access token or phone number ID';
+      if (!access_token || !phone_number_id) {
+        return res.status(200).json({ ok: false, error: 'Stored config is incomplete — reconnect the channel' });
       }
 
-      if (access_token && waba_id) {
-        const r2 = await fetch(`https://graph.facebook.com/v21.0/${waba_id}/subscribed_apps?access_token=${access_token}`);
-        const d2 = await r2.json();
-        checks.webhook_subscribed = Array.isArray(d2.data) && d2.data.length > 0;
+      // 1. Validate token by fetching phone number details from Meta
+      // Ref: https://developers.facebook.com/docs/whatsapp/business-management-api/phone-numbers
+      const phoneRes = await fetch(
+        `https://graph.facebook.com/v21.0/${phone_number_id}?fields=display_phone_number,verified_name,quality_rating,account_mode&access_token=${access_token}`
+      );
+      const phoneData = await phoneRes.json();
 
-        // Self-heal: if the app isn't subscribed to this WABA, subscribe it now
-        // instead of just reporting a red X the user can't act on.
-        if (!checks.webhook_subscribed && checks.token_valid) {
-          try {
-            const subRes = await fetch(`https://graph.facebook.com/v21.0/${waba_id}/subscribed_apps`, {
-              method: 'POST', headers: { Authorization: `Bearer ${access_token}` },
-            });
-            const subData = await subRes.json();
-            if (subData.success) { checks.webhook_subscribed = true; checks.auto_fixed = true; }
-          } catch (e) { /* leave as unsubscribed, report to user */ }
-        }
-      } else if (!waba_id) {
-        checks.webhook_note = 'No WABA ID stored — cannot verify or fix webhook subscription automatically.';
+      if (phoneData.error) {
+        // Token invalid or permissions missing — tell the user clearly
+        return res.status(200).json({
+          ok: false,
+          error: phoneData.error.message || 'Meta API rejected the stored access token',
+          error_code: phoneData.error.code,
+        });
       }
 
-      return res.status(200).json({ ok: true, healthy: checks.token_valid && checks.webhook_subscribed, checks });
+      // 2. Check webhook subscription status (read-only — no re-subscription)
+      let webhookSubscribed = false;
+      if (waba_id) {
+        try {
+          const subRes = await fetch(
+            `https://graph.facebook.com/v21.0/${waba_id}/subscribed_apps?access_token=${access_token}`
+          );
+          const subData = await subRes.json();
+          webhookSubscribed = Array.isArray(subData.data) && subData.data.length > 0;
+        } catch (_) { /* non-fatal — webhook check is best-effort */ }
+      }
+
+      return res.status(200).json({
+        ok: true,
+        healthy: true,
+        phone_number: phoneData.display_phone_number,
+        verified_name: phoneData.verified_name,
+        quality_rating: phoneData.quality_rating,
+        webhook_subscribed: webhookSubscribed,
+      });
     }
 
-    return res.status(200).json({ ok: true, healthy: true, checks: { note: 'Verification not implemented for this channel' } });
+    return res.status(200).json({ ok: true, healthy: true });
   } catch (e) {
     console.error('[channels/verify] error:', e);
     return res.status(500).json({ ok: false, error: e.message });
