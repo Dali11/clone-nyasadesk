@@ -72,7 +72,7 @@ function sameDay(a, b) {
 }
 function DateSeparator({ label }) {
   return (
-    <div className="flex items-center justify-center my-3 select-none">
+    <div className="flex justify-center py-3">
       <span className="text-[11px] font-medium text-gray-400 bg-white/5 px-3 py-1 rounded-full shadow-sm">
         {label}
       </span>
@@ -653,7 +653,7 @@ function Bubble({ msg, menuOpenId, onOpenMenu, onCopy, onShare, onForward, onDel
   const isOut      = msg.direction === 'outbound';
   const isDeleted  = !!msg.deleted_at;
   const ts         = msg.created_at || msg.created_date;
-  const bubbleColor = isOut ? (CHANNEL_COLOR[msg.channel] || '#DCF8C6') : '#FFFFFF';
+  const bubbleColor = isOut ? '#005C4B' : '#1F2C34';
   const attachment = Array.isArray(msg.attachments) ? msg.attachments[0] : null;
   const menuOpen = menuOpenId === msg.id;
 
@@ -666,7 +666,7 @@ function Bubble({ msg, menuOpenId, onOpenMenu, onCopy, onShare, onForward, onDel
 
   if (isActivity) return (
     <div className="flex justify-center py-1">
-      <span className="text-[10px] text-gray-500 bg-black/20 px-3 py-1 rounded-full">{msg.body}</span>
+      <span className="text-[11px] px-3 py-1.5 rounded-lg text-center" style={{background:"rgba(11,20,26,0.8)",color:"#8696A0"}}>{msg.body}</span>
     </div>
   );
 
@@ -717,7 +717,7 @@ function Bubble({ msg, menuOpenId, onOpenMenu, onCopy, onShare, onForward, onDel
         className="group relative max-w-[72%] px-3 py-2 shadow-sm text-sm leading-relaxed"
         style={{
           background: bubbleColor,
-          color: '#1a2530',
+          color: '#E9EDEF',
           borderRadius: isOut ? '12px 2px 12px 12px' : '2px 12px 12px 12px',
         }}
         onPointerDown={!isDeleted ? startPress : undefined}
@@ -731,10 +731,10 @@ function Bubble({ msg, menuOpenId, onOpenMenu, onCopy, onShare, onForward, onDel
         {msg.reply_to && !isDeleted && (
           <button
             onClick={e => { e.stopPropagation(); onJumpToReply?.(msg.reply_to.id); }}
-            className="w-full text-left mb-1.5 pl-2 pr-2 py-1 rounded-md bg-black/10 border-l-[3px] border-[#128C7E] overflow-hidden"
+            className="w-full text-left mb-1.5 pl-2 pr-2 py-1 rounded-md bg-black/20 border-l-[3px] border-[#00A884] overflow-hidden"
           >
-            <p className="text-[10px] font-semibold text-[#128C7E] truncate">{msg.reply_to.sender_name || 'Message'}</p>
-            <p className="text-[11px] text-gray-600 truncate">{msg.reply_to.body || 'Attachment'}</p>
+            <p className="text-[10px] font-semibold text-[#00A884] truncate">{msg.reply_to.sender_name || 'Message'}</p>
+            <p className="text-[11px] text-[#8696A0] truncate">{msg.reply_to.body || 'Attachment'}</p>
           </button>
         )}
         {isDeleted ? (
@@ -742,7 +742,7 @@ function Bubble({ msg, menuOpenId, onOpenMenu, onCopy, onShare, onForward, onDel
         ) : (
           <>
             {msg.channel === 'internal' && !isOut && msg.sender_name && (
-              <p className="text-[10px] font-semibold text-[#128C7E] mb-0.5">{msg.sender_name}</p>
+              <p className="text-[10px] font-semibold text-[#00A884] mb-0.5">{msg.sender_name}</p>
             )}
             {msg._isAlbum && Array.isArray(msg._albumImages)
               ? <ImageAlbum images={msg._albumImages} onOpen={onOpenMedia} />
@@ -764,8 +764,8 @@ function Bubble({ msg, menuOpenId, onOpenMenu, onCopy, onShare, onForward, onDel
           </>
         )}
         <div className={`flex items-center gap-1 mt-1 ${isOut ? 'justify-end' : 'justify-start'}`}>
-          <p className="text-[10px] text-gray-500">
-            {ts ? formatDistanceToNow(new Date(ts), { addSuffix: true }) : ''}
+          <p className="text-[10px]" style={{color:'#8696A0'}}>
+            {ts ? new Date(ts).toLocaleTimeString([], {hour:'2-digit',minute:'2-digit'}) : ''}
           </p>
           {isOut && !isDeleted && <StatusIcon status={msg.status} errorReason={msg.error_reason} />}
         </div>
@@ -1398,7 +1398,7 @@ export default function MessageThread({ conversation, workspaceId }) {
       </div>
 
       {/* Composer */}
-      <div className="shrink-0 border-t border-[var(--nyasa-border)] bg-[var(--nyasa-surface-2)] px-3 py-2">
+      <div className="shrink-0 border-t border-[rgba(255,255,255,0.06)] bg-[#1F2C34] px-2 pt-1.5 pb-2">
         {/* Upload progress banner — shown when sending multiple files */}
         {uploading && uploadProgress.total > 1 && (
           <div className="flex items-center gap-2.5 px-4 py-2 border-t border-[var(--nyasa-border)] bg-[#075E54]/20">
@@ -1431,11 +1431,11 @@ export default function MessageThread({ conversation, workspaceId }) {
           </div>
         )}
         {/* Tab row */}
-        <div className="flex gap-1 mb-2">
+        <div className="flex gap-1 mb-1.5 items-center">
           {['reply', 'note'].map(t => (
             <button key={t} onClick={() => setTab(t)}
-              className={`text-[11px] font-semibold px-3 py-1 rounded-lg transition-colors capitalize
-                ${tab === t ? 'bg-[#25D366]/20 text-[#25D366]' : 'text-gray-500 hover:text-gray-300'}`}>
+              className={`text-[11px] font-semibold px-3 py-1 rounded-full transition-colors capitalize
+                ${tab === t ? 'bg-[#00A884]/20 text-[#00A884]' : 'text-[#8696A0] hover:text-gray-300'}`}>
               {t === 'note' ? '📝 Note' : '💬 Reply'}
             </button>
           ))}
@@ -1511,46 +1511,67 @@ export default function MessageThread({ conversation, workspaceId }) {
 
         {/* Input row */}
         {recording ? (
-          <div className="flex items-center gap-3 bg-[var(--nyasa-surface-4)] rounded-xl px-4 py-2.5">
-            <div className="w-2 h-2 rounded-full bg-red-500 animate-pulse shrink-0" />
-            <p className="flex-1 text-sm text-white">Recording voice note… {String(Math.floor(recordSecs / 60)).padStart(2,'0')}:{String(recordSecs % 60).padStart(2,'0')}</p>
-            <button onClick={stopRecording} className="w-9 h-9 rounded-full bg-[#25D366] flex items-center justify-center shrink-0">
-              <Square className="w-3.5 h-3.5 text-white fill-white" />
+          <div className="flex items-center gap-3 bg-[#2A3942] rounded-full px-4 py-2.5 mx-1">
+            <div className="w-2.5 h-2.5 rounded-full bg-red-500 animate-pulse shrink-0" />
+            <span className="text-xs text-red-400 font-mono font-semibold">{String(Math.floor(recordSecs / 60)).padStart(2,'0')}:{String(recordSecs % 60).padStart(2,'0')}</span>
+            <p className="flex-1 text-xs text-[#8696A0] flex items-center gap-1">
+              <svg className="w-3 h-3 animate-bounce" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M10 19l-7-7m0 0l7-7m-7 7h18"/></svg>
+              Slide to cancel
+            </p>
+            <button onClick={stopRecording} className="w-10 h-10 rounded-full bg-red-500 flex items-center justify-center shrink-0 shadow-md">
+              <Square className="w-4 h-4 text-white fill-white" />
             </button>
           </div>
         ) : (
-          <div className="flex items-end gap-2">
+          <div className="flex items-end gap-2 mx-1">
             <input ref={fileInputRef} type="file" accept="image/*,video/*,audio/*,application/pdf,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document,application/vnd.ms-excel,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,text/plain,text/csv" multiple className="hidden" onChange={onFilePicked} />
-            <button onClick={() => fileInputRef.current?.click()} disabled={tab === 'note'}
-              className="w-10 h-10 rounded-full flex items-center justify-center shrink-0 text-gray-400 hover:text-gray-200 hover:bg-white/5 transition-colors disabled:opacity-30">
-              <Paperclip className="w-4.5 h-4.5" />
-            </button>
-            {conversation.channel === 'whatsapp' && tab !== 'note' && (
-              <button onClick={() => setShowLocationSender(true)} disabled={uploading}
-                className="w-10 h-10 rounded-full flex items-center justify-center shrink-0 text-gray-400 hover:text-gray-200 hover:bg-white/5 transition-colors disabled:opacity-30">
-                <MapPin className="w-4 h-4" />
+
+            {/* Left pill: emoji + textarea + clip + camera */}
+            <div className="flex items-end flex-1 bg-[#2A3942] rounded-full px-3 py-1 gap-2 min-w-0">
+              {/* Emoji button */}
+              <button className="shrink-0 text-[#8696A0] hover:text-gray-200 pb-1.5 transition-colors" tabIndex={-1}>
+                <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8"><circle cx="12" cy="12" r="10"/><path d="M8 13s1.5 2 4 2 4-2 4-2"/><line x1="9" y1="9" x2="9.01" y2="9"/><line x1="15" y1="9" x2="15.01" y2="9"/></svg>
               </button>
-            )}
-            <textarea
-              ref={inputRef}
-              rows={1}
-              className="flex-1 bg-[var(--nyasa-surface-4)] text-white text-sm rounded-xl px-4 py-2.5 focus:outline-none focus:ring-1 focus:ring-[#25D366] resize-none placeholder:text-gray-600 leading-relaxed max-h-32"
-              style={{ scrollbarWidth: 'thin' }}
-              placeholder={tab === 'note' ? 'Add an internal note…' : conversation.channel === 'internal' ? 'Reply via internal message…' : `Reply via ${conversation.channel}…`}
-              value={body}
-              onChange={e => { setBody(e.target.value); e.target.style.height = 'auto'; e.target.style.height = Math.min(e.target.scrollHeight, 128) + 'px'; }}
-              onKeyDown={handleKeyDown}
-            />
+
+              {/* Text input */}
+              <textarea
+                ref={inputRef}
+                rows={1}
+                className="flex-1 bg-transparent text-white text-sm focus:outline-none resize-none placeholder:text-[#8696A0] leading-relaxed max-h-32 py-2 min-w-0"
+                style={{ scrollbarWidth: 'thin' }}
+                placeholder={tab === 'note' ? 'Add a note…' : 'Message'}
+                value={body}
+                onChange={e => { setBody(e.target.value); e.target.style.height = 'auto'; e.target.style.height = Math.min(e.target.scrollHeight, 128) + 'px'; }}
+                onKeyDown={handleKeyDown}
+              />
+
+              {/* Clip + Camera (right of textarea, inside pill) */}
+              <div className="flex items-center gap-1 shrink-0 pb-1">
+                <button onClick={() => fileInputRef.current?.click()} disabled={tab === 'note'}
+                  className="text-[#8696A0] hover:text-gray-200 transition-colors disabled:opacity-30 p-1">
+                  <Paperclip className="w-5 h-5" />
+                </button>
+                {conversation.channel === 'whatsapp' && tab !== 'note' && (
+                  <button onClick={() => setShowLocationSender(true)} disabled={uploading}
+                    className="text-[#8696A0] hover:text-gray-200 transition-colors disabled:opacity-30 p-1">
+                    <Camera className="w-5 h-5" />
+                  </button>
+                )}
+              </div>
+            </div>
+
+            {/* Right: big green circle — mic when empty, send when typing */}
             {!body.trim() && tab !== 'note' ? (
               <button onClick={startRecording} disabled={uploading}
-                className="w-10 h-10 rounded-full flex items-center justify-center transition-all shrink-0 bg-[var(--nyasa-surface-4)] text-gray-300 hover:text-white disabled:opacity-30">
-                {uploading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Mic className="w-4 h-4" />}
+                className="w-12 h-12 rounded-full flex items-center justify-center transition-all shrink-0 shadow-md"
+                style={{ background: '#00A884' }}>
+                {uploading ? <Loader2 className="w-5 h-5 animate-spin text-white" /> : <Mic className="w-5 h-5 text-white" />}
               </button>
             ) : (
               <button onClick={handleSend} disabled={!body.trim() || sending}
-                className="w-10 h-10 rounded-full flex items-center justify-center transition-all shrink-0"
-                style={{ background: body.trim() ? '#25D366' : '#2A3942' }}>
-                {sending ? <Loader2 className="w-4 h-4 animate-spin text-white" /> : <Send className="w-4 h-4 text-white" />}
+                className="w-12 h-12 rounded-full flex items-center justify-center transition-all shrink-0 shadow-md"
+                style={{ background: '#00A884' }}>
+                {sending ? <Loader2 className="w-5 h-5 animate-spin text-white" /> : <Send className="w-5 h-5 text-white" />}
               </button>
             )}
           </div>
