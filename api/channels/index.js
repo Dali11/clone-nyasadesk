@@ -20,7 +20,6 @@ import { discoverWabas, connectWaba, createWaba, addPhoneNumber, requestVerifica
 import { validateToken, discoverWabas as discoverWabasManual, getWabaInfo, listPhoneNumbers, getPhoneDetails, isPhoneRegistered, autoSetup } from '../_lib/whatsappSetup.js';
 import { freshSetup } from '../_lib/freshSetup.js';
 import { buildEmail } from '../_lib/emailTemplate.js';
-import { jsPDF } from 'jspdf';
 
 const SUPABASE_URL = 'https://pfbaepibelomiutlotkn.supabase.co';
 const SUPABASE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY;
@@ -1377,6 +1376,7 @@ async function handleSalesCommissionPdf(req, res) {
     const grandCommission = Math.round(rows.reduce((s, r) => s + r.commission, 0) * 100) / 100;
 
     // ── Build PDF with jsPDF ──
+    const { jsPDF } = await import('jspdf');
     const pdf = new jsPDF({ unit: 'mm', format: 'a4' });
     const PAGE_W = 210, PAGE_H = 297, M = 15;
     const money = n => currency + ' ' + Number(n || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
