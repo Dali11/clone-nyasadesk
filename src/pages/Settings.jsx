@@ -177,6 +177,12 @@ function WhatsAppCard({ saved, workspaceId, onSave, onDelete }) {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ workspace_id: workspaceId, channel: 'whatsapp' }),
       });
+      // Guard against non-JSON responses (e.g. Vercel 500 HTML pages)
+      const contentType = res.headers.get('content-type') || '';
+      if (!contentType.includes('application/json')) {
+        setVerifyResult({ ok: false, error: `Server error (HTTP ${res.status}) — check Vercel function logs` });
+        return;
+      }
       const data = await res.json();
       setVerifyResult(data);
     } catch (e) { setVerifyResult({ ok: false, error: e.message }); } finally { setVerifying(false); }
@@ -504,8 +510,16 @@ function WhatsAppCard({ saved, workspaceId, onSave, onDelete }) {
           </div>
 
           {verifyResult && (
-            <div className={`rounded-lg p-3 text-xs ${verifyResult.ok ? 'bg-emerald-500/10 text-emerald-400' : 'bg-red-500/10 text-red-400'}`}>
-              {verifyResult.ok ? 'Webhook verified — messages are routing correctly.' : `Verification failed: ${verifyResult.error}`}
+            <div className={`rounded-lg p-3 text-xs space-y-1 ${verifyResult.ok && verifyResult.healthy ? 'bg-emerald-500/10 text-emerald-400' : 'bg-red-500/10 text-red-400'}`}>
+              {verifyResult.ok && verifyResult.healthy ? (
+                <>
+                  <p className="font-semibold">✓ Connection healthy</p>
+                  {verifyResult.verified_name && <p className="opacity-80">{verifyResult.verified_name} · {verifyResult.phone_number}</p>}
+                  {verifyResult.quality_rating && <p className="opacity-70">Quality: {verifyResult.quality_rating} · Webhooks: {verifyResult.webhook_subscribed ? 'subscribed' : 'not subscribed'}</p>}
+                </>
+              ) : (
+                <p>{verifyResult.error || 'Verification failed — check your Meta access token'}</p>
+              )}
             </div>
           )}
           {error && <p className="text-xs text-red-400">{error}</p>}
