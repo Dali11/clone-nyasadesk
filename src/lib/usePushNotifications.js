@@ -24,6 +24,14 @@ async function authedFetch(path, body) {
   return res.json();
 }
 
+// Returns true if this push endpoint is a known dead/legacy endpoint format
+function isDeadEndpoint(endpoint) {
+  if (!endpoint) return true;
+  // Old FCM legacy endpoint — shut down June 2025
+  if (endpoint.includes('fcm.googleapis.com/fcm/send/')) return true;
+  return false;
+}
+
 // WhatsApp-style push notifications for new inbound messages. Supported on
 // Chrome/Edge/Firefox desktop+Android always; on iOS Safari only once the
 // site is added to the home screen (Apple's platform restriction, not ours).
@@ -36,13 +44,33 @@ export function usePushNotifications(workspaceOwnerId) {
   useEffect(() => {
     const isSupported = 'serviceWorker' in navigator && 'PushManager' in window && !!VAPID_PUBLIC_KEY;
     setSupported(isSupported);
-    if (!isSupported) return;
+    if (!isSupported || !workspaceOwnerId) return;
 
     navigator.serviceWorker.register('/sw.js').then(async (reg) => {
       const sub = await reg.pushManager.getSubscription();
-      setSubscribed(!!sub);
+
+      // If browser has a dead/legacy endpoint cached, force-unsubscribe it now
+      if (sub && isDeadEndpoint(sub.endpoint)) {
+        console.warn('[push] Dead endpoint detected — unsubscribing stale subscription');
+        await sub.unsubscribe().catch(() => {});
+        setSubscribed(false);
+        return; // will re-subscribe on next user interaction or auto-subscribe below
+      }
+
+      if (sub) {
+        // Re-save to Supabase (in case DB was cleared or subscription is missing)
+        try {
+          await authedFetch('/api/team?action=push-subscribe', {
+            subscription: sub.toJSON(),
+            workspace_id: workspaceOwnerId,
+          });
+        } catch (_) { /* non-fatal */ }
+        setSubscribed(true);
+      } else {
+        setSubscribed(false);
+      }
     }).catch(() => {});
-  }, []);
+  }, [workspaceOwnerId]);
 
   const subscribe = useCallback(async () => {
     if (!supported || !workspaceOwnerId) return;
@@ -53,15 +81,24 @@ export function usePushNotifications(workspaceOwnerId) {
       if (perm !== 'granted') return;
 
       const reg = await navigator.serviceWorker.ready;
+
+      // Unsubscribe any stale subscription first
       let sub = await reg.pushManager.getSubscription();
+      if (sub && isDeadEndpoint(sub.endpoint)) {
+        await sub.unsubscribe().catch(() => {});
+        sub = null;
+      }
+
       if (!sub) {
         sub = await reg.pushManager.subscribe({
           userVisibleOnly: true,
           applicationServerKey: urlBase64ToUint8Array(VAPID_PUBLIC_KEY),
         });
       }
+
       await authedFetch('/api/team?action=push-subscribe', {
-        subscription: sub.toJSON(), workspace_id: workspaceOwnerId,
+        subscription: sub.toJSON(),
+        workspace_id: workspaceOwnerId,
       });
       setSubscribed(true);
     } catch (e) {
