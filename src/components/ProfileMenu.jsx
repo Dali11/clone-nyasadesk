@@ -26,23 +26,37 @@
  *  └──────────────────────────────┘
  */
 
-import { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import {useState}from 'react';
+import {useNavigate}from 'react-router-dom';
 import {
-  User, Lock, Bell, BellOff, Sun, Moon, Megaphone, Bot, FileText,
-  TrendingUp, Zap, BookOpen, Settings, ShieldCheck, LogOut, ChevronRight,
-  X,
-} from 'lucide-react';
+  User,
+  Lock,
+  Bell,
+  BellOff,
+  Sun,
+  Moon,
+  Megaphone,
+  Bot,
+  FileText,
+  TrendingUp,
+  Zap,
+  BookOpen,
+  Settings,
+  ShieldCheck,
+  LogOut,
+  ChevronRight,
+}from 'lucide-react';
 import Avatar from '@/components/Avatar';
-import { useNyasaAuth } from '@/lib/NyasaAuth';
-import { useAuth } from '@/lib/AuthContext';
-import { useTheme } from '@/lib/ThemeContext';
-import { usePushNotifications } from '@/lib/usePushNotifications';
+import {useNyasaAuth}from '@/lib/NyasaAuth';
+import {useAuth}from '@/lib/AuthContext';
+import {useTheme}from '@/lib/ThemeContext';
+import {usePushNotifications}from '@/lib/usePushNotifications';
 import {
-  DropdownMenu, DropdownMenuContent, DropdownMenuItem,
-  DropdownMenuSeparator, DropdownMenuTrigger,
-} from '@/components/ui/dropdown-menu';
-import { Sheet, SheetContent, SheetTrigger } from '@/components/ui/sheet';
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuTrigger,
+}from '@/components/ui/dropdown-menu';
+import {Sheet, SheetContent, SheetTrigger}from '@/components/ui/sheet';
 
 // ── Shared menu row ────────────────────────────────────────────────────────
 function Row({ icon: Icon, iconColor, label, sublabel, onClick, danger, toggle, checked }) {
