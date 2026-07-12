@@ -806,6 +806,26 @@ async function handleSendDebug(req, res) {
   try {
     const { conversation_id, workspace_id } = req.body || {};
     const sb = createClient(SUPABASE_URL, SUPABASE_KEY);
+
+    // If no workspace_id — dump ALL whatsapp configs (sanitized)
+    if (!workspace_id || workspace_id === 'show_config') {
+      const { data: cfgs } = await sb.from('channel_configs').select('*').eq('channel', 'whatsapp');
+      return res.status(200).json({
+        configs: (cfgs || []).map(c => ({
+          workspace_id: c.workspace_id,
+          enabled: c.enabled,
+          phone_number_id: c.config?.phone_number_id,
+          waba_id: c.config?.waba_id,
+          phone_number: c.config?.phone_number,
+          has_token: !!c.config?.access_token,
+          token_preview: c.config?.access_token ? c.config.access_token.slice(0, 15) + '...' : null,
+          connected_via: c.config?.connected_via,
+          connected_at: c.config?.connected_at,
+          all_config_keys: Object.keys(c.config || {}),
+        })),
+      });
+    }
+
     const { data: conv } = await sb.from('conversations').select('*').eq('id', conversation_id).single();
     const { data: cfg } = await sb.from('channel_configs').select('*').eq('workspace_id', workspace_id).eq('channel', 'whatsapp').single();
     const { phone_number_id, access_token } = cfg?.config || {};
@@ -826,10 +846,12 @@ async function handleSendDebug(req, res) {
       status: r.status,
       meta_response: json,
       phone_number_id,
-      token_preview: access_token ? access_token.slice(0, 12) + '...' : null,
+      token_preview: access_token ? access_token.slice(0, 15) + '...' : null,
+      has_token: !!access_token,
       to: conv?.external_id,
       channel: conv?.channel,
       cfg_enabled: cfg?.enabled,
+      all_config_keys: Object.keys(cfg?.config || {}),
     });
   } catch (e) {
     return res.status(200).json({ ok: false, error: e.message });
