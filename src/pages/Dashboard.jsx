@@ -1,15 +1,22 @@
-import { useState, useEffect, useCallback } from 'react';
-import { BarChart, Bar, XAxis, YAxis, ResponsiveContainer, Tooltip, Cell, PieChart, Pie } from 'recharts';
+import {useState, useEffect, useCallback}from 'react';
+import {BarChart, Bar, XAxis, YAxis, ResponsiveContainer, Tooltip, Cell, PieChart, Pie}from 'recharts';
 import {
-  MessageSquare, Clock, AlertCircle, CheckCircle, TrendingUp, TrendingDown,
-  Minus, Loader2, Users, Star, Zap, ShieldCheck,
-} from 'lucide-react';
+  MessageSquare,
+  Clock,
+  AlertCircle,
+  CheckCircle,
+  TrendingUp,
+  TrendingDown,
+  Minus,
+  Loader2,
+  Users,
+}from 'lucide-react';
 import Sidebar from '@/components/Sidebar';
 import Avatar from '@/components/Avatar';
-import { useNyasaAuth } from '@/lib/NyasaAuth';
-import { getConversations, getTeamMembers } from '@/lib/channels';
-import { useDocumentTitle } from '@/hooks/useDocumentTitle';
-import { supabase } from '@/lib/supabase';
+import {useNyasaAuth}from '@/lib/NyasaAuth';
+import {getConversations, getTeamMembers}from '@/lib/channels';
+import {useDocumentTitle}from '@/hooks/useDocumentTitle';
+import {supabase}from '@/lib/supabase';
 
 /* ─── Stat Card ─────────────────────────────────────────────────────────── */
 function StatCard({ label, value, sub, color, icon: Icon, trend, trendLabel }) {
