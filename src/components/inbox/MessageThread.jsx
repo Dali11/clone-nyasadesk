@@ -511,8 +511,8 @@ function ImageAlbum({ images, onOpen }) {
       )}
       {/* Hover expand icon */}
       {!img.sending && !(extra > 0 && idx === 3) && (
-        <span className="absolute inset-0 flex items-center justify-center bg-black/0 hover:bg-black/20 transition-colors cursor-pointer">
-          <Maximize2 className="w-4 h-4 text-white opacity-0 hover:opacity-90 transition-opacity" />
+        <span className="group absolute inset-0 flex items-center justify-center bg-black/0 hover:bg-black/20 transition-colors cursor-pointer">
+          <Maximize2 className="w-4 h-4 text-white opacity-0 group-hover:opacity-100 transition-opacity" />
         </span>
       )}
     </div>
