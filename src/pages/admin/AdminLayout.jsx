@@ -1,6 +1,6 @@
 import { Outlet, Link, useLocation, useNavigate } from 'react-router-dom';
 import { useEffect, useState } from 'react';
-import { ShieldCheck, LayoutGrid, Building2, Users2, UserCog, DollarSign, ArrowLeftCircle, AlertTriangle, Bot, Receipt, ScrollText, MoreHorizontal } from 'lucide-react';
+import { ShieldCheck, LayoutGrid, Building2, Users2, UserCog, DollarSign, BadgeDollarSign, ArrowLeftCircle, AlertTriangle, Bot, Receipt, ScrollText, MoreHorizontal } from 'lucide-react';
 import GodModeBanner from '@/components/GodModeBanner';
 import { useNyasaAuth } from '@/lib/NyasaAuth';
 import { useDocumentTitle } from '@/hooks/useDocumentTitle';
@@ -18,7 +18,8 @@ const ADMIN_NAV = [
   { path: '/admin/transactions', icon: Receipt,     label: 'Transactions' },
   { path: '/admin/pricing',     icon: DollarSign,   label: 'Pricing'    },
   { path: '/admin/admins',      icon: Users2,       label: 'Admins'     },
-  { path: '/admin/audit-log',   icon: ScrollText,   label: 'Audit Log'  },
+  { path: '/admin/audit-log',   icon: ScrollText,      label: 'Audit Log'   },
+  { path: '/admin/commissions',  icon: BadgeDollarSign, label: 'Commissions' },
 ];
 const MOBILE_PRIMARY = ['/admin', '/admin/workspaces', '/admin/churn'];
 const mobilePrimaryNav = ADMIN_NAV.filter(i => MOBILE_PRIMARY.includes(i.path));
