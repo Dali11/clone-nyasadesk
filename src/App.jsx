@@ -203,7 +203,6 @@ function AppRoutes() {
   );
 }
 
-export default 
 /* ── ContactsPermissionBanner ──────────────────────────────────────────────
  * Shows once after login if the Contact Picker API is available AND the user
  * has not yet synced their phone contacts. After sync (or dismiss), stores a
@@ -330,7 +329,7 @@ function ContactsPermissionBanner() {
   );
 }
 
-function App() {
+export default function App() {
   return (
     <AuthProvider>
       <QueryClientProvider client={queryClientInstance}>
