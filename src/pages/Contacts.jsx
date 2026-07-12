@@ -598,45 +598,24 @@ export default function Contacts() {
               {contacts.length > 0 && <span className="ml-2 text-xs text-gray-500 font-normal">{contacts.length}</span>}
             </h1>
 
-            {/* Search toggle (mobile) */}
-            <button onClick={() => setSearchOpen(o => !o)} className="md:hidden p-2 text-gray-400 hover:text-white hover:bg-white/10 rounded-lg">
-              <Search className="w-4 h-4" />
+            {/* Search toggle */}
+            <button onClick={() => setSearchOpen(o => !o)}
+              className="p-2 text-gray-400 hover:text-white hover:bg-white/10 rounded-lg transition-colors">
+              <Search className="w-5 h-5" />
             </button>
 
-            {/* Export */}
-            {contacts.length > 0 && (
-              <button onClick={handleExport} title="Export CSV"
-                className="p-2 text-gray-400 hover:text-white hover:bg-white/10 rounded-lg">
-                <Download className="w-4 h-4" />
-              </button>
-            )}
-
-            {/* Sync phone contacts */}
-            {canManage && (
-              <button onClick={() => setShowSyncModal(true)} title="Sync phone contacts"
-                className="p-2 text-gray-400 hover:text-white hover:bg-white/10 rounded-lg">
-                <Smartphone className="w-4 h-4" />
-              </button>
-            )}
-
-            {/* Import CSV */}
-            {canManage && (
-              <button onClick={() => setShowImport(true)} title="Import CSV"
-                className="p-2 text-gray-400 hover:text-white hover:bg-white/10 rounded-lg">
-                <Upload className="w-4 h-4" />
-              </button>
-            )}
-
-            {/* Sort */}
+            {/* Overflow menu — export, import, sync, sort */}
             <div className="relative">
               <button onClick={() => setShowSort(s => !s)}
-                className="flex items-center gap-1.5 px-3 py-2 text-xs text-gray-400 hover:text-white bg-white/5 hover:bg-white/10 rounded-xl transition-colors shrink-0">
-                <SlidersHorizontal className="w-3.5 h-3.5" />
-                <span className="hidden sm:inline">{sortLabel}</span>
-                <ChevronDown className="w-3 h-3 shrink-0" />
+                className="p-2 text-gray-400 hover:text-white hover:bg-white/10 rounded-lg transition-colors">
+                <MoreVertical className="w-5 h-5" />
               </button>
               {showSort && (
-                <div className="absolute right-0 top-full mt-1 bg-[var(--nyasa-surface-2)] border border-[var(--nyasa-border)] rounded-xl shadow-xl z-30 min-w-[160px] py-1">
+                <div className="absolute right-0 top-full mt-1 bg-[var(--nyasa-surface-2)] border border-[var(--nyasa-border)] rounded-xl shadow-xl z-30 min-w-[190px] py-1"
+                  onClick={e => e.stopPropagation()}>
+
+                  {/* Sort options */}
+                  <p className="px-4 pt-2 pb-1 text-[10px] font-semibold uppercase tracking-wider text-gray-500">Sort by</p>
                   {SORT_OPTIONS.map(o => (
                     <button key={o.value} onClick={() => { setSort(o.value); setShowSort(false); }}
                       className={`w-full text-left px-4 py-2 text-xs hover:bg-white/5 flex items-center justify-between ${sort === o.value ? 'text-[#25D366] font-semibold' : 'text-gray-300'}`}>
@@ -644,16 +623,41 @@ export default function Contacts() {
                       {sort === o.value && <Check className="w-3 h-3" />}
                     </button>
                   ))}
+
+                  <div className="my-1 border-t border-[var(--nyasa-border)]" />
+
+                  {/* Export */}
+                  {contacts.length > 0 && (
+                    <button onClick={() => { handleExport(); setShowSort(false); }}
+                      className="w-full text-left px-4 py-2.5 text-xs text-gray-300 hover:bg-white/5 flex items-center gap-3">
+                      <Download className="w-4 h-4 text-gray-400" /> Export CSV
+                    </button>
+                  )}
+
+                  {/* Import CSV */}
+                  {canManage && (
+                    <button onClick={() => { setShowImport(true); setShowSort(false); }}
+                      className="w-full text-left px-4 py-2.5 text-xs text-gray-300 hover:bg-white/5 flex items-center gap-3">
+                      <Upload className="w-4 h-4 text-gray-400" /> Import CSV
+                    </button>
+                  )}
+
+                  {/* Sync phone contacts */}
+                  {canManage && (
+                    <button onClick={() => { setShowSyncModal(true); setShowSort(false); }}
+                      className="w-full text-left px-4 py-2.5 text-xs text-gray-300 hover:bg-white/5 flex items-center gap-3">
+                      <Smartphone className="w-4 h-4 text-gray-400" /> Sync phone contacts
+                    </button>
+                  )}
                 </div>
               )}
             </div>
 
-            {/* New contact */}
+            {/* New contact FAB */}
             {canManage && (
               <button onClick={() => setShowNew(true)}
-                className="flex items-center gap-1.5 px-3 py-2 bg-[#25D366] text-white text-xs font-semibold rounded-xl hover:bg-[#20BA5A] shrink-0">
-                <Plus className="w-4 h-4" />
-                <span className="hidden sm:inline">New</span>
+                className="w-9 h-9 flex items-center justify-center bg-[#25D366] text-white rounded-full hover:bg-[#20BA5A] shrink-0 shadow-md transition-colors">
+                <Plus className="w-5 h-5" />
               </button>
             )}
           </div>
