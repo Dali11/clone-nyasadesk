@@ -1,7 +1,7 @@
-import { useState, useEffect, useCallback } from 'react';
-import { TrendingUp, Plus, CheckCircle, AlertCircle, Clock, ExternalLink, Trash2, Loader2, X, ChevronDown, FileText, Download, DollarSign } from 'lucide-react';
-import { useAuth } from '@/lib/AuthContext';
-import { supabase } from '@/lib/supabase';
+import {useState, useEffect, useCallback}from 'react';
+import {TrendingUp, Plus, CheckCircle, AlertCircle, Clock, ExternalLink, Trash2, Loader2, X, FileText, Download, DollarSign}from 'lucide-react';
+import {useAuth}from '@/lib/AuthContext';
+import {supabase}from '@/lib/supabase';
 
 const API = '/api/channels';
 const fmt = (n, cur = 'MWK') => `${cur} ${Number(n || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
