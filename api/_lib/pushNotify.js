@@ -1,43 +1,44 @@
 import webpush from 'web-push';
 
-// Shared push-dispatch helper used by every inbound webhook (WhatsApp,
-// Messenger, Instagram, Telegram, Email) right after a new message is
-// inserted. Lives under _lib/ so it's NOT counted as its own serverless
-// function against Vercel Hobby's 12-function cap.
+// Shared push-dispatch helper — called from persistInboundMessage() in base.js
+// after every inbound message on every channel.
 //
-// Notifies every team member of the workspace who has an active push
-// subscription (own device that opted in) — mirrors how WhatsApp itself
-// pushes to every logged-in device, not just "the assigned agent".
+// WhatsApp-style behaviour:
+//  - One notification per conversation, tagged conv-<id>
+//  - Title  = contact name
+//  - Body   = the actual message text (not a count prefix)
+//  - Icon   = contact avatar (if stored) or app icon
+//  - Sound + vibration on every message — never silent
+//  - App badge = total unread conversations
+//  - Inline Reply action on every notification
+
 let configured = false;
 function ensureConfigured() {
   if (configured) return;
-  const pub = process.env.VAPID_PUBLIC_KEY;
-  const priv = process.env.VAPID_PRIVATE_KEY;
+  const pub     = process.env.VAPID_PUBLIC_KEY;
+  const priv    = process.env.VAPID_PRIVATE_KEY;
   const subject = process.env.VAPID_SUBJECT || 'mailto:support@nyasadesk.com';
-  if (!pub || !priv) return; // not configured yet — no-op rather than throw
+  if (!pub || !priv) return;
   webpush.setVapidDetails(subject, pub, priv);
   configured = true;
 }
 
-export async function notifyNewMessage(sb, { ownerId, contactName, body, conversationId, channel }) {
+export async function notifyNewMessage(sb, {
+  ownerId, contactName, body, conversationId, channel,
+  contactPhone, contactAvatar,
+}) {
   try {
     ensureConfigured();
     if (!configured) return;
 
+    // All agents/members of this workspace who have opted in
     const { data: subs, error } = await sb
       .from('push_subscriptions')
       .select('id, subscription')
       .eq('owner_id', ownerId);
     if (error || !subs?.length) return;
 
-    // Total unread conversations for this workspace -- closest real
-    // equivalent to WhatsApp's home-screen icon badge count. Native Android
-    // apps can render a custom grouped notification summary ("N messages
-    // from M chats"); the standard Web Notifications API used by every
-    // website/PWA (including us) has no equivalent hook for that -- but the
-    // Badging API (navigator.setAppBadge, called from the service worker)
-    // DOES let us put a real number on the installed PWA's home-screen icon.
-    let unreadTotal = 0;
+    // Badge count = unread conversations (like WhatsApp home-screen badge)
     let unreadConvs = 0;
     try {
       const { count } = await sb
@@ -45,24 +46,31 @@ export async function notifyNewMessage(sb, { ownerId, contactName, body, convers
         .select('id', { count: 'exact', head: true })
         .eq('workspace_id', ownerId)
         .gt('unread_count', 0);
-      unreadTotal = count || 0;
       unreadConvs = count || 0;
-    } catch { /* badge is best-effort, never block the actual notification */ }
+    } catch { /* badge is best-effort */ }
 
-    // Deep-link URL: open directly to this conversation
-    const convUrl = conversationId ? `/?conv=${conversationId}` : '/';
+    // Resolve sender icon: prefer stored contact avatar, fall back to app icon
+    const senderIcon = contactAvatar || '/icon-192.png';
+
+    // Deep link directly into this conversation
+    const convUrl = conversationId ? `/inbox?conv=${conversationId}` : '/inbox';
+
+    // Format body exactly like WhatsApp:
+    //   text messages  → the message text (truncated at 200 chars)
+    //   attachments    → emoji prefix ("📷 Photo", "🎵 Audio", etc.) — set upstream
+    const notifBody = (body || '').slice(0, 200) || '📎 Attachment';
 
     const payload = JSON.stringify({
+      // Title = contact name, sub = channel hint (optional)
       title: contactName || 'New message',
-      body: (body || '').slice(0, 140) || '📎 Attachment',
-      icon: '/icon-192.png',
-      badge: '/badge-n.png',
+      body:  notifBody,
       data: {
-        url: convUrl,
+        url:            convUrl,
         conversationId,
         channel,
-        workspaceId: ownerId,   // needed by SW inline-reply handler
-        unreadTotal,
+        workspaceId:    ownerId,
+        contactPhone:   contactPhone || '',
+        contactAvatar:  senderIcon,
         unreadConvs,
       },
     });
@@ -71,7 +79,6 @@ export async function notifyNewMessage(sb, { ownerId, contactName, body, convers
       try {
         await webpush.sendNotification(row.subscription, payload);
       } catch (e) {
-        // 410/404 = subscription is dead (browser unsubscribed / uninstalled) — clean it up.
         if (e?.statusCode === 410 || e?.statusCode === 404) {
           await sb.from('push_subscriptions').delete().eq('id', row.id);
         } else {
