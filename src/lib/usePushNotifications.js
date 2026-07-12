@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { supabase } from '@/lib/supabase';
 
 const VAPID_PUBLIC_KEY = import.meta.env.VITE_VAPID_PUBLIC_KEY;
@@ -27,50 +27,75 @@ async function authedFetch(path, body) {
 // Returns true if this push endpoint is a known dead/legacy endpoint format
 function isDeadEndpoint(endpoint) {
   if (!endpoint) return true;
-  // Old FCM legacy endpoint — shut down June 2025
+  // Old FCM legacy endpoint — Google shut this down permanently in June 2025
   if (endpoint.includes('fcm.googleapis.com/fcm/send/')) return true;
   return false;
 }
 
-// WhatsApp-style push notifications for new inbound messages. Supported on
-// Chrome/Edge/Firefox desktop+Android always; on iOS Safari only once the
-// site is added to the home screen (Apple's platform restriction, not ours).
 export function usePushNotifications(workspaceOwnerId) {
   const [supported, setSupported] = useState(false);
   const [permission, setPermission] = useState(typeof Notification !== 'undefined' ? Notification.permission : 'default');
   const [subscribed, setSubscribed] = useState(false);
   const [loading, setLoading] = useState(false);
+  const didAutoSubscribe = useRef(false);
 
   useEffect(() => {
     const isSupported = 'serviceWorker' in navigator && 'PushManager' in window && !!VAPID_PUBLIC_KEY;
     setSupported(isSupported);
-    if (!isSupported || !workspaceOwnerId) return;
+    if (!isSupported) return;
 
     navigator.serviceWorker.register('/sw.js').then(async (reg) => {
       const sub = await reg.pushManager.getSubscription();
-
-      // If browser has a dead/legacy endpoint cached, force-unsubscribe it now
-      if (sub && isDeadEndpoint(sub.endpoint)) {
-        console.warn('[push] Dead endpoint detected — unsubscribing stale subscription');
-        await sub.unsubscribe().catch(() => {});
-        setSubscribed(false);
-        return; // will re-subscribe on next user interaction or auto-subscribe below
-      }
-
-      if (sub) {
-        // Re-save to Supabase (in case DB was cleared or subscription is missing)
-        try {
-          await authedFetch('/api/team?action=push-subscribe', {
-            subscription: sub.toJSON(),
-            workspace_id: workspaceOwnerId,
-          });
-        } catch (_) { /* non-fatal */ }
-        setSubscribed(true);
-      } else {
-        setSubscribed(false);
-      }
+      setSubscribed(!!sub && !isDeadEndpoint(sub?.endpoint));
     }).catch(() => {});
-  }, [workspaceOwnerId]);
+  }, []);
+
+  // Auto-subscribe on mount when permission already granted
+  // This also handles clearing dead subscriptions and re-registering
+  useEffect(() => {
+    if (!supported || !workspaceOwnerId || didAutoSubscribe.current) return;
+    if (typeof Notification === 'undefined' || Notification.permission !== 'granted') return;
+    didAutoSubscribe.current = true;
+    // Small delay so SW has time to register first
+    setTimeout(() => {
+      subscribeInternal(workspaceOwnerId).catch(() => {});
+    }, 1500);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [supported, workspaceOwnerId]);
+
+  const subscribeInternal = useCallback(async (wsId) => {
+    if (!wsId) return;
+    try {
+      const reg = await navigator.serviceWorker.ready;
+
+      // Always check for and remove dead/legacy subscriptions first
+      let sub = await reg.pushManager.getSubscription();
+      if (sub && isDeadEndpoint(sub.endpoint)) {
+        console.warn('[push] Clearing dead legacy FCM endpoint:', sub.endpoint.slice(0, 60));
+        await sub.unsubscribe().catch(() => {});
+        sub = null;
+      }
+
+      // Create fresh subscription if needed
+      if (!sub) {
+        sub = await reg.pushManager.subscribe({
+          userVisibleOnly: true,
+          applicationServerKey: urlBase64ToUint8Array(VAPID_PUBLIC_KEY),
+        });
+        console.log('[push] New subscription created:', sub.endpoint.slice(0, 60));
+      }
+
+      // Always re-save to Supabase (upsert ensures DB is in sync)
+      await authedFetch('/api/team?action=push-subscribe', {
+        subscription: sub.toJSON(),
+        workspace_id: wsId,
+      });
+      setSubscribed(true);
+      console.log('[push] Subscription saved to DB ✓');
+    } catch (e) {
+      console.error('[push] subscribeInternal failed:', e?.message || e);
+    }
+  }, []);
 
   const subscribe = useCallback(async () => {
     if (!supported || !workspaceOwnerId) return;
@@ -79,34 +104,13 @@ export function usePushNotifications(workspaceOwnerId) {
       const perm = await Notification.requestPermission();
       setPermission(perm);
       if (perm !== 'granted') return;
-
-      const reg = await navigator.serviceWorker.ready;
-
-      // Unsubscribe any stale subscription first
-      let sub = await reg.pushManager.getSubscription();
-      if (sub && isDeadEndpoint(sub.endpoint)) {
-        await sub.unsubscribe().catch(() => {});
-        sub = null;
-      }
-
-      if (!sub) {
-        sub = await reg.pushManager.subscribe({
-          userVisibleOnly: true,
-          applicationServerKey: urlBase64ToUint8Array(VAPID_PUBLIC_KEY),
-        });
-      }
-
-      await authedFetch('/api/team?action=push-subscribe', {
-        subscription: sub.toJSON(),
-        workspace_id: workspaceOwnerId,
-      });
-      setSubscribed(true);
+      await subscribeInternal(workspaceOwnerId);
     } catch (e) {
       console.error('[usePushNotifications] subscribe failed:', e);
     } finally {
       setLoading(false);
     }
-  }, [supported, workspaceOwnerId]);
+  }, [supported, workspaceOwnerId, subscribeInternal]);
 
   const unsubscribe = useCallback(async () => {
     if (!supported) return;

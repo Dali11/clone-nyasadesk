@@ -31,14 +31,9 @@ export default function Inbox() {
   // Auto-subscribe to push notifications if the user already granted permission
   // (e.g. they granted during the InstallPrompt flow on a previous session).
   // This is the only place we mount the hook — once, in the root authenticated view.
-  const { subscribe: subscribePush } = usePushNotifications(workspaceOwnerId);
-  useEffect(() => {
-    if (!workspaceOwnerId) return;
-    if (typeof Notification !== 'undefined' && Notification.permission === 'granted') {
-      subscribePush();
-    }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [workspaceOwnerId]);
+  // Push notifications: the hook auto-subscribes when permission is already granted
+  // and clears any dead/legacy FCM endpoints before re-registering.
+  usePushNotifications(workspaceOwnerId);
   const { toast } = useToast();
   const [conversations, setConversations] = useState([]);
   const [loading, setLoading] = useState(true);
