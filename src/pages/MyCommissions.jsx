@@ -1,12 +1,19 @@
-import { useState, useEffect, useCallback } from 'react';
+import {useState, useEffect, useCallback}from 'react';
 import Sidebar from '@/components/Sidebar';
-import { useNyasaAuth } from '@/lib/NyasaAuth';
-import { supabase } from '@/lib/supabase';
-import { useDocumentTitle } from '@/hooks/useDocumentTitle';
+import {useNyasaAuth}from '@/lib/NyasaAuth';
+import {supabase}from '@/lib/supabase';
+import {useDocumentTitle}from '@/hooks/useDocumentTitle';
 import {
-  BadgeDollarSign, Clock, CheckCircle2, DollarSign, X,
-  Check, Loader2, TrendingUp, AlertCircle, Eye
-} from 'lucide-react';
+  BadgeDollarSign,
+  Clock,
+  DollarSign,
+  X,
+  Check,
+  Loader2,
+  TrendingUp,
+  AlertCircle,
+  Eye,
+}from 'lucide-react';
 
 const STATUS_COLORS = {
   pending:           'bg-yellow-500/15 text-yellow-400',
