@@ -100,7 +100,15 @@ export async function persistInboundMessage(sb, workspaceId, params) {
     // it ever reaches FCM/APNs. notifyNewMessage() already swallows its own
     // errors internally, so awaiting it can't make this handler fail; it
     // just guarantees the push actually gets sent before we return.
-    await notifyNewMessage(sb, { ownerId: workspaceId, contactName: contact?.full_name || contactName, body, conversationId: conv.id, channel });
+    await notifyNewMessage(sb, {
+      ownerId: workspaceId,
+      contactName: contact?.full_name || contactName,
+      body,
+      conversationId: conv.id,
+      channel,
+      contactPhone:  contact?.phone  || params.phone  || '',
+      contactAvatar: contact?.avatar_url || params.avatarUrl || '',
+    });
 
     // AI Agents Phase 3b: auto-reply. Only fires while the conversation is
     // still unclaimed by a human (assigned_to IS NULL) -- the existing
