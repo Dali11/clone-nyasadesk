@@ -847,17 +847,7 @@ export default function MessageThread({ conversation, workspaceId }) {
     getCannedResponses(wId).then(setCanned).catch(() => setCanned([]));
   }, [wId]);
 
-  // Close emoji picker when clicking outside
-  useEffect(() => {
-    if (!showEmojiPicker) return;
-    const handler = (e) => {
-      if (!e.target.closest('.EmojiPickerReact') && !e.target.closest('[data-emoji-btn]')) {
-        setShowEmojiPicker(false);
-      }
-    };
-    document.addEventListener('mousedown', handler);
-    return () => document.removeEventListener('mousedown', handler);
-  }, [showEmojiPicker]);
+  // Emoji picker is now a bottom-sheet with its own overlay — no document handler needed
 
   // Load active AI agents for the "Draft with AI" picker
   useEffect(() => {
@@ -1516,27 +1506,22 @@ export default function MessageThread({ conversation, workspaceId }) {
                 <button
                   className="text-[#8696A0] hover:text-gray-200 pb-1.5 transition-colors"
                   tabIndex={-1}
-                  onClick={() => setShowEmojiPicker(s => !s)}
+                  onClick={() => {
+                    const opening = !showEmojiPicker;
+                    setShowEmojiPicker(s => !s);
+                    if (opening) {
+                      // Blur textarea to dismiss the system keyboard, making room for our panel
+                      inputRef.current?.blur();
+                    } else {
+                      // Refocus when closing emoji panel
+                      setTimeout(() => inputRef.current?.focus(), 50);
+                    }
+                  }}
                   data-emoji-btn
                 >
                   <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8"><circle cx="12" cy="12" r="10"/><path d="M8 13s1.5 2 4 2 4-2 4-2"/><line x1="9" y1="9" x2="9.01" y2="9"/><line x1="15" y1="9" x2="15.01" y2="9"/></svg>
                 </button>
-                {showEmojiPicker && (
-                  <div className="absolute bottom-10 left-0 z-50" onClick={e => e.stopPropagation()}>
-                    <EmojiPicker
-                      theme="dark"
-                      onEmojiClick={(emojiData) => {
-                        setBody(prev => prev + emojiData.emoji);
-                        setShowEmojiPicker(false);
-                        inputRef.current?.focus();
-                      }}
-                      searchPlaceholder="Search emoji…"
-                      skinTonesDisabled
-                      height={380}
-                      width={320}
-                    />
-                  </div>
-                )}
+                {/* Emoji picker is now a bottom sheet — see below the composer */}
               </div>
 
               {/* Text input */}
@@ -1595,6 +1580,34 @@ export default function MessageThread({ conversation, workspaceId }) {
       </div>
 
       {lightboxMedia && <MediaLightbox att={lightboxMedia} onClose={() => setLightboxMedia(null)} />}
+      {/* WhatsApp-style emoji keyboard — slides up from bottom, replaces keyboard */}
+      {showEmojiPicker && (
+        <div
+          className="fixed inset-x-0 bottom-0 z-[99]"
+          style={{ animation: 'slideUpEmoji 0.22s cubic-bezier(0.32,0.72,0,1) both' }}
+        >
+          <style>{`@keyframes slideUpEmoji { from { transform: translateY(100%); opacity: 0; } to { transform: translateY(0); opacity: 1; } }`}</style>
+          {/* Tap-outside overlay */}
+          <div className="fixed inset-0 bottom-auto" style={{ top: 0, bottom: '44vh' }} onClick={() => setShowEmojiPicker(false)} />
+          <div className="relative bg-[#1F2C34] border-t border-white/10 shadow-2xl" style={{ height: '44vh', minHeight: '280px', maxHeight: '380px' }}>
+            <EmojiPicker
+              theme="dark"
+              onEmojiClick={(emojiData) => {
+                setBody(prev => prev + emojiData.emoji);
+                inputRef.current?.focus();
+              }}
+              searchPlaceholder="Search emoji…"
+              skinTonesDisabled
+              height="100%"
+              width="100%"
+              lazyLoadEmojis
+              style={{ background: '#1F2C34', border: 'none' }}
+              previewConfig={{ showPreview: false }}
+            />
+          </div>
+        </div>
+      )}
+
       {showLocationSender && <LocationPickerOverlay />}
       {forwardMsg && (
         <ForwardModal
