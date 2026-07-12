@@ -1,4 +1,4 @@
-import { ChevronDown, MoreVertical, ArrowLeft, Trash2, Bot, TrendingUp, Pin, PinOff, UserPlus, Check } from 'lucide-react';
+import { ChevronDown, MoreVertical, ArrowLeft, Trash2, Bot, TrendingUp, Pin, PinOff, UserPlus, Check, Phone } from 'lucide-react';
 import { useState } from 'react';
 import { RecordSaleModal } from '@/pages/Sales';
 import Avatar from '@/components/Avatar';
