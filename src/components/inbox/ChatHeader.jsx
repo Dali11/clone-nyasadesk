@@ -1,4 +1,4 @@
-import { ChevronDown, MoreVertical, ArrowLeft, Trash2, Bot, TrendingUp, Pin, PinOff, UserPlus, Check, Phone } from 'lucide-react';
+import { MoreVertical, ArrowLeft, Trash2, Bot, TrendingUp, Pin, PinOff, UserPlus, Check, Phone } from 'lucide-react';
 import { useState } from 'react';
 import { RecordSaleModal } from '@/pages/Sales';
 import Avatar from '@/components/Avatar';
@@ -56,81 +56,72 @@ export default function ChatHeader({ conversation, users = [], currentUserId, cu
 
   return (
     <>
-    <div className="flex items-center gap-2 shrink-0 px-2 py-1.5" style={{background:"#1F2C34",minHeight:56,borderBottom:"1px solid rgba(255,255,255,0.06)"}}>
-      {/* Back button: only visible on mobile */}
+    <div className="flex items-center gap-1.5 shrink-0 px-2 py-1.5" style={{background:"#1F2C34",minHeight:56,borderBottom:"1px solid rgba(255,255,255,0.06)"}}>
+      {/* Back arrow */}
       {onBack && (
-        <button onClick={onBack} className="md:hidden p-2 text-white hover:text-gray-200 transition-colors">
+        <button onClick={onBack} className="md:hidden p-1.5 text-[#AEBAC1] hover:text-white transition-colors shrink-0">
           <ArrowLeft className="w-5 h-5" />
         </button>
       )}
-      <button onClick={onOpenContact} className="flex items-center gap-3 flex-1 min-w-0 text-left hover:opacity-80 transition-opacity">
-        <Avatar name={conversation.contact_name || '?'} src={conversation.contact_avatar_url} size="md" />
+
+      {/* Avatar + contact info — tappable to open contact panel */}
+      <button onClick={onOpenContact} className="flex items-center gap-2.5 flex-1 min-w-0 text-left hover:opacity-80 transition-opacity">
+        <div className="relative shrink-0">
+          <Avatar name={conversation.contact_name || '?'} src={conversation.contact_avatar_url} size="md" />
+          {/* Status dot on avatar */}
+          <span className={`absolute bottom-0 right-0 w-2.5 h-2.5 rounded-full border-2 border-[#1F2C34] ${STATUS_COLOR[conversation.status] || 'bg-gray-500'}`} />
+        </div>
         <div className="flex-1 min-w-0">
-          <div className="flex items-center gap-2">
-            <p className="font-semibold text-white truncate" style={{fontSize:15}}>{conversation.contact_name}</p>
-            {/* Save as Contact badge — WhatsApp style */}
+          {/* Name row */}
+          <div className="flex items-center gap-1.5">
+            <p className="font-semibold text-white truncate leading-tight" style={{fontSize:15}}>
+              {conversation.contact_name || conversation.contact_phone || '—'}
+            </p>
             {canSaveContact && !contactSaved && (
               <button
                 onClick={e => { e.stopPropagation(); handleSaveAsContact(); }}
                 disabled={savingContact}
-                className="flex items-center gap-1 text-[9px] font-semibold text-[#25D366] bg-[#25D366]/10 hover:bg-[#25D366]/20 px-1.5 py-0.5 rounded-full transition-colors shrink-0"
-                title="Save as contact"
+                className="flex items-center gap-0.5 text-[9px] font-bold text-[#25D366] bg-[#25D366]/10 hover:bg-[#25D366]/20 px-1.5 py-0.5 rounded-full transition-colors shrink-0"
               >
-                <UserPlus className="w-2.5 h-2.5" />
-                <span className="hidden sm:inline">Save</span>
+                <UserPlus className="w-2.5 h-2.5" />Save
               </button>
             )}
             {contactSaved && (
-              <span className="flex items-center gap-1 text-[9px] font-semibold text-[#25D366] bg-[#25D366]/10 px-1.5 py-0.5 rounded-full shrink-0">
+              <span className="flex items-center gap-0.5 text-[9px] font-bold text-[#25D366] bg-[#25D366]/10 px-1.5 py-0.5 rounded-full shrink-0">
                 <Check className="w-2.5 h-2.5" />Saved
               </span>
             )}
           </div>
-          <div className="flex items-center gap-1.5 text-xs" style={{color:"#8696A0"}}>
-            <span className={`w-1.5 h-1.5 rounded-full ${STATUS_COLOR[conversation.status] || 'bg-gray-500'}`} />
-            <span style={{color:"#8696A0"}}>{conversation.contact_phone || conversation.channel || '—'}</span>
-            {conversation.assigned_to_name
-              ? <><span>·</span><span className="text-[#25D366]/80 text-[10px]">
-                  {conversation.assigned_to === currentUserId
-                    ? 'Assigned to you'
-                    : `Agent: ${conversation.assigned_to_name.split(' ')[0]}`}
-                </span></>
-              : <><span>·</span><span className="text-orange-400">Unassigned</span></>
-            }
+          {/* Subtitle: phone · status · agent */}
+          <div className="flex items-center gap-1 mt-0.5" style={{color:"#8696A0",fontSize:11}}>
+            <span className="truncate">{conversation.contact_phone || conversation.channel || '—'}</span>
+            <span>·</span>
+            <span className={
+              conversation.status === 'open' ? 'text-[#25D366]' :
+              conversation.status === 'snoozed' ? 'text-yellow-400' : 'text-gray-500'
+            }>{conversation.status || 'open'}</span>
+            {conversation.assigned_to_name && (
+              <>
+                <span>·</span>
+                <span className="text-[#25D366]/80 truncate">
+                  {conversation.assigned_to === currentUserId ? 'You' : conversation.assigned_to_name.split(' ')[0]}
+                </span>
+              </>
+            )}
+            {!conversation.assigned_to_name && (
+              <><span>·</span><span className="text-orange-400">Unassigned</span></>
+            )}
           </div>
         </div>
       </button>
 
-      <div className="flex items-center gap-2 shrink-0">
-        {/* Assignment indicator */}
-        {conversation.assigned_to && conversation.assigned_to_name && (() => {
-          const isMyChat = conversation.assigned_to === currentUserId;
-          const isElevated = currentUserRole === 'admin' || currentUserRole === 'sales_manager';
-          if (isMyChat) return null;
-          if (!isElevated) return null;
-          const firstName = conversation.assigned_to_name.split(' ')[0];
-          const initials = conversation.assigned_to_name
-            .split(' ').map(w => w[0]).join('').slice(0, 2).toUpperCase();
-          return (
-            <div
-              title={`Assigned to ${conversation.assigned_to_name} — you're managing this chat`}
-              className="hidden sm:flex items-center gap-1 bg-[var(--nyasa-surface-3)] border border-[var(--nyasa-border)] rounded-full pl-0.5 pr-2 py-0.5 shrink-0"
-            >
-              <div className="w-5 h-5 rounded-full bg-[#25D366]/20 flex items-center justify-center text-[9px] font-bold text-[#25D366] shrink-0">
-                {initials}
-              </div>
-              <span className="text-[10px] font-medium text-gray-400 leading-none">
-                {firstName}
-              </span>
-            </div>
-          );
-        })()}
-
-        {/* Phone call — only shown on WhatsApp/SMS channels where a phone number exists */}
+      {/* Right actions — Phone + ⋮ only */}
+      <div className="flex items-center gap-0.5 shrink-0">
+        {/* Phone call */}
         {conversation.contact_phone && ['whatsapp','sms','phone'].includes(conversation.channel) && (
           <a
             href={`tel:${conversation.contact_phone.replace(/\s/g, '')}`}
-            className="p-2 rounded-full hover:bg-white/10 transition-colors text-[#8696A0] hover:text-white"
+            className="p-2 rounded-full hover:bg-white/10 transition-colors text-[#AEBAC1] hover:text-white"
             title={`Call ${conversation.contact_phone}`}
           >
             <Phone className="w-5 h-5" />
@@ -139,29 +130,21 @@ export default function ChatHeader({ conversation, users = [], currentUserId, cu
 
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
-            <button className="flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold transition-all hover:opacity-80"
-              style={{
-                background: conversation.status === 'open' ? 'rgba(37,211,102,0.12)' : conversation.status === 'snoozed' ? 'rgba(245,158,11,0.12)' : 'rgba(134,150,160,0.12)',
-                color: conversation.status === 'open' ? '#25D366' : conversation.status === 'snoozed' ? '#F59E0B' : '#8696A0'
-              }}>
-              <span className="capitalize">{conversation.status || 'open'}</span>
-              <ChevronDown className="w-3 h-3" />
-            </button>
-          </DropdownMenuTrigger>
-          <DropdownMenuContent align="end" className="w-32 bg-[var(--nyasa-surface-3)] border-[var(--nyasa-border)] text-gray-200">
-            {STATUSES.map(s => (
-              <DropdownMenuItem key={s} onClick={() => updateStatus(s)} className="text-xs capitalize hover:bg-white/10 focus:bg-white/10 cursor-pointer">{s}</DropdownMenuItem>
-            ))}
-          </DropdownMenuContent>
-        </DropdownMenu>
-
-        <DropdownMenu>
-          <DropdownMenuTrigger asChild>
             <button className="p-2 rounded-full text-[#AEBAC1] hover:text-white hover:bg-white/10 transition-colors">
-              <MoreVertical className="w-4 h-4" />
+              <MoreVertical className="w-5 h-5" />
             </button>
           </DropdownMenuTrigger>
-          <DropdownMenuContent align="end" className="w-44 bg-[var(--nyasa-surface-3)] border-[var(--nyasa-border)] text-gray-200">
+          <DropdownMenuContent align="end" className="w-48 bg-[var(--nyasa-surface-3)] border-[var(--nyasa-border)] text-gray-200">
+            {/* Status change */}
+            <div className="px-2 py-1.5 text-[10px] text-gray-500 font-semibold uppercase tracking-wider">Status</div>
+            {STATUSES.map(s => (
+              <DropdownMenuItem key={s} onClick={() => updateStatus(s)}
+                className={`text-xs capitalize hover:bg-white/10 focus:bg-white/10 cursor-pointer gap-2 ${conversation.status === s ? 'text-[#25D366] font-semibold' : ''}`}>
+                <span className={`w-1.5 h-1.5 rounded-full shrink-0 ${STATUS_COLOR[s]}`} />{s}
+                {conversation.status === s && <Check className="w-3 h-3 ml-auto" />}
+              </DropdownMenuItem>
+            ))}
+            <DropdownMenuSeparator className="bg-white/10" />
             {/* Save as Contact option in dropdown too */}
             {canSaveContact && (
               <>
