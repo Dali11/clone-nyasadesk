@@ -7,8 +7,8 @@
 //  - Inline reply from notification bar
 //  - Badge icon support
 
-const STATIC_CACHE  = 'nyasadesk-static-v8';   // versioned static assets
-const DYNAMIC_CACHE = 'nyasadesk-dynamic-v8';   // runtime HTML pages
+const STATIC_CACHE  = 'nyasadesk-static-v9';   // versioned static assets
+const DYNAMIC_CACHE = 'nyasadesk-dynamic-v9';   // runtime HTML pages
 const SECRET_CACHE  = 'nyasa-sw-secrets-v1';    // inline reply secret
 const NOTIF_REPLY_ENDPOINT = '/api/team?action=notif-reply';
 
@@ -145,73 +145,74 @@ self.addEventListener('fetch', (event) => {
 });
 
 // ── Push notifications (WhatsApp-style grouping) ───────────────────────────
+// ── Push notifications (WhatsApp-style: one notif per conv, always shows message) ──
 self.addEventListener('push', (event) => {
   let data = {};
   try { data = event.data ? event.data.json() : {}; }
   catch { data = { title: 'New message', body: event.data?.text() || '' }; }
 
-  const convId      = data.data?.conversationId;
-  const convTag     = convId ? `conv-${convId}` : 'nyasa-msg';
-  const url         = data.data?.url || (convId ? `/inbox?conv=${convId}` : '/inbox');
-  const unread      = typeof data.data?.unreadTotal === 'number' ? data.data.unreadTotal : 0;
-  const unreadConvs = typeof data.data?.unreadConvs === 'number' ? data.data.unreadConvs : 1;
-  const workspaceId = data.data?.workspaceId || '';
-  const channel     = data.data?.channel || 'whatsapp';
+  const convId       = data.data?.conversationId;
+  const convTag      = convId ? `conv-${convId}` : 'nyasa-msg';
+  const url          = data.data?.url || (convId ? `/inbox?conv=${convId}` : '/inbox');
+  const unreadConvs  = typeof data.data?.unreadConvs === 'number' ? data.data.unreadConvs : 1;
+  const workspaceId  = data.data?.workspaceId || '';
+  const channel      = data.data?.channel || 'whatsapp';
+  const contactAvatar = data.data?.contactAvatar || '/icon-192.png';
+  const contactPhone  = data.data?.contactPhone  || '';
+
+  // WhatsApp-style: title = contact name, body = actual message text
+  const sender  = data.title || 'New message';
+  const msgBody = (data.body || '').slice(0, 200) || '📎 Attachment';
 
   event.waitUntil((async () => {
+    // Update home-screen badge (installed PWA only)
     if ('setAppBadge' in self.registration) {
-      (unread > 0
-        ? self.registration.setAppBadge(unread)
+      (unreadConvs > 0
+        ? self.registration.setAppBadge(unreadConvs)
         : self.registration.clearAppBadge()
       ).catch(() => {});
     }
 
-    const existing   = await self.registration.getNotifications();
-    const convNotifs = existing.filter(n => n.tag?.startsWith('conv-'));
-    const prevNotif  = existing.find(n => n.tag === convTag);
-    const prevCount  = prevNotif?.data?.msgCount || 0;
-    const msgCount   = prevCount + 1;
+    // ── WhatsApp behaviour: replace the existing notif for THIS conv ──
+    // Each conversation gets exactly ONE persistent notification (tagged by
+    // conv ID) that updates in-place. Multiple convs each show their own.
+    // No generic "N messages from M conversations" summary — that's the
+    // Messenger style, not WhatsApp.
+    const existing = await self.registration.getNotifications();
+    const prevNotif = existing.find(n => n.tag === convTag);
+
+    // Count how many messages are stacked in this conv's notification
+    const prevCount = prevNotif?.data?.msgCount || 0;
+    const msgCount  = prevCount + 1;
     if (prevNotif) prevNotif.close();
 
-    const sender  = data.title || 'New message';
-    const msgBody = (data.body  || '').slice(0, 100) || '📎 Attachment';
+    // Body: for 1 message → just the text.
+    // For 2+ messages in same conv → show count like WhatsApp ("3 messages")
+    // BUT still show the latest message text as the primary line.
+    // On Android this renders as: Title (bold) = sender, Body = message
+    const notifBody = msgCount > 1
+      ? `${msgCount} messages\n${msgBody}`
+      : msgBody;
 
-    const convOptions = {
-      body:      msgCount > 1 ? `${msgCount} messages · ${msgBody}` : msgBody,
-      icon:      '/icon-192.png',
+    await self.registration.showNotification(sender, {
+      body:      notifBody,
+      // Use contact avatar if available, fall back to app icon
+      icon:      contactAvatar,
       badge:     '/badge-n.png',
       tag:       convTag,
-      renotify:  true,
-      silent:    msgCount > 1,
-      vibrate:   msgCount === 1 ? [200, 100, 200] : [],
+      renotify:  true,           // always re-notify (vibrate + sound) for every new message
+      silent:    false,          // NEVER silent — WhatsApp always makes sound
+      vibrate:   [200, 100, 200],
       timestamp: Date.now(),
-      data: { url, conversationId: convId, workspaceId, channel, msgCount, unreadTotal: unread },
+      data: {
+        url, conversationId: convId, workspaceId,
+        channel, contactPhone, msgCount, unreadConvs,
+      },
       actions: [
         { action: 'reply',   title: 'Reply', type: 'text', placeholder: 'Type a reply…' },
-        { action: 'dismiss', title: 'Dismiss' },
+        { action: 'dismiss', title: 'Mark read' },
       ],
-    };
-
-    const otherConvNotifs = convNotifs.filter(n => n.tag !== convTag);
-    if (otherConvNotifs.length >= 1 || unreadConvs > 1) {
-      for (const n of existing) { if (n.tag !== 'nyasa-summary') n.close(); }
-      const totalConvs = Math.max(otherConvNotifs.length + 1, unreadConvs);
-      const totalMsgs  = unread;
-      await self.registration.showNotification('Nyasadesk', {
-        body:    `${totalMsgs} new message${totalMsgs !== 1 ? 's' : ''} from ${totalConvs} conversation${totalConvs !== 1 ? 's' : ''}`,
-        icon:    '/icon-192.png',
-        badge:   '/badge-n.png',
-        tag:     'nyasa-summary',
-        renotify: false,
-        silent:  true,
-        data:    { url: '/inbox', isSummary: true, unreadTotal: unread },
-        actions: [{ action: 'open', title: 'Open inbox' }],
-      });
-    } else {
-      const summary = existing.find(n => n.tag === 'nyasa-summary');
-      if (summary) summary.close();
-      await self.registration.showNotification(sender, convOptions);
-    }
+    });
   })());
 });
 
