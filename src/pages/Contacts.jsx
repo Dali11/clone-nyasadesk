@@ -268,7 +268,7 @@ function ContactProfile({ contact: initial, workspaceId, onClose, onSave, onDele
                   <span className="text-[11px] text-gray-500">Email</span>
                 </a>
               )}
-            </div>
+            </div>}
           </div>
 
           {/* Info sections */}
