@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { useLocation } from 'react-router-dom';
 import { Search, Plus, Loader2, MessageSquareOff, Pin, Pencil } from 'lucide-react';
 import Sidebar from '@/components/Sidebar';
@@ -19,6 +19,7 @@ const STATUS_TABS = [
   { key: 'open',       label: 'Open'       },
   { key: 'snoozed',    label: 'Snoozed'    },
   { key: 'closed',     label: 'Closed'     },
+  { key: 'mine',       label: 'Mine'       },
 ];
 
 const CHANNELS_FILTER = ['all', 'whatsapp', 'website'];
@@ -36,6 +37,8 @@ export default function Inbox() {
   const [showNew, setShowNew] = useState(false);
   const [contactOpen, setContactOpen] = useState(false);
   const [pinnedConvs, setPinnedConvs] = useState([]);
+  const [ctxMenu, setCtxMenu] = useState(null);
+  const ctxTimeout = useRef(null);
 
   // Deep-link from push notification: ?conv=<id> → auto-open that conversation
   const location = useLocation();
@@ -165,6 +168,7 @@ export default function Inbox() {
     // in the Pinned section or when explicitly navigated to
     if (c.channel === 'internal' && !(activeConv?.channel === 'internal' && activeConv?.id === c.id)) return false;
     if (filter === 'unassigned' && c.assigned_to) return false;
+    if (filter === 'mine' && c.assigned_to !== user?.id) return false;
     if (filter === 'open' && c.status !== 'open' && c.status !== 'unassigned') return false;
     if (filter === 'snoozed' && c.status !== 'snoozed') return false;
     if (filter === 'closed' && c.status !== 'closed') return false;
@@ -194,6 +198,7 @@ export default function Inbox() {
     open:       conversations.filter(c => c.status === 'open' || c.status === 'unassigned').length,
     snoozed:    conversations.filter(c => c.status === 'snoozed').length,
     closed:     conversations.filter(c => c.status === 'closed').length,
+    mine:       conversations.filter(c => c.assigned_to === user?.id).length,
   };
 
   const handleConvUpdate = (updates) => {
@@ -345,31 +350,25 @@ export default function Inbox() {
         w-full md:w-80 lg:w-96 shrink-0 md:flex
         ${showChat ? 'hidden' : 'flex'}`}>
 
-        {/* Header — search + actions (Sidebar already provides the top branding bar) */}
+        {/* Filter tabs + action buttons */}
         <div className="px-3 pt-2 pb-2 shrink-0">
-          <div className="relative mb-2 flex items-center gap-2">
-            <div className="relative flex-1">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-500 pointer-events-none" />
-              <input
-                className="w-full bg-[var(--nyasa-surface-2)] text-white text-sm rounded-xl pl-9 pr-4 py-2 focus:outline-none focus:ring-1 focus:ring-[#25D366] placeholder:text-gray-600"
-                placeholder="Search conversations…"
-                value={search}
-                onChange={e => setSearch(e.target.value)}
-              />
-            </div>
-            {canViewAllChats && (
-              <button onClick={() => { handleLoadDmMembers(); setShowInternalMsg(true); }}
-                className="w-8 h-8 rounded-full bg-[var(--nyasa-surface-2)] flex items-center justify-center hover:bg-[var(--nyasa-surface-4)] transition-colors shrink-0"
-                title="New internal message">
-                <Pencil className="w-4 h-4 text-gray-300" />
+          {/* Action row */}
+          <div className="flex items-center justify-between mb-2">
+            <span className="text-white font-bold text-base">Chats</span>
+            <div className="flex items-center gap-1.5">
+              {canViewAllChats && (
+                <button onClick={() => { handleLoadDmMembers(); setShowInternalMsg(true); }}
+                  className="w-8 h-8 rounded-full bg-[var(--nyasa-surface-2)] flex items-center justify-center hover:bg-[var(--nyasa-surface-4)] transition-colors"
+                  title="New internal message">
+                  <Pencil className="w-4 h-4 text-gray-300" />
+                </button>
+              )}
+              <button onClick={() => setShowNew(true)}
+                className="w-8 h-8 rounded-full bg-[#25D366] flex items-center justify-center hover:bg-[#20BA5A] transition-colors">
+                <Plus className="w-4 h-4 text-white" />
               </button>
-            )}
-            <button onClick={() => setShowNew(true)}
-              className="w-8 h-8 rounded-full bg-[#25D366] flex items-center justify-center hover:bg-[#20BA5A] transition-colors shrink-0">
-              <Plus className="w-4 h-4 text-white" />
-            </button>
+            </div>
           </div>
-
           {/* Status tabs */}
           <div className="flex gap-0.5 overflow-x-auto scrollbar-none">
             {STATUS_TABS.map(t => (
