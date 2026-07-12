@@ -158,6 +158,7 @@ async function handleQuotationList(req, res) {
   try {
     const { workspace_id, status } = req.query;
     if (!workspace_id) return res.status(400).json({ error: 'workspace_id is required' });
+    if (!isUUID(workspace_id)) return res.status(400).json({ ok: false, error: 'Invalid workspace_id format' });
     const sb = createClient(SUPABASE_URL, SUPABASE_KEY);
     let q = sb.from('quotations').select('*').eq('workspace_id', workspace_id).order('created_at', { ascending: false });
     if (status) q = q.eq('status', status);
@@ -201,6 +202,7 @@ async function handleInvoiceCreate(req, res) {
   try {
     const { workspace_id, ...input } = req.body || {};
     if (!workspace_id) return res.status(400).json({ error: 'workspace_id is required' });
+    if (!isUUID(workspace_id)) return res.status(400).json({ ok: false, error: 'Invalid workspace_id format' });
     const sb = createClient(SUPABASE_URL, SUPABASE_KEY);
     const invoice = await createInvoice(sb, workspace_id, input);
     return res.status(200).json({ ok: true, invoice });
@@ -227,6 +229,7 @@ async function handleInvoiceList(req, res) {
   try {
     const { workspace_id, status } = req.query;
     if (!workspace_id) return res.status(400).json({ error: 'workspace_id is required' });
+    if (!isUUID(workspace_id)) return res.status(400).json({ ok: false, error: 'Invalid workspace_id format' });
     const sb = createClient(SUPABASE_URL, SUPABASE_KEY);
     let q = sb.from('invoices').select('*').eq('workspace_id', workspace_id).order('created_at', { ascending: false });
     if (status) q = q.eq('status', status);
@@ -378,6 +381,7 @@ async function handleAiAgentsList(req, res) {
   try {
     const workspace_id = req.query.workspace_id;
     if (!workspace_id) return res.status(400).json({ error: 'workspace_id is required' });
+    if (!isUUID(workspace_id)) return res.status(400).json({ ok: false, error: 'Invalid workspace_id format' });
     const sb = createClient(SUPABASE_URL, SUPABASE_KEY);
     const { data, error } = await sb.from('ai_agents').select('*').eq('workspace_id', workspace_id).order('created_at', { ascending: true });
     if (error) throw error;
