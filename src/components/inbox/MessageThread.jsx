@@ -685,7 +685,21 @@ export default function MessageThread({ conversation, workspaceId }) {
     if (!conversation?.id) return;
     const sub = subscribeToMessages(conversation.id, (payload) => {
       const incoming = payload.new;
+      const previous = payload.old;
       if (!incoming?.id) return;
+
+      // Fire a toast when a message status flips to 'failed' — gives the agent
+      // immediate, visible feedback instead of just a silent red X.
+      if (incoming.status === 'failed' && previous?.status !== 'failed') {
+        const reason = incoming.error_reason;
+        toast({
+          title: 'Message failed to send',
+          description: reason || 'Unknown error — tap the ✕ on the message for details',
+          variant: 'destructive',
+          duration: 8000,
+        });
+      }
+
       // If we already inserted this message from the send() response, just
       // update in place (status/wamid may have been refreshed) and remove
       // from the settled set — don't append a duplicate.
