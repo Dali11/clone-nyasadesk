@@ -596,12 +596,12 @@ export default function Contacts() {
   const sortLabel = SORT_OPTIONS.find(o => o.value === sort)?.label || 'Sort';
 
   return (
-    <div className="flex h-screen bg-[var(--nyasa-bg)] overflow-hidden">
+    <div className="flex h-screen bg-[var(--nyasa-bg)] overflow-hidden pt-14 pb-[56px] md:pt-0 md:pb-0">
       <Sidebar />
       <div className="flex-1 flex flex-col min-w-0 relative">
 
         {/* Header — WhatsApp-style: title + 3 icon buttons max on mobile */}
-        <div className="shrink-0 border-b border-[var(--nyasa-border)]">
+        <div className="shrink-0 border-b border-[var(--nyasa-border)] sticky top-0 z-20 bg-[var(--nyasa-bg)]">
 
           {/* Top bar */}
           <div className="flex items-center gap-1 px-4 pt-3 pb-2">
