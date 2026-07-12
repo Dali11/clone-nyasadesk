@@ -1,9 +1,12 @@
 import { useState, useEffect, useCallback } from 'react';
-import { Download, Bell, X, Smartphone, CheckCircle2 } from 'lucide-react';
+import { Download, Bell, X, Smartphone, CheckCircle2, Users } from 'lucide-react';
+import { usePhoneContacts, hasContactPickerAPI } from '@/lib/usePhoneContacts';
 
 // ── Constants ──────────────────────────────────────────────────────────────
-const INSTALL_DISMISSED_KEY  = 'nyasa-install-dismissed';
-const NOTIF_DISMISSED_KEY    = 'nyasa-notif-dismissed';
+const INSTALL_DISMISSED_KEY    = 'nyasa-install-dismissed';
+const NOTIF_DISMISSED_KEY      = 'nyasa-notif-dismissed';
+const CONTACTS_DISMISSED_KEY   = 'nyasa-contacts-dismissed';
+const CONTACTS_DELAY_MS        = 1500; // show contacts prompt 1.5s after notif done
 const DELAY_AFTER_LOAD_MS    = 4000;   // wait 4s before showing anything
 const NOTIF_DELAY_MS         = 2000;   // show notif prompt 2s after install dismissed/done
 const REDISPLAY_DAYS         = 3;      // re-show install prompt after N days if dismissed
@@ -34,6 +37,9 @@ export default function InstallPrompt() {
   const [notifGranted, setNotifGranted]         = useState(false);
   const [isIOS, setIsIOS]                       = useState(false);
   const [installing, setInstalling]             = useState(false);
+  const [showContacts, setShowContacts]         = useState(false);
+  const [contactsSynced, setContactsSynced]     = useState(false);
+  const { syncContacts, count: contactCount }   = usePhoneContacts();
 
   // Detect iOS (needs different install UX — no beforeinstallprompt)
   useEffect(() => {
@@ -75,11 +81,22 @@ export default function InstallPrompt() {
   }, [deferredPrompt]);
 
   function maybeShowNotif() {
-    if (wasDismissedRecently(NOTIF_DISMISSED_KEY)) return;
-    if (typeof Notification === 'undefined') return;
-    if (Notification.permission === 'granted') return; // already have it
-    if (Notification.permission === 'denied') return;  // user blocked — respect that
+    if (wasDismissedRecently(NOTIF_DISMISSED_KEY)) {
+      maybeShowContacts();
+      return;
+    }
+    if (typeof Notification === 'undefined') { maybeShowContacts(); return; }
+    if (Notification.permission === 'granted') { maybeShowContacts(); return; }
+    if (Notification.permission === 'denied')  { maybeShowContacts(); return; }
     setTimeout(() => setShowNotif(true), NOTIF_DELAY_MS);
+  }
+
+  function maybeShowContacts() {
+    // Only on Android Chrome (Contact Picker API) — skip on iOS/desktop
+    if (!hasContactPickerAPI()) return;
+    if (wasDismissedRecently(CONTACTS_DISMISSED_KEY)) return;
+    if (localStorage.getItem('nyasa-phone-book-synced')) return; // already synced
+    setTimeout(() => setShowContacts(true), CONTACTS_DELAY_MS);
   }
 
   // ── Install handlers ────────────────────────────────────────────────────
@@ -113,23 +130,49 @@ export default function InstallPrompt() {
       const perm = await Notification.requestPermission();
       if (perm === 'granted') {
         setNotifGranted(true);
-        setTimeout(() => setShowNotif(false), 1800);
+        setTimeout(() => {
+          setShowNotif(false);
+          maybeShowContacts();
+        }, 1800);
       } else {
         setDismissed(NOTIF_DISMISSED_KEY);
         setShowNotif(false);
+        maybeShowContacts();
       }
     } catch {
       setShowNotif(false);
+      maybeShowContacts();
     }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const dismissNotif = useCallback(() => {
     setDismissed(NOTIF_DISMISSED_KEY);
     setShowNotif(false);
+    maybeShowContacts();
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  const handleSyncContacts = useCallback(async () => {
+    const result = await syncContacts();
+    if (result.success) {
+      setContactsSynced(true);
+      setTimeout(() => setShowContacts(false), 2000);
+    } else if (result.reason === 'cancelled') {
+      // User dismissed the picker — don't penalise, let them try again later
+    } else {
+      setDismissed(CONTACTS_DISMISSED_KEY);
+      setShowContacts(false);
+    }
+  }, [syncContacts]);
+
+  const dismissContacts = useCallback(() => {
+    setDismissed(CONTACTS_DISMISSED_KEY);
+    setShowContacts(false);
   }, []);
 
   // ── Nothing to show ─────────────────────────────────────────────────────
-  if (!showInstall && !showNotif) return null;
+  if (!showInstall && !showNotif && !showContacts) return null;
 
   // ── Install prompt ───────────────────────────────────────────────────────
   if (showInstall) {
@@ -294,4 +337,93 @@ export default function InstallPrompt() {
   }
 
   return null;
+
+  // ── Contacts permission prompt ───────────────────────────────────────────
+  if (showContacts) {
+    return (
+      <div className="fixed bottom-20 md:bottom-6 left-0 right-0 z-[200] flex justify-center px-3 pointer-events-none">
+        <div
+          className="pointer-events-auto w-full max-w-sm rounded-2xl shadow-2xl border overflow-hidden"
+          style={{
+            background: 'var(--nyasa-surface-2)',
+            borderColor: 'var(--nyasa-border)',
+            animation: 'slideUp 0.3s ease-out',
+          }}
+        >
+          <style>{`
+            @keyframes slideUp {
+              from { transform: translateY(24px); opacity: 0; }
+              to   { transform: translateY(0);    opacity: 1; }
+            }
+          `}</style>
+
+          <button
+            onClick={dismissContacts}
+            className="absolute top-3 right-3 p-1 rounded-full hover:bg-white/10 transition-colors"
+            style={{ color: 'var(--nyasa-text-muted)' }}
+          >
+            <X className="w-4 h-4" />
+          </button>
+
+          <div className="p-4 flex items-start gap-3">
+            <div
+              className="w-12 h-12 rounded-xl shrink-0 flex items-center justify-center"
+              style={{ background: contactsSynced ? 'rgba(37,211,102,0.15)' : 'rgba(37,211,102,0.10)' }}
+            >
+              {contactsSynced
+                ? <CheckCircle2 className="w-6 h-6" style={{ color: '#25D366' }} />
+                : <Users className="w-6 h-6" style={{ color: '#25D366' }} />
+              }
+            </div>
+
+            <div className="min-w-0 flex-1 pr-4">
+              {contactsSynced ? (
+                <>
+                  <p className="font-bold text-sm" style={{ color: '#25D366' }}>
+                    Phone contacts synced!
+                  </p>
+                  <p className="text-xs mt-1" style={{ color: 'var(--nyasa-text-muted)' }}>
+                    WhatsApp senders are now identified by name — just like WhatsApp.
+                  </p>
+                </>
+              ) : (
+                <>
+                  <p className="font-bold text-sm" style={{ color: 'var(--nyasa-text)' }}>
+                    See contact names in inbox
+                  </p>
+                  <p className="text-xs mt-1 leading-relaxed" style={{ color: 'var(--nyasa-text-muted)' }}>
+                    Allow access to your phone contacts so Nyasadesk can show names and photos for WhatsApp senders — just like the WhatsApp app does.
+                  </p>
+                  <button
+                    onClick={handleSyncContacts}
+                    className="mt-3 flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold text-black transition-all active:scale-95"
+                    style={{ background: '#25D366' }}
+                  >
+                    <Users className="w-3.5 h-3.5" />
+                    Allow contacts access
+                  </button>
+                  <button
+                    onClick={dismissContacts}
+                    className="mt-2 text-xs"
+                    style={{ color: 'var(--nyasa-text-muted)' }}
+                  >
+                    Not now
+                  </button>
+                </>
+              )}
+            </div>
+          </div>
+
+          <div
+            className="flex items-center gap-2 px-4 py-2.5 text-[11px]"
+            style={{ background: 'var(--nyasa-surface-3)', color: 'var(--nyasa-text-muted)' }}
+          >
+            <Smartphone className="w-3.5 h-3.5 shrink-0" />
+            Your contacts stay on this device — they're never uploaded to our servers
+          </div>
+        </div>
+      </div>
+    );
+  }
+
 }
