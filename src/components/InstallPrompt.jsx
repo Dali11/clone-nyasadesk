@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { Download, Bell, X, Smartphone, CheckCircle2, Users } from 'lucide-react';
 import { usePhoneContacts, hasContactPickerAPI } from '@/lib/usePhoneContacts';
+import { usePushNotifications } from '@/lib/usePushNotifications';
 
 // ── Constants ──────────────────────────────────────────────────────────────
 const INSTALL_DISMISSED_KEY    = 'nyasa-install-dismissed';
@@ -30,7 +31,7 @@ function isStandalone() {
 }
 
 // ── Main component ─────────────────────────────────────────────────────────
-export default function InstallPrompt() {
+export default function InstallPrompt({ workspaceOwnerId }) {
   const [deferredPrompt, setDeferredPrompt]     = useState(null);
   const [showInstall, setShowInstall]           = useState(false);
   const [showNotif, setShowNotif]               = useState(false);
@@ -40,6 +41,7 @@ export default function InstallPrompt() {
   const [showContacts, setShowContacts]         = useState(false);
   const [contactsSynced, setContactsSynced]     = useState(false);
   const { syncContacts, count: contactCount }   = usePhoneContacts();
+  const { subscribe: subscribePush } = usePushNotifications(workspaceOwnerId);
 
   // Detect iOS (needs different install UX — no beforeinstallprompt)
   useEffect(() => {
@@ -130,6 +132,8 @@ export default function InstallPrompt() {
       const perm = await Notification.requestPermission();
       if (perm === 'granted') {
         setNotifGranted(true);
+        // Register SW + store push subscription so backend can actually deliver pushes
+        subscribePush().catch(() => {});
         setTimeout(() => {
           setShowNotif(false);
           maybeShowContacts();
