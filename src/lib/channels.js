@@ -38,18 +38,42 @@ export async function pickPhoneContacts() {
   if (!navigator.contacts?.select) {
     throw new Error('Contact Picker API not available on this browser/device');
   }
-  const props = ['name', 'tel'];
+
+  // Request supported properties — 'icon' (contact photo) is available on
+  // Android Chrome 80+ and some other browsers. We ask for it but fall back
+  // gracefully if the browser doesn't support it.
+  const supportedProps = navigator.contacts.getProperties
+    ? await navigator.contacts.getProperties()
+    : ['name', 'tel'];
+  const props = ['name', 'tel', ...(supportedProps.includes('icon') ? ['icon'] : [])];
   const opts  = { multiple: true };
   const raw = await navigator.contacts.select(props, opts);
-  // Flatten — each entry can have multiple tel values
+
+  // Helper: convert first icon blob to a data URL string
+  async function blobToDataURL(blob) {
+    return new Promise((resolve) => {
+      const reader = new FileReader();
+      reader.onload = () => resolve(reader.result);
+      reader.onerror = () => resolve(null);
+      reader.readAsDataURL(blob);
+    });
+  }
+
   const contacts = [];
   for (const entry of raw) {
     const name = (entry.name || [])[0] || '';
     const tels = entry.tel || [];
+    // Try to get contact photo as data URL
+    let avatar_url = null;
+    if (entry.icon?.length) {
+      try { avatar_url = await blobToDataURL(entry.icon[0]); } catch { /* ignore */ }
+    }
     if (tels.length === 0) {
-      contacts.push({ full_name: name, phone: '' });
+      contacts.push({ full_name: name, phone: '', avatar_url });
     } else {
-      tels.forEach(tel => contacts.push({ full_name: name, phone: tel }));
+      tels.forEach((tel, i) =>
+        contacts.push({ full_name: name, phone: tel, avatar_url: i === 0 ? avatar_url : null })
+      );
     }
   }
   return contacts.filter(c => c.full_name || c.phone);
@@ -74,6 +98,7 @@ export async function syncPhoneContacts(workspaceId, phoneContacts) {
         phone: pc.phone,
         channel: 'manual',
         lead_source: 'phone',
+        ...(pc.avatar_url ? { avatar_url: pc.avatar_url } : {}),
       });
     }
   }
