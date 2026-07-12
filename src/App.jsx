@@ -59,15 +59,27 @@ function AppRoutes() {
   // (no full page reload, hash routing intact).
   useEffect(() => {
     if (!('serviceWorker' in navigator)) return;
+    
+    // Check for pending navigation from a cold start (app was closed)
+    const pending = sessionStorage.getItem('nyasa_notif_navigate');
+    if (pending) {
+      sessionStorage.removeItem('nyasa_notif_navigate');
+      try {
+        const target = new URL(pending);
+        if (target.origin === window.location.origin) {
+          setTimeout(() => navigate(target.pathname + target.search + target.hash), 200);
+        }
+      } catch {}
+    }
+    
     const handler = (event) => {
       if (event.data?.type === 'NOTIF_NAVIGATE' && event.data.url) {
         try {
           const target = new URL(event.data.url);
-          // Only handle same-origin navigation
           if (target.origin === window.location.origin) {
             navigate(target.pathname + target.search + target.hash, { replace: false });
           }
-        } catch { /* ignore malformed URLs */ }
+        } catch {}
       }
     };
     navigator.serviceWorker.addEventListener('message', handler);

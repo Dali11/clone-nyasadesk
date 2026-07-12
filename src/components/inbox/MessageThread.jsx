@@ -27,7 +27,6 @@ import {
   Palette,
   Download,
   Maximize2,
-  Camera,
 }from 'lucide-react';
 import {formatDistanceToNow, isToday, isYesterday, format as formatDate}from 'date-fns';
 import {motion, AnimatePresence}from 'framer-motion';
@@ -1579,7 +1578,7 @@ export default function MessageThread({ conversation, workspaceId }) {
                 onKeyDown={handleKeyDown}
               />
 
-              {/* Clip + Camera (right of textarea, inside pill) */}
+              {/* Clip + MapPin (right of textarea, inside pill) */}
               <div className="flex items-center gap-1 shrink-0 pb-1">
                 <button onClick={() => fileInputRef.current?.click()} disabled={tab === 'note'}
                   className="text-[#8696A0] hover:text-gray-200 transition-colors disabled:opacity-30 p-1">
@@ -1588,7 +1587,7 @@ export default function MessageThread({ conversation, workspaceId }) {
                 {conversation.channel === 'whatsapp' && tab !== 'note' && (
                   <button onClick={() => setShowLocationSender(true)} disabled={uploading}
                     className="text-[#8696A0] hover:text-gray-200 transition-colors disabled:opacity-30 p-1">
-                    <Camera className="w-5 h-5" />
+                    <MapPin className="w-5 h-5" />
                   </button>
                 )}
               </div>

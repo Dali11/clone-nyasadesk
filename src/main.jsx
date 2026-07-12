@@ -1,3 +1,4 @@
+import { supabase } from '@/lib/supabase'
 import React from 'react'
 import { ThemeProvider } from '@/lib/ThemeContext'
 import ReactDOM from 'react-dom/client'
@@ -18,12 +19,17 @@ if ('serviceWorker' in navigator) {
         // Inject the inline-reply secret into the SW so it can authenticate
         // notif-reply API calls without a user session.
         // The secret is stored in the SW's cache (survives restarts).
-        const injectSecret = (worker) => {
+        const injectSecret = async (worker) => {
           if (!worker) return;
-          // VITE_NOTIF_REPLY_SECRET is set in Vercel env vars (same value as
-          // NOTIF_REPLY_SECRET on the server side).
-          const secret = import.meta.env.VITE_NOTIF_REPLY_SECRET || '';
-          if (secret) worker.postMessage({ type: 'SET_REPLY_SECRET', secret });
+          try {
+            const { data: { session } } = await supabase.auth.getSession();
+            const secret = session?.access_token || import.meta.env.VITE_NOTIF_REPLY_SECRET || '';
+            if (secret) {
+              worker.postMessage({ type: 'SET_REPLY_SECRET', secret });
+            }
+          } catch (err) {
+            console.warn('[SW] Failed to get session for reply secret:', err);
+          }
         };
 
         // Inject into the currently active SW (if any)
@@ -40,6 +46,14 @@ if ('serviceWorker' in navigator) {
         // And whenever the controller changes
         navigator.serviceWorker.addEventListener('controllerchange', () => {
           injectSecret(navigator.serviceWorker.controller);
+        });
+
+        // Listen to auth state changes to dynamically update the reply secret
+        supabase.auth.onAuthStateChange((_event, session) => {
+          const secret = session?.access_token || '';
+          if (secret && navigator.serviceWorker.controller) {
+            navigator.serviceWorker.controller.postMessage({ type: 'SET_REPLY_SECRET', secret });
+          }
         });
 
         // When the new SW activates and sends SW_UPDATED, reload to pick up fresh JS

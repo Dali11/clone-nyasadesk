@@ -227,10 +227,19 @@ self.addEventListener('notificationreply', (event) => {
   event.waitUntil((async () => {
     try {
       const secret = await getReplySecret();
-      const res = await fetch(NOTIF_REPLY_ENDPOINT, {
+      const res = await fetch('/api/channels?action=send', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ secret, conversationId, workspaceId, channel: channel || 'whatsapp', text: replyText.trim() }),
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': 'Bearer ' + secret
+        },
+        body: JSON.stringify({
+          action: 'send',
+          conversationId,
+          workspaceId,
+          channel: channel || 'whatsapp',
+          text: replyText.trim()
+        }),
       });
 
       if (res.ok) {
@@ -308,7 +317,8 @@ self.addEventListener('notificationclick', (event) => {
       if (existing) {
         // Focus first — window must be active before it can receive postMessage
         await existing.focus();
-        // Then tell React Router to navigate without a full reload
+        // Give React time to mount its message listener
+        await new Promise(r => setTimeout(r, 300));
         existing.postMessage({ type: 'NOTIF_NAVIGATE', url: targetUrl });
         return;
       }
