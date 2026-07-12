@@ -936,33 +936,20 @@ export default function MessageThread({ conversation, workspaceId }) {
   const sendMediaQueue = async (files) => {
     setUploading(true);
     try {
-      // Group images together into one message (like WhatsApp albums)
-      // Non-image files (video, audio, document) always send individually.
-      const images = files.filter(f => f.type.startsWith('image/'));
-      const others = files.filter(f => !f.type.startsWith('image/'));
-
-      if (images.length > 1) {
-        // Upload all images first, then send as one message with multiple attachments
-        const uploads = await Promise.all(images.map(async (file) => {
-          const wId = conversation.workspace_id || workspaceId;
-          const ext = file.name.split('.').pop() || 'jpg';
-          const path = `${wId}/${conversation.id}/${Date.now()}-${Math.random().toString(36).slice(2)}.${ext}`;
-          const { error: upErr } = await supabase.storage.from('chat-media').upload(path, file, { contentType: file.type, upsert: false });
-          if (upErr) throw upErr;
-          const { data: pub } = supabase.storage.from('chat-media').getPublicUrl(path);
-          return { url: pub.publicUrl, type: 'image', mime: file.type };
-        }));
-        await sendMessage(workspaceId, conversation.id, `📷 ${uploads.length} photos`, user?.full_name || 'You', uploads, user?.id || null, null);
-      } else if (images.length === 1) {
-        await handleSendMedia(images[0], 'image');
-      }
-
-      // Send non-image files individually
-      for (const file of others) {
-        const kind = file.type.startsWith('video/') ? 'video'
-                     : file.type.startsWith('audio/') ? 'audio'
-                     : 'document';
+      // Meta Cloud API does NOT support multi-image messages —
+      // each file must be sent as a separate API call, one at a time.
+      // We add a 300ms gap between sends to stay within Meta rate limits.
+      for (let i = 0; i < files.length; i++) {
+        const file = files[i];
+        const kind = file.type.startsWith('image/') ? 'image'
+                   : file.type.startsWith('video/') ? 'video'
+                   : file.type.startsWith('audio/') ? 'audio'
+                   : 'document';
         await handleSendMedia(file, kind);
+        // Brief pause between multiple sends to avoid Meta rate-limit rejections
+        if (i < files.length - 1) {
+          await new Promise(r => setTimeout(r, 350));
+        }
       }
     } finally {
       setUploading(false);
