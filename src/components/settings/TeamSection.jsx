@@ -403,7 +403,7 @@ export default function TeamSection() {
       <div className="flex items-center gap-2 mb-1">
         <div className="flex items-center gap-2 flex-1 flex-wrap">
           <p className="text-sm font-semibold text-[var(--nyasa-text)]">
-            {users.filter(u => u.id !== workspaceId && u.role !== 'admin').length} agent{users.filter(u => u.id !== workspaceId && u.role !== 'admin').length !== 1 ? 's' : ''}
+            {users.filter(u => u.id !== workspaceId).length} member{users.filter(u => u.id !== workspaceId).length !== 1 ? 's' : ''}
             {pendingCount > 0 && (
               <span className="ml-2 text-[10px] text-amber-400 bg-amber-500/10 px-2 py-0.5 rounded-full font-bold">
                 {pendingCount} pending
