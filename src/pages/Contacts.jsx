@@ -208,7 +208,7 @@ function ContactProfile({ contact: initial, workspaceId, onClose, onSave, onDele
                   </button>
                 </div>
               )}
-            </div>}
+            </div>
           </div>
         </div>
 

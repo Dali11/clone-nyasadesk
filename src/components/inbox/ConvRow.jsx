@@ -92,7 +92,7 @@ export default function ConvRow({ conv, active, onClick, pinned = false, selecta
       {/* Main content right side with left-inset divider starting AFTER avatar */}
       <div className="flex-1 min-w-0 flex flex-col justify-center h-full border-b border-white/5 pr-1 py-1">
         <div className="flex items-center justify-between mb-1">
-          <span className={`text-[15px] truncate font-medium text-white`}>
+          <span className={`text-[15px] truncate ${conv.unread || conv.unread_count > 0 ? 'font-bold text-white' : 'font-normal text-[#E9EDF0]'}`}>
             {displayName}
           </span>
           <span className={`text-xs shrink-0 ml-2 ${conv.unread ? 'text-[#00A884] font-semibold' : 'text-[#8696A0]'}`}>
@@ -110,7 +110,7 @@ export default function ConvRow({ conv, active, onClick, pinned = false, selecta
             {conv.is_muted && (
               <VolumeX className="w-3.5 h-3.5 text-[#8696A0] shrink-0 mr-0.5" />
             )}
-            <span className="text-[#8696A0] truncate max-w-full">
+            <span className={`truncate max-w-full ${conv.unread || conv.unread_count > 0 ? 'text-[#E9EDF0] font-medium' : 'text-[#8696A0]'}`}>
               {conv.last_message_preview || 'No messages yet'}
             </span>
           </div>
