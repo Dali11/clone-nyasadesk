@@ -4,6 +4,7 @@ import { Send, StickyNote, Loader2, Check, CheckCheck, X, Zap, Bot, Sparkles, Pa
 import { formatDistanceToNow, isToday, isYesterday, format as formatDate } from 'date-fns';
 import { motion, AnimatePresence } from 'framer-motion';
 import { getMessages, sendMessage, sendMediaMessage, addNote, deleteMessage, setMessagePinned, subscribeToMessages, getCannedResponses, setChatBackground, getAiAgents, generateAiDraft } from '@/lib/channels';
+import { supabase } from '@/lib/supabase';
 import { useNyasaAuth } from '@/lib/NyasaAuth';
 import { useToast } from '@/components/ui/use-toast';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger, DropdownMenuSeparator } from '@/components/ui/dropdown-menu';
@@ -338,18 +339,18 @@ function ForwardModal({ msg, workspaceId, onClose }) {
   const forward = async (target) => {
     setSending(target.id);
     try {
-      await fetch('/api/channels', {
+      const _fRes = await fetch('/api/channels?action=send', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          action: 'send_message',
           workspace_id: workspaceId,
           conversation_id: target.id,
           channel: target.channel,
-          message: msg.body || '',
-          ...(msg.attachments?.[0] ? { media_url: msg.attachments[0].url, media_type: msg.attachments[0].type } : {}),
+          body: msg.body || '',
+          ...(msg.attachments?.[0] ? { attachments: [msg.attachments[0]] } : {}),
         }),
       });
+      if (!_fRes.ok) throw new Error('Forward failed');
       setDone(target.contact_name || 'conversation');
       setTimeout(onClose, 1500);
     } catch {
@@ -588,7 +589,6 @@ export default function MessageThread({ conversation, workspaceId }) {
   const [sending, setSending]     = useState(false);
   const [uploading, setUploading] = useState(false);
   const [showLocationSender, setShowLocationSender] = useState(false);
-  const [locationForm, setLocationForm] = useState({ lat: '', lng: '', name: '' });
   const [showCanned, setShowCanned] = useState(false);
   const [recording, setRecording] = useState(false);
   const [recordSecs, setRecordSecs] = useState(0);
@@ -784,22 +784,18 @@ export default function MessageThread({ conversation, workspaceId }) {
 
   // Queue for multi-file uploads — processes files one at a time so the
   // UI shows each optimistic bubble before the next upload starts.
-  const handleSendLocation = async () => {
-    const { lat, lng, name } = locationForm;
-    if (!lat || !lng) return;
+  const handleSendLocation = async (lat, lng, name) => {
     setShowLocationSender(false);
-    setLocationForm({ lat: '', lng: '', name: '' });
     try {
-      await fetch('/api/channels', {
+      await fetch('/api/channels?action=send', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          action: 'send_message',
           workspace_id: workspaceId,
           conversation_id: conversation.id,
           channel: conversation.channel,
           message_type: 'location',
-          location: { latitude: parseFloat(lat), longitude: parseFloat(lng), name: name || undefined },
+          location: { latitude: lat, longitude: lng, name: name || undefined },
         }),
       });
     } catch (e) {
@@ -807,13 +803,140 @@ export default function MessageThread({ conversation, workspaceId }) {
     }
   };
 
+  // Google Maps Places-based location picker component (rendered as overlay)
+  const LocationPickerOverlay = () => {
+    const inputRef = useRef(null);
+    const mapRef = useRef(null);
+    const mapInstanceRef = useRef(null);
+    const markerRef = useRef(null);
+    const [picked, setPicked] = useState(null); // { lat, lng, name }
+    const [mapReady, setMapReady] = useState(false);
+
+    // Load Google Maps SDK once
+    useEffect(() => {
+      const GMAP_KEY = import.meta.env.VITE_GOOGLE_MAPS_KEY || '';
+      if (!GMAP_KEY) { setMapReady(false); return; }
+      if (window.google?.maps) { setMapReady(true); return; }
+      const script = document.createElement('script');
+      script.src = `https://maps.googleapis.com/maps/api/js?key=${GMAP_KEY}&libraries=places`;
+      script.async = true;
+      script.onload = () => setMapReady(true);
+      document.head.appendChild(script);
+    }, []);
+
+    // Init map once SDK is loaded
+    useEffect(() => {
+      if (!mapReady || !mapRef.current) return;
+      const center = { lat: -13.9626, lng: 33.7741 }; // Lilongwe default
+      const map = new window.google.maps.Map(mapRef.current, { zoom: 13, center, disableDefaultUI: true, zoomControl: true, gestureHandling: 'greedy' });
+      mapInstanceRef.current = map;
+      const marker = new window.google.maps.Marker({ map, draggable: true, position: center, title: 'Drop here' });
+      markerRef.current = marker;
+      // Click on map to reposition
+      map.addListener('click', (e) => {
+        const pos = { lat: e.latLng.lat(), lng: e.latLng.lng() };
+        marker.setPosition(pos);
+        setPicked({ lat: pos.lat, lng: pos.lng, name: '' });
+      });
+      marker.addListener('dragend', () => {
+        const pos = marker.getPosition();
+        setPicked({ lat: pos.lat(), lng: pos.lng(), name: '' });
+      });
+      // Places autocomplete
+      if (inputRef.current) {
+        const ac = new window.google.maps.places.Autocomplete(inputRef.current, { types: ['geocode','establishment'] });
+        ac.addListener('place_changed', () => {
+          const place = ac.getPlace();
+          if (!place.geometry) return;
+          const pos = { lat: place.geometry.location.lat(), lng: place.geometry.location.lng() };
+          map.setCenter(pos);
+          map.setZoom(16);
+          marker.setPosition(pos);
+          setPicked({ lat: pos.lat, lng: pos.lng, name: place.name || place.formatted_address || '' });
+        });
+      }
+    }, [mapReady]);
+
+    return (
+      <div className="fixed inset-0 z-[100] bg-black/70 flex items-end justify-center" onClick={() => setShowLocationSender(false)}>
+        <div className="bg-[var(--nyasa-surface-2)] w-full max-w-lg rounded-t-2xl border-t border-[var(--nyasa-border)] shadow-2xl"
+             onClick={e => e.stopPropagation()}>
+          {/* Header */}
+          <div className="flex items-center justify-between px-4 py-3 border-b border-[var(--nyasa-border)]">
+            <p className="text-sm font-semibold text-white flex items-center gap-2"><MapPin className="w-4 h-4 text-[#25D366]" />Send Location</p>
+            <button onClick={() => setShowLocationSender(false)} className="text-gray-500 hover:text-white transition-colors"><X className="w-4 h-4" /></button>
+          </div>
+          {/* Search box */}
+          <div className="px-4 pt-3 pb-2">
+            <input ref={inputRef} placeholder="Search for a place…"
+              className="w-full bg-[var(--nyasa-surface-4)] text-white text-sm rounded-lg px-3 py-2 focus:outline-none focus:ring-1 focus:ring-[#25D366] placeholder:text-gray-600" />
+          </div>
+          {/* Map */}
+          <div ref={mapRef} className="w-full" style={{ height: 280 }}>
+            {!mapReady && (
+              <div className="w-full h-full flex flex-col items-center justify-center gap-3 bg-[var(--nyasa-surface-3)]">
+                <MapPin className="w-8 h-8 text-gray-600" />
+                <p className="text-xs text-gray-500 text-center px-6">Set <code className="text-[10px] bg-black/20 px-1 rounded">VITE_GOOGLE_MAPS_KEY</code> in your environment to enable the map picker.</p>
+                {/* Manual fallback */}
+                <div className="flex gap-2 mt-1">
+                  <input id="_lat" placeholder="Latitude" className="w-28 bg-[var(--nyasa-surface-4)] text-white text-xs rounded px-2 py-1.5 focus:outline-none focus:ring-1 focus:ring-[#25D366] placeholder:text-gray-600" />
+                  <input id="_lng" placeholder="Longitude" className="w-28 bg-[var(--nyasa-surface-4)] text-white text-xs rounded px-2 py-1.5 focus:outline-none focus:ring-1 focus:ring-[#25D366] placeholder:text-gray-600" />
+                </div>
+                <button onClick={() => {
+                  const la = parseFloat(document.getElementById('_lat')?.value);
+                  const ln = parseFloat(document.getElementById('_lng')?.value);
+                  if (!isNaN(la) && !isNaN(ln)) setPicked({ lat: la, lng: ln, name: '' });
+                }} className="text-xs bg-[#25D366]/20 text-[#25D366] px-3 py-1 rounded-full">Use coords</button>
+              </div>
+            )}
+          </div>
+          {/* Send bar */}
+          <div className="px-4 py-3 flex items-center gap-3 border-t border-[var(--nyasa-border)]">
+            {picked ? (
+              <div className="flex-1 text-xs text-gray-400 truncate">
+                {picked.name || `${Number(picked.lat).toFixed(5)}, ${Number(picked.lng).toFixed(5)}`}
+              </div>
+            ) : (
+              <div className="flex-1 text-xs text-gray-600">Tap the map or search to pick a location</div>
+            )}
+            <button disabled={!picked} onClick={() => handleSendLocation(picked.lat, picked.lng, picked.name)}
+              className="bg-[#25D366] hover:bg-[#22c55e] disabled:opacity-40 text-white text-xs font-semibold px-5 py-2 rounded-full transition-colors">
+              Send
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  };
+
   const sendMediaQueue = async (files) => {
     setUploading(true);
     try {
-      for (const file of files) {
+      // Group images together into one message (like WhatsApp albums)
+      // Non-image files (video, audio, document) always send individually.
+      const images = files.filter(f => f.type.startsWith('image/'));
+      const others = files.filter(f => !f.type.startsWith('image/'));
+
+      if (images.length > 1) {
+        // Upload all images first, then send as one message with multiple attachments
+        const uploads = await Promise.all(images.map(async (file) => {
+          const wId = conversation.workspace_id || workspaceId;
+          const ext = file.name.split('.').pop() || 'jpg';
+          const path = `${wId}/${conversation.id}/${Date.now()}-${Math.random().toString(36).slice(2)}.${ext}`;
+          const { error: upErr } = await supabase.storage.from('chat-media').upload(path, file, { contentType: file.type, upsert: false });
+          if (upErr) throw upErr;
+          const { data: pub } = supabase.storage.from('chat-media').getPublicUrl(path);
+          return { url: pub.publicUrl, type: 'image', mime: file.type };
+        }));
+        await sendMessage(workspaceId, conversation.id, `📷 ${uploads.length} photos`, user?.full_name || 'You', uploads, user?.id || null, null);
+      } else if (images.length === 1) {
+        await handleSendMedia(images[0], 'image');
+      }
+
+      // Send non-image files individually
+      for (const file of others) {
         const kind = file.type.startsWith('video/') ? 'video'
                      : file.type.startsWith('audio/') ? 'audio'
-                     : file.type.startsWith('image/') ? 'image'
                      : 'document';
         await handleSendMedia(file, kind);
       }
@@ -1115,27 +1238,10 @@ export default function MessageThread({ conversation, workspaceId }) {
               <Paperclip className="w-4.5 h-4.5" />
             </button>
             {conversation.channel === 'whatsapp' && tab !== 'note' && (
-              <div className="relative">
-                <button onClick={() => setShowLocationSender(s => !s)} disabled={uploading}
-                  className="w-10 h-10 rounded-full flex items-center justify-center shrink-0 text-gray-400 hover:text-gray-200 hover:bg-white/5 transition-colors disabled:opacity-30">
-                  <MapPin className="w-4 h-4" />
-                </button>
-                {showLocationSender && (
-                  <div className="absolute bottom-12 left-0 bg-[var(--nyasa-surface-2)] border border-[var(--nyasa-border)] rounded-xl p-3 z-50 w-56 shadow-xl">
-                    <p className="text-xs font-semibold text-white mb-2 flex items-center gap-1.5"><MapPin className="w-3.5 h-3.5 text-[#25D366]" />Send Location</p>
-                    <input value={locationForm.lat} onChange={e => setLocationForm(f => ({ ...f, lat: e.target.value }))}
-                      placeholder="Latitude" className="w-full bg-[var(--nyasa-surface-4)] text-white text-xs rounded-lg px-2.5 py-1.5 mb-1.5 focus:outline-none focus:ring-1 focus:ring-[#25D366] placeholder:text-gray-600" />
-                    <input value={locationForm.lng} onChange={e => setLocationForm(f => ({ ...f, lng: e.target.value }))}
-                      placeholder="Longitude" className="w-full bg-[var(--nyasa-surface-4)] text-white text-xs rounded-lg px-2.5 py-1.5 mb-1.5 focus:outline-none focus:ring-1 focus:ring-[#25D366] placeholder:text-gray-600" />
-                    <input value={locationForm.name} onChange={e => setLocationForm(f => ({ ...f, name: e.target.value }))}
-                      placeholder="Name / label (optional)" className="w-full bg-[var(--nyasa-surface-4)] text-white text-xs rounded-lg px-2.5 py-1.5 mb-2 focus:outline-none placeholder:text-gray-600" />
-                    <button onClick={handleSendLocation} disabled={!locationForm.lat || !locationForm.lng}
-                      className="w-full bg-[#25D366] hover:bg-[#22c55e] disabled:opacity-40 text-white text-xs font-semibold rounded-lg py-1.5 transition-colors">
-                      Send
-                    </button>
-                  </div>
-                )}
-              </div>
+              <button onClick={() => setShowLocationSender(true)} disabled={uploading}
+                className="w-10 h-10 rounded-full flex items-center justify-center shrink-0 text-gray-400 hover:text-gray-200 hover:bg-white/5 transition-colors disabled:opacity-30">
+                <MapPin className="w-4 h-4" />
+              </button>
             )}
             <textarea
               ref={inputRef}
@@ -1164,6 +1270,7 @@ export default function MessageThread({ conversation, workspaceId }) {
       </div>
 
       {lightboxMedia && <MediaLightbox att={lightboxMedia} onClose={() => setLightboxMedia(null)} />}
+      {showLocationSender && <LocationPickerOverlay />}
       {forwardMsg && (
         <ForwardModal
           msg={forwardMsg}
