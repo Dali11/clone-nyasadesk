@@ -32,6 +32,30 @@ function isUUID(str) {
 }
 
 
+
+// ── Push notification test ───────────────────────────────────────────────────
+async function handlePushTest(req, res) {
+  try {
+    const { workspace_id, message = 'Test push — tap to open inbox', contact_name = 'Test Contact' } = req.body || {};
+    if (!workspace_id) return res.status(400).json({ error: 'workspace_id required' });
+    const { notifyNewMessage } = await import('../_lib/pushNotify.js');
+    const sb = createClient(SUPABASE_URL, SUPABASE_KEY);
+    await notifyNewMessage(sb, {
+      ownerId:       workspace_id,
+      contactName:   contact_name,
+      body:          message,
+      conversationId: null,
+      channel:       'whatsapp',
+      contactPhone:  '',
+      contactAvatar: '',
+    });
+    return res.status(200).json({ ok: true, msg: 'Push notification dispatched' });
+  } catch (e) {
+    console.error('[push-test] error:', e?.message || e);
+    return res.status(500).json({ error: e?.message || 'Push test failed' });
+  }
+}
+
 export default async function handler(req, res) {
   // AI Agents actions live here too -- api/ is hard-capped at 12 files on
   // Vercel Hobby (see AGENTS.md), so new modules get added as actions on an
@@ -96,6 +120,7 @@ export default async function handler(req, res) {
   if (action === 'gmail-oauth-callback')  return handleGmailOAuthCallback(req, res);
   if (action === 'email-test')            return handleEmailTest(req, res);
   if (action === 'email-send')            return handleEmailSend(req, res);
+  if (action === 'push-test')     return handlePushTest(req, res);
   if (action === 'send-debug')   return handleSendDebug(req, res);
   return handleSend(req, res);
 }
