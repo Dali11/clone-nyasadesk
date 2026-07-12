@@ -478,6 +478,149 @@ function MessageActionsMenu({ msg, isOut, open, onOpenChange, onCopy, onShare, o
   );
 }
 
+// ─────────────────────────────────────────────────────────────────────────────
+// ImageAlbum — WhatsApp-style mosaic grid for grouped images
+// ─────────────────────────────────────────────────────────────────────────────
+function ImageAlbum({ images, onOpen }) {
+  if (!images?.length) return null;
+  const count = images.length;
+  const shown = count > 4 ? images.slice(0, 4) : images;
+  const extra = count > 4 ? count - 3 : 0;
+
+  const Cell = ({ img, idx, className = '' }) => (
+    <div
+      className={`relative overflow-hidden rounded-md ${className}`}
+      onClick={() => !img.sending && onOpen?.(img)}
+    >
+      <img
+        src={img.url}
+        alt=""
+        className={`w-full h-full object-cover transition-opacity ${img.sending ? 'opacity-50' : 'opacity-100'}`}
+      />
+      {/* Upload spinner */}
+      {img.sending && (
+        <span className="absolute inset-0 flex items-center justify-center bg-black/40">
+          <Loader2 className="w-6 h-6 text-white animate-spin" />
+        </span>
+      )}
+      {/* +N overflow badge on 4th cell */}
+      {extra > 0 && idx === 3 && (
+        <span className="absolute inset-0 flex items-center justify-center bg-black/55">
+          <span className="text-white text-xl font-bold">+{extra}</span>
+        </span>
+      )}
+      {/* Hover expand icon */}
+      {!img.sending && !(extra > 0 && idx === 3) && (
+        <span className="absolute inset-0 flex items-center justify-center bg-black/0 hover:bg-black/20 transition-colors cursor-pointer">
+          <Maximize2 className="w-4 h-4 text-white opacity-0 hover:opacity-90 transition-opacity" />
+        </span>
+      )}
+    </div>
+  );
+
+  // 1 image — single full-width
+  if (count === 1) {
+    return (
+      <div className="mb-1 rounded-lg overflow-hidden" style={{ maxWidth: 240 }}>
+        <Cell img={shown[0]} idx={0} className="h-48 w-full" />
+      </div>
+    );
+  }
+
+  // 2 images — side by side
+  if (count === 2) {
+    return (
+      <div className="flex gap-0.5 mb-1 rounded-lg overflow-hidden" style={{ maxWidth: 240, height: 160 }}>
+        {shown.map((img, i) => <Cell key={i} img={img} idx={i} className="flex-1" />)}
+      </div>
+    );
+  }
+
+  // 3 images — 1 large left + 2 stacked right
+  if (count === 3) {
+    return (
+      <div className="flex gap-0.5 mb-1 rounded-lg overflow-hidden" style={{ maxWidth: 240, height: 200 }}>
+        <Cell img={shown[0]} idx={0} className="w-3/5" />
+        <div className="flex flex-col gap-0.5 flex-1">
+          <Cell img={shown[1]} idx={1} className="flex-1" />
+          <Cell img={shown[2]} idx={2} className="flex-1" />
+        </div>
+      </div>
+    );
+  }
+
+  // 4+ images — 2×2 grid (4th cell may show +N)
+  return (
+    <div
+      className="grid gap-0.5 mb-1 rounded-lg overflow-hidden"
+      style={{ maxWidth: 240, gridTemplateColumns: '1fr 1fr', gridTemplateRows: '1fr 1fr', height: 238 }}
+    >
+      {shown.map((img, i) => <Cell key={i} img={img} idx={i} />)}
+    </div>
+  );
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// groupMessages — merge consecutive same-sender image messages within 60s
+// into a single synthetic album pseudo-message for rendering.
+// Pure function — called during render, not stored in state.
+// ─────────────────────────────────────────────────────────────────────────────
+function groupMessages(messages) {
+  const result = [];
+  let i = 0;
+  while (i < messages.length) {
+    const msg = messages[i];
+    const att = Array.isArray(msg.attachments) ? msg.attachments[0] : null;
+    // Only group outbound/inbound image attachments; leave everything else solo
+    const isImg = att?.type === 'image' && !msg._isAlbum;
+
+    if (!isImg) { result.push(msg); i++; continue; }
+
+    // Collect run of consecutive matching image messages
+    const group = [msg];
+    let j = i + 1;
+    while (j < messages.length) {
+      const next = messages[j];
+      const nextAtt = Array.isArray(next.attachments) ? next.attachments[0] : null;
+      if (
+        nextAtt?.type === 'image' &&
+        !next._isAlbum &&
+        next.direction === msg.direction &&
+        next.sender_name === msg.sender_name &&
+        Math.abs(new Date(next.created_at || next.created_date) - new Date(msg.created_at || msg.created_date)) <= 60000
+      ) {
+        group.push(next);
+        j++;
+      } else break;
+    }
+
+    if (group.length === 1) {
+      result.push(msg);
+    } else {
+      // Synthesise album pseudo-message
+      const lastStatus = group[group.length - 1].status;
+      result.push({
+        ...msg,
+        _isAlbum: true,
+        _albumImages: group.map(m => ({
+          ...(Array.isArray(m.attachments) ? m.attachments[0] : {}),
+          msgId: m.id,
+          sending: m.status === 'sending',
+          failed: m.status === 'failed',
+        })),
+        _albumStatus: group.some(m => m.status === 'sending') ? 'sending'
+          : group.some(m => m.status === 'failed') ? 'failed'
+          : lastStatus || 'sent',
+        attachments: null,
+        body: null,
+      });
+    }
+    i = j;
+  }
+  return result;
+}
+
+
 function Bubble({ msg, menuOpenId, onOpenMenu, onCopy, onShare, onForward, onDelete, onTogglePin, onReply, onJumpToReply, bubbleRef, onOpenMedia }) {
   const isNote     = msg.direction === 'note';
   const isActivity = msg.direction === 'activity';
@@ -575,7 +718,11 @@ function Bubble({ msg, menuOpenId, onOpenMenu, onCopy, onShare, onForward, onDel
             {msg.channel === 'internal' && !isOut && msg.sender_name && (
               <p className="text-[10px] font-semibold text-[#128C7E] mb-0.5">{msg.sender_name}</p>
             )}
-            {attachment && <MediaAttachment att={attachment} onOpen={onOpenMedia} />}
+            {msg._isAlbum && Array.isArray(msg._albumImages)
+              ? <ImageAlbum images={msg._albumImages} onOpen={onOpenMedia} />
+              : attachment
+                ? <MediaAttachment att={attachment} onOpen={onOpenMedia} />
+                : null}
             {(!attachment || (msg.body && !['📷 Photo','🎥 Video','🎤 Voice message'].includes(msg.body))) && (() => {
               // Pure emoji reaction — render large with a subtle pill, no bubble chrome
               const isEmojiOnly = msg.body && /^(\p{Emoji_Presentation}|\p{Extended_Pictographic})(\uFE0F|\u20E3)?$/u.test(msg.body.trim());
@@ -959,22 +1106,83 @@ export default function MessageThread({ conversation, workspaceId }) {
 
   const sendMediaQueue = async (files) => {
     setUploading(true);
-    setUploadProgress({ current: 0, total: files.length });
+    // Split into image batch vs other files
+    const imageFiles = files.filter(f => f.type.startsWith('image/'));
+    const otherFiles = files.filter(f => !f.type.startsWith('image/'));
+
     try {
-      // Meta Cloud API does NOT support multi-image messages —
-      // each file must be sent as a separate API call, one at a time.
-      // We add a 350ms gap between sends to stay within Meta rate limits.
-      for (let i = 0; i < files.length; i++) {
-        setUploadProgress({ current: i + 1, total: files.length });
-        const file = files[i];
-        const kind = file.type.startsWith('image/') ? 'image'
-                   : file.type.startsWith('video/') ? 'video'
+      // ── Multi-image: send as album ───────────────────────────────────────
+      if (imageFiles.length > 1) {
+        const albumTempId = `album-temp-${Date.now()}`;
+        // Build optimistic previews — all marked sending
+        const localPreviews = imageFiles.map(f => ({
+          url: URL.createObjectURL(f),
+          type: 'image',
+          sending: true,
+        }));
+        // Insert ONE album bubble immediately
+        setMessages(prev => [...prev, {
+          id: albumTempId,
+          conversation_id: conversation.id,
+          direction: 'outbound',
+          body: null,
+          channel: conversation.channel,
+          sender_name: user?.full_name || 'You',
+          status: 'sending',
+          created_at: new Date().toISOString(),
+          _isAlbum: true,
+          _albumImages: localPreviews,
+          _albumStatus: 'sending',
+          attachments: null,
+        }]);
+        // Upload each image sequentially, updating its cell as it completes
+        setUploadProgress({ current: 0, total: imageFiles.length });
+        for (let i = 0; i < imageFiles.length; i++) {
+          setUploadProgress({ current: i + 1, total: imageFiles.length });
+          try {
+            const msg = await sendMediaMessage(wId, conversation.id, imageFiles[i], 'image',
+              user?.full_name || 'You', '', user?.id || null);
+            if (msg?.id) settledIds.current.add(msg.id);
+            setMessages(prev => prev.map(m => {
+              if (m.id !== albumTempId) return m;
+              const imgs = [...m._albumImages];
+              imgs[i] = { ...imgs[i], sending: false,
+                url: msg?.attachments?.[0]?.url || imgs[i].url };
+              const allDone = imgs.every(x => !x.sending);
+              return { ...m, _albumImages: imgs,
+                _albumStatus: allDone ? 'sent' : 'sending',
+                status: allDone ? 'sent' : 'sending' };
+            }));
+          } catch (e) {
+            setMessages(prev => prev.map(m => {
+              if (m.id !== albumTempId) return m;
+              const imgs = [...m._albumImages];
+              imgs[i] = { ...imgs[i], sending: false, failed: true };
+              return { ...m, _albumImages: imgs };
+            }));
+          }
+          if (i < imageFiles.length - 1) await new Promise(r => setTimeout(r, 350));
+        }
+        // Mark whole album done
+        setMessages(prev => prev.map(m =>
+          m.id === albumTempId ? { ...m, status: 'sent', _albumStatus: 'sent' } : m
+        ));
+      } else if (imageFiles.length === 1) {
+        // Single image — existing individual path
+        setUploadProgress({ current: 1, total: 1 });
+        await handleSendMedia(imageFiles[0], 'image');
+      }
+
+      // ── Non-image files: always individual ──────────────────────────────
+      setUploadProgress({ current: 0, total: otherFiles.length });
+      for (let i = 0; i < otherFiles.length; i++) {
+        setUploadProgress({ current: i + 1, total: otherFiles.length });
+        const file = otherFiles[i];
+        const kind = file.type.startsWith('video/') ? 'video'
                    : file.type.startsWith('audio/') ? 'audio'
                    : 'document';
         await handleSendMedia(file, kind);
-        if (i < files.length - 1) {
-          await new Promise(r => setTimeout(r, 350));
-        }
+        if (i < otherFiles.length - 1) await new Promise(r => setTimeout(r, 350));
       }
     } finally {
       setUploading(false);
@@ -1115,7 +1323,7 @@ export default function MessageThread({ conversation, workspaceId }) {
             <p className="text-xs text-gray-600">Send the first message below</p>
           </div>
         ) : (
-          messages.map((msg, i) => {
+          groupMessages(messages).map((msg, i, arr) => {
             const ts = msg.created_at || msg.created_date;
             const prevTs = i > 0 ? (messages[i - 1].created_at || messages[i - 1].created_date) : null;
             const showSeparator = ts && !sameDay(ts, prevTs);
