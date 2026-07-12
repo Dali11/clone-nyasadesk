@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import {
   Plus, Loader2, Mail, MoreVertical, Shield, UserMinus,
-  Users, Crown, UserCog, User as UserIcon, RefreshCw,
+  Crown, UserCog, User as UserIcon, RefreshCw,
   CheckCircle2, AlertCircle, ChevronDown, X,
 } from 'lucide-react';
 import Avatar from '@/components/Avatar';
