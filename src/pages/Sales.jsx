@@ -1,6 +1,6 @@
 import {useState, useEffect, useCallback}from 'react';
 import {TrendingUp, Plus, CheckCircle, AlertCircle, Clock, ExternalLink, Trash2, Loader2, X, FileText, Download, DollarSign}from 'lucide-react';
-import {useAuth}from '@/lib/AuthContext';
+import { useNyasaAuth } from '@/lib/NyasaAuth';
 import {supabase}from '@/lib/supabase';
 
 const API = '/api/channels';
@@ -14,7 +14,7 @@ const STATUS_STYLES = {
 };
 
 export default function Sales() {
-  const { user, workspaceOwnerId, isWorkspaceAdmin } = useAuth();
+  const { user, workspaceOwnerId, isWorkspaceAdmin } = useNyasaAuth();
   const [sales, setSales] = useState([]);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState('');
