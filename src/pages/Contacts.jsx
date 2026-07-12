@@ -15,6 +15,7 @@ import {
   uploadContactAvatar, startConversationWithContact,
 } from '@/lib/channels';
 import { useNavigate } from 'react-router-dom';
+import PhoneContactSync from '@/components/PhoneContactSync';
 
 /* ── Constants ──────────────────────────────────────────────────────── */
 const STAGES = ['All', 'New Lead', 'Contacted', 'Qualified', 'Proposal Sent', 'Negotiation', 'Closed Won', 'Closed Lost'];
@@ -629,6 +630,9 @@ export default function Contacts() {
               </button>
             )}
 
+            {/* Phone sync (compact) */}
+            {canManage && <PhoneContactSync compact onSynced={load} />}
+
             {/* Sort */}
             <div className="relative">
               <button onClick={() => setShowSort(s => !s)}
@@ -688,6 +692,13 @@ export default function Contacts() {
             ))}
           </div>
         </div>
+
+        {/* Phone Sync Banner — shown when contact list is empty or on demand */}
+        {contacts.length === 0 && !loading && (
+          <div className="px-4 pt-3">
+            <PhoneContactSync onSynced={load} />
+          </div>
+        )}
 
         {/* List */}
         <div className="flex-1 overflow-y-auto scrollbar-thin">
