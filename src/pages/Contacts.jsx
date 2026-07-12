@@ -2,8 +2,8 @@ import { useState, useEffect, useRef, useCallback } from 'react';
 import {
   Search, Plus, Trash2, X, Loader2, SlidersHorizontal, ChevronDown,
   UserCircle2, Phone, Mail, MessageSquare, Upload, Download, Ban,
-  Star, Tag, Calendar, MapPin, Globe, MoreVertical, Check, AlertCircle,
-  ArrowLeft, Edit2, Camera, Smartphone,
+  Star, Tag, Globe, MoreVertical, Check, AlertCircle,
+  ArrowLeft, Edit2, Smartphone,
 } from 'lucide-react';
 import Sidebar from '@/components/Sidebar';
 import Avatar from '@/components/Avatar';
