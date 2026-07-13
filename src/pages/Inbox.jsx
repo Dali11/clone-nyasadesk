@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
-import { useLocation } from 'react-router-dom';
+import { useLocation, useNavigate } from 'react-router-dom';
 import { Search, Plus, Loader2, MessageSquareOff, Pin, Pencil } from 'lucide-react';
 import Sidebar from '@/components/Sidebar';
 import ConvList from '@/components/inbox/ConvList';
@@ -52,6 +52,7 @@ export default function Inbox() {
 
   // Deep-link from push notification: ?conv=<id> → auto-open that conversation
   const location = useLocation();
+  const navigate  = useNavigate();
   useEffect(() => {
     const params = new URLSearchParams(location.search);
     const convId = params.get('conv');
@@ -59,6 +60,11 @@ export default function Inbox() {
     const target = conversations.find(c => c.id === convId);
     if (target && (!activeConv || activeConv.id !== convId)) {
       setActiveConv(target);
+      // Clean the ?conv= param from the URL so a refresh doesn't re-open
+      // the same conversation unexpectedly (in-app, it stays open via state)
+      const clean = new URLSearchParams(location.search);
+      clean.delete('conv');
+      navigate(location.pathname + (clean.toString() ? '?' + clean.toString() : ''), { replace: true });
     }
   }, [location.search, conversations]);
   const [showInternalMsg, setShowInternalMsg] = useState(false);
