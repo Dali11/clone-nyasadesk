@@ -150,12 +150,21 @@ export default function Inbox() {
           // Check if this conv is already in our local list
           const isInList = (prev) => prev.some(c => c.id === payload.new.id);
           if (!isNowMine) {
-            // Not assigned to me — remove from list if it was there (reassigned away)
-            setConversations(prev => {
-              if (!isInList(prev)) return prev; // wasn't in list anyway
-              return prev.filter(c => c.id !== payload.new.id);
-            });
-            setActiveConv(prev => (prev?.id === payload.new.id ? null : prev));
+            // Not assigned to me — remove from list ONLY if it was explicitly
+            // reassigned to someone else (assigned_to is a non-null user id
+            // that isn't me). If assigned_to is null the conversation is
+            // unassigned (open), which agents can still see and work on —
+            // don't evict it from the list or close the active chat.
+            if (payload.new?.assigned_to !== null) {
+              setConversations(prev => {
+                if (!isInList(prev)) return prev; // wasn't in list anyway
+                return prev.filter(c => c.id !== payload.new.id);
+              });
+              setActiveConv(prev => (prev?.id === payload.new.id ? null : prev));
+            } else {
+              // Unassigned update (e.g. unread_count cleared) — just merge the row
+              setConversations(prev => prev.map(c => c.id === payload.new.id ? { ...c, ...payload.new } : c));
+            }
             return;
           }
           // isNowMine — if not in list yet, reload to get full joined contact data
