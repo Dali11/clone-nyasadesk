@@ -176,12 +176,40 @@ function AppRoutes() {
     );
   }
 
-  // ── Fully authenticated — persistent shell (no full remounts on nav) ──────
-  // Inbox is kept mounted at all times so realtime subscriptions and loaded
-  // conversation state survive route changes.  Secondary pages are rendered
-  // once and toggled visible/hidden via CSS so they also don't remount.
-  // Navigating from /contacts → / is now instant: Inbox is already live.
-  return <PersistentShell />;
+  // ── Fully authenticated ────────────────────────────────────────────────────
+  return (
+    <Routes>
+      <Route path="/"           element={<Inbox />} />
+      <Route path="/dashboard"  element={<Dashboard />} />
+      <Route path="/contacts"   element={<Contacts />} />
+      <Route path="/broadcasts" element={<Broadcasts />} />
+      <Route path="/rules"      element={<Rules />} />
+      <Route path="/canned"     element={<CannedResponses />} />
+      <Route path="/ai-agents"  element={<AiAgents />} />
+      <Route path="/documents"  element={<Documents />} />
+      <Route path="/sales"      element={<Sales />} />
+      <Route path="/commissions" element={<MyCommissions />} />
+      <Route path="/privacy"        element={<PrivacyPolicy />} />
+      <Route path="/data-deletion"   element={<DataDeletion />} />
+      <Route path="/settings"   element={<Settings />} />
+      <Route path="/pricing"    element={<Pricing />} />
+      <Route path="/admin" element={<AdminLayout />}>
+        <Route index             element={<AdminOverview />} />
+        <Route path="workspaces" element={<AdminWorkspaces />} />
+        <Route path="admins"     element={<AdminAdmins />} />
+        <Route path="pricing"    element={<AdminPricing />} />
+        <Route path="churn"       element={<AdminChurn />} />
+        <Route path="ai-usage"    element={<AdminAiUsage />} />
+        <Route path="transactions" element={<AdminTransactions />} />
+        <Route path="audit-log"   element={<AdminAuditLog />} />
+        <Route path="commissions" element={<AdminCommissions />} />
+        <Route path="users"       element={<AdminUsers />} />
+      </Route>
+      <Route path="/login"      element={<Navigate to="/" replace />} />
+      <Route path="/register"   element={<Navigate to="/" replace />} />
+      <Route path="*"           element={<Navigate to="/" replace />} />
+    </Routes>
+  );
 }
 
 /* ── PersistentShell ───────────────────────────────────────────────────────
