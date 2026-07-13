@@ -446,8 +446,10 @@ export default function App() {
       <QueryClientProvider client={queryClientInstance}>
         <NyasaAuthProvider>
           <Router>
-            <ScrollToTop />
-            <AppRoutes />
+            <div style={{ position: 'fixed', inset: 0, display: 'flex', flexDirection: 'column' }}>
+              <ScrollToTop />
+              <AppRoutes />
+            </div>
           </Router>
           <ContactsPermissionBanner />
           <OfflineBanner />

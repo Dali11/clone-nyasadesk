@@ -86,6 +86,11 @@
 
 @layer base {
   * { @apply border-border outline-ring/50; }
+  html, body, #root {
+    height: 100%;
+    min-height: 100vh;
+    overflow: hidden;
+  }
   body {
     background: var(--nyasa-bg);
     color: var(--nyasa-text);
