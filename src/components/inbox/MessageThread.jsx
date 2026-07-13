@@ -816,6 +816,9 @@ export default function MessageThread({ conversation, workspaceId }) {
   const bottomRef = useRef(null);
   const inputRef  = useRef(null);
   const fileInputRef = useRef(null);
+  const galleryInputRef = useRef(null);
+  const docInputRef = useRef(null);
+  const cameraInputRef = useRef(null);
   const messageRefs = useRef({}); // for the pinned-messages bar's "jump to" scroll
   const sendingRef = useRef(false); // synchronous lock — `sending` state alone can be bypassed
   // Track IDs of messages we've already inserted via the send/note response so
@@ -1035,6 +1038,7 @@ export default function MessageThread({ conversation, workspaceId }) {
     const markerRef = useRef(null);
     const [picked, setPicked] = useState(null); // { lat, lng, name }
     const [mapReady, setMapReady] = useState(false);
+  const [showAttachMenu, setShowAttachMenu] = useState(false);
 
     // Load Google Maps SDK once
     useEffect(() => {
@@ -1502,7 +1506,15 @@ export default function MessageThread({ conversation, workspaceId }) {
           </div>
         ) : (
           <div className="flex items-end gap-2 mx-1">
-            <input ref={fileInputRef} type="file" accept="image/*,video/*,audio/*,application/pdf,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document,application/vnd.ms-excel,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,text/plain,text/csv" multiple className="hidden" onChange={onFilePicked} />
+            {/* Hidden file inputs — one per category so each opens the right picker */}
+            <input ref={fileInputRef} type="file"
+              accept="image/*,video/*,audio/*,application/pdf,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document,application/vnd.ms-excel,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,text/plain,text/csv"
+              multiple className="hidden" onChange={onFilePicked} />
+            <input ref={galleryInputRef} type="file" accept="image/*,video/*" multiple className="hidden" onChange={onFilePicked} />
+            <input ref={docInputRef} type="file"
+              accept="application/pdf,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document,application/vnd.ms-excel,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,text/plain,text/csv,application/vnd.ms-powerpoint,application/vnd.openxmlformats-officedocument.presentationml.presentation"
+              multiple className="hidden" onChange={onFilePicked} />
+            <input ref={cameraInputRef} type="file" accept="image/*" capture="environment" className="hidden" onChange={onFilePicked} />
 
             {/* Left pill: emoji + textarea + clip + camera */}
             <div className="flex items-end flex-1 bg-[#2A3942] rounded-full px-3 py-1 gap-2 min-w-0">
@@ -1553,16 +1565,13 @@ export default function MessageThread({ conversation, workspaceId }) {
 
               {/* Clip + MapPin (right of textarea, inside pill) */}
               <div className="flex items-center gap-1 shrink-0 pb-1">
-                <button onClick={() => fileInputRef.current?.click()} disabled={tab === 'note'}
+                <button
+                  onClick={() => { if (tab !== 'note') setShowAttachMenu(true); }}
+                  disabled={tab === 'note'}
                   className="text-[#8696A0] hover:text-gray-200 transition-colors disabled:opacity-30 p-1">
                   <Paperclip className="w-5 h-5" />
                 </button>
-                {conversation.channel === 'whatsapp' && tab !== 'note' && (
-                  <button onClick={() => setShowLocationSender(true)} disabled={uploading}
-                    className="text-[#8696A0] hover:text-gray-200 transition-colors disabled:opacity-30 p-1">
-                    <MapPin className="w-5 h-5" />
-                  </button>
-                )}
+
               </div>
             </div>
 
@@ -1613,6 +1622,117 @@ export default function MessageThread({ conversation, workspaceId }) {
         </div>
       )}
 
+
+      {/* ── Attachment menu bottom-sheet (WhatsApp style) ── */}
+      {showAttachMenu && (
+        <div className="fixed inset-0 z-[100]" onClick={() => setShowAttachMenu(false)}>
+          <div
+            className="absolute inset-x-0 bottom-0 bg-[#1F2C34] rounded-t-2xl pt-3 pb-8 px-6 shadow-2xl"
+            style={{ animation: 'slideUpEmoji 0.22s cubic-bezier(0.32,0.72,0,1) both' }}
+            onClick={e => e.stopPropagation()}
+          >
+            {/* Drag handle */}
+            <div className="w-10 h-1 rounded-full bg-white/20 mx-auto mb-5" />
+
+            {/* Row 1 */}
+            <div className="grid grid-cols-4 gap-4 mb-4">
+              {/* Document */}
+              <button
+                className="flex flex-col items-center gap-2"
+                onClick={() => { setShowAttachMenu(false); docInputRef.current?.click(); }}
+              >
+                <span className="w-14 h-14 rounded-full flex items-center justify-center" style={{ background: '#7B5EA7' }}>
+                  <svg className="w-7 h-7 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}>
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M7 21h10a2 2 0 002-2V9.414A2 2 0 0018.414 8L13 2.586A2 2 0 0011.586 2H7a2 2 0 00-2 2v15a2 2 0 002 2z" />
+                  </svg>
+                </span>
+                <span className="text-[11px] text-[#8696A0]">Document</span>
+              </button>
+
+              {/* Gallery */}
+              <button
+                className="flex flex-col items-center gap-2"
+                onClick={() => { setShowAttachMenu(false); galleryInputRef.current?.click(); }}
+              >
+                <span className="w-14 h-14 rounded-full flex items-center justify-center" style={{ background: '#1E88E5' }}>
+                  <svg className="w-7 h-7 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}>
+                    <rect x="3" y="3" width="18" height="18" rx="2" ry="2" />
+                    <circle cx="8.5" cy="8.5" r="1.5" />
+                    <polyline points="21 15 16 10 5 21" />
+                  </svg>
+                </span>
+                <span className="text-[11px] text-[#8696A0]">Gallery</span>
+              </button>
+
+              {/* Camera */}
+              <button
+                className="flex flex-col items-center gap-2"
+                onClick={() => { setShowAttachMenu(false); cameraInputRef.current?.click(); }}
+              >
+                <span className="w-14 h-14 rounded-full flex items-center justify-center" style={{ background: '#E91E63' }}>
+                  <svg className="w-7 h-7 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}>
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M23 19a2 2 0 01-2 2H3a2 2 0 01-2-2V8a2 2 0 012-2h4l2-3h6l2 3h4a2 2 0 012 2z" />
+                    <circle cx="12" cy="13" r="4" />
+                  </svg>
+                </span>
+                <span className="text-[11px] text-[#8696A0]">Camera</span>
+              </button>
+
+              {/* Quick Reply / Canned */}
+              <button
+                className="flex flex-col items-center gap-2"
+                onClick={() => { setShowAttachMenu(false); setBody('/'); setShowCanned(true); setTimeout(() => inputRef.current?.focus(), 50); }}
+              >
+                <span className="w-14 h-14 rounded-full flex items-center justify-center" style={{ background: '#F4A100' }}>
+                  <svg className="w-7 h-7 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}>
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M13 10V3L4 14h7v7l9-11h-7z" />
+                  </svg>
+                </span>
+                <span className="text-[11px] text-[#8696A0]">Quick Reply</span>
+              </button>
+            </div>
+
+            {/* Row 2 */}
+            <div className="grid grid-cols-4 gap-4">
+              {/* Location */}
+              {conversation.channel === 'whatsapp' && (
+                <button
+                  className="flex flex-col items-center gap-2"
+                  onClick={() => { setShowAttachMenu(false); setShowLocationSender(true); }}
+                >
+                  <span className="w-14 h-14 rounded-full flex items-center justify-center" style={{ background: '#00BCD4' }}>
+                    <svg className="w-7 h-7 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}>
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
+                    </svg>
+                  </span>
+                  <span className="text-[11px] text-[#8696A0]">Location</span>
+                </button>
+              )}
+
+              {/* Audio file */}
+              <button
+                className="flex flex-col items-center gap-2"
+                onClick={() => {
+                  setShowAttachMenu(false);
+                  // open file picker filtered to audio
+                  const inp = document.createElement('input');
+                  inp.type = 'file'; inp.accept = 'audio/*'; inp.multiple = true;
+                  inp.onchange = (ev) => onFilePicked(ev);
+                  inp.click();
+                }}
+              >
+                <span className="w-14 h-14 rounded-full flex items-center justify-center" style={{ background: '#4CAF50' }}>
+                  <svg className="w-7 h-7 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}>
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M9 19V6l12-3v13M9 19c0 1.105-1.343 2-3 2s-3-.895-3-2 1.343-2 3-2 3 .895 3 2zm12-3c0 1.105-1.343 2-3 2s-3-.895-3-2 1.343-2 3-2 3 .895 3 2z" />
+                  </svg>
+                </span>
+                <span className="text-[11px] text-[#8696A0]">Audio</span>
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
       {showLocationSender && <LocationPickerOverlay />}
       {forwardMsg && (
         <ForwardModal
