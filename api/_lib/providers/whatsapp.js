@@ -245,21 +245,41 @@ export class WhatsAppCloudProvider extends MessagingProvider {
     // to Meta first to obtain a media_id, then sent with { id: media_id }.
     // Images, video, and documents support `link` just fine.
     const uploadToMeta = async (url, mimeType) => {
-      // Fetch the file bytes from our Supabase CDN
+      // Fetch the raw bytes from Supabase storage
       const fileRes = await fetch(url);
       if (!fileRes.ok) throw new Error(`Failed to fetch media from storage: ${fileRes.status}`);
-      const blob = await fileRes.blob();
-      const form = new FormData();
-      form.append('messaging_product', 'whatsapp');
-      form.append('type', mimeType);
-      form.append('file', blob, 'audio.' + (mimeType.includes('ogg') ? 'ogg' : mimeType.includes('mp4') ? 'm4a' : 'webm'));
+      const arrayBuf = await fileRes.arrayBuffer();
+      const buffer = Buffer.from(arrayBuf);
+
+      // Build a multipart/form-data body manually so we avoid undici Blob quirks
+      const ext = mimeType.includes('ogg') ? 'ogg' : mimeType.includes('mp4') ? 'm4a' : 'webm';
+      const boundary = '----NyasaDeskBoundary' + Date.now();
+      const CRLF = '\r\n';
+      const preamble = Buffer.from(
+        `--${boundary}${CRLF}` +
+        `Content-Disposition: form-data; name="messaging_product"${CRLF}${CRLF}` +
+        `whatsapp${CRLF}` +
+        `--${boundary}${CRLF}` +
+        `Content-Disposition: form-data; name="type"${CRLF}${CRLF}` +
+        `${mimeType}${CRLF}` +
+        `--${boundary}${CRLF}` +
+        `Content-Disposition: form-data; name="file"; filename="audio.${ext}"${CRLF}` +
+        `Content-Type: ${mimeType}${CRLF}${CRLF}`
+      );
+      const epilogue = Buffer.from(`${CRLF}--${boundary}--${CRLF}`);
+      const body = Buffer.concat([preamble, buffer, epilogue]);
+
       const uploadRes = await fetch(`${GRAPH}/${phone_number_id}/media`, {
         method: 'POST',
-        headers: { Authorization: `Bearer ${access_token}` },
-        body: form,
+        headers: {
+          Authorization: `Bearer ${access_token}`,
+          'Content-Type': `multipart/form-data; boundary=${boundary}`,
+          'Content-Length': body.length.toString(),
+        },
+        body,
       });
       const uploadJson = await uploadRes.json();
-      if (!uploadRes.ok) throw new Error(uploadJson.error?.message || 'Failed to upload audio to Meta');
+      if (!uploadRes.ok) throw new Error(uploadJson.error?.message || `Meta media upload failed: ${JSON.stringify(uploadJson)}`);
       return uploadJson.id;
     };
 
