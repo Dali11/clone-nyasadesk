@@ -12,6 +12,18 @@ import { MessagingProvider, persistInboundMessage } from './base.js';
 const GRAPH_VERSION = 'v21.0';
 const GRAPH = `https://graph.facebook.com/${GRAPH_VERSION}`;
 
+// Meta Cloud API accepted audio MIME types (error 131053 if wrong).
+// audio/webm is NOT on the list — normalise before dispatching.
+function normaliseAudioMime(mime) {
+  if (!mime) return 'audio/ogg; codecs=opus';
+  if (mime.includes('webm'))  return 'audio/ogg; codecs=opus';
+  if (mime.includes('ogg'))   return 'audio/ogg; codecs=opus';
+  if (mime.includes('mp4') || mime.includes('aac')) return 'audio/mp4';
+  if (mime.includes('mpeg') || mime.includes('mp3')) return 'audio/mpeg';
+  if (mime.includes('amr'))   return 'audio/amr';
+  return 'audio/ogg; codecs=opus';
+}
+
 export class WhatsAppCloudProvider extends MessagingProvider {
   get channelType() { return 'whatsapp'; }
   get providerName() { return 'WhatsApp Cloud API'; }
@@ -242,6 +254,13 @@ export class WhatsAppCloudProvider extends MessagingProvider {
 
     if (media && WA_TYPE[media.type]) {
       const waType = WA_TYPE[media.type];
+
+      // For audio: normalise the MIME stored in media.mime before building the
+      // payload — Meta rejects audio/webm with error 131053.
+      if (waType === 'audio' && media.mime) {
+        media = { ...media, mime: normaliseAudioMime(media.mime) };
+      }
+
       payload = {
         messaging_product: 'whatsapp', to, type: waType,
         [waType]: {

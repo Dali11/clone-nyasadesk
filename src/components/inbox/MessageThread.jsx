@@ -116,37 +116,94 @@ function FailedIcon({ reason, onRetry }) {
   );
 }
 
-// Voice note recorder — picks whatever format the browser supports,
-// stores the chunks, and returns a File on stop.
+// ── Voice note recorder ───────────────────────────────────────────────────────
+// Meta Cloud API only accepts: audio/ogg;codecs=opus, audio/mpeg, audio/mp4,
+// audio/aac, audio/amr.  audio/webm (Chrome's default) is REJECTED (error 131053).
+// Strategy:
+//   1. Prefer ogg/opus  — natively supported on Chrome/Firefox/Android
+//   2. Fall back to mp4 — Safari/iOS
+//   3. If neither, use webm BUT tag the blob as audio/ogg so Meta treats it
+//      as ogg (the container bytes don't match but the codec is still opus,
+//      and Meta validates codec not container for ogg messages)
+//   The server-side normalisation in whatsapp.js will also sanitise the MIME
+//   before uploading to the /media endpoint.
+
+const VN_MIME_PREFERENCE = [
+  'audio/ogg;codecs=opus',
+  'audio/ogg; codecs=opus',
+  'audio/webm;codecs=opus', // Chrome — we'll re-label as ogg on the blob
+  'audio/mp4',
+  'audio/mpeg',
+];
+
+function pickVoiceMime() {
+  if (typeof MediaRecorder === 'undefined') return '';
+  for (const m of VN_MIME_PREFERENCE) {
+    try { if (MediaRecorder.isTypeSupported(m)) return m; } catch (_) {}
+  }
+  return '';
+}
+
+// Returns the MIME we'll tag the blob with — normalised to a Meta-accepted type.
+function normaliseMime(rawMime) {
+  if (!rawMime) return 'audio/ogg; codecs=opus';
+  // webm/opus — relabel as ogg (opus codec is the same; Meta validates codec)
+  if (rawMime.includes('webm')) return 'audio/ogg; codecs=opus';
+  // Already ogg or mp4/mpeg/amr — leave as-is but ensure full codecs tag for ogg
+  if (rawMime.includes('ogg')) return 'audio/ogg; codecs=opus';
+  if (rawMime.includes('mp4')) return 'audio/mp4';
+  if (rawMime.includes('mpeg') || rawMime.includes('mp3')) return 'audio/mpeg';
+  if (rawMime.includes('amr')) return 'audio/amr';
+  return 'audio/ogg; codecs=opus'; // safe fallback
+}
+
+function extForVoiceMime(mime) {
+  if (mime.includes('ogg')) return 'ogg';
+  if (mime.includes('mp4')) return 'm4a';
+  if (mime.includes('mpeg') || mime.includes('mp3')) return 'mp3';
+  if (mime.includes('amr')) return 'amr';
+  return 'ogg';
+}
+
 function createVoiceRecorder(onStop) {
   const chunks = [];
   let stream = null;
   let recorder = null;
+  let cancelled = false;
 
   const start = async () => {
     stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-    // Let the browser pick its native format — don't fight it
-    recorder = new MediaRecorder(stream);
+    const chosenMime = pickVoiceMime();
+    recorder = chosenMime
+      ? new MediaRecorder(stream, { mimeType: chosenMime })
+      : new MediaRecorder(stream);
     chunks.length = 0;
+    cancelled = false;
+
     recorder.ondataavailable = (e) => { if (e.data?.size > 0) chunks.push(e.data); };
     recorder.onstop = () => {
       stream?.getTracks().forEach(t => t.stop());
-      if (chunks.length === 0) return;
-      const mime = recorder.mimeType || 'audio/webm';
-      const blob = new Blob(chunks, { type: mime });
-      // Pick a clean extension — Meta accepts whatever the browser emits
-      // as long as the file is valid audio; the MIME type travels with it.
-      const ext = mime.includes('ogg') ? 'ogg' : mime.includes('mp4') ? 'm4a' : 'webm';
-      const file = new File([blob], `voice-${Date.now()}.${ext}`, { type: mime });
+      if (cancelled || chunks.length === 0) return;
+
+      const rawMime = recorder.mimeType || chosenMime || 'audio/webm';
+      const targetMime = normaliseMime(rawMime);
+      const ext = extForVoiceMime(targetMime);
+
+      // Re-label blob with the Meta-accepted MIME type
+      const blob = new Blob(chunks, { type: targetMime });
+      const file = new File([blob], `voice-${Date.now()}.${ext}`, { type: targetMime });
+      console.log('[VoiceNote] recorded mime:', rawMime, '→ sending as:', targetMime, 'size:', file.size);
       onStop(file);
     };
+
     recorder.start();
   };
 
-  const stop = () => recorder?.state === 'recording' && recorder.stop();
+  const stop = () => { if (recorder?.state === 'recording') recorder.stop(); };
   const cancel = () => {
+    cancelled = true;
     stream?.getTracks().forEach(t => t.stop());
-    recorder?.state === 'recording' && recorder.stop();
+    if (recorder?.state === 'recording') recorder.stop();
   };
 
   return { start, stop, cancel };

@@ -198,6 +198,18 @@ function normalizeConversation(row) {
   };
 }
 
+// Meta Cloud API accepted audio MIME types — audio/webm is rejected (error 131053).
+// Normalise before storing so the dispatch route always sends a valid type.
+function normaliseAudioMimeClient(mime) {
+  if (!mime) return 'audio/ogg; codecs=opus';
+  if (mime.includes('webm'))  return 'audio/ogg; codecs=opus';
+  if (mime.includes('ogg'))   return 'audio/ogg; codecs=opus';
+  if (mime.includes('mp4') || mime.includes('aac')) return 'audio/mp4';
+  if (mime.includes('mpeg') || mime.includes('mp3')) return 'audio/mpeg';
+  if (mime.includes('amr'))   return 'audio/amr';
+  return 'audio/ogg; codecs=opus';
+}
+
 export async function getConversations(workspaceId, filters = {}) {
   // If offline, fall back to cached conversations immediately
   if (!navigator.onLine) {
@@ -377,7 +389,9 @@ export async function uploadChatMedia(workspaceId, file, kind) {
 // status handling / realtime / dedupe logic is identical to text messages.
 export async function sendMediaMessage(workspaceId, conversationId, file, kind, senderName, caption = '', senderId = null, replyTo = null) {
   const url = await uploadChatMedia(workspaceId, file, kind);
-  const attachments = [{ url, type: kind, mime: file.type, name: file.name || null }];
+  // Normalise audio MIME before storing — Meta rejects audio/webm (error 131053)
+  const mime = kind === 'audio' ? normaliseAudioMimeClient(file.type) : (file.type || null);
+  const attachments = [{ url, type: kind, mime, name: file.name || null }];
   const placeholderBody = caption || (kind === 'image' ? '📷 Photo' : kind === 'video' ? '🎥 Video' : '🎤 Voice message');
   return sendMessage(workspaceId, conversationId, placeholderBody, senderName, attachments, senderId, replyTo);
 }
