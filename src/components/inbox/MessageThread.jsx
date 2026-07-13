@@ -1087,6 +1087,8 @@ export default function MessageThread({ conversation, workspaceId }) {
     }
   };
 
+  const [showAttachMenu, setShowAttachMenu] = useState(false);
+
   // Google Maps Places-based location picker component (rendered as overlay)
   const LocationPickerOverlay = () => {
     const inputRef = useRef(null);
@@ -1095,7 +1097,6 @@ export default function MessageThread({ conversation, workspaceId }) {
     const markerRef = useRef(null);
     const [picked, setPicked] = useState(null); // { lat, lng, name }
     const [mapReady, setMapReady] = useState(false);
-  const [showAttachMenu, setShowAttachMenu] = useState(false);
 
     // Load Google Maps SDK once
     useEffect(() => {
