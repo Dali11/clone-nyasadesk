@@ -395,6 +395,23 @@ export default function Inbox() {
           </div>
         </div>
 
+        {/* Search */}
+        <div className="px-3 pb-2 shrink-0">
+          <div className="flex items-center gap-2 px-3 py-1.5 rounded-full bg-[#1F2C34]">
+            <Search className="w-4 h-4 text-[#8696A0] shrink-0" />
+            <input
+              type="text"
+              placeholder="Search conversations…"
+              value={search}
+              onChange={e => setSearch(e.target.value)}
+              className="bg-transparent border-none outline-none text-sm text-white placeholder-[#8696A0] w-full"
+            />
+            {search && (
+              <X className="w-4 h-4 shrink-0 cursor-pointer text-[#8696A0] hover:text-white" onClick={() => setSearch('')} />
+            )}
+          </div>
+        </div>
+
         {/* List */}
         <div className="flex-1 overflow-y-auto scrollbar-thin">
           {/* Pinned conversations section */}

@@ -2,14 +2,12 @@ import { AnimatePresence, motion } from 'framer-motion';
 import { useState } from 'react';
 import ConvRow from './ConvRow';
 import Avatar from '@/components/Avatar';
-import { X, CheckSquare, Square, UserCheck, CheckCircle, Clock, XCircle, Trash2, Plus, Search } from 'lucide-react';
+import { X, CheckSquare, Square, UserCheck, CheckCircle, Clock, XCircle, Trash2 } from 'lucide-react';
 
 export default function ConvList({ conversations, activeId, onSelect, loading, users = [], onBulkAction, canAssign = false }) {
   const [selectedIds, setSelectedIds] = useState(new Set());
   const [bulkMode, setBulkMode] = useState(false);
   const [assignOpen, setAssignOpen] = useState(false);
-  const [activeTab, setActiveTab] = useState('All');
-  const [searchQuery, setSearchQuery] = useState('');
 
   const enterBulkMode = (id) => {
     setBulkMode(true);
@@ -38,9 +36,11 @@ export default function ConvList({ conversations, activeId, onSelect, loading, u
     exitBulkMode();
   };
 
+  const allSelected = selectedIds.size === conversations.length && conversations.length > 0;
+
   if (loading) {
     return (
-      <div className="flex flex-col gap-0 bg-[#0B141A] min-h-screen">
+      <div className="flex flex-col">
         {[...Array(6)].map((_, i) => (
           <div key={i} className="flex items-start gap-3 px-4 py-3 border-b border-white/5 animate-pulse">
             <div className="w-12 h-12 rounded-full bg-white/10 shrink-0" />
@@ -54,65 +54,8 @@ export default function ConvList({ conversations, activeId, onSelect, loading, u
     );
   }
 
-  // Filter conversations locally based on activeTab and searchQuery to emulate WhatsApp's UI flow
-  const filteredConversations = conversations.filter(conv => {
-    // 1. Filter by tab
-    if (activeTab === 'Unread' && !conv.unread) return false;
-    if (activeTab === 'Groups' && conv.channel !== 'group' && !conv.is_group) return false; // WhatsApp groups check
-
-    // 2. Filter by search query
-    if (searchQuery) {
-      const q = searchQuery.toLowerCase();
-      const name = (conv.contact_name || '').toLowerCase();
-      const subject = (conv.subject || '').toLowerCase();
-      const preview = (conv.last_message_preview || '').toLowerCase();
-      return name.includes(q) || subject.includes(q) || preview.includes(q);
-    }
-    return true;
-  });
-
-  const allSelected = selectedIds.size === conversations.length;
-
   return (
-    <div className="flex flex-col relative bg-[#0B141A] min-h-screen text-white select-none">
-      {/* Search bar */}
-      <div className="px-3 pb-1 bg-[#0B141A]">
-        <div className="flex items-center gap-2 px-3 py-1.5 rounded-full bg-[#1F2C34]">
-          <Search className="w-4 h-4 text-[#8696A0] shrink-0" />
-          <input
-            type="text"
-            placeholder="Search conversations…"
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-            className="bg-transparent border-none outline-none text-sm text-white placeholder-[#8696A0] w-full"
-          />
-          {searchQuery && (
-            <X className="w-4 h-4 shrink-0 cursor-pointer text-[#8696A0] hover:text-white"
-              onClick={() => setSearchQuery('')} />
-          )}
-        </div>
-      </div>
-
-      {/* Filter Tabs */}
-      <div className="flex items-center gap-2 px-4 py-2 bg-[#0B141A] overflow-x-auto scrollbar-none">
-        {['All', 'Unread', 'Groups'].map(tab => {
-          const active = activeTab === tab;
-          return (
-            <button
-              key={tab}
-              onClick={() => setActiveTab(tab)}
-              className={`px-3 py-1 rounded-full text-xs font-semibold transition-all whitespace-nowrap
-                ${active
-                  ? 'bg-[#00A884] text-[#0B141A]'
-                  : 'bg-[#1F2C34] text-[#8696A0] hover:bg-[#2A3942]'
-                }`}
-            >
-              {tab}
-            </button>
-          );
-        })}
-      </div>
-
+    <div className="flex flex-col">
       {/* Bulk mode top bar */}
       <AnimatePresence>
         {bulkMode && (
@@ -135,56 +78,23 @@ export default function ConvList({ conversations, activeId, onSelect, loading, u
         )}
       </AnimatePresence>
 
-      {/* Conversation List */}
-      <div className="flex-1">
-        {!filteredConversations.length ? (
-          <div className="flex flex-col items-center justify-center py-20 px-6 text-center">
-            {/* WhatsApp style empty state */}
-            <div className="w-32 h-32 mb-6 flex items-center justify-center opacity-40">
-              <svg viewBox="0 0 24 24" fill="currentColor" className="w-20 h-20 text-[#8696A0]">
-                <path d="M12 2C6.477 2 2 6.477 2 12c0 1.884.519 3.645 1.416 5.163l-1.373 5.031 5.148-1.35C8.647 21.571 10.26 22 12 22c5.523 0 10-4.477 10-10S17.523 2 12 2zm1 14h-2v-2h2v2zm0-4h-2V7h2v5z"/>
-              </svg>
-            </div>
-            <p className="text-base font-semibold text-white mb-1">No conversations yet</p>
-            <p className="text-xs text-[#8696A0] max-w-xs">Tap the green compose icon below to start a new chat with your contacts.</p>
-          </div>
-        ) : (
-          <AnimatePresence initial={false}>
-            {filteredConversations.map(conv => (
-              <motion.div key={conv.id} initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} transition={{ duration: 0.12 }}>
-                <ConvRow
-                  conv={conv}
-                  active={conv.id === activeId}
-                  onClick={bulkMode ? () => toggleSelect(conv.id) : onSelect}
-                  selectable={bulkMode}
-                  selected={selectedIds.has(conv.id)}
-                  onSelect={bulkMode ? toggleSelect : enterBulkMode}
-                />
-              </motion.div>
-            ))}
-          </AnimatePresence>
-        )}
-      </div>
+      {/* Conversation rows */}
+      <AnimatePresence initial={false}>
+        {conversations.map(conv => (
+          <motion.div key={conv.id} initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} transition={{ duration: 0.12 }}>
+            <ConvRow
+              conv={conv}
+              active={conv.id === activeId}
+              onClick={bulkMode ? () => toggleSelect(conv.id) : onSelect}
+              selectable={bulkMode}
+              selected={selectedIds.has(conv.id)}
+              onSelect={bulkMode ? toggleSelect : enterBulkMode}
+            />
+          </motion.div>
+        ))}
+      </AnimatePresence>
 
-      {/* FAB Button (Compose / Start Chat) */}
-      <button
-        onClick={() => {
-          // If the page has a showNew state or modal, we can trigger it. Since we don't have direct access here, we simulate clicking the standard button or triggering New Conv Modal by looking at dispatch/events if any, or standard DOM trigger.
-          const plusBtn = document.querySelector('[data-compose-btn]') || document.getElementById('new-conv-btn');
-          if (plusBtn) {
-            plusBtn.click();
-          } else {
-            // Find any element with lucide-plus or similar and click it, or fallback.
-            const genericPlus = document.querySelector('.lucide-plus')?.parentElement;
-            if (genericPlus) genericPlus.click();
-          }
-        }}
-        className="fixed bottom-20 right-4 w-14 h-14 rounded-full bg-[#00A884] text-[#0B141A] flex items-center justify-center shadow-lg hover:bg-[#008F72] transition-colors z-40 active:scale-95"
-      >
-        <Plus className="w-6 h-6 stroke-[3]" />
-      </button>
-
-      {/* Bulk action bar — fixed at bottom of list */}
+      {/* Bulk action bar — sticky at bottom */}
       <AnimatePresence>
         {bulkMode && selectedIds.size > 0 && (
           <motion.div
@@ -193,7 +103,6 @@ export default function ConvList({ conversations, activeId, onSelect, loading, u
             className="sticky bottom-0 z-30 bg-[#1F2C34] border-t border-white/5 px-3 py-2 shadow-lg"
           >
             {assignOpen ? (
-              /* Agent picker */
               <div>
                 <div className="flex items-center gap-2 mb-2">
                   <button onClick={() => setAssignOpen(false)} className="p-1 text-gray-400 hover:text-white">
@@ -212,7 +121,6 @@ export default function ConvList({ conversations, activeId, onSelect, loading, u
                 </div>
               </div>
             ) : (
-              /* Main action buttons */
               <div className="flex items-center gap-2 overflow-x-auto scrollbar-none pb-0.5">
                 {canAssign && (
                   <button onClick={() => setAssignOpen(true)}
