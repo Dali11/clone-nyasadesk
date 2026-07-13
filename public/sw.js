@@ -70,12 +70,9 @@ self.addEventListener('activate', (event) => {
     // Take control of all open clients immediately (no reload required)
     await self.clients.claim();
 
-    // Tell all open windows to reload so they pick up the new JS bundle
-    // (avoids "React is not defined" when old cached HTML loads new SW)
-    const clients = await self.clients.matchAll({ type: 'window' });
-    for (const client of clients) {
-      client.postMessage({ type: 'SW_UPDATED' });
-    }
+    // Do NOT force-reload open windows — let them finish their current session.
+    // The new bundle will load naturally on next navigation or manual refresh.
+    // Force-reloading mid-session was causing conversation clicks to reset the page.
   })());
 });
 

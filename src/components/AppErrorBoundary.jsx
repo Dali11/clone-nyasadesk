@@ -18,17 +18,10 @@ export default class AppErrorBoundary extends React.Component {
     // Log to console only — never surface raw errors to users
     console.error('[AppErrorBoundary]', error?.message, info?.componentStack?.slice(0, 300));
 
-    // Track how many times we've auto-reloaded to avoid infinite reload loops
-    const reloads = parseInt(sessionStorage.getItem(RELOAD_KEY) || '0', 10);
-    if (reloads < MAX_AUTO_RELOADS) {
-      sessionStorage.setItem(RELOAD_KEY, String(reloads + 1));
-      // Small delay so the console log flushes, then silent reload
-      setTimeout(() => window.location.reload(), 300);
-    } else {
-      // After MAX_AUTO_RELOADS attempts, stop looping and show minimal UI
-      sessionStorage.removeItem(RELOAD_KEY);
-      this.setState({ gaveUp: true });
-    }
+    // Show the fallback UI immediately — auto-reloading was causing
+    // mid-session interruptions (e.g. conversation clicks resetting the page).
+    sessionStorage.removeItem(RELOAD_KEY);
+    this.setState({ gaveUp: true });
   }
 
   render() {

@@ -56,13 +56,8 @@ if ('serviceWorker' in navigator) {
           }
         });
 
-        // When the new SW activates and sends SW_UPDATED, reload to pick up fresh JS
-        navigator.serviceWorker.addEventListener('message', (event) => {
-          if (event.data?.type === 'SW_UPDATED') {
-            console.log('[SW] New version active — reloading for fresh bundle');
-            window.location.reload();
-          }
-        });
+        // SW_UPDATED broadcast removed — force-reloads were interrupting open sessions.
+        // Users get the new bundle naturally on next page open.
       })
       .catch((err) => console.warn('[SW] Registration failed:', err));
   });
