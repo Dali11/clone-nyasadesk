@@ -360,10 +360,10 @@ export default function Inbox() {
     <div className={`flex h-screen overflow-hidden bg-[var(--nyasa-surface-1)] md:pt-0 md:pb-0 ${showChat ? '' : 'pt-14 pb-[56px]'}`}>
       <Sidebar hideMobileChrome={showChat} />
 
-      {/* Conversation list — hidden on mobile when chat is open */}
+      {/* Conversation list — hidden on mobile when chat is open, always visible on md+ */}
       <div className={`flex flex-col bg-[var(--nyasa-surface-1)] border-r border-[var(--nyasa-border)]
-        w-full md:w-80 lg:w-96 shrink-0 md:flex
-        ${showChat ? 'hidden' : 'flex'}`}>
+        w-full md:w-80 lg:w-96 shrink-0
+        ${showChat ? 'hidden md:flex' : 'flex'}`}>
 
         {/* Status filter tabs — Sidebar top bar is the only branding chrome */}
         <div className="px-3 pt-2 pb-1 shrink-0">
