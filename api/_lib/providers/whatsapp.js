@@ -240,27 +240,47 @@ export class WhatsAppCloudProvider extends MessagingProvider {
     const WA_TYPE = { image: 'image', video: 'video', audio: 'audio', document: 'document' };
     let payload;
 
-    // WhatsApp Cloud API supports: OGG/Opus, MP4/AAC, MP3, AMR, WebM/Opus.
-    // Pure audio/webm without opus codec may fail — but we allow it through and
-    // let Meta decide; the client-side recorder always picks opus if available.
-    const SUPPORTED_AUDIO_MIME = /^audio\/(ogg|mp4|mpeg|aac|amr|webm)/i;
-    if (media && media.type === 'audio' && media.mime && !SUPPORTED_AUDIO_MIME.test(media.mime)) {
-      throw new Error(
-        `WhatsApp doesn't support this audio format (${media.mime}). Supported: OGG/Opus, MP4/AAC, MP3, AMR, WebM/Opus.`
-      );
-    }
+    // ── Helper: upload a media file to Meta's media endpoint and return its id ──
+    // Meta Cloud API does NOT support `link` for audio — audio MUST be uploaded
+    // to Meta first to obtain a media_id, then sent with { id: media_id }.
+    // Images, video, and documents support `link` just fine.
+    const uploadToMeta = async (url, mimeType) => {
+      // Fetch the file bytes from our Supabase CDN
+      const fileRes = await fetch(url);
+      if (!fileRes.ok) throw new Error(`Failed to fetch media from storage: ${fileRes.status}`);
+      const blob = await fileRes.blob();
+      const form = new FormData();
+      form.append('messaging_product', 'whatsapp');
+      form.append('type', mimeType);
+      form.append('file', blob, 'audio.' + (mimeType.includes('ogg') ? 'ogg' : mimeType.includes('mp4') ? 'm4a' : 'webm'));
+      const uploadRes = await fetch(`${GRAPH}/${phone_number_id}/media`, {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${access_token}` },
+        body: form,
+      });
+      const uploadJson = await uploadRes.json();
+      if (!uploadRes.ok) throw new Error(uploadJson.error?.message || 'Failed to upload audio to Meta');
+      return uploadJson.id;
+    };
 
     if (media && WA_TYPE[media.type]) {
       const waType = WA_TYPE[media.type];
-      payload = {
-        messaging_product: 'whatsapp', to, type: waType,
-        [waType]: {
+      let mediaRef;
+      if (waType === 'audio') {
+        // Audio MUST use media_id (Meta rejects link for audio)
+        const mimeType = media.mime || 'audio/ogg';
+        const mediaId = await uploadToMeta(media.url, mimeType);
+        mediaRef = { id: mediaId };
+      } else {
+        mediaRef = {
           link: media.url,
           ...(waType !== 'audio' && text ? { caption: text } : {}),
-          // Documents (e.g. generated quotation/invoice PDFs) need a filename
-          // or WhatsApp shows a generic/blank name in the chat.
           ...(waType === 'document' && media.filename ? { filename: media.filename } : {}),
-        },
+        };
+      }
+      payload = {
+        messaging_product: 'whatsapp', to, type: waType,
+        [waType]: mediaRef,
       };
     } else if (message.location) {
       const loc = message.location;
