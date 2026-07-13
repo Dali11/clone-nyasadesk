@@ -126,8 +126,9 @@ function FailedIcon({ reason, onRetry }) {
 // actually accepts, in priority order.
 const AUDIO_MIME_CANDIDATES = [
   'audio/ogg;codecs=opus',  // Chrome/Firefox/Android — WhatsApp's own native voice-note format
+  'audio/webm;codecs=opus', // Android Chrome fallback — gets treated as OGG by Meta
   'audio/mp4',              // Safari/iOS — AAC in MP4, also WhatsApp-compatible
-  'audio/webm;codecs=opus', // last-resort fallback — NOT WhatsApp-compatible, website-only
+  'audio/webm',             // last-resort
 ];
 function pickRecorderMimeType() {
   if (typeof MediaRecorder === 'undefined' || !MediaRecorder.isTypeSupported) return '';
@@ -1351,7 +1352,10 @@ export default function MessageThread({ conversation, workspaceId }) {
         ) : (
           groupMessages(messages).map((msg, i, arr) => {
             const ts = msg.created_at || msg.created_date;
-            const prevTs = i > 0 ? (messages[i - 1].created_at || messages[i - 1].created_date) : null;
+            // Use arr[i-1] (the grouped array), NOT messages[i-1] (raw) — otherwise
+            // album collapsing shifts indices and every message gets its own "Today" pill
+            const prev = i > 0 ? arr[i - 1] : null;
+            const prevTs = prev ? (prev.created_at || prev.created_date) : null;
             const showSeparator = ts && !sameDay(ts, prevTs);
             return (
               <Fragment key={msg.id}>
