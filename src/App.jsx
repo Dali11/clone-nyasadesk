@@ -176,42 +176,136 @@ function AppRoutes() {
     );
   }
 
-  // ── Fully authenticated — go straight to inbox, never landing ──────────
+  // ── Fully authenticated — persistent shell (no full remounts on nav) ──────
+  // Inbox is kept mounted at all times so realtime subscriptions and loaded
+  // conversation state survive route changes.  Secondary pages are rendered
+  // once and toggled visible/hidden via CSS so they also don't remount.
+  // Navigating from /contacts → / is now instant: Inbox is already live.
+  return <PersistentShell />;
+}
+
+/* ── PersistentShell ───────────────────────────────────────────────────────
+ * Keeps Inbox mounted at all times (display toggled via CSS, never unmounted).
+ * Secondary pages are lazy-mounted on first visit and also kept alive.
+ * This eliminates the "full reload" flash when navigating between pages.
+ *
+ * CSS strategy:
+ *   - The Inbox div has `display:contents` when active, `display:none` when
+ *     another route is shown — React never tears it down.
+ *   - Each secondary page div is inserted into the DOM on first navigation
+ *     to that route and stays there (hidden) on subsequent navigations away.
+ *
+ * Route matching:
+ *   - "/" → Inbox (always mounted)
+ *   - Everything else → secondary page, full-screen overlay
+ *   - Admin routes still use their own <AdminLayout> with nested <Outlet>
+ */
+
+// Pages that live alongside Inbox (rendered once, toggled visible)
+const SECONDARY_PAGES = [
+  { path: '/dashboard',  Component: Dashboard       },
+  { path: '/contacts',   Component: Contacts        },
+  { path: '/broadcasts', Component: Broadcasts      },
+  { path: '/rules',      Component: Rules           },
+  { path: '/canned',     Component: CannedResponses },
+  { path: '/ai-agents',  Component: AiAgents        },
+  { path: '/documents',  Component: Documents       },
+  { path: '/sales',      Component: Sales           },
+  { path: '/commissions',Component: MyCommissions   },
+  { path: '/settings',   Component: Settings        },
+  { path: '/pricing',    Component: Pricing         },
+  { path: '/privacy',    Component: PrivacyPolicy   },
+  { path: '/data-deletion', Component: DataDeletion },
+];
+
+function PersistentShell() {
+  const location = useLocation();
+  const navigate  = useNavigate();
+  const pathname  = location.pathname;
+
+  // Admin routes — delegate entirely to <AdminLayout> (has its own Outlet)
+  const isAdmin = pathname.startsWith('/admin');
+  if (isAdmin) {
+    return (
+      <Routes>
+        <Route path="/admin" element={<AdminLayout />}>
+          <Route index             element={<AdminOverview />} />
+          <Route path="workspaces" element={<AdminWorkspaces />} />
+          <Route path="admins"     element={<AdminAdmins />} />
+          <Route path="pricing"    element={<AdminPricing />} />
+          <Route path="churn"       element={<AdminChurn />} />
+          <Route path="ai-usage"    element={<AdminAiUsage />} />
+          <Route path="transactions" element={<AdminTransactions />} />
+          <Route path="audit-log"   element={<AdminAuditLog />} />
+          <Route path="commissions" element={<AdminCommissions />} />
+          <Route path="users"       element={<AdminUsers />} />
+        </Route>
+        <Route path="*" element={<Navigate to="/admin" replace />} />
+      </Routes>
+    );
+  }
+
+  // Redirect /login, /register → home
+  if (pathname === '/login' || pathname === '/register') {
+    return <Navigate to="/" replace />;
+  }
+
+  // Find which secondary page (if any) is active
+  const activeSecondary = SECONDARY_PAGES.find(p => pathname === p.path || pathname.startsWith(p.path + '/'));
+
   return (
-    <Routes>
-      {/* / always goes to Inbox — not Landing */}
-      <Route path="/"           element={<Inbox />} />
-      <Route path="/dashboard"  element={<Dashboard />} />
-      <Route path="/contacts"   element={<Contacts />} />
-      <Route path="/broadcasts" element={<Broadcasts />} />
-      <Route path="/rules"      element={<Rules />} />
-      <Route path="/canned"     element={<CannedResponses />} />
-      <Route path="/ai-agents"  element={<AiAgents />} />
-      <Route path="/documents"  element={<Documents />} />
-      <Route path="/sales"      element={<Sales />} />
-      <Route path="/commissions" element={<MyCommissions />} />
-      <Route path="/privacy"        element={<PrivacyPolicy />} />
-      <Route path="/data-deletion"   element={<DataDeletion />} />
-      <Route path="/settings"   element={<Settings />} />
-      <Route path="/pricing"    element={<Pricing />} />
-      {/* Dedicated admin section — own shell/menu, see AdminLayout */}
-      <Route path="/admin" element={<AdminLayout />}>
-        <Route index             element={<AdminOverview />} />
-        <Route path="workspaces" element={<AdminWorkspaces />} />
-        <Route path="admins"     element={<AdminAdmins />} />
-        <Route path="pricing"    element={<AdminPricing />} />
-        <Route path="churn"       element={<AdminChurn />} />
-        <Route path="ai-usage"    element={<AdminAiUsage />} />
-        <Route path="transactions" element={<AdminTransactions />} />
-        <Route path="audit-log"   element={<AdminAuditLog />} />
-        <Route path="commissions" element={<AdminCommissions />} />
-        <Route path="users"       element={<AdminUsers />} />
-      </Route>
-      {/* Redirect /login and /register back to inbox when already logged in */}
-      <Route path="/login"      element={<Navigate to="/" replace />} />
-      <Route path="/register"   element={<Navigate to="/" replace />} />
-      <Route path="*"           element={<Navigate to="/" replace />} />
-    </Routes>
+    <div style={{ position: 'relative', width: '100%', height: '100%', overflow: 'hidden' }}>
+      {/* ── Inbox: always mounted, hidden behind secondary pages via CSS ── */}
+      {/* Using visibility:hidden + pointer-events:none (not display:none) so
+          Inbox's internal flex layout stays intact and realtime subs keep running */}
+      <div style={{
+        position: 'absolute', inset: 0,
+        visibility: activeSecondary ? 'hidden' : 'visible',
+        pointerEvents: activeSecondary ? 'none' : 'auto',
+        display: 'flex',
+        flexDirection: 'row',
+        overflow: 'hidden',
+      }}>
+        <Inbox />
+      </div>
+
+      {/* ── Secondary pages: each mounted once on first visit ─────────── */}
+      {SECONDARY_PAGES.map(({ path, Component }) => {
+        const isActive = activeSecondary?.path === path;
+        return (
+          <MountOnce key={path} active={isActive}>
+            <Component />
+          </MountOnce>
+        );
+      })}
+
+      {/* Catch-all: unknown route → redirect to inbox */}
+      {!activeSecondary && pathname !== '/' && (
+        <Navigate to="/" replace />
+      )}
+    </div>
+  );
+}
+
+/**
+ * MountOnce — renders children the first time `active` becomes true,
+ * then keeps them mounted (hidden via CSS) on subsequent deactivations.
+ * This gives us "mount once, toggle visibility" semantics without
+ * needing any complex state management.
+ */
+function MountOnce({ active, children }) {
+  const [mounted, setMounted] = React.useState(active);
+  React.useEffect(() => { if (active) setMounted(true); }, [active]);
+  if (!mounted) return null;
+  return (
+    <div style={{
+      position: 'absolute', inset: 0,
+      display: active ? 'flex' : 'none',
+      flexDirection: 'column',
+      overflow: 'hidden',
+    }}>
+      {children}
+    </div>
   );
 }
 

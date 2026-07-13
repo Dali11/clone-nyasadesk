@@ -575,7 +575,7 @@ export default function Contacts() {
   const handleStartChat = async (contact) => {
     try {
       const convId = await startConversationWithContact(workspaceId, contact);
-      navigate(`/inbox?conversation=${convId}`);
+      navigate(`/?conv=${convId}`);
     } catch (e) { showToast('Could not start conversation', 'error'); }
   };
 
