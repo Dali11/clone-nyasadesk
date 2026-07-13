@@ -6,6 +6,7 @@ import ConvList from '@/components/inbox/ConvList';
 import ChatHeader from '@/components/inbox/ChatHeader';
 import MessageThread from '@/components/inbox/MessageThread';
 import ContactPanel from '@/components/inbox/ContactPanel';
+import ConversationDetail from '@/components/inbox/ConversationDetail';
 import NewConvModal from '@/components/inbox/NewConvModal';
 import { useNyasaAuth } from '@/lib/NyasaAuth';
 import { useToast } from '@/components/ui/use-toast';
@@ -43,6 +44,7 @@ export default function Inbox() {
   const [search, setSearch] = useState('');
   const [showNew, setShowNew] = useState(false);
   const [contactOpen, setContactOpen] = useState(false);
+  const [detailOpen, setDetailOpen] = useState(false);
   const [pinnedConvs, setPinnedConvs] = useState([]);
   const [ctxMenu, setCtxMenu] = useState(null);
   const ctxTimeout = useRef(null);
@@ -475,19 +477,11 @@ export default function Inbox() {
           <>
             <ChatHeader
               conversation={activeConv}
-              users={teamUsers.length ? teamUsers : (user ? [{ id: user.id, full_name: user.full_name || user.email || 'You' }] : [])}
               currentUserId={user?.id}
-              currentUserRole={profile?.role ?? 'agent'}
-              onBack={() => setActiveConv(null)}
+              onBack={() => { setActiveConv(null); setDetailOpen(false); }}
               onUpdate={handleConvUpdate}
               onOpenContact={() => setContactOpen(true)}
-              onDelete={handleDelete}
-              canDelete={canViewAllChats}
-              onPin={(agentId) => { setPinPickerConv(activeConv); handlePinForAgent(agentId); }}
-              onUnpin={handleUnpin}
-              isPinnedForMe={pinnedConvs.some(p => p.conversation_id === activeConv.id)}
-              canPin={canViewAllChats}
-              canAssign={canViewAllChats}
+              onOpenDetail={() => setDetailOpen(true)}
             />
             <div className="flex-1 flex overflow-hidden relative">
               <MessageThread conversation={activeConv} workspaceId={workspaceOwnerId} />
@@ -532,6 +526,23 @@ export default function Inbox() {
             <Plus className="w-6 h-6 text-white" />
           </button>
         </div>
+      )}
+
+      {/* Conversation detail slide-over — opened by ⋮ in ChatHeader */}
+      {detailOpen && activeConv && (
+        <ConversationDetail
+          conversation={activeConv}
+          users={teamUsers}
+          currentUserId={user?.id}
+          canAssign={canViewAllChats}
+          canPin={canViewAllChats}
+          isPinnedForMe={pinnedConvs.some(p => p.conversation_id === activeConv.id)}
+          onClose={() => setDetailOpen(false)}
+          onUpdate={(patch) => { handleConvUpdate(patch); setDetailOpen(false); }}
+          onPin={(agentId) => { handlePinForAgent(agentId); setDetailOpen(false); }}
+          onUnpin={() => { handleUnpin(); setDetailOpen(false); }}
+          onDelete={canViewAllChats ? () => { handleDelete(activeConv.id); setDetailOpen(false); setActiveConv(null); } : undefined}
+        />
       )}
 
       <NewConvModal open={showNew} onClose={() => setShowNew(false)} onCreated={c => { setConversations(p => [c, ...p]); setShowNew(false); setActiveConv(c); }} workspaceId={workspaceOwnerId} />
