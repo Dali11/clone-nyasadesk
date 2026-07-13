@@ -240,67 +240,16 @@ export class WhatsAppCloudProvider extends MessagingProvider {
     const WA_TYPE = { image: 'image', video: 'video', audio: 'audio', document: 'document' };
     let payload;
 
-    // ── Helper: upload a media file to Meta's media endpoint and return its id ──
-    // Meta Cloud API does NOT support `link` for audio — audio MUST be uploaded
-    // to Meta first to obtain a media_id, then sent with { id: media_id }.
-    // Images, video, and documents support `link` just fine.
-    const uploadToMeta = async (url, mimeType) => {
-      // Fetch the raw bytes from Supabase storage
-      const fileRes = await fetch(url);
-      if (!fileRes.ok) throw new Error(`Failed to fetch media from storage: ${fileRes.status}`);
-      const arrayBuf = await fileRes.arrayBuffer();
-      const buffer = Buffer.from(arrayBuf);
-
-      // Build a multipart/form-data body manually so we avoid undici Blob quirks
-      const ext = mimeType.includes('ogg') ? 'ogg' : mimeType.includes('mp4') ? 'm4a' : 'webm';
-      const boundary = '----NyasaDeskBoundary' + Date.now();
-      const CRLF = '\r\n';
-      const preamble = Buffer.from(
-        `--${boundary}${CRLF}` +
-        `Content-Disposition: form-data; name="messaging_product"${CRLF}${CRLF}` +
-        `whatsapp${CRLF}` +
-        `--${boundary}${CRLF}` +
-        `Content-Disposition: form-data; name="type"${CRLF}${CRLF}` +
-        `${mimeType}${CRLF}` +
-        `--${boundary}${CRLF}` +
-        `Content-Disposition: form-data; name="file"; filename="audio.${ext}"${CRLF}` +
-        `Content-Type: ${mimeType}${CRLF}${CRLF}`
-      );
-      const epilogue = Buffer.from(`${CRLF}--${boundary}--${CRLF}`);
-      const body = Buffer.concat([preamble, buffer, epilogue]);
-
-      const uploadRes = await fetch(`${GRAPH}/${phone_number_id}/media`, {
-        method: 'POST',
-        headers: {
-          Authorization: `Bearer ${access_token}`,
-          'Content-Type': `multipart/form-data; boundary=${boundary}`,
-          'Content-Length': body.length.toString(),
-        },
-        body,
-      });
-      const uploadJson = await uploadRes.json();
-      if (!uploadRes.ok) throw new Error(uploadJson.error?.message || `Meta media upload failed: ${JSON.stringify(uploadJson)}`);
-      return uploadJson.id;
-    };
-
     if (media && WA_TYPE[media.type]) {
       const waType = WA_TYPE[media.type];
-      let mediaRef;
-      if (waType === 'audio') {
-        // Audio MUST use media_id (Meta rejects link for audio)
-        const mimeType = media.mime || 'audio/ogg';
-        const mediaId = await uploadToMeta(media.url, mimeType);
-        mediaRef = { id: mediaId };
-      } else {
-        mediaRef = {
-          link: media.url,
-          ...(waType !== 'audio' && text ? { caption: text } : {}),
-          ...(waType === 'document' && media.filename ? { filename: media.filename } : {}),
-        };
-      }
       payload = {
         messaging_product: 'whatsapp', to, type: waType,
-        [waType]: mediaRef,
+        [waType]: {
+          link: media.url,
+          ...(waType !== 'audio' && text ? { caption: text } : {}),
+          // Documents need a filename or WhatsApp shows a blank name
+          ...(waType === 'document' && media.filename ? { filename: media.filename } : {}),
+        },
       };
     } else if (message.location) {
       const loc = message.location;
