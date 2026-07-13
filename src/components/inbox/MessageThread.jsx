@@ -116,31 +116,40 @@ function FailedIcon({ reason, onRetry }) {
   );
 }
 
-// WhatsApp's Cloud API only accepts specific audio containers/codecs for
-// outbound media: OGG (Opus only), MP4/AAC, MPEG (mp3), and AMR. The
-// browser's default MediaRecorder output — audio/webm — is NOT in that
-// list, so a plain `new MediaRecorder(stream)` recording silently gets
-// rejected by Meta on send (it still plays fine locally/on the website
-// widget, since that never leaves the browser — hence "only works web to
-// web"). Ask the browser to record directly into a format WhatsApp
-// actually accepts, in priority order.
-const AUDIO_MIME_CANDIDATES = [
-  'audio/ogg;codecs=opus',  // Chrome/Firefox/Android — WhatsApp's own native voice-note format
-  'audio/webm;codecs=opus', // Android Chrome fallback — gets treated as OGG by Meta
-  'audio/mp4',              // Safari/iOS — AAC in MP4, also WhatsApp-compatible
-  'audio/webm',             // last-resort
-];
-function pickRecorderMimeType() {
-  if (typeof MediaRecorder === 'undefined' || !MediaRecorder.isTypeSupported) return '';
-  for (const mt of AUDIO_MIME_CANDIDATES) {
-    if (MediaRecorder.isTypeSupported(mt)) return mt;
-  }
-  return '';
-}
-function extForMime(mime) {
-  if (mime.includes('ogg')) return 'ogg';
-  if (mime.includes('mp4')) return 'm4a';
-  return 'webm';
+// Voice note recorder — picks whatever format the browser supports,
+// stores the chunks, and returns a File on stop.
+function createVoiceRecorder(onStop) {
+  const chunks = [];
+  let stream = null;
+  let recorder = null;
+
+  const start = async () => {
+    stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+    // Let the browser pick its native format — don't fight it
+    recorder = new MediaRecorder(stream);
+    chunks.length = 0;
+    recorder.ondataavailable = (e) => { if (e.data?.size > 0) chunks.push(e.data); };
+    recorder.onstop = () => {
+      stream?.getTracks().forEach(t => t.stop());
+      if (chunks.length === 0) return;
+      const mime = recorder.mimeType || 'audio/webm';
+      const blob = new Blob(chunks, { type: mime });
+      // Pick a clean extension — Meta accepts whatever the browser emits
+      // as long as the file is valid audio; the MIME type travels with it.
+      const ext = mime.includes('ogg') ? 'ogg' : mime.includes('mp4') ? 'm4a' : 'webm';
+      const file = new File([blob], `voice-${Date.now()}.${ext}`, { type: mime });
+      onStop(file);
+    };
+    recorder.start();
+  };
+
+  const stop = () => recorder?.state === 'recording' && recorder.stop();
+  const cancel = () => {
+    stream?.getTracks().forEach(t => t.stop());
+    recorder?.state === 'recording' && recorder.stop();
+  };
+
+  return { start, stop, cancel };
 }
 
 // Module-level singleton — WhatsApp-style "only one voice note plays at a
@@ -813,8 +822,7 @@ export default function MessageThread({ conversation, workspaceId }) {
   // the realtime subscription can skip them (avoids optimistic duplicate).
   const settledIds = useRef(new Set());
                                      // if two triggers (e.g. Enter + click) fire before React re-renders
-  const mediaRecorderRef = useRef(null);
-  const recordChunksRef = useRef([]);
+  const mediaRecorderRef = useRef(null); // holds the createVoiceRecorder() instance
   const recordTimerRef = useRef(null);
 
   const wId = workspaceId || user?.id;
@@ -884,16 +892,10 @@ export default function MessageThread({ conversation, workspaceId }) {
       const previous = payload.old;
       if (!incoming?.id) return;
 
-      // Fire a toast when a message status flips to 'failed' — gives the agent
-      // immediate, visible feedback instead of just a silent red X.
+      // Status 'failed' — only log to console, don't show toast to users.
+      // The red ✕ on the message bubble is the only UI feedback needed.
       if (incoming.status === 'failed' && previous?.status !== 'failed') {
-        const reason = incoming.error_reason;
-        toast({
-          title: 'Message failed to send',
-          description: reason || 'Check your WhatsApp token or channel config — tap the ✕ on the message to retry.',
-          variant: 'destructive',
-          duration: 10000,
-        });
+        console.warn('[MessageThread] message failed:', incoming.id, incoming.error_reason);
       }
 
       // If we already inserted this message from the send() response, just
@@ -974,7 +976,7 @@ export default function MessageThread({ conversation, workspaceId }) {
     } catch (e) {
       console.error('[MessageThread] send failed:', e);
       setMessages(prev => prev.map(m => m.id === tempId ? { ...m, status: 'failed' } : m));
-      toast({ title: 'Message failed to send', description: e?.message || 'Unknown error', variant: 'destructive', duration: 5000 });
+      console.error('[MessageThread] send error:', e?.message);
     } finally {
       sendingRef.current = false;
       setSending(false);
@@ -1226,35 +1228,34 @@ export default function MessageThread({ conversation, workspaceId }) {
 
   const startRecording = async () => {
     try {
-      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-      const chosenMime = pickRecorderMimeType();
-      const recorder = chosenMime ? new MediaRecorder(stream, { mimeType: chosenMime }) : new MediaRecorder(stream);
-      const actualMime = recorder.mimeType || chosenMime || 'audio/webm';
-      recordChunksRef.current = [];
-      recorder.ondataavailable = (e) => { if (e.data.size > 0) recordChunksRef.current.push(e.data); };
-      recorder.onstop = () => {
-        stream.getTracks().forEach(t => t.stop());
+      const vr = createVoiceRecorder((file) => {
         clearInterval(recordTimerRef.current);
-        const blob = new Blob(recordChunksRef.current, { type: actualMime });
         setRecording(false);
         setRecordSecs(0);
-        if (blob.size > 0) {
-          const file = new File([blob], `voice-note-${Date.now()}.${extForMime(actualMime)}`, { type: actualMime });
-          sendMediaQueue([file]);
-        }
-      };
-      mediaRecorderRef.current = recorder;
-      recorder.start();
+        mediaRecorderRef.current = null;
+        sendMediaQueue([file]);
+      });
+      await vr.start();
+      mediaRecorderRef.current = vr;
       setRecording(true);
       setRecordSecs(0);
       recordTimerRef.current = setInterval(() => setRecordSecs(s => s + 1), 1000);
     } catch (e) {
-      console.error('[MessageThread] mic permission/recording error:', e);
+      console.error('[VoiceNote] mic error:', e?.message);
+      setRecording(false);
     }
   };
 
   const stopRecording = () => {
-    mediaRecorderRef.current?.stop();
+    mediaRecorderRef.current?.stop?.();
+  };
+
+  const cancelRecording = () => {
+    clearInterval(recordTimerRef.current);
+    mediaRecorderRef.current?.cancel?.();
+    mediaRecorderRef.current = null;
+    setRecording(false);
+    setRecordSecs(0);
   };
 
   const handleKeyDown = (e) => {
@@ -1491,11 +1492,11 @@ export default function MessageThread({ conversation, workspaceId }) {
           <div className="flex items-center gap-3 bg-[#2A3942] rounded-full px-4 py-2.5 mx-1">
             <div className="w-2.5 h-2.5 rounded-full bg-red-500 animate-pulse shrink-0" />
             <span className="text-xs text-red-400 font-mono font-semibold">{String(Math.floor(recordSecs / 60)).padStart(2,'0')}:{String(recordSecs % 60).padStart(2,'0')}</span>
-            <p className="flex-1 text-xs text-[#8696A0] flex items-center gap-1">
-              <svg className="w-3 h-3 animate-bounce" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M10 19l-7-7m0 0l7-7m-7 7h18"/></svg>
-              Slide to cancel
-            </p>
-            <button onClick={stopRecording} className="w-10 h-10 rounded-full bg-red-500 flex items-center justify-center shrink-0 shadow-md">
+            <button onClick={cancelRecording} className="flex-1 text-xs text-[#8696A0] flex items-center gap-1 hover:text-red-400 transition-colors">
+              <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12"/></svg>
+              Cancel
+            </button>
+            <button onClick={stopRecording} className="w-10 h-10 rounded-full bg-[#25D366] flex items-center justify-center shrink-0 shadow-md">
               <Square className="w-4 h-4 text-white fill-white" />
             </button>
           </div>

@@ -1,67 +1,80 @@
 import React from 'react';
 
+// How many times we'll auto-reload before giving up and showing a minimal message
+const MAX_AUTO_RELOADS = 2;
+const RELOAD_KEY = '__nyasa_error_reloads__';
+
 export default class AppErrorBoundary extends React.Component {
   constructor(props) {
     super(props);
-    this.state = { hasError: false, error: null };
+    this.state = { hasError: false, gaveUp: false };
   }
 
-  static getDerivedStateFromError(error) {
-    return { hasError: true, error };
+  static getDerivedStateFromError() {
+    return { hasError: true };
   }
 
   componentDidCatch(error, info) {
-    console.error('[AppErrorBoundary] Caught crash:', error, info);
+    // Log to console only — never surface raw errors to users
+    console.error('[AppErrorBoundary]', error?.message, info?.componentStack?.slice(0, 300));
+
+    // Track how many times we've auto-reloaded to avoid infinite reload loops
+    const reloads = parseInt(sessionStorage.getItem(RELOAD_KEY) || '0', 10);
+    if (reloads < MAX_AUTO_RELOADS) {
+      sessionStorage.setItem(RELOAD_KEY, String(reloads + 1));
+      // Small delay so the console log flushes, then silent reload
+      setTimeout(() => window.location.reload(), 300);
+    } else {
+      // After MAX_AUTO_RELOADS attempts, stop looping and show minimal UI
+      sessionStorage.removeItem(RELOAD_KEY);
+      this.setState({ gaveUp: true });
+    }
   }
 
   render() {
-    if (this.state.hasError) {
-      // If a custom fallback was provided, use it
-      if (this.props.fallback) return this.props.fallback;
-
-      // Otherwise show a visible error screen — never a black void
+    if (this.state.hasError && this.state.gaveUp) {
+      // Minimal, non-scary fallback — no raw error message, no stack trace
       return (
         <div style={{
           minHeight: '100vh',
-          background:'var(--nyasa-surface-1)',
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
+          background: 'var(--nyasa-surface-1, #0B141A)',
+          display: 'flex', alignItems: 'center', justifyContent: 'center',
           padding: 24,
           fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif',
         }}>
-          <div style={{ maxWidth: 360, textAlign: 'center' }}>
-            <div style={{
-              width: 56, height: 56, borderRadius: 16,
-              background: 'rgba(239,68,68,0.15)',
-              display: 'flex', alignItems: 'center', justifyContent: 'center',
-              margin: '0 auto 16px',
-              fontSize: 28,
-            }}>⚠️</div>
-            <p style={{ color:'var(--nyasa-text)', fontWeight: 700, fontSize: 18, marginBottom: 8 }}>
-              Something went wrong
+          <div style={{ maxWidth: 320, textAlign: 'center' }}>
+            <p style={{ color: 'var(--nyasa-text, #E9EDEF)', fontWeight: 700, fontSize: 17, marginBottom: 8 }}>
+              Couldn't load
             </p>
-            <p style={{ color:'var(--nyasa-text-muted)', fontSize: 14, lineHeight: 1.6, marginBottom: 24 }}>
-              The app ran into an unexpected error. Try refreshing — if it keeps happening, contact support.
-            </p>
-            <p style={{ color: '#4B5563', fontSize: 11, marginBottom: 20, fontFamily: 'monospace', background:'var(--nyasa-bg)', padding: '8px 12px', borderRadius: 8, wordBreak: 'break-all' }}>
-              {this.state.error?.message || 'Unknown error'}
+            <p style={{ color: 'var(--nyasa-text-muted, #8696A0)', fontSize: 13, lineHeight: 1.6, marginBottom: 24 }}>
+              Something went wrong. Tap below to try again.
             </p>
             <button
-              onClick={() => window.location.reload()}
+              onClick={() => { sessionStorage.removeItem(RELOAD_KEY); window.location.reload(); }}
               style={{
                 background: '#25D366', color: '#000',
-                border: 'none', borderRadius: 10,
-                padding: '12px 28px', fontWeight: 700,
+                border: 'none', borderRadius: 24,
+                padding: '12px 32px', fontWeight: 700,
                 fontSize: 14, cursor: 'pointer',
               }}
             >
-              Reload app
+              Reload
             </button>
           </div>
         </div>
       );
     }
+
+    if (this.state.hasError) {
+      // Show nothing while the auto-reload is in progress (300ms)
+      return null;
+    }
+
+    // Clear reload counter on successful render
+    if (sessionStorage.getItem(RELOAD_KEY)) {
+      sessionStorage.removeItem(RELOAD_KEY);
+    }
+
     return this.props.children;
   }
 }

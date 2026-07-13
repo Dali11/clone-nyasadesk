@@ -513,43 +513,49 @@ export async function sendMessage(workspaceId, conversationId, body, senderName,
 
 // ── Realtime subscriptions ───────────────────────────────────────────────────
 
+function safeSubscribe(channelName, table, filter, onPayload) {
+  // Remove any stale channel with the same name before creating a new one
+  // — this prevents the "cannot add postgres_changes callbacks after subscribe()" crash
+  try { supabase.removeChannel(supabase.channel(channelName)); } catch (_) {}
+
+  let ch;
+  try {
+    ch = supabase
+      .channel(channelName)
+      .on('postgres_changes', { event: '*', schema: 'public', table, filter }, onPayload)
+      .subscribe((status, err) => {
+        if (err) console.warn('[realtime] subscribe error on', channelName, err?.message);
+      });
+  } catch (e) {
+    console.warn('[realtime] channel setup failed:', channelName, e?.message);
+    // Return a no-op unsubscriber so callers don't crash
+    return { unsubscribe: () => {} };
+  }
+  return ch;
+}
+
 export function subscribeToConversations(workspaceId, callback) {
-  return supabase
-    .channel('conversations:' + workspaceId)
-    .on('postgres_changes', {
-      event: '*',
-      schema: 'public',
-      table: 'conversations',
-      filter: `workspace_id=eq.${workspaceId}`,
-    }, (payload) => {
-      // Cache live conversation changes to IDB for offline reading
-      if (payload?.new?.id) {
-        upsertCachedConversation(payload.new).catch(() => {});
-      }
+  return safeSubscribe(
+    'conversations:' + workspaceId,
+    'conversations',
+    `workspace_id=eq.${workspaceId}`,
+    (payload) => {
+      if (payload?.new?.id) upsertCachedConversation(payload.new).catch(() => {});
       callback(payload);
-    })
-    .subscribe();
+    }
+  );
 }
 
 export function subscribeToMessages(conversationId, callback) {
-  return supabase
-    .channel('messages:' + conversationId)
-    .on('postgres_changes', {
-      // '*' (not just INSERT) — a message's status flips from 'sending' to
-      // 'delivered'/'failed' via a later UPDATE once dispatch completes, and
-      // the UI needs that event too or the spinner never clears.
-      event: '*',
-      schema: 'public',
-      table: 'messages',
-      filter: `conversation_id=eq.${conversationId}`,
-    }, (payload) => {
-      // Cache every live message update to IDB so it's available offline
-      if (payload?.new?.id) {
-        upsertCachedMessage(payload.new).catch(() => {});
-      }
+  return safeSubscribe(
+    'messages:' + conversationId,
+    'messages',
+    `conversation_id=eq.${conversationId}`,
+    (payload) => {
+      if (payload?.new?.id) upsertCachedMessage(payload.new).catch(() => {});
       callback(payload);
-    })
-    .subscribe();
+    }
+  );
 }
 
 // ── Broadcasts ───────────────────────────────────────────────────────────────
