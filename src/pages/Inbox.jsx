@@ -480,22 +480,10 @@ export default function Inbox() {
               currentUserId={user?.id}
               onBack={() => { setActiveConv(null); setDetailOpen(false); }}
               onUpdate={handleConvUpdate}
-              onOpenContact={() => setContactOpen(true)}
               onOpenDetail={() => setDetailOpen(true)}
             />
             <div className="flex-1 flex overflow-hidden relative">
               <MessageThread conversation={activeConv} workspaceId={workspaceOwnerId} />
-              {/* Below xl: full-screen slide-over opened by tapping the contact in ChatHeader.
-                  At xl+: permanently docked side panel, same as before. */}
-              <ContactPanel
-                conversation={activeConv}
-                onUpdate={handleConvUpdate}
-                onClose={() => setContactOpen(false)}
-                className={`${contactOpen ? 'flex' : 'hidden'}
-                  fixed top-14 bottom-[56px] left-0 right-0 z-40
-                  md:top-0 md:bottom-0 md:left-16
-                  xl:static xl:inset-auto xl:z-auto xl:flex xl:w-72 xl:border-l xl:border-[var(--nyasa-border)] xl:shrink-0`}
-              />
             </div>
           </>
         ) : (
@@ -538,6 +526,7 @@ export default function Inbox() {
           canPin={canViewAllChats}
           isPinnedForMe={pinnedConvs.some(p => p.conversation_id === activeConv.id)}
           onClose={() => setDetailOpen(false)}
+          onBackToChat={() => setDetailOpen(false)}
           onUpdate={(patch) => { handleConvUpdate(patch); setDetailOpen(false); }}
           onPin={(agentId) => { handlePinForAgent(agentId); setDetailOpen(false); }}
           onUnpin={() => { handleUnpin(); setDetailOpen(false); }}

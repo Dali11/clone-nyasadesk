@@ -1,16 +1,16 @@
 import { useState } from 'react';
 import {
   ArrowLeft, Check, Bot, TrendingUp, Pin, PinOff, Trash2,
-  UserPlus, ChevronRight, User, Tag, Building2, Phone, Mail,
-  AlertCircle, Clock, CheckCircle2, Zap, MoreHorizontal
+  ChevronRight, Phone, MessageCircle, Clock, CheckCircle2,
+  UserPlus, Mail, Building2, Tag, Calendar,
 } from 'lucide-react';
 import Avatar from '@/components/Avatar';
 import { RecordSaleModal } from '@/pages/Sales';
 
 const STATUSES = [
-  { key: 'open',    label: 'Open',    icon: CheckCircle2, color: '#25D366' },
-  { key: 'snoozed', label: 'Snoozed', icon: Clock,        color: '#F59E0B' },
-  { key: 'closed',  label: 'Closed',  icon: CheckCircle2, color: '#6B7280' },
+  { key: 'open',    label: 'Open',    color: '#25D366' },
+  { key: 'snoozed', label: 'Snoozed', color: '#F59E0B' },
+  { key: 'closed',  label: 'Closed',  color: '#6B7280' },
 ];
 const PRIORITIES = [
   { key: 'low',    label: 'Low',    color: '#6B7280' },
@@ -20,52 +20,45 @@ const PRIORITIES = [
 ];
 
 /**
- * ConversationDetail — full-page slide-over panel
- * Props:
- *   conversation  — the active conversation object
- *   users         — team members list [{id, full_name}]
- *   currentUserId
- *   canAssign     — true for admin / sales_manager only
- *   canPin
- *   isPinnedForMe
- *   onClose       — () => void  (navigate back)
- *   onUpdate      — (patch) => void
- *   onPin         — (agentId) => void
- *   onUnpin       — () => void
- *   onDelete      — () => void
+ * ConversationDetail — full-page contact card.
+ * Opened by:
+ *   • Tapping the contact avatar/name in ChatHeader
+ *   • Tapping ⋮ in ChatHeader
  */
 export default function ConversationDetail({
   conversation,
   users = [],
   currentUserId,
   canAssign = false,
-  canPin = false,
+  canPin    = false,
   isPinnedForMe = false,
   onClose,
   onUpdate,
   onPin,
   onUnpin,
   onDelete,
+  onBackToChat,   // called when "Message" button is tapped — closes detail and shows chat
 }) {
   const [showSaleModal, setShowSaleModal] = useState(false);
 
   if (!conversation) return null;
 
-  const assign = (userId, userName) =>
-    onUpdate({ id: conversation.id, assigned_to: userId, assigned_to_name: userName, status: 'open' });
-
-  const resumeAutomation = () =>
-    onUpdate({ id: conversation.id, assigned_to: null, assigned_to_name: null });
-
-  const updateStatus   = (status)   => onUpdate({ id: conversation.id, status });
-  const updatePriority = (priority) => onUpdate({ id: conversation.id, priority });
-
   const curStatus   = conversation.status   || 'open';
   const curPriority = conversation.priority || 'normal';
 
+  const assign         = (uid, name) => onUpdate({ id: conversation.id, assigned_to: uid, assigned_to_name: name, status: 'open' });
+  const resumeAI       = ()          => onUpdate({ id: conversation.id, assigned_to: null, assigned_to_name: null });
+  const updateStatus   = (s)         => onUpdate({ id: conversation.id, status: s });
+  const updatePriority = (p)         => onUpdate({ id: conversation.id, priority: p });
+
+  const phone   = conversation.contact_phone || '';
+  const isWA    = ['whatsapp', 'sms', 'phone'].includes(conversation.channel);
+  const name    = conversation.contact_name  || phone || '—';
+  const company = conversation.contact_company || '';
+  const email   = conversation.contact_email  || '';
+
   return (
     <>
-      {/* Full-screen slide-over — fixed so it covers the chat, sits above everything */}
       <div
         className="fixed inset-0 z-50 flex flex-col overflow-y-auto"
         style={{ background: '#0B141A', animation: 'slideInFromRight 0.22s cubic-bezier(0.32,0.72,0,1) both' }}
@@ -77,30 +70,115 @@ export default function ConversationDetail({
           }
         `}</style>
 
-        {/* ── Header ───────────────────────────────────────────── */}
-        <div className="flex items-center gap-3 px-3 py-3 shrink-0"
-          style={{ background: '#1F2C34', borderBottom: '1px solid rgba(255,255,255,0.06)' }}>
-          <button onClick={onClose} className="p-1.5 rounded-full text-[#AEBAC1] hover:text-white hover:bg-white/10 transition-colors">
+        {/* ── Top bar ───────────────────────────────────────────── */}
+        <div
+          className="flex items-center gap-2 px-3 py-3 shrink-0"
+          style={{ background: '#1F2C34', borderBottom: '1px solid rgba(255,255,255,0.06)' }}
+        >
+          <button
+            onClick={onClose}
+            className="p-1.5 rounded-full text-[#AEBAC1] hover:text-white hover:bg-white/10 transition-colors shrink-0"
+          >
             <ArrowLeft className="w-5 h-5" />
           </button>
-          <Avatar name={conversation.contact_name || '?'} src={conversation.contact_avatar_url} size="md" />
-          <div className="flex-1 min-w-0">
-            <p className="font-semibold text-white truncate" style={{ fontSize: 15 }}>
-              {conversation.contact_name || conversation.contact_phone || '—'}
-            </p>
-            <p className="text-[11px] truncate" style={{ color: '#8696A0' }}>
-              {conversation.contact_phone || conversation.channel || '—'}
-            </p>
+          <p className="flex-1 font-semibold text-white text-base">Contact info</p>
+        </div>
+
+        {/* ── Hero: big avatar + name ────────────────────────────── */}
+        <div
+          className="flex flex-col items-center gap-3 py-8 px-4 shrink-0"
+          style={{ background: '#1F2C34', borderBottom: '1px solid rgba(255,255,255,0.06)' }}
+        >
+          <Avatar name={name} src={conversation.contact_avatar_url} size="xl" />
+          <div className="text-center">
+            <p className="text-white font-bold text-xl leading-tight">{name}</p>
+            {phone && <p className="text-[#8696A0] text-sm mt-0.5">{phone}</p>}
+            {company && <p className="text-[#25D366]/80 text-xs mt-0.5">{company}</p>}
+          </div>
+
+          {/* Quick-action buttons: Message · Call */}
+          <div className="flex gap-6 mt-2">
+            {/* Message — goes back to chat */}
+            <button
+              onClick={() => { onClose?.(); onBackToChat?.(); }}
+              className="flex flex-col items-center gap-1.5 group"
+            >
+              <div
+                className="w-12 h-12 rounded-full flex items-center justify-center transition-colors"
+                style={{ background: 'rgba(37,211,102,0.15)' }}
+              >
+                <MessageCircle className="w-5 h-5" style={{ color: '#25D366' }} />
+              </div>
+              <span className="text-[11px] font-medium" style={{ color: '#8696A0' }}>Message</span>
+            </button>
+
+            {/* Call — only for WhatsApp / SMS / phone channels */}
+            {phone && isWA && (
+              <a
+                href={`tel:${phone.replace(/\s/g, '')}`}
+                className="flex flex-col items-center gap-1.5 group"
+              >
+                <div
+                  className="w-12 h-12 rounded-full flex items-center justify-center transition-colors"
+                  style={{ background: 'rgba(37,211,102,0.15)' }}
+                >
+                  <Phone className="w-5 h-5" style={{ color: '#25D366' }} />
+                </div>
+                <span className="text-[11px] font-medium" style={{ color: '#8696A0' }}>Call</span>
+              </a>
+            )}
+
+            {/* Email — if contact has an email */}
+            {email && (
+              <a
+                href={`mailto:${email}`}
+                className="flex flex-col items-center gap-1.5 group"
+              >
+                <div
+                  className="w-12 h-12 rounded-full flex items-center justify-center transition-colors"
+                  style={{ background: 'rgba(37,211,102,0.15)' }}
+                >
+                  <Mail className="w-5 h-5" style={{ color: '#25D366' }} />
+                </div>
+                <span className="text-[11px] font-medium" style={{ color: '#8696A0' }}>Email</span>
+              </a>
+            )}
           </div>
         </div>
 
-        {/* ── Body ─────────────────────────────────────────────── */}
-        <div className="flex-1 px-4 py-4 flex flex-col gap-5">
+        {/* ── Body sections ─────────────────────────────────────── */}
+        <div className="flex flex-col gap-5 px-4 py-5 pb-12">
 
-          {/* STATUS */}
-          <Section title="Status">
-            <div className="flex flex-col gap-1">
-              {STATUSES.map(({ key, label, icon: Icon, color }) => (
+          {/* CONTACT DETAILS */}
+          {(phone || email || company || conversation.contact_ad_attribution?.headline) && (
+            <Section title="Contact details">
+              <div className="flex flex-col gap-1">
+                {phone && (
+                  <DetailRow icon={<Phone className="w-4 h-4" />} label={phone} sublabel="Mobile" />
+                )}
+                {email && (
+                  <DetailRow icon={<Mail className="w-4 h-4" />} label={email} sublabel="Email" />
+                )}
+                {company && (
+                  <DetailRow icon={<Building2 className="w-4 h-4" />} label={company} sublabel="Company" />
+                )}
+                {conversation.contact_ad_attribution?.headline && (
+                  <DetailRow
+                    icon={<Tag className="w-4 h-4" />}
+                    label={conversation.contact_ad_attribution.headline}
+                    sublabel="Ad source"
+                  />
+                )}
+              </div>
+            </Section>
+          )}
+
+          {/* CONVERSATION: status + priority */}
+          <Section title="Conversation">
+            {/* Status */}
+            <p className="text-[10px] text-[#8696A0] uppercase tracking-wider font-semibold mb-1.5">Status</p>
+            <div className="flex flex-col gap-1 mb-3">
+              {STATUSES.map(({ key, label, color }) => (
                 <button
                   key={key}
                   onClick={() => updateStatus(key)}
@@ -116,10 +194,9 @@ export default function ConversationDetail({
                 </button>
               ))}
             </div>
-          </Section>
 
-          {/* PRIORITY */}
-          <Section title="Priority">
+            {/* Priority */}
+            <p className="text-[10px] text-[#8696A0] uppercase tracking-wider font-semibold mb-1.5">Priority</p>
             <div className="grid grid-cols-2 gap-2">
               {PRIORITIES.map(({ key, label, color }) => (
                 <button
@@ -144,27 +221,27 @@ export default function ConversationDetail({
             <Section title="Assign to">
               <div className="flex flex-col gap-1">
                 {users.map(u => {
-                  const isAssigned = conversation.assigned_to === u.id;
+                  const active = conversation.assigned_to === u.id;
                   return (
                     <button
                       key={u.id}
                       onClick={() => assign(u.id, u.full_name)}
                       className="flex items-center gap-3 px-3 py-2.5 rounded-xl transition-colors"
                       style={{
-                        background: isAssigned ? 'rgba(37,211,102,0.08)' : 'rgba(255,255,255,0.03)',
-                        border: `1px solid ${isAssigned ? 'rgba(37,211,102,0.3)' : 'rgba(255,255,255,0.06)'}`,
+                        background: active ? 'rgba(37,211,102,0.08)' : 'rgba(255,255,255,0.03)',
+                        border: `1px solid ${active ? 'rgba(37,211,102,0.3)' : 'rgba(255,255,255,0.06)'}`,
                       }}
                     >
                       <Avatar name={u.full_name} size="sm" />
                       <span className="flex-1 text-left text-sm text-white">{u.full_name}</span>
-                      {isAssigned && <Check className="w-4 h-4 shrink-0" style={{ color: '#25D366' }} />}
+                      {active && <Check className="w-4 h-4 shrink-0" style={{ color: '#25D366' }} />}
                     </button>
                   );
                 })}
                 {conversation.assigned_to && (
                   <button
-                    onClick={resumeAutomation}
-                    className="flex items-center gap-3 px-3 py-2.5 rounded-xl transition-colors mt-1"
+                    onClick={resumeAI}
+                    className="flex items-center gap-3 px-3 py-2.5 rounded-xl mt-1 transition-colors"
                     style={{ background: 'rgba(37,211,102,0.05)', border: '1px solid rgba(37,211,102,0.2)' }}
                   >
                     <Bot className="w-4 h-4 shrink-0" style={{ color: '#25D366' }} />
@@ -182,7 +259,7 @@ export default function ConversationDetail({
                 {users.map(u => (
                   <button
                     key={u.id}
-                    onClick={() => onPin?.(u.id)}
+                    onClick={() => { onPin?.(u.id); onClose?.(); }}
                     className="flex items-center gap-3 px-3 py-2.5 rounded-xl transition-colors"
                     style={{ background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.06)' }}
                   >
@@ -190,6 +267,18 @@ export default function ConversationDetail({
                     <span className="flex-1 text-left text-sm text-white">{u.full_name}</span>
                     <Pin className="w-3.5 h-3.5 text-gray-500" />
                   </button>
+                ))}
+              </div>
+            </Section>
+          )}
+
+          {/* TAGS */}
+          {conversation.tags?.length > 0 && (
+            <Section title="Tags">
+              <div className="flex flex-wrap gap-2">
+                {conversation.tags.map(t => (
+                  <span key={t} className="text-xs px-3 py-1 rounded-full font-medium"
+                    style={{ background: 'rgba(37,211,102,0.12)', color: '#25D366' }}>{t}</span>
                 ))}
               </div>
             </Section>
@@ -223,21 +312,13 @@ export default function ConversationDetail({
             </div>
           </Section>
 
-          {/* CONVERSATION INFO */}
-          <Section title="Conversation info">
-            <div className="flex flex-col gap-2 text-sm">
-              <InfoRow label="Channel" value={conversation.channel || '—'} />
-              <InfoRow label="Created" value={conversation.created_at ? new Date(conversation.created_at).toLocaleString() : '—'} />
-              {conversation.contact_company && <InfoRow label="Company" value={conversation.contact_company} />}
-              {conversation.tags?.length > 0 && (
-                <div className="flex items-start gap-2">
-                  <span className="text-[#8696A0] w-20 shrink-0">Tags</span>
-                  <div className="flex flex-wrap gap-1">
-                    {conversation.tags.map(t => (
-                      <span key={t} className="text-xs px-2 py-0.5 rounded-full" style={{ background: 'rgba(37,211,102,0.12)', color: '#25D366' }}>{t}</span>
-                    ))}
-                  </div>
-                </div>
+          {/* META INFO */}
+          <Section title="Info">
+            <div className="flex flex-col gap-2">
+              <InfoRow label="Channel"  value={conversation.channel || '—'} />
+              <InfoRow label="Created"  value={conversation.created_at ? new Date(conversation.created_at).toLocaleString() : '—'} />
+              {conversation.contact_ad_attribution?.headline && (
+                <InfoRow label="Ad source" value={conversation.contact_ad_attribution.headline} />
               )}
             </div>
           </Section>
@@ -258,6 +339,7 @@ export default function ConversationDetail({
   );
 }
 
+/* ── helpers ──────────────────────────────────────────────── */
 function Section({ title, children }) {
   return (
     <div>
@@ -281,10 +363,23 @@ function ActionRow({ icon, label, color, onClick }) {
   );
 }
 
+function DetailRow({ icon, label, sublabel }) {
+  return (
+    <div className="flex items-center gap-3 px-3 py-2.5 rounded-xl"
+      style={{ background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.06)' }}>
+      <span style={{ color: '#25D366' }} className="shrink-0">{icon}</span>
+      <div className="flex flex-col min-w-0">
+        <span className="text-sm text-white truncate">{label}</span>
+        {sublabel && <span className="text-[10px]" style={{ color: '#8696A0' }}>{sublabel}</span>}
+      </div>
+    </div>
+  );
+}
+
 function InfoRow({ label, value }) {
   return (
     <div className="flex items-center gap-2">
-      <span className="text-[#8696A0] w-20 shrink-0 text-xs">{label}</span>
+      <span className="text-[#8696A0] text-xs w-20 shrink-0">{label}</span>
       <span className="text-white text-xs flex-1">{value}</span>
     </div>
   );

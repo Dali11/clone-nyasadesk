@@ -71,7 +71,7 @@ export default function ChatHeader({
 
       {/* Avatar + contact info — tap to open contact panel */}
       <button
-        onClick={onOpenContact}
+        onClick={onOpenDetail}
         className="flex items-center gap-2.5 flex-1 min-w-0 text-left hover:opacity-80 transition-opacity"
       >
         <div className="relative shrink-0">
