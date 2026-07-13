@@ -1,5 +1,4 @@
 import {useState, useEffect, useCallback}from 'react';
-import { useNavigate } from 'react-router-dom';
 import {TrendingUp, Plus, CheckCircle, AlertCircle, Clock, ExternalLink, Trash2, Loader2, X, FileText, Download, DollarSign}from 'lucide-react';
 import { useNyasaAuth } from '@/lib/NyasaAuth';
 import {supabase}from '@/lib/supabase';
@@ -15,7 +14,6 @@ const STATUS_STYLES = {
 };
 
 export default function Sales() {
-  const navigate = useNavigate();
   const { user, workspaceOwnerId, isWorkspaceAdmin } = useNyasaAuth();
   const [sales, setSales] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -174,10 +172,10 @@ export default function Sales() {
                 </div>
                 <div className="flex items-center gap-1 shrink-0">
                   {s.conversation_id && (
-                    <button onClick={() => navigate(`/?conv=${s.conversation_id}`)} title="View conversation"
+                    <a href={`/inbox?conv=${s.conversation_id}`} title="View conversation"
                       className="p-1.5 text-gray-500 hover:text-[#25D366] rounded-lg hover:bg-white/5">
                       <ExternalLink className="w-3.5 h-3.5" />
-                    </button>
+                    </a>
                   )}
                   {(isWorkspaceAdmin || s.agent_id === user?.id) && s.status === 'claimed' && (
                     <button onClick={() => del(s.id)} className="p-1.5 text-gray-500 hover:text-red-400 rounded-lg hover:bg-white/5">
