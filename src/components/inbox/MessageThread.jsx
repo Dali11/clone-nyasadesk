@@ -25,12 +25,13 @@ import {
   Ban,
   Reply,
   Palette,
+  Smile,
   Download,
   Maximize2,
 }from 'lucide-react';
 import {formatDistanceToNow, isToday, isYesterday, format as formatDate}from 'date-fns';
 import {motion, AnimatePresence}from 'framer-motion';
-import {getMessages, sendMessage, sendMediaMessage, addNote, deleteMessage, setMessagePinned, subscribeToMessages, getCannedResponses, setChatBackground, getAiAgents, generateAiDraft}from '@/lib/channels';
+import {getMessages, sendMessage, sendMediaMessage, addNote, deleteMessage, setMessagePinned, setMessageReaction, subscribeToMessages, getCannedResponses, setChatBackground, getAiAgents, generateAiDraft}from '@/lib/channels';
 
 import {useNyasaAuth}from '@/lib/NyasaAuth';
 import {useToast}from '@/components/ui/use-toast';
@@ -532,7 +533,7 @@ function ForwardModal({ msg, workspaceId, onClose }) {
 // WhatsApp-style action menu: a small always-reachable "chevron" button, a
 // long-press (pointer-hold) on the bubble itself, and right-click on desktop
 // all open the same dropdown — Copy / Share / Pin / Delete.
-function MessageActionsMenu({ msg, isOut, open, onOpenChange, onCopy, onShare, onForward, onTogglePin, onDelete, onReply }) {
+function MessageActionsMenu({ msg, isOut, open, onOpenChange, onCopy, onShare, onForward, onTogglePin, onDelete, onReact, onReply }) {
   return (
     <DropdownMenu open={open} onOpenChange={onOpenChange}>
       <DropdownMenuTrigger asChild>
@@ -545,6 +546,11 @@ function MessageActionsMenu({ msg, isOut, open, onOpenChange, onCopy, onShare, o
         </button>
       </DropdownMenuTrigger>
       <DropdownMenuContent align={isOut ? 'end' : 'start'} className="w-40 bg-[var(--nyasa-surface-3)] border-[var(--nyasa-border)] text-gray-200">
+        {onReact && (
+          <DropdownMenuItem onClick={onReact} className="text-xs gap-2 hover:bg-white/10 focus:bg-white/10 cursor-pointer">
+            <Smile className="w-3.5 h-3.5" />React
+          </DropdownMenuItem>
+        )}
         {onReply && (
           <DropdownMenuItem onClick={onReply} className="text-xs gap-2 hover:bg-white/10 focus:bg-white/10 cursor-pointer">
             <Reply className="w-3.5 h-3.5" />Reply
@@ -715,7 +721,63 @@ function groupMessages(messages) {
   return result;
 }
 
-function Bubble({ msg, menuOpenId, onOpenMenu, onCopy, onShare, onForward, onDelete, onTogglePin, onReply, onJumpToReply, bubbleRef, onOpenMedia }) {
+// ─────────────────────────────────────────────────────────────────────────────
+// ReactionPicker — quick emoji bar that appears on hover (WhatsApp-style)
+// ─────────────────────────────────────────────────────────────────────────────
+const QUICK_REACTIONS = ['👍', '❤️', '😂', '😮', '😢', '🙏'];
+
+function ReactionPicker({ onReact, side = 'left' }) {
+  return (
+    <div
+      className={`absolute -top-9 ${side === 'right' ? 'right-0' : 'left-0'} z-20 flex items-center gap-0.5 bg-[#1F2C34] border border-white/10 rounded-full px-1.5 py-1 shadow-lg opacity-0 group-hover:opacity-100 transition-opacity duration-150`}
+      style={{ animation: 'none' }}
+    >
+      {QUICK_REACTIONS.map(emoji => (
+        <button
+          key={emoji}
+          onClick={(e) => { e.stopPropagation(); onReact(emoji); }}
+          className="text-lg hover:scale-125 transition-transform duration-100 px-0.5"
+          title={`React ${emoji}`}
+        >
+          {emoji}
+        </button>
+      ))}
+    </div>
+  );
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// ReactionBadges — emoji + count pills below the bubble
+// ─────────────────────────────────────────────────────────────────────────────
+function ReactionBadges({ reactions, currentUserId, onReact }) {
+  if (!reactions || typeof reactions !== 'object') return null;
+  const entries = Object.entries(reactions).filter(([_, users]) => users?.length > 0);
+  if (entries.length === 0) return null;
+
+  return (
+    <div className={`flex flex-wrap gap-1 mt-1 ${'justify-start'}`}>
+      {entries.map(([emoji, users]) => {
+        const reactedByMe = users.some(u => u.id === currentUserId);
+        return (
+          <button
+            key={emoji}
+            onClick={(e) => { e.stopPropagation(); onReact(emoji); }}
+            className={`flex items-center gap-1 px-1.5 py-0.5 rounded-full text-[11px] transition-colors ${
+              reactedByMe
+                ? 'bg-[#00A884]/30 border border-[#00A884]/50 text-white'
+                : 'bg-black/20 border border-white/10 text-gray-300'
+            }`}
+          >
+            <span className="text-xs leading-none">{emoji}</span>
+            <span className="font-medium leading-none">{users.length}</span>
+          </button>
+        );
+      })}
+    </div>
+  );
+}
+
+function Bubble({ msg, menuOpenId, onOpenMenu, onCopy, onShare, onForward, onDelete, onTogglePin, onReact, currentUserId, onReply, onJumpToReply, bubbleRef, onOpenMedia }) {
   const isNote     = msg.direction === 'note';
   const isActivity = msg.direction === 'activity';
   const isOut      = msg.direction === 'outbound';
@@ -789,6 +851,9 @@ function Bubble({ msg, menuOpenId, onOpenMenu, onCopy, onShare, onForward, onDel
         onPointerLeave={clearPress}
         onContextMenu={!isDeleted ? handleContextMenu : undefined}
       >
+        {!isDeleted && onReact && (
+          <ReactionPicker onReact={(emoji) => onReact(msg, emoji)} side={isOut ? 'right' : 'left'} />
+        )}
         {msg.pinned && !isDeleted && (
           <Pin className={`w-3 h-3 absolute -top-1.5 ${isOut ? '-left-1.5' : '-right-1.5'} text-[#128C7E] fill-[#128C7E]/20`} />
         )}
@@ -833,12 +898,15 @@ function Bubble({ msg, menuOpenId, onOpenMenu, onCopy, onShare, onForward, onDel
           </p>
           {isOut && !isDeleted && <StatusIcon status={msg.status} errorReason={msg.error_reason} />}
         </div>
+        {!isDeleted && msg.reactions && Object.keys(msg.reactions).length > 0 && (
+          <ReactionBadges reactions={msg.reactions} currentUserId={currentUserId} onReact={(emoji) => onReact(msg, emoji)} />
+        )}
         {!isDeleted && (
           <MessageActionsMenu msg={msg} isOut={isOut} open={menuOpen}
             onOpenChange={v => onOpenMenu(v ? msg.id : null)}
             onCopy={() => onCopy(msg)} onShare={() => onShare(msg)} onForward={() => onForward(msg)}
             onTogglePin={() => onTogglePin(msg)} onDelete={() => onDelete(msg)}
-            onReply={() => onReply(msg)} />
+            onReact={() => onReact(msg, null)} onReply={() => onReply(msg)} />
         )}
       </div>
     </motion.div>
@@ -869,6 +937,8 @@ export default function MessageThread({ conversation, workspaceId }) {
   const [menuOpenId, setMenuOpenId] = useState(null);
   const [forwardMsg, setForwardMsg] = useState(null);
   const [replyingTo, setReplyingTo] = useState(null);
+  const [reactingToMsg, setReactingToMsg] = useState(null); // when reacting via context menu
+  const [pinnedBannerIdx, setPinnedBannerIdx] = useState(0);
   const [lightboxMedia, setLightboxMedia] = useState(null); // { url, type } or null
   const bottomRef = useRef(null);
   const inputRef  = useRef(null);
@@ -1352,12 +1422,55 @@ export default function MessageThread({ conversation, workspaceId }) {
 
   const handleTogglePinMessage = async (msg) => {
     const next = !msg.pinned;
+    // Enforce max 3 pinned messages per conversation
+    if (next) {
+      const currentPinned = messages.filter(m => m.pinned && !m.deleted_at && m.id !== msg.id);
+      if (currentPinned.length >= 3) {
+        toast({ title: 'Pin limit reached', description: 'You can pin up to 3 messages per conversation. Unpin one first.', variant: 'destructive', duration: 4000 });
+        return;
+      }
+    }
     setMessages(prev => prev.map(m => m.id === msg.id ? { ...m, pinned: next } : m));
     try {
       await setMessagePinned(msg.id, next);
     } catch (e) {
       console.error('[MessageThread] failed to toggle pin:', e);
       setMessages(prev => prev.map(m => m.id === msg.id ? { ...m, pinned: !next } : m));
+    }
+  };
+
+  const handleReactMessage = async (msg, emoji) => {
+    if (!emoji) {
+      // If emoji is null, it came from the context menu — open the emoji picker
+      setShowEmojiPicker(true);
+      setReactingToMsg(msg);
+      return;
+    }
+    // Optimistically update reactions
+    setMessages(prev => prev.map(m => {
+      if (m.id !== msg.id) return m;
+      const reactions = { ...(m.reactions || {}) };
+      const userId = user?.id || 'unknown';
+      const userName = profile?.full_name || user?.email || 'Agent';
+      if (reactions[emoji]) {
+        const idx = reactions[emoji].findIndex(r => r.id === userId);
+        if (idx >= 0) {
+          reactions[emoji] = reactions[emoji].filter((_, i) => i !== idx);
+          if (reactions[emoji].length === 0) delete reactions[emoji];
+        } else {
+          reactions[emoji] = [...reactions[emoji], { id: userId, name: userName }];
+        }
+      } else {
+        reactions[emoji] = [{ id: userId, name: userName }];
+      }
+      return { ...m, reactions };
+    }));
+    try {
+      await setMessageReaction(msg.id, emoji, user?.id || 'unknown', profile?.full_name || user?.email || 'Agent');
+    } catch (e) {
+      console.error('[MessageThread] failed to set reaction:', e);
+      // Revert on failure — reload messages
+      getMessages(conversation.id).then(setMessages).catch(() => {});
     }
   };
 
@@ -1389,17 +1502,24 @@ export default function MessageThread({ conversation, workspaceId }) {
   return (
     <div className="flex-1 flex flex-col overflow-hidden" style={backgroundStyle(bg)}>
 
-      {/* Pinned messages bar */}
+      {/* Pinned messages bar — cycles through all pinned on tap */}
       {pinnedMessages.length > 0 && (
         <button
-          onClick={() => scrollToMessage(pinnedMessages[pinnedMessages.length - 1].id)}
+          onClick={() => {
+            const nextIdx = (pinnedBannerIdx + 1) % pinnedMessages.length;
+            setPinnedBannerIdx(nextIdx);
+            scrollToMessage(pinnedMessages[nextIdx].id);
+          }}
           className="shrink-0 flex items-center gap-2 px-4 py-2 bg-[var(--nyasa-surface-3)] border-b border-[var(--nyasa-border)] text-left hover:bg-[#243139] transition-colors"
         >
           <Pin className="w-3.5 h-3.5 text-[#25D366] shrink-0" />
           <p className="flex-1 min-w-0 text-xs text-gray-300 truncate">
             <span className="font-semibold text-[#25D366]">{pinnedMessages.length} pinned</span>
-            {' · '}{pinnedMessages[pinnedMessages.length - 1].body || 'Attachment'}
+            {' · '}{pinnedMessages[pinnedBannerIdx]?.body || 'Attachment'}
           </p>
+          <span className="text-[10px] text-[#8696A0] shrink-0 ml-auto">
+            {pinnedBannerIdx + 1}/{pinnedMessages.length}
+          </span>
         </button>
       )}
 
@@ -1454,6 +1574,8 @@ export default function MessageThread({ conversation, workspaceId }) {
                   onShare={handleShareMessage}
                   onForward={handleForwardMessage}
                   onTogglePin={handleTogglePinMessage}
+                  onReact={handleReactMessage}
+                  currentUserId={user?.id}
                   onDelete={handleDeleteMessage}
                   onReply={handleReplyMessage}
                   onJumpToReply={scrollToMessage}
@@ -1668,8 +1790,14 @@ export default function MessageThread({ conversation, workspaceId }) {
             <EmojiPicker
               theme="dark"
               onEmojiClick={(emojiData) => {
-                setBody(prev => prev + emojiData.emoji);
-                inputRef.current?.focus();
+                if (reactingToMsg) {
+                  handleReactMessage(reactingToMsg, emojiData.emoji);
+                  setReactingToMsg(null);
+                  setShowEmojiPicker(false);
+                } else {
+                  setBody(prev => prev + emojiData.emoji);
+                  inputRef.current?.focus();
+                }
               }}
               searchPlaceholder="Search emoji…"
               skinTonesDisabled
