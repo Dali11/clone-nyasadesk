@@ -66,7 +66,7 @@ export default function ConvRow({ conv, active, onClick, pinned = false, selecta
     <div
       onClick={handleClick}
       {...(!selectable ? handleLongPress : {})}
-      className={`flex items-center gap-3 px-4 h-[72px] cursor-pointer transition-colors select-none w-full
+      className={`flex items-center gap-3 px-4 h-[68px] cursor-pointer transition-colors select-none w-full
         ${active && !selectable ? 'bg-[#2A3942]' : selected ? 'bg-[#2A3942]/80' : 'hover:bg-[#202C33]'}`}
     >
       {/* Checkbox / Avatar */}
@@ -82,29 +82,29 @@ export default function ConvRow({ conv, active, onClick, pinned = false, selecta
         ) : (
           <>
             <Avatar name={displayName} src={displayPhoto} size="md" className="w-12 h-12 rounded-full" />
-            <span className={`absolute bottom-0 right-0 w-4 h-4 rounded-full ${cfg.bg} flex items-center justify-center border border-[#0B141A]`}>
-              <Icon className="w-2.5 h-2.5 text-white" />
+            <span className={`absolute bottom-0 right-0 w-3.5 h-3.5 rounded-full ${cfg.bg} flex items-center justify-center border border-[#0B141A]`}>
+              <Icon className="w-2 h-2 text-white" />
             </span>
           </>
         )}
       </div>
 
       {/* Main content right side with left-inset divider starting AFTER avatar */}
-      <div className="flex-1 min-w-0 flex flex-col justify-center h-full border-b border-white/5 pr-1 py-1">
+      <div className="flex-1 min-w-0 flex flex-col justify-center h-full border-b border-white/[0.04] pr-2">
         <div className="flex items-center justify-between mb-1">
-          <span className={`text-[15px] truncate ${conv.unread || conv.unread_count > 0 ? 'font-bold text-white' : 'font-normal text-[#E9EDF0]'}`}>
+          <span className={`text-[15px] truncate ${conv.unread || conv.unread_count > 0 ? 'font-semibold text-white' : 'font-normal text-[#E9EDF0]'}`}>
             {displayName}
           </span>
-          <span className={`text-xs shrink-0 ml-2 ${conv.unread ? 'text-[#00A884] font-semibold' : 'text-[#8696A0]'}`}>
+          <span className={`text-[11px] shrink-0 ml-2 ${conv.unread ? 'text-[#00A884] font-semibold' : 'text-[#8696A0]'}`}>
             {timeAgo(conv.last_message_at)}
           </span>
         </div>
 
         <div className="flex items-center justify-between">
-          <div className="flex items-center min-w-0 flex-1 gap-1 text-[14px]">
+          <div className="flex items-center min-w-0 flex-1 gap-1 text-[13px]">
             {/* Sent by Agent Double Tick indicator */}
             {isFromAgent && (
-              <span className="text-[#53bdeb] shrink-0 font-bold">✓✓</span>
+              <span className="text-[#53bdeb] shrink-0 ">✓✓</span>
             )}
             {/* Muted icon indicator */}
             {conv.is_muted && (
@@ -125,13 +125,7 @@ export default function ConvRow({ conv, active, onClick, pinned = false, selecta
           </div>
         </div>
 
-        {/* Support original secondary UI features nicely */}
-        {(conv.subject && conv.subject !== conv.contact_name) || !conv.assigned_to || conv.sla_breach_at ? (
-          <div className="flex items-center justify-between mt-1 h-3 overflow-hidden">
-            <SLABadge slaBreachAt={conv.sla_breach_at} />
-            {!conv.assigned_to && <span className="text-[9px] text-yellow-500 font-semibold uppercase tracking-wider ml-auto">Unassigned</span>}
-          </div>
-        ) : null}
+        
       </div>
     </div>
   );
