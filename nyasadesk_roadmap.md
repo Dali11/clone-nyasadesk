@@ -1,5 +1,5 @@
 # Nyasadesk → WhatsApp-Clone-But-Better Roadmap
-# Lead Programmer: Nyasadesk AI | Updated: 2026-07-12
+# Lead Programmer: Nyasadesk AI | Updated: 2026-07-14
 
 ## Philosophy
 Build every WhatsApp feature that exists, then layer on top what businesses need.
@@ -24,9 +24,9 @@ Features WhatsApp has that we must nail first.
 - [x] **Voice Notes** — Record, upload, and play back audio messages (in-thread voice recorder UI + playback bubble with waveform)
 - [x] **Message Search** — Full-text search across all conversations (search bar in inbox, highlights matching messages)
 
-### Night 3 (Jul 14)
-- [ ] **Message Reactions** — Emoji reaction picker on hover/long-press, reaction count badges on bubbles
-- [ ] **Pinned Messages** — Pin up to 3 messages per conversation, pinned banner at top of thread
+### Night 3 (Jul 14) ✅ COMPLETE
+- [x] **Message Reactions** — Emoji reaction picker on hover/long-press, reaction count badges on bubbles
+- [x] **Pinned Messages** — Pin up to 3 messages per conversation, pinned banner at top of thread
 
 ### Night 4 (Jul 15)
 - [ ] **Message Info / Read Receipts** — Sent ✓, Delivered ✓✓, Read ✓✓ (blue) per message + info panel
