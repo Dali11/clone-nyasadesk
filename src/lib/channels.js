@@ -341,6 +341,40 @@ export async function setMessagePinned(messageId, pinned) {
   const { error } = await supabase.from('messages').update({ pinned }).eq('id', messageId);
   if (error) throw error;
 }
+export async function setMessageReaction(messageId, emoji, userId, userName) {
+  // Fetch current reactions
+  const { data, error: fetchErr } = await supabase.from('messages')
+    .select('reactions')
+    .eq('id', messageId)
+    .single();
+  if (fetchErr) throw fetchErr;
+
+  let reactions = data?.reactions || {};
+  // reactions is an object: { "👍": [{ id: userId, name: userName }, ...], ... }
+  if (!reactions || typeof reactions !== 'object') reactions = {};
+
+  const entry = { id: userId, name: userName };
+
+  // Toggle: if user already reacted with this emoji, remove; otherwise add
+  if (reactions[emoji]) {
+    const idx = reactions[emoji].findIndex(r => r.id === userId);
+    if (idx >= 0) {
+      reactions[emoji] = reactions[emoji].filter((_, i) => i !== idx);
+      if (reactions[emoji].length === 0) delete reactions[emoji];
+    } else {
+      reactions[emoji] = [...reactions[emoji], entry];
+    }
+  } else {
+    reactions[emoji] = [entry];
+  }
+
+  const { error: updateErr } = await supabase.from('messages')
+    .update({ reactions })
+    .eq('id', messageId);
+  if (updateErr) throw updateErr;
+
+  return reactions;
+}
 
 export async function getMessages(conversationId) {
   // Offline: return cached messages
