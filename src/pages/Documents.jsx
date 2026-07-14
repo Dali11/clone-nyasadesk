@@ -2,6 +2,8 @@ import { useState, useEffect } from 'react';
 import { FileText, Plus, X, Loader2, Trash2, Send, Download, ArrowRightLeft, Wallet, Search, Pencil, Upload } from 'lucide-react';
 import Sidebar from '@/components/Sidebar';
 import { useNyasaAuth } from '@/lib/NyasaAuth';
+import { useFeatureAccess } from '@/lib/useFeatureAccess';
+import UpgradeWall from '@/components/UpgradeWall';
 import { supabase } from '@/lib/supabase';
 import { useDocumentTitle } from '@/hooks/useDocumentTitle';
 import { useToast } from '@/components/ui/use-toast';
@@ -38,6 +40,7 @@ export default function Documents() {
   const { toast } = useToast();
   useDocumentTitle('Quotes & Invoices');
   const { workspaceOwnerId, isWorkspaceAdmin } = useNyasaAuth();
+  const { can } = useFeatureAccess();
 
   const [tab, setTab] = useState('quotations'); // quotations | invoices | settings
   const [quotations, setQuotations] = useState([]);
@@ -131,6 +134,16 @@ export default function Documents() {
   };
 
   const list = tab === 'invoices' ? invoices : quotations;
+
+  // ── Feature gate ─────────────────────────────────────────────────────────
+  if (!can('documents')) {
+    return (
+      <div className="flex h-screen" style={{ background: 'var(--nyasa-surface-1)' }}>
+        <Sidebar />
+        <UpgradeWall feature="Documents" requiredPlan="grow" />
+      </div>
+    );
+  }
 
   return (
     <div className="flex h-screen overflow-hidden bg-[var(--nyasa-surface-1)] pt-14 md:pt-0 pb-[56px] md:pb-0">
