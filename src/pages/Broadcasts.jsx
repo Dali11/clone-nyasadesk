@@ -7,6 +7,8 @@ import Sidebar from '@/components/Sidebar';
 import ChannelBadge, { CHANNELS } from '@/components/ChannelBadge';
 import Avatar from '@/components/Avatar';
 import { useNyasaAuth } from '@/lib/NyasaAuth';
+import { useFeatureAccess } from '@/lib/useFeatureAccess';
+import UpgradeWall from '@/components/UpgradeWall';
 import {
   getContacts, getBroadcasts, createBroadcast, sendBroadcast,
   deleteBroadcast, getWhatsAppTemplates
@@ -26,6 +28,7 @@ const STATUS_COLORS = {
 export default function Broadcasts() {
   useDocumentTitle('Broadcasts');
   const { user, profile } = useNyasaAuth();
+  const { can } = useFeatureAccess();
   const workspaceId = profile?.workspace_id || user?.id;
 
   const [broadcasts, setBroadcasts] = useState([]);
@@ -189,6 +192,16 @@ export default function Broadcasts() {
   };
 
   const inputCls = 'w-full bg-[var(--nyasa-surface-4)] text-white text-sm rounded-xl px-4 py-2.5 focus:outline-none focus:ring-1 focus:ring-[#25D366] border border-[var(--nyasa-border)] placeholder:text-gray-600 transition-all';
+
+  // ── Feature gate ─────────────────────────────────────────────────────────
+  if (!can('broadcasts')) {
+    return (
+      <div className="flex h-screen" style={{ background: 'var(--nyasa-surface-1)' }}>
+        <Sidebar />
+        <UpgradeWall feature="Broadcasts" requiredPlan="starter" />
+      </div>
+    );
+  }
 
   return (
     <div className="flex h-screen overflow-hidden bg-[var(--nyasa-surface-1)] pt-14 md:pt-0 pb-[56px] md:pb-0">
