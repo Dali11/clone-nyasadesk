@@ -22,27 +22,43 @@ create index if not exists workspace_notices_workspace_id_idx
 -- ── RLS ────────────────────────────────────────────────────────────────────
 alter table public.workspace_notices enable row level security;
 
+-- Drop old policies before recreating (idempotent)
+drop policy if exists "notices_read"  on public.workspace_notices;
+drop policy if exists "notices_write" on public.workspace_notices;
+
 -- All authenticated users can read notices for their workspace
 create policy "notices_read" on public.workspace_notices
   for select using (
     auth.role() = 'authenticated'
   );
 
--- Only the workspace owner (admin) or teammates with role admin/sales_manager
--- can insert/update/delete notices.
--- We check via the profiles table — the caller must belong to this workspace.
+-- Write policy: workspace owner OR teammate with admin/sales_manager role.
+-- Fix 1: WITH CHECK added so INSERT is also covered (not just UPDATE/DELETE).
+-- Fix 2: workspace owner check uses auth.uid() = workspace_id (both uuid).
+-- Fix 3: teammate check correctly compares p.workspace_id = workspace_notices.workspace_id.
 create policy "notices_write" on public.workspace_notices
-  for all using (
+  for all
+  using (
+    -- Workspace owner: profile has no workspace_id (they ARE the workspace)
+    (auth.uid() = workspace_id)
+    or
+    -- Elevated teammate: their profile's workspace_id matches this notice's workspace_id
     exists (
       select 1 from public.profiles p
       where p.id = auth.uid()
-        and (
-          -- Workspace owner
-          (p.workspace_id is null and auth.uid() = workspace_id)
-          or
-          -- Teammate with elevated role
-          (p.workspace_id = workspace_id and p.role in ('admin','sales_manager'))
-        )
+        and p.workspace_id = workspace_id
+        and p.role in ('admin', 'sales_manager')
+    )
+  )
+  with check (
+    -- Same logic for INSERT/UPDATE row validation
+    (auth.uid() = workspace_id)
+    or
+    exists (
+      select 1 from public.profiles p
+      where p.id = auth.uid()
+        and p.workspace_id = workspace_id
+        and p.role in ('admin', 'sales_manager')
     )
   );
 
