@@ -41,6 +41,14 @@
       "items": {
         "type": "string"
       }
+    },
+    "reactions": {
+      "type": "object",
+      "description": "Emoji reactions: { 'emoji': [{ id, name }, ...] }"
+    },
+    "pinned": {
+      "type": "boolean",
+      "default": false
     }
   },
   "required": [
