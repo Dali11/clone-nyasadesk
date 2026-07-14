@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
-import { useLocation } from 'react-router-dom';
+import { useLocation, useNavigate } from 'react-router-dom';
 import { Search, Plus, Loader2, MessageSquareOff, Pin, Pencil } from 'lucide-react';
 import Sidebar from '@/components/Sidebar';
 import ConvList from '@/components/inbox/ConvList';
@@ -24,10 +24,30 @@ export default function Inbox() {
   // Push notifications: the hook auto-subscribes when permission is already granted
   // and clears any dead/legacy FCM endpoints before re-registering.
   usePushNotifications(workspaceOwnerId);
+
+  // ── Hardware/browser back button: close open chat, don't exit the app ──
+  // When a conversation is opened we push a #chat hash entry onto the history
+  // stack. The popstate listener catches the back gesture/button and closes
+  // the chat instead of letting the browser navigate away from the SPA.
+  useEffect(() => {
+    const handlePopState = (e) => {
+      if (activeConvRef.current) {
+        // Back pressed while chat is open — close it, stay on inbox
+        e.preventDefault?.();
+        setActiveConv(null);
+        setDetailOpen(false);
+      }
+    };
+    window.addEventListener('popstate', handlePopState);
+    return () => window.removeEventListener('popstate', handlePopState);
+  }, []);
+  const navigate = useNavigate();
   const { toast } = useToast();
   const [conversations, setConversations] = useState([]);
   const [loading, setLoading] = useState(true);
   const [activeConv, setActiveConv] = useState(null);
+  // Keep ref in sync (for popstate handler — avoids stale closure)
+  useEffect(() => { activeConvRef.current = activeConv; }, [activeConv]);
   const [search, setSearch] = useState('');
   const [showNew, setShowNew] = useState(false);
   const [contactOpen, setContactOpen] = useState(false);
@@ -35,6 +55,7 @@ export default function Inbox() {
   const [pinnedConvs, setPinnedConvs] = useState([]);
   const [ctxMenu, setCtxMenu] = useState(null);
   const ctxTimeout = useRef(null);
+  const activeConvRef = useRef(null); // kept in sync below for the popstate handler
   // Stable ref for loadConversations — prevents the realtime subscription
   // useEffect from re-firing every time loadConversations is recreated.
   const loadConversationsRef = useRef(null);
@@ -309,6 +330,9 @@ export default function Inbox() {
   const handleSelect = async (conv) => {
     setActiveConv(conv);
     setContactOpen(false); // reset the contact-info overlay whenever a different chat is opened
+    // Push a synthetic history entry so the browser/hardware back button closes
+    // the chat instead of leaving the app entirely.
+    if (conv) window.history.pushState({ nyasaChat: conv.id }, '');
     // Always stamp last_read_at on open — this is what flips a website
     // visitor's own sent-message ticks from single-grey ("sent") to
     // double-blue ("read") in the widget, mirroring real WhatsApp semantics.
@@ -419,7 +443,7 @@ export default function Inbox() {
             <ChatHeader
               conversation={activeConv}
               currentUserId={user?.id}
-              onBack={() => { setActiveConv(null); setDetailOpen(false); }}
+              onBack={() => { setActiveConv(null); setDetailOpen(false); if (window.history.state?.nyasaChat) window.history.back(); }}
               onUpdate={handleConvUpdate}
               onOpenDetail={() => setDetailOpen(true)}
             />
