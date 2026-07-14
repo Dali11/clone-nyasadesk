@@ -3,6 +3,8 @@ import { Link } from 'react-router-dom';
 import { Plus, Bot, Trash2, Loader2, Sparkles, X, BookOpen, Pencil, Link2, Upload, Lock, Pause, Play, BrainCircuit, ToggleLeft, ToggleRight, ListRestart } from 'lucide-react';
 import Sidebar from '@/components/Sidebar';
 import { useNyasaAuth } from '@/lib/NyasaAuth';
+import { useFeatureAccess } from '@/lib/useFeatureAccess';
+import UpgradeWall from '@/components/UpgradeWall';
 import { getAiAgents, saveAiAgent, deleteAiAgent, getAiAgentTemplates, getAiKnowledge, saveAiKnowledge, deleteAiKnowledge, addKnowledgeFromUrl, addKnowledgeFromFile, getAiUsageSummary, getRules } from '@/lib/channels';
 import { useDocumentTitle } from '@/hooks/useDocumentTitle';
 import { useToast } from '@/components/ui/use-toast';
@@ -27,7 +29,8 @@ export default function AiAgents() {
   const { toast } = useToast();
   useDocumentTitle('AI Agents');
   const { workspaceOwnerId, isWorkspaceAdmin, profile } = useNyasaAuth();
-  const hasAiAccess = profile?.plan === 'scale';
+  const { can } = useFeatureAccess();
+  const hasAiAccess = can('ai_agents');
 
   const [activeTab, setActiveTab] = useState('agents'); // 'agents' | 'learning'
 
