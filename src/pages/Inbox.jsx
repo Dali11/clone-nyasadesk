@@ -348,8 +348,8 @@ export default function Inbox() {
         ${showChat ? 'hidden md:flex' : 'flex'}`}>
 
         {/* Search */}
-        <div className="px-3 pb-2 shrink-0">
-          <div className="flex items-center gap-2 px-3 py-1.5 rounded-full bg-[#1F2C34]">
+        <div className="px-3 pb-1.5 shrink-0">
+          <div className="flex items-center gap-2 px-2.5 py-1 rounded-full bg-[#1F2C34]">
             <Search className="w-4 h-4 text-[#8696A0] shrink-0" />
             <input
               type="text"
@@ -369,7 +369,7 @@ export default function Inbox() {
           {/* Pinned conversations section */}
           {pinnedConvs.length > 0 && (
             <div>
-              <div className="px-4 py-1.5 flex items-center gap-1.5">
+              <div className="px-4 py-1 flex items-center gap-1.5">
                 <Pin className="w-3 h-3 text-[#25D366]" />
                 <span className="text-[10px] font-semibold text-[#25D366] uppercase tracking-wide">Pinned</span>
               </div>
@@ -386,7 +386,7 @@ export default function Inbox() {
                   <ConvRow key={pc.conversation_id} conv={normalized} active={activeConv?.id === conv.id} onClick={handleSelect} pinned />
                 );
               })}
-              <div className="border-b border-[var(--nyasa-border)] mx-4 mb-1" />
+              <div className="border-b border-[var(--nyasa-border)] mx-4 mb-0.5" />
             </div>
           )}
           {loading ? (
