@@ -4,6 +4,8 @@ import Sidebar from '@/components/Sidebar';
 import ChannelBadge, { CHANNELS } from '@/components/ChannelBadge';
 import Avatar from '@/components/Avatar';
 import { useNyasaAuth } from '@/lib/NyasaAuth';
+import { useFeatureAccess } from '@/lib/useFeatureAccess';
+import UpgradeWall from '@/components/UpgradeWall';
 import { getRules, createRule, updateRule, deleteRule } from '@/lib/channels';
 import { useDocumentTitle } from '@/hooks/useDocumentTitle';
 import { supabase } from '@/lib/supabase';
@@ -18,6 +20,7 @@ const CHANNELS_ALL = ['all', ...CHANNELS];
 export default function Rules() {
   useDocumentTitle('Assignment Rules');
   const { user, profile, workspaceOwnerId, isWorkspaceAdmin } = useNyasaAuth();
+  const { can } = useFeatureAccess();
   const workspaceId = workspaceOwnerId || profile?.workspace_id || user?.id;
 
   const [rules, setRules] = useState([]);
@@ -90,6 +93,16 @@ export default function Rules() {
   };
 
   const inputCls = 'w-full bg-[var(--nyasa-surface-4)] text-white text-sm rounded-xl px-4 py-2.5 focus:outline-none focus:ring-1 focus:ring-[#25D366] border-0 placeholder:text-gray-600';
+
+  // ── Feature gate ─────────────────────────────────────────────────────────
+  if (!can('rules')) {
+    return (
+      <div className="flex h-screen" style={{ background: 'var(--nyasa-surface-1)' }}>
+        <Sidebar />
+        <UpgradeWall feature="Automation Rules" requiredPlan="grow" />
+      </div>
+    );
+  }
 
   return (
     <div className="flex h-screen overflow-hidden bg-[var(--nyasa-surface-1)] pt-14 md:pt-0 pb-[56px] md:pb-0">
