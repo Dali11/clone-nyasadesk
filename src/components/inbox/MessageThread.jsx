@@ -935,11 +935,7 @@ export default function MessageThread({ conversation, workspaceId }) {
       const draft = await generateAiDraft(wId, agent.id, conversation.id);
       setBody(draft);
       setTab('reply');
-      // Reset textarea height after send
-    if (inputRef.current) {
-      inputRef.current.style.height = '';
-    }
-    inputRef.current?.focus();
+      inputRef.current?.focus();
     } catch (e) {
       console.error('[MessageThread] AI draft failed:', e);
       toast({ title: 'AI draft failed', description: e?.message || 'Unknown error', variant: 'destructive', duration: 5000 });
@@ -989,6 +985,8 @@ export default function MessageThread({ conversation, workspaceId }) {
     sendingRef.current = true;
     setBody('');
     setSending(true);
+    // Reset textarea height back to 1 row immediately after send
+    if (inputRef.current) inputRef.current.style.height = '';
     inputRef.current?.focus();
     const replyToSnapshot = replyingTo
       ? { id: replyingTo.id, sender_name: replyingTo.direction === 'outbound' ? 'You' : (replyingTo.sender_name || conversation.contact_name), body: replyingTo.body || (replyingTo.attachments?.[0] ? `[${replyingTo.attachments[0].type}]` : '') }
