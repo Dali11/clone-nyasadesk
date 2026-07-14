@@ -15,17 +15,6 @@ import { supabase } from '@/lib/supabase';
 import { useDocumentTitle } from '@/hooks/useDocumentTitle';
 import { usePushNotifications } from '@/lib/usePushNotifications';
 
-const STATUS_TABS = [
-  { key: 'all',        label: 'All'        },
-  { key: 'unassigned', label: 'Unassigned' },
-  { key: 'open',       label: 'Open'       },
-  { key: 'snoozed',    label: 'Snoozed'    },
-  { key: 'closed',     label: 'Closed'     },
-  { key: 'mine',       label: 'Mine'       },
-];
-
-const CHANNELS_FILTER = ['all', 'whatsapp', 'website'];
-
 export default function Inbox() {
   useDocumentTitle('Inbox');
   const { user, profile, workspaceOwnerId, canViewAllChats } = useNyasaAuth();
@@ -39,8 +28,6 @@ export default function Inbox() {
   const [conversations, setConversations] = useState([]);
   const [loading, setLoading] = useState(true);
   const [activeConv, setActiveConv] = useState(null);
-  const [filter, setFilter] = useState('all');
-  const [channelFilter, setChannelFilter] = useState('all');
   const [search, setSearch] = useState('');
   const [showNew, setShowNew] = useState(false);
   const [contactOpen, setContactOpen] = useState(false);
@@ -190,15 +177,8 @@ export default function Inbox() {
   }, [workspaceOwnerId]);
 
   const filtered = conversations.filter(c => {
-    // Exclude internal conversations from the main list — they only appear
-    // in the Pinned section or when explicitly navigated to
-    if (c.channel === 'internal' && !(activeConv?.channel === 'internal' && activeConv?.id === c.id)) return false;
-    if (filter === 'unassigned' && c.assigned_to) return false;
-    if (filter === 'mine' && c.assigned_to !== user?.id) return false;
-    if (filter === 'open' && c.status !== 'open' && c.status !== 'unassigned') return false;
-    if (filter === 'snoozed' && c.status !== 'snoozed') return false;
-    if (filter === 'closed' && c.status !== 'closed') return false;
-    if (channelFilter !== 'all' && c.channel !== channelFilter) return false;
+    // Exclude internal conversations from the main list
+    if (c.channel === 'internal') return false;
     if (search) {
       const q = search.toLowerCase();
       const name = (c.contact?.full_name || c.subject || '').toLowerCase();
@@ -217,15 +197,6 @@ export default function Inbox() {
     const unread = conversations.filter(c => c.unread_count > 0).length;
     (unread > 0 ? navigator.setAppBadge(unread) : navigator.clearAppBadge()).catch(() => {});
   }, [conversations]);
-
-  const counts = {
-    all:        conversations.length,
-    unassigned: conversations.filter(c => !c.assigned_to).length,
-    open:       conversations.filter(c => c.status === 'open' || c.status === 'unassigned').length,
-    snoozed:    conversations.filter(c => c.status === 'snoozed').length,
-    closed:     conversations.filter(c => c.status === 'closed').length,
-    mine:       conversations.filter(c => c.assigned_to === user?.id).length,
-  };
 
   const handleConvUpdate = (updates) => {
     setActiveConv(prev => {
@@ -375,36 +346,6 @@ export default function Inbox() {
       <div className={`flex flex-col bg-[var(--nyasa-surface-1)] border-r border-[var(--nyasa-border)]
         w-full md:w-80 lg:w-96 shrink-0
         ${showChat ? 'hidden md:flex' : 'flex'}`}>
-
-        {/* Status filter tabs — Sidebar top bar is the only branding chrome */}
-        <div className="px-3 pt-2 pb-1 shrink-0">
-          {/* Status tabs */}
-          <div className="flex gap-0.5 overflow-x-auto scrollbar-none">
-            {STATUS_TABS.map(t => (
-              <button key={t.key} onClick={() => setFilter(t.key)}
-                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[11px] font-semibold whitespace-nowrap transition-all
-                  ${filter === t.key ? 'bg-[#25D366]/15 text-[#25D366]' : 'text-gray-500 hover:text-gray-300'}`}>
-                {t.label}
-                {counts[t.key] > 0 && (
-                  <span className={`text-[9px] font-bold px-1.5 py-0.5 rounded-full ${filter === t.key ? 'bg-[#25D366]/30 text-[#25D366]' : 'bg-white/10 text-gray-400'}`}>
-                    {counts[t.key]}
-                  </span>
-                )}
-              </button>
-            ))}
-          </div>
-
-          {/* Channel filter */}
-          <div className="flex gap-1 mt-2 overflow-x-auto scrollbar-none pb-1">
-            {CHANNELS_FILTER.map(ch => (
-              <button key={ch} onClick={() => setChannelFilter(ch)}
-                className={`px-2.5 py-1 rounded-lg text-[10px] font-semibold capitalize whitespace-nowrap transition-all
-                  ${channelFilter === ch ? 'bg-[var(--nyasa-surface-4)] text-white' : 'text-gray-600 hover:text-gray-400'}`}>
-                {ch}
-              </button>
-            ))}
-          </div>
-        </div>
 
         {/* Search */}
         <div className="px-3 pb-2 shrink-0">
