@@ -935,7 +935,11 @@ export default function MessageThread({ conversation, workspaceId }) {
       const draft = await generateAiDraft(wId, agent.id, conversation.id);
       setBody(draft);
       setTab('reply');
-      inputRef.current?.focus();
+      // Reset textarea height after send
+    if (inputRef.current) {
+      inputRef.current.style.height = '';
+    }
+    inputRef.current?.focus();
     } catch (e) {
       console.error('[MessageThread] AI draft failed:', e);
       toast({ title: 'AI draft failed', description: e?.message || 'Unknown error', variant: 'destructive', duration: 5000 });
@@ -1575,7 +1579,7 @@ export default function MessageThread({ conversation, workspaceId }) {
             <input ref={cameraInputRef} type="file" accept="image/*" capture="environment" className="hidden" onChange={onFilePicked} />
 
             {/* Left pill: emoji + textarea + clip + camera */}
-            <div className="flex items-end flex-1 bg-[#2A3942] rounded-full px-3 py-1 gap-2 min-w-0">
+            <div className="flex items-end flex-1 bg-[#2A3942] rounded-2xl px-3 py-1.5 gap-2 min-w-0">
               {/* Emoji button */}
               <div className="relative shrink-0">
                 <button
@@ -1603,15 +1607,16 @@ export default function MessageThread({ conversation, workspaceId }) {
               <textarea
                 ref={inputRef}
                 rows={1}
-                className="flex-1 bg-transparent text-white text-sm focus:outline-none resize-none placeholder:text-[#8696A0] leading-relaxed max-h-32 py-2 min-w-0"
+                className="flex-1 bg-transparent text-white text-sm focus:outline-none resize-none placeholder:text-[#8696A0] leading-[1.4] max-h-32 overflow-y-auto py-2 min-w-0"
                 style={{ scrollbarWidth: 'thin' }}
                 placeholder={tab === 'note' ? 'Add a note…' : 'Message'}
                 value={body}
                 onChange={e => {
                   const val = e.target.value;
                   setBody(val);
+                  // Reset to 1 row when empty, otherwise grow up to 128px
                   e.target.style.height = 'auto';
-                  e.target.style.height = Math.min(e.target.scrollHeight, 128) + 'px';
+                  e.target.style.height = (val === '' ? '' : Math.min(e.target.scrollHeight, 128) + 'px');
                   if (val.startsWith('/')) {
                     setShowCanned(true);
                   } else {
