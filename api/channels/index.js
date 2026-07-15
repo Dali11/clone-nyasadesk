@@ -950,10 +950,27 @@ async function handleSend(req, res) {
     }
 
     // 5. Update conversation
+    const { sender_id, sender_name } = req.body || {};
     await sb.from('conversations').update({
       last_message: text || (media ? `[${media.type}]` : ''),
       last_message_at: new Date().toISOString(),
     }).eq('id', conversation_id);
+
+    // ── Auto-assign-on-reply (replaces the missing DB trigger) ───────────────
+    // If the conversation is still unassigned and a real human is sending
+    // (sender_id is a UUID, not null/undefined), claim it for them immediately.
+    // This ensures no chat stays in limbo after a staff member engages.
+    if (sender_id) {
+      const { data: existingConv } = await sb.from('conversations')
+        .select('assigned_to').eq('id', conversation_id).maybeSingle();
+      if (!existingConv?.assigned_to) {
+        await sb.from('conversations').update({
+          assigned_to: sender_id,
+          assigned_to_name: sender_name || null,
+          status: 'open',
+        }).eq('id', conversation_id);
+      }
+    }
 
     return res.status(200).json({ ok: true });
   } catch (err) {
