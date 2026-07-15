@@ -1,31 +1,29 @@
 // api/_lib/assignRules.js — shared "auto-assign incoming conversations" engine.
 //
-// Underscore-prefixed so Vercel never turns this into its own route (it's a
-// plain module, imported by the inbound channel webhooks).
-//
-// Previously the Rules table was pure config: Settings > Rules let you create/
-// edit/toggle/delete rules and they persisted correctly, but NOTHING in the
-// app ever read them back — every inbound WhatsApp/Messenger/email message
-// created a conversation that just sat unassigned forever, no matter what
-// rules existed. This module is what actually applies them.
-//
 // Match semantics per rule type:
-//   round_robin  — matches unconditionally (a catch-all "assign to anyone" rule)
-//   lead_source  — matches if condition_value equals the contact's lead_source
-//                  (falls back to the conversation's channel if lead_source is unset)
-//   territory    — matches if condition_value (case-insensitive) is found in the
-//                  contact's company, notes, or tags — there's no dedicated
-//                  territory/region field on contacts today, so this is a
-//                  best-effort keyword match across the closest available fields
+//   round_robin  — matches unconditionally (catch-all)
+//   lead_source  — matches if condition_value equals contact lead_source
+//                  (falls back to conversation channel)
+//   territory    — keyword match across contact company/notes/tags
 //
-// A rule additionally only applies if rule.channel is 'all' or matches the
-// conversation's channel. Rules are evaluated in priority_order ascending;
-// the first active match wins. Whichever agent(s) are assigned to that rule
-// get rotated through round-robin (via the rule's own round_robin_index) —
-// so a rule with one agent always picks that agent, and a rule with several
-// rotates between them fairly, regardless of rule "type".
+// Fallback: if NO rules match (or no rules exist), the conversation is assigned
+// to the workspace owner — so NOTHING can remain unassigned when rules are in place.
+// Admins/managers see everything anyway, so the fallback is purely a safety net
+// to guarantee agents have a visible owner on every chat.
 export async function applyAssignmentRules(sb, { workspaceId, conversationId, channel, contact }) {
   try {
+    // Fetch full contact from DB if we only have a partial object
+    let fullContact = contact || {};
+    if (conversationId && (!fullContact.lead_source && !fullContact.company)) {
+      const { data: conv } = await sb.from('conversations')
+        .select('contact_id').eq('id', conversationId).maybeSingle();
+      if (conv?.contact_id) {
+        const { data: dbContact } = await sb.from('contacts')
+          .select('lead_source, company, notes, tags').eq('id', conv.contact_id).maybeSingle();
+        if (dbContact) fullContact = { ...fullContact, ...dbContact };
+      }
+    }
+
     const { data: rules } = await sb
       .from('rules')
       .select('*')
@@ -33,27 +31,52 @@ export async function applyAssignmentRules(sb, { workspaceId, conversationId, ch
       .eq('is_active', true)
       .order('priority_order', { ascending: true });
 
-    if (!rules?.length) return null;
+    if (rules?.length) {
+      for (const rule of rules) {
+        if (rule.channel && rule.channel !== 'all' && rule.channel !== channel) continue;
+        if (!ruleMatches(rule, channel, fullContact)) continue;
 
-    for (const rule of rules) {
-      if (rule.channel && rule.channel !== 'all' && rule.channel !== channel) continue;
-      if (!ruleMatches(rule, channel, contact)) continue;
+        const ids = rule.assigned_to_ids || [];
+        const names = rule.assigned_to_names || [];
+        if (!ids.length) continue;
 
-      const ids = rule.assigned_to_ids || [];
-      const names = rule.assigned_to_names || [];
-      if (!ids.length) continue;
+        const idx = (rule.round_robin_index || 0) % ids.length;
+        const assignedId = ids[idx];
+        const assignedName = names[idx] || null;
 
-      const idx = (rule.round_robin_index || 0) % ids.length;
-      const assignedId = ids[idx];
-      const assignedName = names[idx] || null;
+        await sb.from('rules').update({ round_robin_index: idx + 1 }).eq('id', rule.id);
+        await sb.from('conversations').update({
+          assigned_to: assignedId, assigned_to_name: assignedName, status: 'open',
+        }).eq('id', conversationId);
 
-      await sb.from('rules').update({ round_robin_index: idx + 1 }).eq('id', rule.id);
-      await sb.from('conversations').update({
-        assigned_to: assignedId, assigned_to_name: assignedName, status: 'open',
-      }).eq('id', conversationId);
-
-      return { assignedId, assignedName, ruleId: rule.id };
+        console.log('[assignRules] matched rule', rule.name || rule.type, '→', assignedName);
+        return { assignedId, assignedName, ruleId: rule.id, via: 'rule' };
+      }
     }
+
+    // ── Fallback: no rule matched — assign to workspace owner ──────────────
+    // This guarantees no conversation stays permanently unassigned when
+    // there are team members on the workspace. The owner (admin) sees all
+    // conversations regardless, so this is just a label ensuring the conv
+    // appears in *someone's* queue.
+    const { data: owner } = await sb.from('profiles')
+      .select('id, full_name')
+      .eq('workspace_id', workspaceId)
+      .in('role', ['admin', 'sales_manager'])
+      .order('created_at', { ascending: true })
+      .limit(1)
+      .maybeSingle();
+
+    if (owner) {
+      await sb.from('conversations').update({
+        assigned_to: owner.id,
+        assigned_to_name: owner.full_name || 'Admin',
+        status: 'open',
+      }).eq('id', conversationId);
+      console.log('[assignRules] fallback → owner', owner.full_name);
+      return { assignedId: owner.id, assignedName: owner.full_name, ruleId: null, via: 'fallback' };
+    }
+
     return null;
   } catch (e) {
     console.error('[applyAssignmentRules] error:', e);
