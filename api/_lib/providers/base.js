@@ -74,13 +74,24 @@ export async function persistInboundMessage(sb, workspaceId, params) {
 
   const { data: conv } = await sb.from('conversations')
     .upsert(upsertPayload, { onConflict: 'workspace_id,channel,external_id' })
-    .select('id,unread_count,assigned_to').single();
+    .select('id,unread_count,assigned_to,assigned_to_name').single();
 
   if (conv?.id) {
     await sb.from('conversations').update({
       unread_count: (conv.unread_count || 0) + 1,
       last_message: body, last_message_at: timestamp,
     }).eq('id', conv.id);
+
+    // Re-fetch assigned_to so callers get the current (not upsert-cached) state.
+    // The upsert payload conditionally omits assigned_to for existing convs, so
+    // the returned value can be stale — this ensures providers can accurately
+    // decide whether to run applyAssignmentRules.
+    const { data: freshConv } = await sb.from('conversations')
+      .select('assigned_to, assigned_to_name').eq('id', conv.id).maybeSingle();
+    if (freshConv) {
+      conv.assigned_to = freshConv.assigned_to;
+      conv.assigned_to_name = freshConv.assigned_to_name;
+    }
 
     await sb.from('messages').upsert({
       conversation_id: conv.id, workspace_id: workspaceId,
