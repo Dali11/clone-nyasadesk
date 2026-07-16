@@ -830,6 +830,43 @@ function Bubble({ msg, menuOpenId, onOpenMenu, onCopy, onShare, onForward, onDel
   const clearPress = () => { if (pressTimer.current) clearTimeout(pressTimer.current); };
   const handleContextMenu = (e) => { e.preventDefault(); onOpenMenu(msg.id); };
 
+  // ── Swipe-to-reply (WhatsApp style) ────────────────────────────────────
+  const swipeX = useRef(0);
+  const [dragX, setDragX] = useState(0);
+  const [showReplyIcon, setShowReplyIcon] = useState(false);
+  const SWIPE_THRESHOLD = 60; // px needed to trigger reply
+
+  const handleTouchStart = (e) => {
+    if (isDeleted || isActivity) return;
+    swipeX.current = e.touches[0].clientX;
+  };
+  const handleTouchMove = (e) => {
+    if (isDeleted || isActivity) return;
+    const dx = e.touches[0].clientX - swipeX.current;
+    // Inbound: swipe right (dx > 0). Outbound: swipe left (dx < 0)
+    const direction = isOut ? -1 : 1;
+    const pull = dx * direction;
+    if (pull > 0 && pull < 90) {
+      setDragX(dx);
+      setShowReplyIcon(pull > 30);
+      // Prevent page scroll when swiping
+      e.preventDefault();
+    }
+  };
+  const handleTouchEnd = () => {
+    if (isDeleted || isActivity) return;
+    const direction = isOut ? -1 : 1;
+    const pull = dragX * direction;
+    if (pull >= SWIPE_THRESHOLD) {
+      onReply(msg);
+      // Haptic feedback if available
+      if (navigator.vibrate) navigator.vibrate(30);
+    }
+    // Spring back
+    setDragX(0);
+    setShowReplyIcon(false);
+  };
+
   if (isActivity) return (
     <div className="flex justify-center py-1">
       <span className="text-[11px] px-3 py-1.5 rounded-lg text-center" style={{background:"rgba(11,20,26,0.8)",color:"#8696A0"}}>{linkifyText(msg.body)}</span>
@@ -837,7 +874,14 @@ function Bubble({ msg, menuOpenId, onOpenMenu, onCopy, onShare, onForward, onDel
   );
 
   if (isNote) return (
-    <div className="flex justify-center py-1" ref={bubbleRef}>
+    <div
+      className="flex justify-center py-1 relative select-none"
+      style={{ touchAction: 'pan-y' }}
+      onTouchStart={handleTouchStart}
+      onTouchMove={handleTouchMove}
+      onTouchEnd={handleTouchEnd}
+      ref={bubbleRef}
+    >
       <div
         className="group relative max-w-[78%] bg-yellow-900/30 border border-yellow-700/40 rounded-xl px-4 py-2 text-xs text-yellow-200"
         onPointerDown={!isDeleted ? startPress : undefined}
@@ -867,12 +911,28 @@ function Bubble({ msg, menuOpenId, onOpenMenu, onCopy, onShare, onForward, onDel
   );
 
   return (
+    <div
+      className={`flex items-end gap-2 ${isOut ? 'flex-row-reverse' : 'flex-row'} relative select-none`}
+      style={{ touchAction: 'pan-y' }}
+      onTouchStart={handleTouchStart}
+      onTouchMove={handleTouchMove}
+      onTouchEnd={handleTouchEnd}
+    >
+      {/* Reply icon that appears during swipe */}
+      {showReplyIcon && (
+        <div
+          className={`absolute ${isOut ? 'right-full mr-2' : 'left-full ml-2'} flex items-center justify-center w-8 h-8 rounded-full bg-[#1F2C34] transition-opacity`}
+          style={{ opacity: Math.min(Math.abs(dragX) / SWIPE_THRESHOLD, 1) }}
+        >
+          <Reply className="w-4 h-4 text-[#00A884]" style={{ transform: isOut ? 'scaleX(-1)' : 'none' }} />
+        </div>
+      )}
     <motion.div
       ref={bubbleRef}
       initial={{ opacity: 0, y: 6 }}
-      animate={{ opacity: 1, y: 0 }}
-      transition={{ duration: 0.15 }}
-      className={`flex items-end gap-2 ${isOut ? 'flex-row-reverse' : 'flex-row'}`}
+      animate={{ opacity: 1, y: 0, x: dragX }}
+      transition={dragX === 0 ? { type: 'spring', stiffness: 300, damping: 30 } : { duration: 0 }}
+      className={`flex items-end gap-2 ${isOut ? 'flex-row-reverse' : 'flex-row'} w-full`}
     >
 
       <div
@@ -946,6 +1006,7 @@ function Bubble({ msg, menuOpenId, onOpenMenu, onCopy, onShare, onForward, onDel
         )}
       </div>
     </motion.div>
+    </div>
   );
 }
 
