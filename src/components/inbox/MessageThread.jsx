@@ -38,6 +38,36 @@ import {useToast}from '@/components/ui/use-toast';
 import {DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger, DropdownMenuSeparator}from '@/components/ui/dropdown-menu';
 import EmojiPicker from 'emoji-picker-react';
 
+// ── Linkify: turn URLs and emails in text into clickable anchors ───────────
+function linkifyText(text) {
+  if (!text) return null;
+  // Match http/https URLs, bare www. links, and email addresses
+  const URL_RE = /((https?:\/\/[^\s<>"']+)|(www\.[^\s<>"']+\.[^\s<>"']{2,})|([a-zA-Z0-9._%+\-]+@[a-zA-Z0-9.\-]+\.[a-zA-Z]{2,}))/g;
+  const parts = [];
+  let last = 0;
+  let match;
+  while ((match = URL_RE.exec(text)) !== null) {
+    if (match.index > last) parts.push(text.slice(last, match.index));
+    const raw = match[0];
+    const isEmail = /^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(raw);
+    const href = isEmail ? `mailto:${raw}` : raw.startsWith('http') ? raw : `https://${raw}`;
+    parts.push(
+      <a key={match.index} href={href} target="_blank" rel="noopener noreferrer"
+         onClick={e => e.stopPropagation()}
+         className="underline break-all"
+         style={{color:'#53BDEB'}}>
+        {raw}
+      </a>
+    );
+    last = match.index + raw.length;
+  }
+  if (last < text.length) parts.push(text.slice(last));
+  // Wrap in a fragment preserving whitespace
+  return parts;
+}
+
+
+
 const CHANNEL_COLOR = {
   whatsapp: '#DCF8C6',
   messenger: '#D6EAFF',
@@ -802,7 +832,7 @@ function Bubble({ msg, menuOpenId, onOpenMenu, onCopy, onShare, onForward, onDel
 
   if (isActivity) return (
     <div className="flex justify-center py-1">
-      <span className="text-[11px] px-3 py-1.5 rounded-lg text-center" style={{background:"rgba(11,20,26,0.8)",color:"#8696A0"}}>{msg.body}</span>
+      <span className="text-[11px] px-3 py-1.5 rounded-lg text-center" style={{background:"rgba(11,20,26,0.8)",color:"#8696A0"}}>{linkifyText(msg.body)}</span>
     </div>
   );
 
@@ -823,7 +853,7 @@ function Bubble({ msg, menuOpenId, onOpenMenu, onCopy, onShare, onForward, onDel
         {isDeleted ? (
           <p className="italic text-yellow-500/60 flex items-center gap-1"><Ban className="w-3 h-3" />This note was deleted</p>
         ) : (
-          <p className="whitespace-pre-wrap leading-relaxed">{msg.body}</p>
+          <p className="whitespace-pre-wrap leading-relaxed">{linkifyText(msg.body)}</p>
         )}
         {!isDeleted && (
           <MessageActionsMenu msg={msg} isOut={false} open={menuOpen}
@@ -894,7 +924,7 @@ function Bubble({ msg, menuOpenId, onOpenMenu, onCopy, onShare, onForward, onDel
                   </span>
                 );
               }
-              return <p className="whitespace-pre-wrap break-words">{msg.body}</p>;
+              return <p className="whitespace-pre-wrap break-words">{linkifyText(msg.body)}</p>;
             })()}
           </>
         )}
