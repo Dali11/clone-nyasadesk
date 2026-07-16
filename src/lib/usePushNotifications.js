@@ -2,6 +2,11 @@ import { useState, useEffect, useCallback, useRef } from 'react';
 import { supabase } from '@/lib/supabase';
 
 const VAPID_PUBLIC_KEY = import.meta.env.VITE_VAPID_PUBLIC_KEY;
+// Guard: if the key looks like an encrypted Vercel wrapper (starts with "eyJ")
+// and is longer than 100 chars, it's invalid. Log a warning but don't crash.
+if (VAPID_PUBLIC_KEY && VAPID_PUBLIC_KEY.startsWith('eyJ') && VAPID_PUBLIC_KEY.length > 100) {
+  console.error('[push] VITE_VAPID_PUBLIC_KEY appears to be an encrypted Vercel secret, not a raw VAPID key. Push notifications will not work until the correct key is set.');
+}
 
 function urlBase64ToUint8Array(base64String) {
   const padding = '='.repeat((4 - (base64String.length % 4)) % 4);
