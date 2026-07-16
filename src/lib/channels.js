@@ -373,7 +373,17 @@ export async function getMessages(conversationId) {
 // Uploads a File/Blob to the public 'chat-media' storage bucket and returns its
 // public URL. Used for images, videos, and recorded voice notes.
 export async function uploadChatMedia(workspaceId, file, kind) {
-  const ext = (file.name?.split('.').pop() || (kind === 'audio' ? 'webm' : 'bin')).toLowerCase();
+  // Secondary size guard (primary is in the UI) — catches programmatic calls
+  const limitsMB = { image: 5, video: 16, audio: 16, document: 100 };
+  const limitMB = limitsMB[kind] || 100;
+  if (file.size > limitMB * 1024 * 1024) {
+    throw new Error(`File too large: ${(file.size / 1048576).toFixed(1)}MB exceeds ${limitMB}MB limit for ${kind}`);
+  }
+  // Normalise extension: video/quicktime → .mp4, etc.
+  let ext = (file.name?.split('.').pop() || '').toLowerCase();
+  if (!ext || ext === file.name.toLowerCase()) {
+    ext = kind === 'audio' ? 'ogg' : kind === 'video' ? 'mp4' : kind === 'image' ? 'jpg' : 'bin';
+  }
   const path = `${workspaceId}/${kind}/${Date.now()}-${Math.random().toString(36).slice(2, 8)}.${ext}`;
   const { error } = await supabase.storage.from('chat-media').upload(path, file, {
     contentType: file.type || undefined,
@@ -391,7 +401,8 @@ export async function sendMediaMessage(workspaceId, conversationId, file, kind, 
   const url = await uploadChatMedia(workspaceId, file, kind);
   // Normalise audio MIME before storing — Meta rejects audio/webm (error 131053)
   const mime = kind === 'audio' ? normaliseAudioMimeClient(file.type) : (file.type || null);
-  const attachments = [{ url, type: kind, mime, name: file.name || null }];
+  // Include both `name` (legacy) and `filename` (what MediaAttachment reads for documents)
+  const attachments = [{ url, type: kind, mime, name: file.name || null, filename: file.name || null }];
   const placeholderBody = caption || (kind === 'image' ? '📷 Photo' : kind === 'video' ? '🎥 Video' : '🎤 Voice message');
   return sendMessage(workspaceId, conversationId, placeholderBody, senderName, attachments, senderId, replyTo);
 }
