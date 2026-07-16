@@ -1412,7 +1412,17 @@ export default function Settings() {
       setTimeout(() => setBanner(null), 5000);
     }
     if (searchParams.get("wa") === "check") {
-      syncWaba();
+      // Re-fetch channel configs to reflect newly connected WhatsApp account
+      if (workspaceOwnerId) {
+        getChannelConfigs(workspaceOwnerId)
+          .then(rows => {
+            const map = {};
+            rows.forEach(r => { map[r.channel] = r; });
+            setChannelConfigs(map);
+            try { localStorage.setItem('wa_channel_configs', JSON.stringify(map)); } catch {}
+          })
+          .catch(e => console.error('[Settings] wa=check refresh failed:', e));
+      }
     }
   }, [searchParams]);
 
