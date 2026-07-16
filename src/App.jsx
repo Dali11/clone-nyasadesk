@@ -139,7 +139,11 @@ function AppRoutes() {
   // login, which silently promoted them to admin of their own phantom
   // workspace. Only a confirmed `false` (real profile row, genuinely never
   // onboarded) should show the wizard.
-  if (onboardingComplete === false) {
+  // God Mode: platform admins entering a workspace must never be blocked by
+  // the target's onboarding state — their own auth is intact, they're just
+  // viewing another workspace.
+  const _inGodMode = (() => { try { return !!sessionStorage.getItem('nyasa_god_mode'); } catch { return false; } })();
+  if (onboardingComplete === false && !_inGodMode) {
     return (
       <Routes>
         <Route path="*" element={<Onboarding />} />
