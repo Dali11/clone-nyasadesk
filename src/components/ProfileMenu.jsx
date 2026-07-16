@@ -117,7 +117,11 @@ function MenuContent({ onClose }) {
 
   const go = (path) => { onClose?.(); navigate(path); };
   const handleLogout = async () => { onClose?.(); await signOut(); navigate('/login', { replace: true }); };
-  const togglePush = () => { if (pushLoading) return; pushSubscribed ? pushUnsubscribe() : pushSubscribe(); };
+  // Don't allow toggling until workspaceOwnerId is resolved — avoids silent no-ops
+  const togglePush = () => {
+    if (pushLoading || !workspaceOwnerId) return;
+    pushSubscribed ? pushUnsubscribe() : pushSubscribe();
+  };
 
   return (
     <div className="flex flex-col overflow-y-auto max-h-[85vh]">
