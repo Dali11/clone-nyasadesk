@@ -359,13 +359,27 @@ function MediaAttachment({ att, onOpen }) {
   );
 
   if (att.type === 'video') return (
-    <button type="button" onClick={() => onOpen?.(att)} className="group relative block mb-1 rounded-lg overflow-hidden max-w-[240px]">
-      <video src={att.url} className="rounded-lg max-w-[240px] max-h-[240px] w-full pointer-events-none" />
-      <span className="absolute inset-0 bg-black/25 group-hover:bg-black/40 transition-colors flex items-center justify-center">
-        <span className="w-9 h-9 rounded-full bg-black/50 flex items-center justify-center">
-          <Play className="w-4 h-4 text-white fill-white ml-0.5" />
+    <button type="button"
+      onClick={() => att.sending ? undefined : onOpen?.(att)}
+      className="group relative block mb-1 rounded-lg overflow-hidden max-w-[240px]"
+    >
+      <video
+        src={att.url}
+        preload="none"
+        className={`rounded-lg max-w-[240px] max-h-[240px] w-full pointer-events-none transition-opacity ${att.sending ? 'opacity-50' : 'opacity-100'}`}
+      />
+      {att.sending ? (
+        <span className="absolute inset-0 flex flex-col items-center justify-center bg-black/50 rounded-lg">
+          <Loader2 className="w-7 h-7 text-white animate-spin mb-1" />
+          <span className="text-white text-[10px] font-semibold tracking-wide">Sending…</span>
         </span>
-      </span>
+      ) : (
+        <span className="absolute inset-0 bg-black/25 group-hover:bg-black/40 transition-colors flex items-center justify-center">
+          <span className="w-9 h-9 rounded-full bg-black/50 flex items-center justify-center">
+            <Play className="w-4 h-4 text-white fill-white ml-0.5" />
+          </span>
+        </span>
+      )}
     </button>
   );
 
@@ -1230,6 +1244,7 @@ export default function MessageThread({ conversation, workspaceId }) {
     }]);
     try {
       const msg = await sendMediaMessage(wId, conversation.id, file, kind, user?.full_name || 'You', '', user?.id || null);
+      URL.revokeObjectURL(localUrl); // free blob memory after real URL is available
       if (msg?.id) settledIds.current.add(msg.id);
       setMessages(prev => prev.map(m => m.id === tempId ? { ...msg, direction: 'outbound' } : m));
     } catch (e) {
@@ -1369,10 +1384,35 @@ export default function MessageThread({ conversation, workspaceId }) {
   };
 
   const sendMediaQueue = async (files) => {
+    // ── Size + MIME validation (WhatsApp limits) ──────────────────────────
+    const WA_SIZE_LIMITS = { image: 5, video: 16, audio: 16, document: 100 }; // MB
+    const WA_VIDEO_MIMES = ['video/mp4', 'video/3gpp', 'video/quicktime'];
+    const rejected = [];
+    const validFiles = files.filter(file => {
+      const kind = file.type.startsWith('image/') ? 'image'
+                 : file.type.startsWith('video/') ? 'video'
+                 : file.type.startsWith('audio/') ? 'audio'
+                 : 'document';
+      const limitMB = WA_SIZE_LIMITS[kind];
+      const sizeMB = file.size / (1024 * 1024);
+      if (sizeMB > limitMB) {
+        rejected.push(`${file.name} is ${sizeMB.toFixed(1)}MB — max ${limitMB}MB for ${kind}s`);
+        return false;
+      }
+      if (kind === 'video' && !WA_VIDEO_MIMES.includes(file.type)) {
+        rejected.push(`${file.name}: ${file.type} not supported — use MP4 or 3GPP`);
+        return false;
+      }
+      return true;
+    });
+    if (rejected.length) {
+      rejected.forEach(msg => toast({ title: 'File not supported', description: msg, variant: 'destructive' }));
+      if (!validFiles.length) return;
+    }
     setUploading(true);
     // Split into image batch vs other files
-    const imageFiles = files.filter(f => f.type.startsWith('image/'));
-    const otherFiles = files.filter(f => !f.type.startsWith('image/'));
+    const imageFiles = validFiles.filter(f => f.type.startsWith('image/'));
+    const otherFiles = validFiles.filter(f => !f.type.startsWith('image/'));
 
     try {
       // ── Multi-image: send as album ───────────────────────────────────────
@@ -1445,7 +1485,12 @@ export default function MessageThread({ conversation, workspaceId }) {
         const kind = file.type.startsWith('video/') ? 'video'
                    : file.type.startsWith('audio/') ? 'audio'
                    : 'document';
-        await handleSendMedia(file, kind);
+        try {
+          await handleSendMedia(file, kind);
+        } catch (err) {
+          console.error('[sendMediaQueue] failed:', file.name, err);
+          toast({ title: 'Send failed', description: `${file.name} could not be sent. ${err?.message || ''}`, variant: 'destructive' });
+        }
         if (i < otherFiles.length - 1) await new Promise(r => setTimeout(r, 350));
       }
     } finally {
