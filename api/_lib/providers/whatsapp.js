@@ -291,7 +291,16 @@ export class WhatsAppCloudProvider extends MessagingProvider {
       body: JSON.stringify(payload),
     });
     const json = await r.json();
-    if (!r.ok) throw new Error(json.error?.message || 'WhatsApp API error');
+    if (!r.ok) {
+      const errCode = json.error?.code;
+      const errMsg  = json.error?.message || 'WhatsApp API error';
+      // Error 131047 = "Re-engagement message" — the 24h customer-service
+      // window has closed. The only allowed messages are approved templates.
+      if (errCode === 131047 || errMsg.includes('Re-engagement') || errMsg.includes('Outside') || errMsg.includes('24 hour')) {
+        throw Object.assign(new Error('WINDOW_EXPIRED: ' + errMsg), { code: 131047, windowExpired: true });
+      }
+      throw new Error(errMsg);
+    }
 
     return { ok: true, external_id: json.messages?.[0]?.id };
   }
