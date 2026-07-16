@@ -82,22 +82,36 @@ function DateSeparator({ label }) {
   );
 }
 
-function StatusIcon({ status, errorReason }) {
+function StatusIcon({ status, errorReason, onSendTemplate }) {
   // WhatsApp-style receipt semantics:
   //  sending   -> spinner (optimistic, not yet accepted by the server)
   //  sent      -> single grey check (server/API accepted it)
   //  delivered -> double grey check (reached the recipient's device — real webhook receipt)
   //  read      -> double BLUE check (recipient opened it — real webhook receipt)
-  //  failed    -> red X
+  //  failed    -> red X or template CTA if 24h window expired
   if (status === 'sending')   return <Loader2 className="w-3 h-3 animate-spin text-gray-400" />;
   if (status === 'sent')      return <Check className="w-3 h-3 text-gray-400" />;
   if (status === 'delivered') return <CheckCheck className="w-3 h-3 text-gray-400" />;
   if (status === 'read')      return <CheckCheck className="w-3 h-3 text-[#53BDEB]" />;
-  if (status === 'failed')    return <FailedIcon reason={errorReason} />;
+  if (status === 'failed')    return <FailedIcon reason={errorReason} onSendTemplate={onSendTemplate} />;
   return null;
 }
-function FailedIcon({ reason, onRetry }) {
-  const msg = reason ? `Failed: ${reason}` : 'Failed to send — tap for details';
+function FailedIcon({ reason, onSendTemplate }) {
+  const isWindowExpired = reason === 'WINDOW_EXPIRED';
+  const msg = isWindowExpired
+    ? '24h window closed — use a template to re-engage'
+    : reason ? `Failed: ${reason}` : 'Failed to send — tap for details';
+  if (isWindowExpired && onSendTemplate) {
+    return (
+      <button
+        onClick={(e) => { e.stopPropagation(); onSendTemplate(); }}
+        className="inline-flex items-center gap-1 text-[10px] font-medium bg-[#00A884]/20 border border-[#00A884]/40 text-[#00A884] rounded-full px-2 py-0.5 hover:bg-[#00A884]/30 transition-colors"
+        title="The 24h customer-service window has closed. Send a pre-approved template to re-engage."
+      >
+        <span>⏰</span> Send Template
+      </button>
+    );
+  }
   return (
     <span className="inline-flex items-center gap-1">
       <X
@@ -105,14 +119,6 @@ function FailedIcon({ reason, onRetry }) {
         title={msg}
         onClick={(e) => { e.stopPropagation(); window.alert(msg); }}
       />
-      {onRetry && (
-        <button
-          className="text-[10px] text-red-400 hover:text-red-300 underline underline-offset-1 leading-none"
-          onClick={(e) => { e.stopPropagation(); onRetry(); }}
-        >
-          Retry
-        </button>
-      )}
     </span>
   );
 }
@@ -777,7 +783,7 @@ function ReactionBadges({ reactions, currentUserId, onReact }) {
   );
 }
 
-function Bubble({ msg, menuOpenId, onOpenMenu, onCopy, onShare, onForward, onDelete, onTogglePin, onReact, currentUserId, onReply, onJumpToReply, bubbleRef, onOpenMedia }) {
+function Bubble({ msg, menuOpenId, onOpenMenu, onCopy, onShare, onForward, onDelete, onTogglePin, onReact, currentUserId, onReply, onJumpToReply, bubbleRef, onOpenMedia, onOpenTemplateModal }) {
   const isNote     = msg.direction === 'note';
   const isActivity = msg.direction === 'activity';
   const isOut      = msg.direction === 'outbound';
@@ -896,7 +902,7 @@ function Bubble({ msg, menuOpenId, onOpenMenu, onCopy, onShare, onForward, onDel
           <p className="text-[10px]" style={{color:'#8696A0'}}>
             {ts ? new Date(ts).toLocaleTimeString([], {hour:'2-digit',minute:'2-digit'}) : ''}
           </p>
-          {isOut && !isDeleted && <StatusIcon status={msg.status} errorReason={msg.error_reason} />}
+          {isOut && !isDeleted && <StatusIcon status={msg.status} errorReason={msg.error_reason} onSendTemplate={msg.error_reason === 'WINDOW_EXPIRED' ? (() => onOpenTemplateModal?.(msg)) : undefined} />}
         </div>
         {!isDeleted && msg.reactions && Object.keys(msg.reactions).length > 0 && (
           <ReactionBadges reactions={msg.reactions} currentUserId={currentUserId} onReact={(emoji) => onReact(msg, emoji)} />
@@ -939,6 +945,10 @@ export default function MessageThread({ conversation, workspaceId }) {
   const [replyingTo, setReplyingTo] = useState(null);
   const [reactingToMsg, setReactingToMsg] = useState(null); // when reacting via context menu
   const [pinnedBannerIdx, setPinnedBannerIdx] = useState(0);
+  const [showTemplateModal, setShowTemplateModal] = useState(false);
+  const [templateTargetMsg, setTemplateTargetMsg] = useState(null); // failed msg that triggered 24h flow
+  const [templates, setTemplates] = useState([]);
+  const [templatesLoading, setTemplatesLoading] = useState(false);
   const [lightboxMedia, setLightboxMedia] = useState(null); // { url, type } or null
   const bottomRef = useRef(null);
   const inputRef  = useRef(null);
@@ -1474,6 +1484,63 @@ export default function MessageThread({ conversation, workspaceId }) {
     }
   };
 
+  // ── 24h Window: load templates and send via template ────────────────────
+  const openTemplateModal = async (msg) => {
+    setTemplateTargetMsg(msg);
+    setShowTemplateModal(true);
+    if (templates.length) return; // already loaded
+    setTemplatesLoading(true);
+    try {
+      const res = await fetch(`/api/channels?action=list-templates&workspace_id=${workspaceId}`);
+      const data = await res.json();
+      setTemplates(data.templates || []);
+    } catch (e) {
+      console.error('[MessageThread] failed to load templates:', e);
+    } finally {
+      setTemplatesLoading(false);
+    }
+  };
+
+  const handleSendTemplate = async (template) => {
+    setShowTemplateModal(false);
+    if (!templateTargetMsg || !conversation) return;
+    const tempId = 'temp-' + Date.now();
+    const optimistic = {
+      id: tempId, conversation_id: conversation.id, workspace_id: workspaceId,
+      body: `[Template] ${template.name}`, direction: 'outbound',
+      sender_name: profile?.full_name || user?.email || 'Agent',
+      status: 'sending', created_at: new Date().toISOString(), attachments: null,
+    };
+    setMessages(prev => [...prev, optimistic]);
+    scrollToBottom();
+    try {
+      const { data: msg, error } = await supabase.from('messages').insert({
+        workspace_id: workspaceId, conversation_id: conversation.id,
+        direction: 'outbound', body: `[Template] ${template.name}`,
+        sender_name: profile?.full_name || user?.email || 'Agent',
+        sender_id: user?.id || null, status: 'sending',
+      }).select().single();
+      if (error) throw error;
+      setMessages(prev => prev.map(m => m.id === tempId ? msg : m));
+      const res = await fetch('/api/channels?action=send', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          message_id: msg.id, conversation_id: conversation.id,
+          workspace_id: workspaceId, channel: conversation.channel,
+          body: '', template: { name: template.name, language: template.language || 'en_US' },
+          sender_id: user?.id || null, sender_name: profile?.full_name || user?.email || null,
+        }),
+      });
+      if (!res.ok) {
+        const errData = await res.json();
+        await supabase.from('messages').update({ status: 'failed', error_reason: errData.error || 'Template send failed' }).eq('id', msg.id);
+      }
+    } catch (e) {
+      console.error('[MessageThread] template send failed:', e);
+    }
+  };
+
   const handleDeleteMessage = async (msg) => {
     if (!window.confirm('Delete this message? This can\'t be undone.')) return;
     const prevMsg = msg;
@@ -1579,6 +1646,7 @@ export default function MessageThread({ conversation, workspaceId }) {
                   onDelete={handleDeleteMessage}
                   onReply={handleReplyMessage}
                   onJumpToReply={scrollToMessage}
+                  onOpenTemplateModal={openTemplateModal}
                   onOpenMedia={setLightboxMedia}
                 />
               </Fragment>
@@ -1777,6 +1845,42 @@ export default function MessageThread({ conversation, workspaceId }) {
       </div>
 
       {lightboxMedia && <MediaLightbox att={lightboxMedia} onClose={() => setLightboxMedia(null)} />}
+      {/* ── Template picker modal (24h window expired) ── */}
+      {showTemplateModal && (
+        <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/60" onClick={() => setShowTemplateModal(false)}>
+          <div className="w-full max-w-lg bg-[#1F2C34] rounded-t-2xl border-t border-white/10 shadow-2xl p-4 pb-8" onClick={e => e.stopPropagation()}>
+            <div className="w-10 h-1 rounded-full bg-white/20 mx-auto mb-4" />
+            <h3 className="text-sm font-semibold text-white mb-1">Send a Template</h3>
+            <p className="text-[11px] text-[#8696A0] mb-4">The 24-hour window has closed. You can only re-engage using a Meta-approved template.</p>
+            {templatesLoading ? (
+              <div className="flex items-center justify-center py-8">
+                <Loader2 className="w-5 h-5 animate-spin text-[#25D366]" />
+              </div>
+            ) : templates.length === 0 ? (
+              <div className="text-center py-6 text-[#8696A0] text-xs">
+                <p className="mb-2">No approved templates found.</p>
+                <p>Create and submit templates in your <a href="https://business.facebook.com" target="_blank" rel="noreferrer" className="text-[#25D366] underline">Meta Business Manager</a>.</p>
+              </div>
+            ) : (
+              <div className="max-h-72 overflow-y-auto space-y-2 scrollbar-thin">
+                {templates.map(t => (
+                  <button
+                    key={t.name}
+                    onClick={() => handleSendTemplate(t)}
+                    className="w-full text-left px-3 py-2.5 rounded-xl bg-[var(--nyasa-surface-3)] border border-[var(--nyasa-border)] hover:border-[#25D366]/50 transition-colors"
+                  >
+                    <p className="text-xs font-semibold text-white">{t.name}</p>
+                    <p className="text-[10px] text-[#8696A0] mt-0.5">{t.language} · {t.category}</p>
+                    {t.components?.find(c => c.type === 'BODY') && (
+                      <p className="text-[10px] text-gray-400 mt-1 line-clamp-2">{t.components.find(c => c.type === 'BODY').text}</p>
+                    )}
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
+        </div>
+      )}
       {/* WhatsApp-style emoji keyboard — slides up from bottom, replaces keyboard */}
       {showEmojiPicker && (
         <div
