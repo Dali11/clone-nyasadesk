@@ -122,6 +122,7 @@ export default async function handler(req, res) {
   if (action === 'email-send')            return handleEmailSend(req, res);
   if (action === 'push-test')     return handlePushTest(req, res);
   if (action === 'send-debug')   return handleSendDebug(req, res);
+  if (action === 'list-templates') return handleListTemplates(req, res);
   return handleSend(req, res);
 }
 
@@ -897,6 +898,24 @@ async function handleSendDebug(req, res) {
 }
 
 
+
+// ── List approved WhatsApp templates for a workspace ─────────────────────
+async function handleListTemplates(req, res) {
+  try {
+    const { workspace_id } = req.query;
+    if (!workspace_id) return res.status(400).json({ error: 'workspace_id required' });
+    const sb = createClient(SUPABASE_URL, SUPABASE_KEY);
+    const { data: cfg } = await sb.from('channel_configs').select('*')
+      .eq('workspace_id', workspace_id).eq('channel', 'whatsapp').single();
+    if (!cfg?.enabled) return res.status(400).json({ error: 'WhatsApp not configured' });
+    const provider = getProvider('whatsapp:cloud');
+    const templates = await provider.listTemplates(cfg.config);
+    return res.status(200).json({ templates });
+  } catch (e) {
+    return res.status(500).json({ error: e.message });
+  }
+}
+
 async function handleSend(req, res) {
   try {
     const { message_id, conversation_id, workspace_id, channel, body: text, attachments, template, message_type, location, media_url, media_type } = req.body || {};
@@ -977,10 +996,16 @@ async function handleSend(req, res) {
     console.error('Send error:', err);
     if (req.body?.message_id) {
       const sb2 = createClient(SUPABASE_URL, SUPABASE_KEY);
-      // Store the real failure reason (e.g. Meta's actual Graph API rejection,
-      // or our own pre-flight format check) so the UI can show it instead of
-      // just a bare red X with no explanation.
-      await sb2.from('messages').update({ status: 'failed', error_reason: (err.message || 'Unknown error').slice(0, 500) }).eq('id', req.body.message_id);
+      // Store a clean, user-friendly reason.
+      // WINDOW_EXPIRED is a special sentinel the frontend checks to show
+      // a "Send Template" CTA instead of a bare red X.
+      const reason = err.windowExpired
+        ? 'WINDOW_EXPIRED'
+        : (err.message || 'Unknown error').slice(0, 500);
+      await sb2.from('messages').update({ status: 'failed', error_reason: reason }).eq('id', req.body.message_id);
+    }
+    if (err.windowExpired) {
+      return res.status(400).json({ error: 'WINDOW_EXPIRED', windowExpired: true, message: 'The 24-hour messaging window has closed. You must use an approved WhatsApp template to re-engage this contact.' });
     }
     return res.status(500).json({ error: err.message });
   }
