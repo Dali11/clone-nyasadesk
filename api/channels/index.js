@@ -899,23 +899,6 @@ async function handleSendDebug(req, res) {
 
 
 
-// ── List approved WhatsApp templates for a workspace ─────────────────────
-async function handleListTemplates(req, res) {
-  try {
-    const { workspace_id } = req.query;
-    if (!workspace_id) return res.status(400).json({ error: 'workspace_id required' });
-    const sb = createClient(SUPABASE_URL, SUPABASE_KEY);
-    const { data: cfg } = await sb.from('channel_configs').select('*')
-      .eq('workspace_id', workspace_id).eq('channel', 'whatsapp').single();
-    if (!cfg?.enabled) return res.status(400).json({ error: 'WhatsApp not configured' });
-    const provider = getProvider('whatsapp:cloud');
-    const templates = await provider.listTemplates(cfg.config);
-    return res.status(200).json({ templates });
-  } catch (e) {
-    return res.status(500).json({ error: e.message });
-  }
-}
-
 async function handleSend(req, res) {
   try {
     const { message_id, conversation_id, workspace_id, channel, body: text, attachments, template, message_type, location, media_url, media_type } = req.body || {};
