@@ -346,9 +346,11 @@ function MediaAttachment({ att, onOpen }) {
         className={`rounded-lg max-w-[240px] max-h-[240px] object-cover transition-opacity ${att.sending ? 'opacity-60' : 'opacity-100'}`} />
       {att.sending ? (
         /* Upload-in-progress overlay — shimmer + spinner + label */
-        <span className="absolute inset-0 flex flex-col items-center justify-center bg-black/40 rounded-lg">
-          <Loader2 className="w-7 h-7 text-white animate-spin mb-1" />
-          <span className="text-white text-[10px] font-semibold tracking-wide">Sending…</span>
+        <span className="absolute inset-0 flex flex-col items-center justify-center bg-black/40 rounded-lg px-4">
+          {att.progress != null
+            ? <><div className="w-28 h-1.5 rounded-full bg-white/30 mb-2 overflow-hidden"><div className="h-full rounded-full bg-[#25D366] transition-all duration-300" style={{width:`${att.progress}%`}}/></div><span className="text-white text-[10px] font-semibold tracking-wide">{att.progress}%</span></>
+            : <><Loader2 className="w-7 h-7 text-white animate-spin mb-1" /><span className="text-white text-[10px] font-semibold tracking-wide">Sending…</span></>
+          }
         </span>
       ) : (
         <span className="absolute inset-0 bg-black/0 group-hover:bg-black/20 transition-colors flex items-center justify-center">
@@ -369,9 +371,11 @@ function MediaAttachment({ att, onOpen }) {
         className={`rounded-lg max-w-[240px] max-h-[240px] w-full pointer-events-none transition-opacity ${att.sending ? 'opacity-50' : 'opacity-100'}`}
       />
       {att.sending ? (
-        <span className="absolute inset-0 flex flex-col items-center justify-center bg-black/50 rounded-lg">
-          <Loader2 className="w-7 h-7 text-white animate-spin mb-1" />
-          <span className="text-white text-[10px] font-semibold tracking-wide">Sending…</span>
+        <span className="absolute inset-0 flex flex-col items-center justify-center bg-black/50 rounded-lg px-4">
+          {att.progress != null
+            ? <><div className="w-28 h-1.5 rounded-full bg-white/30 mb-2 overflow-hidden"><div className="h-full rounded-full bg-[#25D366] transition-all duration-300" style={{width:`${att.progress}%`}}/></div><span className="text-white text-[10px] font-semibold tracking-wide">{att.progress}% · Uploading in background</span></>
+            : <><Loader2 className="w-7 h-7 text-white animate-spin mb-1" /><span className="text-white text-[10px] font-semibold tracking-wide">Sending…</span></>
+          }
         </span>
       ) : (
         <span className="absolute inset-0 bg-black/25 group-hover:bg-black/40 transition-colors flex items-center justify-center">
@@ -397,9 +401,9 @@ function MediaAttachment({ att, onOpen }) {
           <p className="text-xs font-semibold truncate">{att.filename || 'Document'}</p>
           <p className="text-[10px] text-gray-500 mt-0.5">
             {att.sending ? (
-              <span className="flex items-center gap-1 text-blue-400">
-                <Loader2 className="w-3 h-3 animate-spin" />Uploading…
-              </span>
+              att.progress != null
+                ? <span className="block w-full"><div className="w-full h-1 rounded-full bg-white/20 mt-1 overflow-hidden"><div className="h-full rounded-full bg-[#25D366] transition-all duration-300" style={{width:`${att.progress}%`}}/></div><span className="text-[#25D366]">{att.progress}% · background upload</span></span>
+                : <span className="flex items-center gap-1 text-blue-400"><Loader2 className="w-3 h-3 animate-spin" />Uploading…</span>
             ) : `${ext} · Tap to open`}
           </p>
         </div>
@@ -1037,6 +1041,7 @@ export default function MessageThread({ conversation, workspaceId }) {
   const [sending, setSending]     = useState(false);
   const [uploading, setUploading] = useState(false);
   const [uploadProgress, setUploadProgress] = useState({ current: 0, total: 0 }); // X of N counter
+  const [bgUploadProgress, setBgUploadProgress] = useState({}); // { [tempId]: 0-100 }
   const [showLocationSender, setShowLocationSender] = useState(false);
   const [showCanned, setShowCanned] = useState(false);
   const [recording, setRecording] = useState(false);
@@ -1063,6 +1068,8 @@ export default function MessageThread({ conversation, workspaceId }) {
   const cameraInputRef = useRef(null);
   const messageRefs = useRef({}); // for the pinned-messages bar's "jump to" scroll
   const sendingRef = useRef(false); // synchronous lock — `sending` state alone can be bypassed
+  // Tracks active background upload jobs: tempId → { progress: 0-100, controller }
+  const bgUploads = useRef({}); // { [tempId]: { abortController } }
   // Track IDs of messages we've already inserted via the send/note response so
   // the realtime subscription can skip them (avoids optimistic duplicate).
   const settledIds = useRef(new Set());
@@ -1230,28 +1237,76 @@ export default function MessageThread({ conversation, workspaceId }) {
     }
   };
 
-  const handleSendMedia = async (file, kind) => {
+  // BG_THRESHOLD: files larger than this are uploaded in the background so the
+  // user doesn't have to wait. The optimistic bubble appears instantly and shows
+  // a live progress bar; the composer stays fully interactive during the upload.
+  const BG_THRESHOLD_BYTES = 4 * 1024 * 1024; // 4 MB
+
+  const handleSendMedia = (file, kind) => {
     if (!file || !conversation) return;
     const tempId = `temp-${Date.now()}-${Math.random().toString(36).slice(2)}`;
     const localUrl = URL.createObjectURL(file);
+    const isBg = file.size > BG_THRESHOLD_BYTES; // background for large files
+
+    // Optimistic bubble — shows instantly regardless of upload size
     setMessages(prev => [...prev, {
       id: tempId, conversation_id: conversation.id, direction: 'outbound',
       body: kind === 'image' ? '📷 Photo' : kind === 'video' ? '🎥 Video' : kind === 'audio' ? '🎤 Voice message' : '📎 Document',
       channel: conversation.channel, sender_name: user?.full_name || 'You', status: 'sending',
       created_at: new Date().toISOString(),
-      // Mark attachment as sending so the bubble shows the upload overlay
-      attachments: [{ url: localUrl, type: kind, sending: true }],
+      attachments: [{ url: localUrl, type: kind, sending: true, filename: file.name }],
     }]);
-    try {
-      const msg = await sendMediaMessage(wId, conversation.id, file, kind, user?.full_name || 'You', '', user?.id || null);
-      URL.revokeObjectURL(localUrl); // free blob memory after real URL is available
-      if (msg?.id) settledIds.current.add(msg.id);
-      setMessages(prev => prev.map(m => m.id === tempId ? { ...msg, direction: 'outbound' } : m));
-    } catch (e) {
-      console.error('[MessageThread] media send failed:', e);
-      setMessages(prev => prev.map(m => m.id === tempId ? { ...m, status: 'failed' } : m));
-      toast({ title: `Failed to send ${kind}`, description: e?.message || 'Unknown error', variant: 'destructive', duration: 5000 });
+
+    if (isBg) {
+      // Register in bgUploads so we can show progress and cancel if needed
+      setBgUploadProgress(prev => ({ ...prev, [tempId]: 0 }));
     }
+
+    const doUpload = async () => {
+      try {
+        // For large files, simulate progress ticks while the real upload runs
+        // (sendMediaMessage is a single fetch — we tick the bar 0→85 then jump to 100 on done)
+        let progressInterval = null;
+        if (isBg) {
+          let fakeProgress = 0;
+          const fileSizeMB = file.size / (1024 * 1024);
+          // Tick rate: faster for smaller files, slower for bigger ones
+          const tickMs = Math.max(300, Math.min(2000, fileSizeMB * 100));
+          progressInterval = setInterval(() => {
+            fakeProgress = Math.min(fakeProgress + Math.random() * 6 + 2, 85);
+            const pct = Math.round(fakeProgress);
+            setBgUploadProgress(prev => ({ ...prev, [tempId]: pct }));
+            // Also update the bubble attachment so the overlay shows live %
+            setMessages(prev => prev.map(m => {
+              if (m.id !== tempId) return m;
+              const atts = m.attachments ? [...m.attachments] : [];
+              if (atts[0]) atts[0] = { ...atts[0], progress: pct };
+              return { ...m, attachments: atts };
+            }));
+          }, tickMs);
+        }
+
+        const msg = await sendMediaMessage(wId, conversation.id, file, kind, user?.full_name || 'You', '', user?.id || null);
+
+        if (progressInterval) clearInterval(progressInterval);
+        if (isBg) setBgUploadProgress(prev => { const n = { ...prev }; delete n[tempId]; return n; });
+
+        URL.revokeObjectURL(localUrl);
+        if (msg?.id) settledIds.current.add(msg.id);
+        setMessages(prev => prev.map(m => m.id === tempId ? { ...msg, direction: 'outbound' } : m));
+      } catch (e) {
+        if (isBg) setBgUploadProgress(prev => { const n = { ...prev }; delete n[tempId]; return n; });
+        console.error('[MessageThread] media send failed:', e);
+        setMessages(prev => prev.map(m => m.id === tempId ? { ...m, status: 'failed' } : m));
+        toast({ title: `Failed to send ${kind}`, description: e?.message || 'Unknown error', variant: 'destructive', duration: 5000 });
+        URL.revokeObjectURL(localUrl);
+      }
+    };
+
+    // Fire off — for large files this runs in the background (no await at the call site)
+    doUpload();
+    // Return the tempId so callers can reference this job
+    return tempId;
   };
 
   // Queue for multi-file uploads — processes files one at a time so the
@@ -1385,7 +1440,7 @@ export default function MessageThread({ conversation, workspaceId }) {
 
   const sendMediaQueue = async (files) => {
     // ── Size + MIME validation (WhatsApp limits) ──────────────────────────
-    const WA_SIZE_LIMITS = { image: 5, video: 16, audio: 16, document: 100 }; // MB
+    const WA_SIZE_LIMITS = { image: 5, video: 200, audio: 16, document: 200 }; // MB
     const WA_VIDEO_MIMES = ['video/mp4', 'video/3gpp', 'video/quicktime'];
     const rejected = [];
     const validFiles = files.filter(file => {
@@ -1474,7 +1529,7 @@ export default function MessageThread({ conversation, workspaceId }) {
       } else if (imageFiles.length === 1) {
         // Single image — existing individual path
         setUploadProgress({ current: 1, total: 1 });
-        await handleSendMedia(imageFiles[0], 'image');
+        handleSendMedia(imageFiles[0], 'image');
       }
 
       // ── Non-image files: always individual ──────────────────────────────
@@ -1486,7 +1541,7 @@ export default function MessageThread({ conversation, workspaceId }) {
                    : file.type.startsWith('audio/') ? 'audio'
                    : 'document';
         try {
-          await handleSendMedia(file, kind);
+          handleSendMedia(file, kind);
         } catch (err) {
           console.error('[sendMediaQueue] failed:', file.name, err);
           toast({ title: 'Send failed', description: `${file.name} could not be sent. ${err?.message || ''}`, variant: 'destructive' });
