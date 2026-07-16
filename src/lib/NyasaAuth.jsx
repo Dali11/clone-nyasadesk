@@ -98,12 +98,17 @@ export function NyasaAuthProvider({ children }) {
             }
           }
           setProfile(merged);
-          setOnboardingComplete(!!data.onboarding_complete);
+          // In God Mode, always treat onboarding as complete — the platform
+          // admin has their own valid session; the target workspace's onboarding
+          // state must not redirect the admin to the setup wizard.
+          setOnboardingComplete(godModeId ? true : !!data.onboarding_complete);
         } else {
           // No row at all (brand new user, never onboarded) — this is the
           // ONLY case where we actually know onboarding is needed.
+          // Exception: in God Mode the admin views a target workspace that
+          // may have an incomplete profile — don't redirect them to onboarding.
           setProfile(null);
-          setOnboardingComplete(false);
+          setOnboardingComplete(godModeId ? true : false);
         }
       } catch (e) {
         if (!cancelled) console.error('[NyasaAuth] Profile load error:', e);
