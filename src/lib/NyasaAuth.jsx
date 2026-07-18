@@ -139,7 +139,10 @@ export function NyasaAuthProvider({ children }) {
   // workspace, or profile.workspace_id if they're an invited teammate. Any
   // write that touches shared workspace-level data (workspace_name, sla_hours,
   // channel_configs, rules) must target THIS id, never user.id directly.
-  const workspaceOwnerId = profile?.workspace_id || user?.id || null;
+  // In God Mode the target workspace owner's profile has workspace_id=null (owners never have
+  // workspace_id set — it's only set on teammates). Falling through to user?.id gives the ADMIN's
+  // own id, loading the admin's own workspace. Fix: use godTarget.workspaceId when in god mode.
+  const workspaceOwnerId = godTarget?.workspaceId || profile?.workspace_id || profile?.id || user?.id || null;
   const isWorkspaceAdmin = !profile?.workspace_id || profile?.role === 'admin';
   // Chat visibility (separate from isWorkspaceAdmin, which gates
   // Settings/Channels/Rules management): owner, admin, or sales_manager see
