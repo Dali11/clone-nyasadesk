@@ -20,9 +20,16 @@ export const DEFAULT_MODEL = 'gpt-4o-mini';
 // server-side runtime check so a downgraded workspace's existing agent stops
 // actually running/costing money immediately, not just at its next edit).
 export async function workspaceHasAiAgentAccess(sb, workspaceId) {
-  const { data, error } = await sb.from('profiles').select('plan').eq('id', workspaceId).single();
+  const { data, error } = await sb.from('profiles').select('plan, subscription_status, trial_ends_at').eq('id', workspaceId).single();
   if (error || !data) return false;
-  return data.plan === 'scale';
+  // Scale plan always has access
+  if (data.plan === 'scale') return true;
+  // Trialing workspaces get full scale access until their trial expires
+  // (mirrors the client-side useFeatureAccess.js logic)
+  if (data.subscription_status === 'trialing' && data.trial_ends_at) {
+    return new Date(data.trial_ends_at).getTime() > Date.now();
+  }
+  return false;
 }
 
 // ── Built-in starter templates ─────────────────────────────────────────────
