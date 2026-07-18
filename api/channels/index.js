@@ -427,7 +427,8 @@ async function handleAiAgentsSave(req, res) {
     const sb = createClient(SUPABASE_URL, SUPABASE_KEY);
     const ALLOWED = ['name', 'description', 'role', 'template_key', 'model', 'system_instructions',
       'personality', 'tone', 'languages', 'enabled_channels', 'handoff_rules', 'permissions',
-      'operating_hours', 'automation_mode', 'status'];
+      'operating_hours', 'automation_mode', 'status',
+      'agent_type', 'message_cap', 'handoff_assignment_rule_id'];
     const payload = {};
     for (const k of ALLOWED) if (k in fields) payload[k] = fields[k];
 
