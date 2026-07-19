@@ -1,4 +1,4 @@
-// ── Nyasadesk Service Worker v7 ────────────────────────────────────────────
+// ── Nyasadesk Service Worker v8 ────────────────────────────────────────────
 // Full offline-first PWA:
 //  - Pre-caches ALL Vite build chunks at install (app shell + all routes)
 //  - Cache-first for assets, network-first for navigation
@@ -7,8 +7,8 @@
 //  - Inline reply from notification bar
 //  - Badge icon support
 
-const STATIC_CACHE  = 'nyasadesk-static-v9';   // versioned static assets
-const DYNAMIC_CACHE = 'nyasadesk-dynamic-v9';   // runtime HTML pages
+const STATIC_CACHE  = 'nyasadesk-static-v8';   // versioned static assets
+const DYNAMIC_CACHE = 'nyasadesk-dynamic-v8';   // runtime HTML pages
 const SECRET_CACHE  = 'nyasa-sw-secrets-v1';    // inline reply secret
 const NOTIF_REPLY_ENDPOINT = '/api/team?action=notif-reply';
 
@@ -70,9 +70,12 @@ self.addEventListener('activate', (event) => {
     // Take control of all open clients immediately (no reload required)
     await self.clients.claim();
 
-    // Do NOT force-reload open windows — let them finish their current session.
-    // The new bundle will load naturally on next navigation or manual refresh.
-    // Force-reloading mid-session was causing conversation clicks to reset the page.
+    // Tell all open windows to reload so they pick up the new JS bundle
+    // (avoids "React is not defined" when old cached HTML loads new SW)
+    const clients = await self.clients.matchAll({ type: 'window' });
+    for (const client of clients) {
+      client.postMessage({ type: 'SW_UPDATED' });
+    }
   })());
 });
 
@@ -142,74 +145,73 @@ self.addEventListener('fetch', (event) => {
 });
 
 // ── Push notifications (WhatsApp-style grouping) ───────────────────────────
-// ── Push notifications (WhatsApp-style: one notif per conv, always shows message) ──
 self.addEventListener('push', (event) => {
   let data = {};
   try { data = event.data ? event.data.json() : {}; }
   catch { data = { title: 'New message', body: event.data?.text() || '' }; }
 
-  const convId       = data.data?.conversationId;
-  const convTag      = convId ? `conv-${convId}` : 'nyasa-msg';
-  const url          = data.data?.url || (convId ? `/inbox?conv=${convId}` : '/inbox');
-  const unreadConvs  = typeof data.data?.unreadConvs === 'number' ? data.data.unreadConvs : 1;
-  const workspaceId  = data.data?.workspaceId || '';
-  const channel      = data.data?.channel || 'whatsapp';
-  const contactAvatar = data.data?.contactAvatar || '/icon-192.png';
-  const contactPhone  = data.data?.contactPhone  || '';
-
-  // WhatsApp-style: title = contact name, body = actual message text
-  const sender  = data.title || 'New message';
-  const msgBody = (data.body || '').slice(0, 200) || '📎 Attachment';
+  const convId      = data.data?.conversationId;
+  const convTag     = convId ? `conv-${convId}` : 'nyasa-msg';
+  const url         = data.data?.url || (convId ? `/inbox?conv=${convId}` : '/inbox');
+  const unread      = typeof data.data?.unreadTotal === 'number' ? data.data.unreadTotal : 0;
+  const unreadConvs = typeof data.data?.unreadConvs === 'number' ? data.data.unreadConvs : 1;
+  const workspaceId = data.data?.workspaceId || '';
+  const channel     = data.data?.channel || 'whatsapp';
 
   event.waitUntil((async () => {
-    // Update home-screen badge (installed PWA only)
     if ('setAppBadge' in self.registration) {
-      (unreadConvs > 0
-        ? self.registration.setAppBadge(unreadConvs)
+      (unread > 0
+        ? self.registration.setAppBadge(unread)
         : self.registration.clearAppBadge()
       ).catch(() => {});
     }
 
-    // ── WhatsApp behaviour: replace the existing notif for THIS conv ──
-    // Each conversation gets exactly ONE persistent notification (tagged by
-    // conv ID) that updates in-place. Multiple convs each show their own.
-    // No generic "N messages from M conversations" summary — that's the
-    // Messenger style, not WhatsApp.
-    const existing = await self.registration.getNotifications();
-    const prevNotif = existing.find(n => n.tag === convTag);
-
-    // Count how many messages are stacked in this conv's notification
-    const prevCount = prevNotif?.data?.msgCount || 0;
-    const msgCount  = prevCount + 1;
+    const existing   = await self.registration.getNotifications();
+    const convNotifs = existing.filter(n => n.tag?.startsWith('conv-'));
+    const prevNotif  = existing.find(n => n.tag === convTag);
+    const prevCount  = prevNotif?.data?.msgCount || 0;
+    const msgCount   = prevCount + 1;
     if (prevNotif) prevNotif.close();
 
-    // Body: for 1 message → just the text.
-    // For 2+ messages in same conv → show count like WhatsApp ("3 messages")
-    // BUT still show the latest message text as the primary line.
-    // On Android this renders as: Title (bold) = sender, Body = message
-    const notifBody = msgCount > 1
-      ? `${msgCount} messages\n${msgBody}`
-      : msgBody;
+    const sender  = data.title || 'New message';
+    const msgBody = (data.body  || '').slice(0, 100) || '📎 Attachment';
 
-    await self.registration.showNotification(sender, {
-      body:      notifBody,
-      // Use contact avatar if available, fall back to app icon
-      icon:      contactAvatar,
+    const convOptions = {
+      body:      msgCount > 1 ? `${msgCount} messages · ${msgBody}` : msgBody,
+      icon:      '/icon-192.png',
       badge:     '/badge-n.png',
       tag:       convTag,
-      renotify:  true,           // always re-notify (vibrate + sound) for every new message
-      silent:    false,          // NEVER silent — WhatsApp always makes sound
-      vibrate:   [200, 100, 200],
+      renotify:  true,
+      silent:    msgCount > 1,
+      vibrate:   msgCount === 1 ? [200, 100, 200] : [],
       timestamp: Date.now(),
-      data: {
-        url, conversationId: convId, workspaceId,
-        channel, contactPhone, msgCount, unreadConvs,
-      },
+      data: { url, conversationId: convId, workspaceId, channel, msgCount, unreadTotal: unread },
       actions: [
         { action: 'reply',   title: 'Reply', type: 'text', placeholder: 'Type a reply…' },
-        { action: 'dismiss', title: 'Mark read' },
+        { action: 'dismiss', title: 'Dismiss' },
       ],
-    });
+    };
+
+    const otherConvNotifs = convNotifs.filter(n => n.tag !== convTag);
+    if (otherConvNotifs.length >= 1 || unreadConvs > 1) {
+      for (const n of existing) { if (n.tag !== 'nyasa-summary') n.close(); }
+      const totalConvs = Math.max(otherConvNotifs.length + 1, unreadConvs);
+      const totalMsgs  = unread;
+      await self.registration.showNotification('Nyasadesk', {
+        body:    `${totalMsgs} new message${totalMsgs !== 1 ? 's' : ''} from ${totalConvs} conversation${totalConvs !== 1 ? 's' : ''}`,
+        icon:    '/icon-192.png',
+        badge:   '/badge-n.png',
+        tag:     'nyasa-summary',
+        renotify: false,
+        silent:  true,
+        data:    { url: '/inbox', isSummary: true, unreadTotal: unread },
+        actions: [{ action: 'open', title: 'Open inbox' }],
+      });
+    } else {
+      const summary = existing.find(n => n.tag === 'nyasa-summary');
+      if (summary) summary.close();
+      await self.registration.showNotification(sender, convOptions);
+    }
   })());
 });
 
@@ -224,19 +226,10 @@ self.addEventListener('notificationreply', (event) => {
   event.waitUntil((async () => {
     try {
       const secret = await getReplySecret();
-      const res = await fetch('/api/channels?action=send', {
+      const res = await fetch(NOTIF_REPLY_ENDPOINT, {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': 'Bearer ' + secret
-        },
-        body: JSON.stringify({
-          action: 'send',
-          conversationId,
-          workspaceId,
-          channel: channel || 'whatsapp',
-          text: replyText.trim()
-        }),
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ secret, conversationId, workspaceId, channel: channel || 'whatsapp', text: replyText.trim() }),
       });
 
       if (res.ok) {
@@ -287,9 +280,6 @@ self.addEventListener('message', (event) => {
 });
 
 // ── Notification click ─────────────────────────────────────────────────────
-// v8 fix: focus() BEFORE postMessage (window must be active to receive it),
-// and fall back to openWindow() which navigates directly — no postMessage
-// needed for a fresh window. Also: open action on summary notif handled.
 self.addEventListener('notificationclick', (event) => {
   event.notification.close();
 
@@ -300,31 +290,29 @@ self.addEventListener('notificationclick', (event) => {
   const relativeUrl = event.notification.data?.url || '/inbox';
   const targetUrl   = relativeUrl.startsWith('http')
     ? relativeUrl
-    : new URL(relativeUrl, self.location.origin).href;
+    : self.location.origin + relativeUrl;
 
   event.waitUntil((async () => {
     try {
       const all = await self.clients.matchAll({ type: 'window', includeUncontrolled: true });
 
-      // Prefer an existing window on our origin
+      // Prefer an existing focused window on our origin
       const existing = all.find(c =>
         c.url.startsWith(self.location.origin) && 'focus' in c
       );
 
       if (existing) {
-        // Focus first — window must be active before it can receive postMessage
-        await existing.focus();
-        // Give React time to mount its message listener
-        await new Promise(r => setTimeout(r, 300));
+        // Use postMessage to drive navigation — more reliable than client.navigate()
+        // which can silently fail cross-origin or on non-WindowClients
         existing.postMessage({ type: 'NOTIF_NAVIGATE', url: targetUrl });
-        return;
+        return existing.focus();
       }
 
-      // No existing window — openWindow navigates directly, no postMessage needed
+      // No existing window — open a new one
       return self.clients.openWindow(targetUrl);
     } catch (e) {
       // Last resort: open a new window
-      try { return self.clients.openWindow(targetUrl); } catch (_) {}
+      return self.clients.openWindow(targetUrl);
     }
   })());
 });
