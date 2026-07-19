@@ -7,6 +7,7 @@
 //  - Inline reply from notification bar
 //  - Badge icon support
 
+const SW_VERSION    = 8;                        // increment to force self-destruct on stale installs
 const STATIC_CACHE  = 'nyasadesk-static-v8';   // versioned static assets
 const DYNAMIC_CACHE = 'nyasadesk-dynamic-v8';   // runtime HTML pages
 const SECRET_CACHE  = 'nyasa-sw-secrets-v1';    // inline reply secret
@@ -63,6 +64,33 @@ self.addEventListener('install', (event) => {
 self.addEventListener('activate', (event) => {
   const KEEP = [STATIC_CACHE, DYNAMIC_CACHE, SECRET_CACHE];
   event.waitUntil((async () => {
+    // ── Self-destruct check ──────────────────────────────────────────────
+    // Fetch the authoritative version from the server (network-only, bypasses cache).
+    // If the server version is higher than this SW's version, unregister self
+    // and force all clients to reload so they pick up the new SW + fresh bundles.
+    try {
+      const verRes = await fetch('/sw-version.txt', { cache: 'no-store' });
+      if (verRes.ok) {
+        const serverVer = parseInt((await verRes.text()).trim(), 10);
+        if (!isNaN(serverVer) && serverVer > SW_VERSION) {
+          console.log(`[SW] Version mismatch (mine=${SW_VERSION}, server=${serverVer}) — unregistering`);
+          // Wipe ALL caches so stale JS is gone
+          const allKeys = await caches.keys();
+          await Promise.all(allKeys.map(k => caches.delete(k)));
+          // Unregister this SW
+          await self.registration.unregister();
+          // Tell all clients to do a hard reload
+          const clients = await self.clients.matchAll({ type: 'window' });
+          for (const client of clients) {
+            client.navigate(client.url);
+          }
+          return;
+        }
+      }
+    } catch (e) {
+      console.warn('[SW] Version check failed (offline?):', e.message);
+    }
+
     // Delete all stale caches
     const keys = await caches.keys();
     await Promise.all(keys.filter(k => !KEEP.includes(k)).map(k => caches.delete(k)));
@@ -94,6 +122,9 @@ self.addEventListener('fetch', (event) => {
 
   // Our own API endpoints: network-only (never cache)
   if (url.pathname.startsWith('/api/')) return;
+
+  // SW version file: always network-only so self-destruct check works
+  if (url.pathname === '/sw-version.txt' || url.pathname === '/sw.js') return;
 
   // ── Navigation (HTML pages) ─────────────────────────────────────────────
   // Strategy: Network-first, fall back to shell
