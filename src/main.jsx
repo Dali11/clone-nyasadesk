@@ -1,4 +1,3 @@
-import { supabase } from '@/lib/supabase'
 import React from 'react'
 import { ThemeProvider } from '@/lib/ThemeContext'
 import ReactDOM from 'react-dom/client'
@@ -13,23 +12,41 @@ if ('serviceWorker' in navigator) {
     navigator.serviceWorker.register('/sw.js', { scope: '/' })
       .then((reg) => {
         console.log('[SW] Registered, scope:', reg.scope);
-        // Check for updates every 60s
+        // Check for updates every 60s — also fetches fresh sw.js bypassing cache
         setInterval(() => reg.update(), 60_000);
+
+        // Separately poll /sw-version.txt every 30s.
+        // If the server version is newer, force unregister + reload immediately
+        // (handles the case where the old SW intercepts reg.update() from cache).
+        const SW_CLIENT_VERSION = 8;
+        setInterval(async () => {
+          try {
+            const r = await fetch('/sw-version.txt', { cache: 'no-store' });
+            if (r.ok) {
+              const v = parseInt((await r.text()).trim(), 10);
+              if (!isNaN(v) && v > SW_CLIENT_VERSION) {
+                console.log('[main] SW version mismatch — clearing caches and reloading');
+                if ('caches' in window) {
+                  const keys = await caches.keys();
+                  await Promise.all(keys.map(k => caches.delete(k)));
+                }
+                const regs = await navigator.serviceWorker.getRegistrations();
+                await Promise.all(regs.map(r => r.unregister()));
+                window.location.reload(true);
+              }
+            }
+          } catch { /* offline — ignore */ }
+        }, 30_000);
 
         // Inject the inline-reply secret into the SW so it can authenticate
         // notif-reply API calls without a user session.
         // The secret is stored in the SW's cache (survives restarts).
-        const injectSecret = async (worker) => {
+        const injectSecret = (worker) => {
           if (!worker) return;
-          try {
-            const { data: { session } } = await supabase.auth.getSession();
-            const secret = session?.access_token || import.meta.env.VITE_NOTIF_REPLY_SECRET || '';
-            if (secret) {
-              worker.postMessage({ type: 'SET_REPLY_SECRET', secret });
-            }
-          } catch (err) {
-            console.warn('[SW] Failed to get session for reply secret:', err);
-          }
+          // VITE_NOTIF_REPLY_SECRET is set in Vercel env vars (same value as
+          // NOTIF_REPLY_SECRET on the server side).
+          const secret = import.meta.env.VITE_NOTIF_REPLY_SECRET || '';
+          if (secret) worker.postMessage({ type: 'SET_REPLY_SECRET', secret });
         };
 
         // Inject into the currently active SW (if any)
@@ -48,16 +65,13 @@ if ('serviceWorker' in navigator) {
           injectSecret(navigator.serviceWorker.controller);
         });
 
-        // Listen to auth state changes to dynamically update the reply secret
-        supabase.auth.onAuthStateChange((_event, session) => {
-          const secret = session?.access_token || '';
-          if (secret && navigator.serviceWorker.controller) {
-            navigator.serviceWorker.controller.postMessage({ type: 'SET_REPLY_SECRET', secret });
+        // When the new SW activates and sends SW_UPDATED, reload to pick up fresh JS
+        navigator.serviceWorker.addEventListener('message', (event) => {
+          if (event.data?.type === 'SW_UPDATED') {
+            console.log('[SW] New version active — reloading for fresh bundle');
+            window.location.reload();
           }
         });
-
-        // SW_UPDATED broadcast removed — force-reloads were interrupting open sessions.
-        // Users get the new bundle naturally on next page open.
       })
       .catch((err) => console.warn('[SW] Registration failed:', err));
   });
