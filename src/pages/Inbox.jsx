@@ -1,64 +1,41 @@
-import { useState, useEffect, useCallback, useRef } from 'react';
-import { useLocation, useNavigate } from 'react-router-dom';
-import { Search, Plus, Loader2, MessageSquareOff, Pin, Pencil } from 'lucide-react';
+import { useState, useEffect, useCallback } from 'react';
+import { useLocation } from 'react-router-dom';
+import { Search, Plus, Loader2, MessageSquareOff, Pin, Pencil, X } from 'lucide-react';
 import Sidebar from '@/components/Sidebar';
 import ConvList from '@/components/inbox/ConvList';
 import ChatHeader from '@/components/inbox/ChatHeader';
 import MessageThread from '@/components/inbox/MessageThread';
 import ContactPanel from '@/components/inbox/ContactPanel';
-import ConversationDetail from '@/components/inbox/ConversationDetail';
 import NewConvModal from '@/components/inbox/NewConvModal';
 import { useNyasaAuth } from '@/lib/NyasaAuth';
 import { useToast } from '@/components/ui/use-toast';
-import { getConversations, updateConversation, deleteConversation, subscribeToConversations, getPinnedConvs, createInternalConv, pinConversation, unpinConversation, getTeamMembers, resolveUnknownContacts } from '@/lib/channels';
+import { getConversations, updateConversation, deleteConversation, subscribeToConversations, getPinnedConvs, createInternalConv, pinConversation, unpinConversation, getTeamMembers } from '@/lib/channels';
 import { supabase } from '@/lib/supabase';
 import { useDocumentTitle } from '@/hooks/useDocumentTitle';
-import { usePushNotifications } from '@/lib/usePushNotifications';
+
+const STATUS_TABS = [
+  { key: 'all',        label: 'All'        },
+  { key: 'unassigned', label: 'Unassigned' },
+  { key: 'open',       label: 'Open'       },
+  { key: 'snoozed',    label: 'Snoozed'    },
+  { key: 'closed',     label: 'Closed'     },
+];
+
+const CHANNELS_FILTER = ['all', 'whatsapp', 'website'];
 
 export default function Inbox() {
   useDocumentTitle('Inbox');
   const { user, profile, workspaceOwnerId, canViewAllChats } = useNyasaAuth();
-  // Auto-subscribe to push notifications if the user already granted permission
-  // (e.g. they granted during the InstallPrompt flow on a previous session).
-  // This is the only place we mount the hook — once, in the root authenticated view.
-  // Push notifications: the hook auto-subscribes when permission is already granted
-  // and clears any dead/legacy FCM endpoints before re-registering.
-  usePushNotifications(workspaceOwnerId);
-
-  // ── Hardware/browser back button: close open chat, don't exit the app ──
-  // When a conversation is opened we push a #chat hash entry onto the history
-  // stack. The popstate listener catches the back gesture/button and closes
-  // the chat instead of letting the browser navigate away from the SPA.
-  useEffect(() => {
-    const handlePopState = (e) => {
-      if (activeConvRef.current) {
-        // Back pressed while chat is open — close it, stay on inbox
-        e.preventDefault?.();
-        setActiveConv(null);
-        setDetailOpen(false);
-      }
-    };
-    window.addEventListener('popstate', handlePopState);
-    return () => window.removeEventListener('popstate', handlePopState);
-  }, []);
-  const navigate = useNavigate();
   const { toast } = useToast();
   const [conversations, setConversations] = useState([]);
   const [loading, setLoading] = useState(true);
   const [activeConv, setActiveConv] = useState(null);
-  // Keep ref in sync (for popstate handler — avoids stale closure)
-  useEffect(() => { activeConvRef.current = activeConv; }, [activeConv]);
+  const [filter, setFilter] = useState('all');
+  const [channelFilter, setChannelFilter] = useState('all');
   const [search, setSearch] = useState('');
   const [showNew, setShowNew] = useState(false);
   const [contactOpen, setContactOpen] = useState(false);
-  const [detailOpen, setDetailOpen] = useState(false);
   const [pinnedConvs, setPinnedConvs] = useState([]);
-  const [ctxMenu, setCtxMenu] = useState(null);
-  const ctxTimeout = useRef(null);
-  const activeConvRef = useRef(null); // kept in sync below for the popstate handler
-  // Stable ref for loadConversations — prevents the realtime subscription
-  // useEffect from re-firing every time loadConversations is recreated.
-  const loadConversationsRef = useRef(null);
 
   // Deep-link from push notification: ?conv=<id> → auto-open that conversation
   const location = useLocation();
@@ -89,17 +66,13 @@ export default function Inbox() {
       // Admins and Sales Managers get everything (no agentId filter).
       const filters = canViewAllChats ? {} : { agentId: user?.id };
       const data = await getConversations(workspaceOwnerId, filters);
-      // Auto-resolve: match phone numbers against saved contacts for proper names
-      const resolved = await resolveUnknownContacts(workspaceOwnerId, data).catch(() => data);
-      setConversations(resolved);
+      setConversations(data);
     } catch (e) {
       console.error('Failed to load conversations:', e);
     } finally {
       setLoading(false);
     }
   }, [workspaceOwnerId, canViewAllChats, user?.id]);
-  // Keep ref in sync so realtime subscription can call latest version
-  loadConversationsRef.current = loadConversations;
 
   // Initial load
   useEffect(() => { loadConversations(); }, [loadConversations]);
@@ -160,26 +133,17 @@ export default function Inbox() {
           // Check if this conv is already in our local list
           const isInList = (prev) => prev.some(c => c.id === payload.new.id);
           if (!isNowMine) {
-            // Not assigned to me — remove from list ONLY if it was explicitly
-            // reassigned to someone else (assigned_to is a non-null user id
-            // that isn't me). If assigned_to is null the conversation is
-            // unassigned (open), which agents can still see and work on —
-            // don't evict it from the list or close the active chat.
-            if (payload.new?.assigned_to !== null) {
-              setConversations(prev => {
-                if (!isInList(prev)) return prev; // wasn't in list anyway
-                return prev.filter(c => c.id !== payload.new.id);
-              });
-              setActiveConv(prev => (prev?.id === payload.new.id ? null : prev));
-            } else {
-              // Unassigned update (e.g. unread_count cleared) — just merge the row
-              setConversations(prev => prev.map(c => c.id === payload.new.id ? { ...c, ...payload.new } : c));
-            }
+            // Not assigned to me — remove from list if it was there (reassigned away)
+            setConversations(prev => {
+              if (!isInList(prev)) return prev; // wasn't in list anyway
+              return prev.filter(c => c.id !== payload.new.id);
+            });
+            setActiveConv(prev => (prev?.id === payload.new.id ? null : prev));
             return;
           }
           // isNowMine — if not in list yet, reload to get full joined contact data
           setConversations(prev => {
-            if (!isInList(prev)) { if (loadConversationsRef.current) loadConversationsRef.current(); return prev; }
+            if (!isInList(prev)) { loadConversations(); return prev; }
             return prev.map(c => c.id === payload.new.id ? { ...c, ...payload.new } : c);
           });
           setActiveConv(prev => (prev?.id === payload.new.id ? { ...prev, ...payload.new } : prev));
@@ -188,22 +152,31 @@ export default function Inbox() {
         setConversations(prev => prev.map(c => c.id === payload.new.id ? { ...c, ...payload.new } : c));
         setActiveConv(prev => (prev?.id === payload.new.id ? { ...prev, ...payload.new } : prev));
       } else {
-        if (loadConversationsRef.current) loadConversationsRef.current();
+        loadConversations();
       }
     });
     return () => sub?.unsubscribe?.();
-  // loadConversations intentionally excluded from deps — we use loadConversationsRef
-  // to avoid re-subscribing on every render when loadConversations is recreated.
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [workspaceOwnerId]);
+  }, [workspaceOwnerId, loadConversations, canViewAllChats, user?.id]);
 
   const filtered = conversations.filter(c => {
-    // Exclude internal conversations from the main list
-    if (c.channel === 'internal') return false;
+    // Exclude internal conversations from the main list — they only appear
+    // in the Pinned section or when explicitly navigated to
+    if (c.channel === 'internal' && !(activeConv?.channel === 'internal' && activeConv?.id === c.id)) return false;
+    if (filter === 'unassigned' && c.assigned_to) return false;
+    if (filter === 'open' && c.status !== 'open' && c.status !== 'unassigned') return false;
+    if (filter === 'snoozed' && c.status !== 'snoozed') return false;
+    if (filter === 'closed' && c.status !== 'closed') return false;
+    if (channelFilter !== 'all' && c.channel !== channelFilter) return false;
     if (search) {
       const q = search.toLowerCase();
-      const name = (c.contact?.full_name || c.subject || '').toLowerCase();
-      return name.includes(q) || (c.last_message || '').toLowerCase().includes(q);
+      // After normalizeConversation() the contact fields are flat (contact_name,
+      // contact_phone, contact_email) — not nested under c.contact?.
+      // Also search phone + email, which are the most common ways to look up a customer.
+      const name  = (c.contact_name  || c.subject || '').toLowerCase();
+      const phone = (c.contact_phone || '').toLowerCase().replace(/\s+/g, '');
+      const email = (c.contact_email || '').toLowerCase();
+      const msg   = (c.last_message  || '').toLowerCase();
+      return name.includes(q) || phone.includes(q.replace(/\s+/g, '')) || email.includes(q) || msg.includes(q);
     }
     return true;
   });
@@ -218,6 +191,14 @@ export default function Inbox() {
     const unread = conversations.filter(c => c.unread_count > 0).length;
     (unread > 0 ? navigator.setAppBadge(unread) : navigator.clearAppBadge()).catch(() => {});
   }, [conversations]);
+
+  const counts = {
+    all:        conversations.length,
+    unassigned: conversations.filter(c => !c.assigned_to).length,
+    open:       conversations.filter(c => c.status === 'open' || c.status === 'unassigned').length,
+    snoozed:    conversations.filter(c => c.status === 'snoozed').length,
+    closed:     conversations.filter(c => c.status === 'closed').length,
+  };
 
   const handleConvUpdate = (updates) => {
     setActiveConv(prev => {
@@ -330,9 +311,6 @@ export default function Inbox() {
   const handleSelect = async (conv) => {
     setActiveConv(conv);
     setContactOpen(false); // reset the contact-info overlay whenever a different chat is opened
-    // Push a synthetic history entry so the browser/hardware back button closes
-    // the chat instead of leaving the app entirely.
-    if (conv) window.history.pushState({ nyasaChat: conv.id }, '');
     // Always stamp last_read_at on open — this is what flips a website
     // visitor's own sent-message ticks from single-grey ("sent") to
     // double-blue ("read") in the widget, mirroring real WhatsApp semantics.
@@ -366,25 +344,73 @@ export default function Inbox() {
     <div className={`flex h-screen overflow-hidden bg-[var(--nyasa-surface-1)] md:pt-0 md:pb-0 ${showChat ? '' : 'pt-14 pb-[56px]'}`}>
       <Sidebar hideMobileChrome={showChat} />
 
-      {/* Conversation list — hidden on mobile when chat is open, always visible on md+ */}
+      {/* Conversation list — hidden on mobile when chat is open */}
       <div className={`flex flex-col bg-[var(--nyasa-surface-1)] border-r border-[var(--nyasa-border)]
-        w-full md:w-80 lg:w-96 shrink-0
-        ${showChat ? 'hidden md:flex' : 'flex'}`}>
+        w-full md:w-80 lg:w-96 shrink-0 md:flex
+        ${showChat ? 'hidden' : 'flex'}`}>
 
-        {/* Search */}
-        <div className="px-3 pb-1.5 shrink-0">
-          <div className="flex items-center gap-2 px-2.5 py-1 rounded-full bg-[#1F2C34]">
-            <Search className="w-4 h-4 text-[#8696A0] shrink-0" />
+        {/* Header */}
+        <div className="px-4 pt-4 pb-2 shrink-0">
+          <div className="flex items-center justify-between mb-3">
+            <h1 className="text-lg font-black text-white">Inbox</h1>
+            <div className="flex items-center gap-2">
+              {canViewAllChats && (
+                <button onClick={() => { handleLoadDmMembers(); setShowInternalMsg(true); }}
+                  className="w-8 h-8 rounded-full bg-[var(--nyasa-surface-2)] flex items-center justify-center hover:bg-[var(--nyasa-surface-4)] transition-colors"
+                  title="New internal message">
+                  <Pencil className="w-4 h-4 text-gray-300" />
+                </button>
+              )}
+              <button onClick={() => setShowNew(true)}
+                className="w-8 h-8 rounded-full bg-[#25D366] flex items-center justify-center hover:bg-[#20BA5A] transition-colors">
+                <Plus className="w-4 h-4 text-white" />
+              </button>
+            </div>
+          </div>
+          <div className="relative mb-3">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-500 pointer-events-none" />
             <input
-              type="text"
+              className="w-full bg-[var(--nyasa-surface-2)] text-white text-sm rounded-xl pl-9 pr-8 py-2 focus:outline-none focus:ring-1 focus:ring-[#25D366] placeholder:text-gray-600"
               placeholder="Search conversations…"
               value={search}
               onChange={e => setSearch(e.target.value)}
-              className="bg-transparent border-none outline-none text-sm text-white placeholder-[#8696A0] w-full"
             />
             {search && (
-              <X className="w-4 h-4 shrink-0 cursor-pointer text-[#8696A0] hover:text-white" onClick={() => setSearch('')} />
+              <button
+                onClick={() => setSearch('')}
+                className="absolute right-2.5 top-1/2 -translate-y-1/2 w-4 h-4 flex items-center justify-center text-gray-500 hover:text-white transition-colors"
+                aria-label="Clear search"
+              >
+                <X className="w-3.5 h-3.5" />
+              </button>
             )}
+          </div>
+
+          {/* Status tabs */}
+          <div className="flex gap-0.5 overflow-x-auto scrollbar-none">
+            {STATUS_TABS.map(t => (
+              <button key={t.key} onClick={() => setFilter(t.key)}
+                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[11px] font-semibold whitespace-nowrap transition-all
+                  ${filter === t.key ? 'bg-[#25D366]/15 text-[#25D366]' : 'text-gray-500 hover:text-gray-300'}`}>
+                {t.label}
+                {counts[t.key] > 0 && (
+                  <span className={`text-[9px] font-bold px-1.5 py-0.5 rounded-full ${filter === t.key ? 'bg-[#25D366]/30 text-[#25D366]' : 'bg-white/10 text-gray-400'}`}>
+                    {counts[t.key]}
+                  </span>
+                )}
+              </button>
+            ))}
+          </div>
+
+          {/* Channel filter */}
+          <div className="flex gap-1 mt-2 overflow-x-auto scrollbar-none pb-1">
+            {CHANNELS_FILTER.map(ch => (
+              <button key={ch} onClick={() => setChannelFilter(ch)}
+                className={`px-2.5 py-1 rounded-lg text-[10px] font-semibold capitalize whitespace-nowrap transition-all
+                  ${channelFilter === ch ? 'bg-[var(--nyasa-surface-4)] text-white' : 'text-gray-600 hover:text-gray-400'}`}>
+                {ch}
+              </button>
+            ))}
           </div>
         </div>
 
@@ -393,7 +419,7 @@ export default function Inbox() {
           {/* Pinned conversations section */}
           {pinnedConvs.length > 0 && (
             <div>
-              <div className="px-4 py-1 flex items-center gap-1.5">
+              <div className="px-4 py-1.5 flex items-center gap-1.5">
                 <Pin className="w-3 h-3 text-[#25D366]" />
                 <span className="text-[10px] font-semibold text-[#25D366] uppercase tracking-wide">Pinned</span>
               </div>
@@ -410,7 +436,7 @@ export default function Inbox() {
                   <ConvRow key={pc.conversation_id} conv={normalized} active={activeConv?.id === conv.id} onClick={handleSelect} pinned />
                 );
               })}
-              <div className="border-b border-[var(--nyasa-border)] mx-4 mb-0.5" />
+              <div className="border-b border-[var(--nyasa-border)] mx-4 mb-1" />
             </div>
           )}
           {loading ? (
@@ -442,13 +468,33 @@ export default function Inbox() {
           <>
             <ChatHeader
               conversation={activeConv}
+              users={teamUsers.length ? teamUsers : (user ? [{ id: user.id, full_name: user.full_name || user.email || 'You' }] : [])}
               currentUserId={user?.id}
-              onBack={() => { setActiveConv(null); setDetailOpen(false); if (window.history.state?.nyasaChat) window.history.back(); }}
+              currentUserRole={profile?.role ?? 'agent'}
+              onBack={() => setActiveConv(null)}
               onUpdate={handleConvUpdate}
-              onOpenDetail={() => setDetailOpen(true)}
+              onOpenContact={() => setContactOpen(true)}
+              onDelete={handleDelete}
+              canDelete={canViewAllChats}
+              onPin={(agentId) => { setPinPickerConv(activeConv); handlePinForAgent(agentId); }}
+              onUnpin={handleUnpin}
+              isPinnedForMe={pinnedConvs.some(p => p.conversation_id === activeConv.id)}
+              canPin={canViewAllChats}
+              canAssign={canViewAllChats}
             />
             <div className="flex-1 flex overflow-hidden relative">
               <MessageThread conversation={activeConv} workspaceId={workspaceOwnerId} />
+              {/* Below xl: full-screen slide-over opened by tapping the contact in ChatHeader.
+                  At xl+: permanently docked side panel, same as before. */}
+              <ContactPanel
+                conversation={activeConv}
+                onUpdate={handleConvUpdate}
+                onClose={() => setContactOpen(false)}
+                className={`${contactOpen ? 'flex' : 'hidden'}
+                  fixed top-14 bottom-[56px] left-0 right-0 z-40
+                  md:top-0 md:bottom-0 md:left-16
+                  xl:static xl:inset-auto xl:z-auto xl:flex xl:w-72 xl:border-l xl:border-[var(--nyasa-border)] xl:shrink-0`}
+              />
             </div>
           </>
         ) : (
@@ -461,43 +507,6 @@ export default function Inbox() {
           </div>
         )}
       </div>
-
-      {/* Floating + FAB — visible only on conversation list, not inside a chat */}
-      {!showChat && (
-        <div className="md:hidden fixed bottom-[72px] right-4 z-40 flex flex-col gap-2 items-end">
-          {canViewAllChats && (
-            <button
-              onClick={() => { handleLoadDmMembers(); setShowInternalMsg(true); }}
-              className="w-12 h-12 rounded-full bg-[var(--nyasa-surface-3)] border border-white/10 shadow-lg flex items-center justify-center"
-              title="New internal message">
-              <Pencil className="w-5 h-5 text-gray-300" />
-            </button>
-          )}
-          <button
-            onClick={() => setShowNew(true)}
-            className="w-14 h-14 rounded-full bg-[#25D366] shadow-xl flex items-center justify-center hover:bg-[#20BA5A] transition-colors">
-            <Plus className="w-6 h-6 text-white" />
-          </button>
-        </div>
-      )}
-
-      {/* Conversation detail slide-over — opened by ⋮ in ChatHeader */}
-      {detailOpen && activeConv && (
-        <ConversationDetail
-          conversation={activeConv}
-          users={teamUsers}
-          currentUserId={user?.id}
-          canAssign={canViewAllChats}
-          canPin={canViewAllChats}
-          isPinnedForMe={pinnedConvs.some(p => p.conversation_id === activeConv.id)}
-          onClose={() => setDetailOpen(false)}
-          onBackToChat={() => setDetailOpen(false)}
-          onUpdate={(patch) => { handleConvUpdate(patch); setDetailOpen(false); }}
-          onPin={(agentId) => { handlePinForAgent(agentId); setDetailOpen(false); }}
-          onUnpin={() => { handleUnpin(); setDetailOpen(false); }}
-          onDelete={canViewAllChats ? () => { handleDelete(activeConv.id); setDetailOpen(false); setActiveConv(null); } : undefined}
-        />
-      )}
 
       <NewConvModal open={showNew} onClose={() => setShowNew(false)} onCreated={c => { setConversations(p => [c, ...p]); setShowNew(false); setActiveConv(c); }} workspaceId={workspaceOwnerId} />
 
