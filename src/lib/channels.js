@@ -439,7 +439,7 @@ export async function addNote(workspaceId, conversationId, body, senderName, sen
   return msg;
 }
 
-export async function sendMessage(workspaceId, conversationId, body, senderName, attachments = null, senderId = null, replyTo = null) {
+export async function sendMessage(workspaceId, conversationId, body, senderName, attachments = null, senderId = null, replyTo = null, onInserted = null) {
   // ── Offline guard: enqueue and return a fake optimistic message ──────────
   if (!navigator.onLine) {
     await enqueueOutbox({ workspaceId, conversationId, body, senderName, senderId,
@@ -485,6 +485,11 @@ export async function sendMessage(workspaceId, conversationId, body, senderName,
     .select()
     .single();
   if (error) throw error;
+
+  // Synchronously register the real DB ID with the caller's settled-IDs set
+  // BEFORE returning — this closes the race window where the Realtime INSERT
+  // event arrives between the insert and the caller's settledIds.add() call.
+  if (onInserted && msg?.id) onInserted(msg.id);
 
   // 2 & 3 run in the background — NOT awaited before returning.
   //

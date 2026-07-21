@@ -603,9 +603,12 @@ export default function MessageThread({ conversation, workspaceId }) {
     }]);
 
     try {
-      const msg = await sendMessage(wId, conversation.id, text, user?.full_name || 'You', null, user?.id || null, replyToSnapshot);
-      // Mark this real ID settled so the realtime sub won't add a duplicate
-      if (msg?.id) settledIds.current.add(msg.id);
+      const msg = await sendMessage(
+        wId, conversation.id, text, user?.full_name || 'You', null, user?.id || null, replyToSnapshot,
+        // onInserted: fires synchronously right after DB insert, before this
+        // await resolves — closes the race window that caused duplicates.
+        (id) => settledIds.current.add(id)
+      );
       // If msg.status === 'queued', we're offline — keep optimistic bubble with queued style
       setMessages(prev => prev.map(m => m.id === tempId ? { ...msg, direction: 'outbound' } : m));
       if (msg.status === 'queued') {
