@@ -474,6 +474,7 @@ export default function Inbox() {
               onBack={() => setActiveConv(null)}
               onUpdate={handleConvUpdate}
               onOpenContact={() => setContactOpen(true)}
+              onOpenDetail={() => setContactOpen(true)}
               onDelete={handleDelete}
               canDelete={canViewAllChats}
               onPin={(agentId) => { setPinPickerConv(activeConv); handlePinForAgent(agentId); }}
