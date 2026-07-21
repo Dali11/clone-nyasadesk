@@ -985,7 +985,7 @@ export default function MessageThread({ conversation, workspaceId }) {
           )}
         </div>
 
-        {/* Canned responses */}}
+        {/* Canned responses */}
         <AnimatePresence>
           {showCanned && (
             <motion.div initial={{ height: 0, opacity: 0 }} animate={{ height: 'auto', opacity: 1 }}
@@ -1081,3 +1081,4 @@ export default function MessageThread({ conversation, workspaceId }) {
     </div>
   );
 }
+
