@@ -1,9 +1,10 @@
 import { useState, useEffect, useRef, Fragment } from 'react';
 import { Send, StickyNote, Loader2, Check, CheckCheck, X, Zap, Bot, Sparkles, Paperclip, Mic, Square, Play, Pause,
-         ChevronDown, Copy, Share2, Pin, PinOff, Trash2, Ban, Reply, Palette, Download, Maximize2 } from 'lucide-react';
+         ChevronDown, Copy, Share2, Pin, PinOff, Trash2, Ban, Reply, Palette, Download, Maximize2 } from 'lucide-react, FileText };
 import { formatDistanceToNow, isToday, isYesterday, format as formatDate } from 'date-fns';
 import { motion, AnimatePresence } from 'framer-motion';
 import { getMessages, sendMessage, sendMediaMessage, addNote, deleteMessage, setMessagePinned, subscribeToMessages, getCannedResponses, setChatBackground, getAiAgents, generateAiDraft } from '@/lib/channels';
+import { supabase } from '@/lib/supabase';
 import { useNyasaAuth } from '@/lib/NyasaAuth';
 import { useToast } from '@/components/ui/use-toast';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger, DropdownMenuSeparator } from '@/components/ui/dropdown-menu';
@@ -86,7 +87,8 @@ function FailedIcon({ reason }) {
 // web"). Ask the browser to record directly into a format WhatsApp
 // actually accepts, in priority order.
 const AUDIO_MIME_CANDIDATES = [
-  'audio/ogg;codecs=opus',  // Chrome/Firefox/Android — WhatsApp's own native voice-note format
+  'audio/ogg; codecs=opus', // Chrome/Firefox/Android — WhatsApp's own native voice-note format (space required by Meta)
+  'audio/ogg;codecs=opus',  // Chrome alternate spelling (no space) — normalised on upload
   'audio/mp4',              // Safari/iOS — AAC in MP4, also WhatsApp-compatible
   'audio/webm;codecs=opus', // last-resort fallback — NOT WhatsApp-compatible, website-only
 ];
@@ -98,8 +100,11 @@ function pickRecorderMimeType() {
   return '';
 }
 function extForMime(mime) {
+  if (!mime) return 'webm';
   if (mime.includes('ogg')) return 'ogg';
   if (mime.includes('mp4')) return 'm4a';
+  if (mime.includes('mpeg') || mime.includes('mp3')) return 'mp3';
+  if (mime.includes('amr')) return 'amr';
   return 'webm';
 }
 
@@ -440,6 +445,11 @@ export default function MessageThread({ conversation, workspaceId }) {
   const [tab, setTab]             = useState('reply'); // reply | note
   const [sending, setSending]     = useState(false);
   const [uploading, setUploading] = useState(false);
+  const [showTemplatePicker, setShowTemplatePicker] = useState(false);
+  const [waTemplates, setWaTemplates] = useState([]);
+  const [waTemplatesLoading, setWaTemplatesLoading] = useState(false);
+  const [selectedTpl, setSelectedTpl] = useState('');
+  const [sendingTemplate, setSendingTemplate] = useState(false);
   const [showCanned, setShowCanned] = useState(false);
   const [recording, setRecording] = useState(false);
   const [recordSecs, setRecordSecs] = useState(0);
@@ -655,12 +665,76 @@ export default function MessageThread({ conversation, workspaceId }) {
     sendMediaQueue(files);
   };
 
+  const openTemplatePicker = async () => {
+    setShowTemplatePicker(true);
+    if (waTemplates.length) return;
+    setWaTemplatesLoading(true);
+    try {
+      const res = await fetch(`/api/channels?action=templates&workspace_id=${encodeURIComponent(wId)}`);
+      const json = await res.json();
+      setWaTemplates(json.templates || []);
+    } catch { setWaTemplates([]); }
+    finally { setWaTemplatesLoading(false); }
+  };
+
+  const handleSendTemplate = async () => {
+    if (!selectedTpl || sendingTemplate) return;
+    const tpl = waTemplates.find(t => `${t.name}|${t.language}` === selectedTpl);
+    if (!tpl) return;
+    setSendingTemplate(true);
+    const bodyText = tpl.components?.find(c => c.type === 'BODY')?.text || `[Template: ${tpl.name}]`;
+    const tempId = `temp-${Date.now()}`;
+    setMessages(prev => [...prev, {
+      id: tempId, conversation_id: conversation.id, direction: 'outbound',
+      body: bodyText, channel: conversation.channel,
+      sender_name: user?.full_name || 'You', status: 'sending',
+      created_at: new Date().toISOString(), attachments: null,
+    }]);
+    setShowTemplatePicker(false);
+    setSelectedTpl('');
+    try {
+      const { data: msg, error } = await supabase.from('messages').insert({
+        workspace_id: wId, conversation_id: conversation.id, direction: 'outbound',
+        body: bodyText, sender_name: user?.full_name || 'You', sender_id: user?.id || null,
+        status: 'sending',
+      }).select().single();
+      if (error) throw error;
+      if (msg?.id) settledIds.current.add(msg.id);
+      setMessages(prev => prev.map(m => m.id === tempId ? { ...msg, direction: 'outbound' } : m));
+      const res = await fetch('/api/channels?action=send', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          message_id: msg.id, conversation_id: conversation.id,
+          workspace_id: wId, channel: conversation.channel,
+          body: bodyText,
+          template: { name: tpl.name, language: tpl.language || 'en_US' },
+        }),
+      });
+      if (!res.ok) {
+        const errJson = await res.json().catch(() => ({}));
+        await supabase.from('messages').update({ status: 'failed', error_reason: errJson.error || 'Template send failed' }).eq('id', msg.id);
+        setMessages(prev => prev.map(m => m.id === msg.id ? { ...m, status: 'failed', error_reason: errJson.error || 'Template send failed' } : m));
+        toast({ title: 'Template failed', description: errJson.error || 'Unknown error', variant: 'destructive', duration: 6000 });
+      }
+    } catch (e) {
+      setMessages(prev => prev.map(m => m.id === tempId ? { ...m, status: 'failed' } : m));
+      toast({ title: 'Template send failed', description: e?.message || 'Unknown error', variant: 'destructive', duration: 5000 });
+    } finally {
+      setSendingTemplate(false);
+    }
+  };
+
   const startRecording = async () => {
     try {
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
       const chosenMime = pickRecorderMimeType();
       const recorder = chosenMime ? new MediaRecorder(stream, { mimeType: chosenMime }) : new MediaRecorder(stream);
       const actualMime = recorder.mimeType || chosenMime || 'audio/webm';
+      // Warn if browser fell back to webm — Meta rejects it. User should use Chrome/Firefox/Android.
+      if (actualMime.includes('webm') && conversation?.channel === 'whatsapp') {
+        toast({ title: '⚠️ Voice note may not send', description: 'Your browser records in a format WhatsApp doesn\'t support. Use Chrome or Firefox for voice notes.', variant: 'default', duration: 8000 });
+      }
       recordChunksRef.current = [];
       recorder.ondataavailable = (e) => { if (e.data.size > 0) recordChunksRef.current.push(e.data); };
       recorder.onstop = () => {
@@ -901,9 +975,17 @@ export default function MessageThread({ conversation, workspaceId }) {
               )}
             </div>
           )}
+
+          {/* Template message trigger — WhatsApp only */}
+          {conversation?.channel === 'whatsapp' && tab !== 'note' && (
+            <button onClick={openTemplatePicker}
+              className="flex items-center gap-1 text-[11px] text-gray-500 hover:text-gray-300 px-2 py-1 rounded-lg hover:bg-white/5 transition-colors">
+              <FileText className="w-3.5 h-3.5" /> Template
+            </button>
+          )}
         </div>
 
-        {/* Canned responses */}
+        {/* Canned responses */}}
         <AnimatePresence>
           {showCanned && (
             <motion.div initial={{ height: 0, opacity: 0 }} animate={{ height: 'auto', opacity: 1 }}
@@ -962,6 +1044,38 @@ export default function MessageThread({ conversation, workspaceId }) {
           </div>
         )}
       </div>
+
+      {/* WhatsApp Template Picker Modal */}
+      {showTemplatePicker && (
+        <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-4 bg-black/60" onClick={() => setShowTemplatePicker(false)}>
+          <div className="bg-[var(--nyasa-surface-3)] border border-[var(--nyasa-border)] rounded-2xl w-full max-w-md p-5 space-y-4" onClick={e => e.stopPropagation()}>
+            <div className="flex items-center justify-between">
+              <h3 className="text-white font-semibold text-sm">Send a Template Message</h3>
+              <button onClick={() => setShowTemplatePicker(false)} className="text-gray-400 hover:text-white"><X className="w-4 h-4" /></button>
+            </div>
+            <p className="text-[11px] text-gray-500">WhatsApp requires a Meta-approved template for business-initiated messages or when the 24h window has expired.</p>
+            {waTemplatesLoading ? (
+              <div className="flex items-center gap-2 text-gray-400 text-sm"><Loader2 className="w-4 h-4 animate-spin" /> Loading templates…</div>
+            ) : waTemplates.length === 0 ? (
+              <p className="text-xs text-yellow-400">No approved templates found. Create and approve templates in Meta Business Manager first.</p>
+            ) : (
+              <select value={selectedTpl} onChange={e => setSelectedTpl(e.target.value)}
+                className="w-full bg-[var(--nyasa-surface-4)] text-white text-sm rounded-xl px-3 py-2.5 focus:outline-none border-0">
+                <option value="">— Select a template —</option>
+                {waTemplates.map(t => (
+                  <option key={`${t.name}|${t.language}`} value={`${t.name}|${t.language}`}>
+                    {t.name} ({t.language})
+                  </option>
+                ))}
+              </select>
+            )}
+            <button onClick={handleSendTemplate} disabled={!selectedTpl || sendingTemplate || waTemplatesLoading}
+              className="w-full py-2.5 bg-[#25D366] text-white text-sm font-semibold rounded-xl hover:bg-[#20BA5A] transition-colors disabled:opacity-40 flex items-center justify-center gap-2">
+              {sendingTemplate ? <><Loader2 className="w-4 h-4 animate-spin" /> Sending…</> : <><Send className="w-4 h-4" /> Send Template</>}
+            </button>
+          </div>
+        </div>
+      )}
 
       {lightboxMedia && <MediaLightbox att={lightboxMedia} onClose={() => setLightboxMedia(null)} />}
     </div>

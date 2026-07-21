@@ -385,8 +385,15 @@ export async function uploadChatMedia(workspaceId, file, kind) {
     ext = kind === 'audio' ? 'ogg' : kind === 'video' ? 'mp4' : kind === 'image' ? 'jpg' : 'bin';
   }
   const path = `${workspaceId}/${kind}/${Date.now()}-${Math.random().toString(36).slice(2, 8)}.${ext}`;
+  // Normalise audio Content-Type before upload:
+  //   Browser reports 'audio/ogg;codecs=opus' (no space) but Meta expects
+  //   'audio/ogg; codecs=opus' (with space). Supabase also has a known bug
+  //   where it may return wrong Content-Type for files without a standard type.
+  //   Force the correct normalised MIME for audio uploads.
+  let contentType = file.type || undefined;
+  if (kind === 'audio') contentType = normaliseAudioMimeClient(file.type);
   const { error } = await supabase.storage.from('chat-media').upload(path, file, {
-    contentType: file.type || undefined,
+    contentType,
     upsert: false,
   });
   if (error) throw error;
@@ -741,10 +748,10 @@ export async function sendBroadcast(workspaceId, broadcastId) {
 // inbox — e.g. logging an offline/phone lead by hand). Channel defaults to
 // 'website' since that's the only channel that doesn't require a real
 // external_id from a connected provider.
-export async function createManualConversation(workspaceId, { contact_name, contact_email, subject, channel, priority, assigned_to, assigned_to_name }) {
+export async function createManualConversation(workspaceId, { contact_name, contact_email, contact_phone, subject, channel, priority, assigned_to, assigned_to_name, first_template }) {
   const { data: contact, error: contactErr } = await supabase
     .from('contacts')
-    .insert({ workspace_id: workspaceId, channel: channel || 'website', full_name: contact_name, email: contact_email || null })
+    .insert({ workspace_id: workspaceId, channel: channel || 'website', full_name: contact_name, email: contact_email || null, phone: contact_phone || null })
     .select('*')
     .single();
   if (contactErr) throw contactErr;
@@ -753,6 +760,7 @@ export async function createManualConversation(workspaceId, { contact_name, cont
     .from('conversations')
     .insert({
       workspace_id: workspaceId, contact_id: contact.id, channel: channel || 'website',
+      external_id: contact_phone || contact_email || null,
       // Always 'open' — "unassigned" is represented purely by assigned_to
       // being null, matching every other conversation-creation path (the
       // webhooks) and the Inbox's "Unassigned" tab filter, which looks for
@@ -781,6 +789,35 @@ export async function createManualConversation(workspaceId, { contact_name, cont
       }
     } catch (e) {
       console.error('[createManualConversation] rule application error:', e);
+    }
+  }
+
+  // If a first_template was specified, fire-and-forget a template send
+  // so the agent can initiate contact outside the 24h window.
+  if (first_template?.name && (channel === 'whatsapp') && conv?.id) {
+    const phone = contact_phone || conv.external_id;
+    if (phone) {
+      (async () => {
+        try {
+          const { data: { session } } = await supabase.auth.getSession();
+          await fetch('/api/channels?action=send', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              ...(session?.access_token ? { Authorization: `Bearer ${session.access_token}` } : {}),
+            },
+            body: JSON.stringify({
+              workspace_id: workspaceId,
+              conversation_id: conv.id,
+              channel: channel || 'whatsapp',
+              body: '',
+              template: { name: first_template.name, language: first_template.language || 'en_US' },
+            }),
+          });
+        } catch (e) {
+          console.error('[createManualConversation] first template send failed:', e);
+        }
+      })();
     }
   }
 

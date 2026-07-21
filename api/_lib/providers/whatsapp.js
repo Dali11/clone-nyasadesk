@@ -24,6 +24,58 @@ function normaliseAudioMime(mime) {
   return 'audio/ogg; codecs=opus';
 }
 
+// ── Upload media binary to Meta first, get back a media ID ────────────────
+// Using Meta's media ID instead of a public URL avoids two problems:
+//  1. Supabase public storage may return wrong Content-Type headers
+//     (known Supabase issue, marked wontfix) which causes Meta error 131053.
+//  2. We avoid exposing permanent public URLs for user files — Meta stores
+//     the media temporarily and serves it directly to the recipient.
+// This is now the REQUIRED path for all audio sends (voice notes).
+// For images/video/documents we keep the link approach (those are more
+// tolerant of Content-Type mismatches).
+async function uploadMediaToMeta(phone_number_id, access_token, url, mimeType) {
+  // Step 1: download the file from Supabase
+  const dlRes = await fetch(url);
+  if (!dlRes.ok) throw new Error(`Failed to download media for Meta upload: ${dlRes.status}`);
+  const blob = await dlRes.blob();
+  const arrayBuffer = await blob.arrayBuffer();
+  const buffer = Buffer.from(arrayBuffer);
+
+  // Step 2: POST multipart/form-data to Meta media endpoint
+  const boundary = `----MetaUpload${Date.now()}`;
+  // Build a minimal multipart body manually (no FormData in Node edge runtimes)
+  const partHeader = Buffer.from(
+    `--${boundary}
+Content-Disposition: form-data; name="file"; filename="voice.ogg"
+Content-Type: ${mimeType}
+
+`
+  );
+  const messagingPart = Buffer.from(
+    `
+--${boundary}
+Content-Disposition: form-data; name="messaging_product"
+
+whatsapp
+--${boundary}--
+`
+  );
+  const body = Buffer.concat([partHeader, buffer, messagingPart]);
+
+  const r = await fetch(`${GRAPH}/${phone_number_id}/media`, {
+    method: 'POST',
+    headers: {
+      Authorization: `Bearer ${access_token}`,
+      'Content-Type': `multipart/form-data; boundary=${boundary}`,
+    },
+    body,
+  });
+  const json = await r.json();
+  if (!r.ok) throw new Error(json.error?.message || `Meta media upload failed: ${r.status}`);
+  if (!json.id) throw new Error('Meta media upload returned no id');
+  return json.id; // e.g. "1234567890"
+}
+
 export class WhatsAppCloudProvider extends MessagingProvider {
   get channelType() { return 'whatsapp'; }
   get providerName() { return 'WhatsApp Cloud API'; }
@@ -255,21 +307,36 @@ export class WhatsAppCloudProvider extends MessagingProvider {
     if (media && WA_TYPE[media.type]) {
       const waType = WA_TYPE[media.type];
 
-      // For audio: normalise the MIME stored in media.mime before building the
-      // payload — Meta rejects audio/webm with error 131053.
-      if (waType === 'audio' && media.mime) {
-        media = { ...media, mime: normaliseAudioMime(media.mime) };
+      if (waType === 'audio') {
+        // ── Audio: ALWAYS use Meta's two-step media upload (binary → id → send) ──
+        // Using a public URL ("link") fails because:
+        //  1. Supabase may serve the wrong Content-Type header (known bug)
+        //  2. audio/ogg;codecs=opus (no space) is rejected — must be 'audio/ogg; codecs=opus'
+        // Uploading the binary directly lets Meta infer the type from file bytes.
+        const audioMime = normaliseAudioMime(media.mime || 'audio/ogg; codecs=opus');
+        let mediaId;
+        try {
+          mediaId = await uploadMediaToMeta(phone_number_id, access_token, media.url, audioMime);
+        } catch (uploadErr) {
+          // Fallback to link if binary upload fails (e.g. Supabase URL expired)
+          console.error('[WA] Meta media upload failed, falling back to link:', uploadErr.message);
+          mediaId = null;
+        }
+        payload = {
+          messaging_product: 'whatsapp', to, type: 'audio',
+          audio: mediaId ? { id: mediaId } : { link: media.url },
+        };
+      } else {
+        payload = {
+          messaging_product: 'whatsapp', to, type: waType,
+          [waType]: {
+            link: media.url,
+            ...(waType !== 'audio' && text ? { caption: text } : {}),
+            // Documents need a filename or WhatsApp shows a blank name
+            ...(waType === 'document' && media.filename ? { filename: media.filename } : {}),
+          },
+        };
       }
-
-      payload = {
-        messaging_product: 'whatsapp', to, type: waType,
-        [waType]: {
-          link: media.url,
-          ...(waType !== 'audio' && text ? { caption: text } : {}),
-          // Documents need a filename or WhatsApp shows a blank name
-          ...(waType === 'document' && media.filename ? { filename: media.filename } : {}),
-        },
-      };
     } else if (message.location) {
       const loc = message.location;
       payload = {
