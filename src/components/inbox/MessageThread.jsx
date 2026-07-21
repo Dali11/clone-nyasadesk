@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef, Fragment } from 'react';
 import { Send, StickyNote, Loader2, Check, CheckCheck, X, Zap, Bot, Sparkles, Paperclip, Mic, Square, Play, Pause,
-         ChevronDown, Copy, Share2, Pin, PinOff, Trash2, Ban, Reply, Palette, Download, Maximize2 } from 'lucide-react, FileText };
+         ChevronDown, Copy, Share2, Pin, PinOff, Trash2, Ban, Reply, Palette, Download, Maximize2, FileText, CornerUpLeft } from 'lucide-react';
 import { formatDistanceToNow, isToday, isYesterday, format as formatDate } from 'date-fns';
 import { motion, AnimatePresence } from 'framer-motion';
 import { getMessages, sendMessage, sendMediaMessage, addNote, deleteMessage, setMessagePinned, subscribeToMessages, getCannedResponses, setChatBackground, getAiAgents, generateAiDraft } from '@/lib/channels';
