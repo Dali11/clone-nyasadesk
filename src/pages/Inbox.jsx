@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { useLocation } from 'react-router-dom';
 import { Search, Plus, Loader2, MessageSquareOff, Pin, Pencil, X } from 'lucide-react';
 import Sidebar from '@/components/Sidebar';
@@ -30,6 +30,9 @@ export default function Inbox() {
   const [conversations, setConversations] = useState([]);
   const [loading, setLoading] = useState(true);
   const [activeConv, setActiveConv] = useState(null);
+  // Track whether we pushed a synthetic history entry so the hardware /
+  // PWA back button closes the chat instead of exiting the app entirely.
+  const chatHistoryPushed = useRef(false);
   const [filter, setFilter] = useState('all');
   const [channelFilter, setChannelFilter] = useState('all');
   const [search, setSearch] = useState('');
@@ -48,6 +51,42 @@ export default function Inbox() {
       setActiveConv(target);
     }
   }, [location.search, conversations]);
+
+  // ── Hardware / PWA back-button trap ──────────────────────────────────────
+  // When a chat opens → push a synthetic history entry so the hardware back
+  // button (Android, PWA) returns to the chat list instead of exiting.
+  // When the chat closes programmatically → pop that entry silently.
+  const suppressPopstate = useRef(false);
+
+  useEffect(() => {
+    if (activeConv && !chatHistoryPushed.current) {
+      window.history.pushState({ nyasaChat: activeConv.id }, '');
+      chatHistoryPushed.current = true;
+    } else if (!activeConv && chatHistoryPushed.current) {
+      // Programmatic close: pop the synthetic entry without re-triggering.
+      chatHistoryPushed.current = false;
+      suppressPopstate.current = true;
+      window.history.back();
+      // suppressPopstate is cleared inside onPopState after the event fires.
+    }
+  }, [activeConv]);
+
+  useEffect(() => {
+    const onPopState = () => {
+      if (suppressPopstate.current) {
+        // This popstate was triggered by our own history.back() above — ignore.
+        suppressPopstate.current = false;
+        return;
+      }
+      if (chatHistoryPushed.current) {
+        // Real hardware/PWA back button — close the chat.
+        chatHistoryPushed.current = false;
+        setActiveConv(null);
+      }
+    };
+    window.addEventListener('popstate', onPopState);
+    return () => window.removeEventListener('popstate', onPopState);
+  }, []);
   const [showInternalMsg, setShowInternalMsg] = useState(false);
   const [dmMembers, setDmMembers] = useState([]);
   const [internalRecipient, setInternalRecipient] = useState('');
