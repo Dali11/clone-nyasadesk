@@ -129,20 +129,22 @@ export function usePushNotifications(workspaceOwnerId) {
 
   // ── Public subscribe ────────────────────────────────────────────────────
   const subscribe = useCallback(async () => {
-    if (!supported) return;
+    if (!supported) return { ok: false, error: 'Push not supported in this browser' };
     if (!workspaceOwnerId) {
       console.error('[push] subscribe() called before workspaceOwnerId is available');
-      return;
+      return { ok: false, error: 'Workspace not ready — please try again' };
     }
     setLoading(true);
     try {
       const perm = await Notification.requestPermission();
       setPermission(perm);
-      if (perm !== 'granted') return;
+      if (perm === 'denied') return { ok: false, error: 'Notifications blocked in browser settings' };
+      if (perm !== 'granted') return { ok: false, error: 'Permission not granted' };
       await subscribeInternal(workspaceOwnerId);
+      return { ok: true };
     } catch (e) {
       console.error('[push] subscribe failed:', e?.message || e);
-      // Error is surfaced via setSubscribed(false) inside subscribeInternal
+      return { ok: false, error: e?.message || 'Failed to enable notifications' };
     } finally {
       setLoading(false);
     }
@@ -174,5 +176,24 @@ export function usePushNotifications(workspaceOwnerId) {
     }
   }, [supported]);
 
-  return { supported, permission, subscribed, loading, subscribe, unsubscribe };
+  // ── Test: fire a local notification to confirm browser+SW are working ──
+  const sendTestNotification = useCallback(async () => {
+    if (!supported) return { ok: false, error: 'Push not supported' };
+    try {
+      const reg = await navigator.serviceWorker.ready;
+      const perm = Notification.permission;
+      if (perm !== 'granted') return { ok: false, error: `Permission is '${perm}' — enable notifications first` };
+      await reg.showNotification('Nyasadesk test ✓', {
+        body: 'Notifications are working correctly!',
+        icon: '/icon-192.png',
+        badge: '/badge-n.png',
+        tag: 'nyasa-test',
+      });
+      return { ok: true };
+    } catch (e) {
+      return { ok: false, error: e?.message || 'Test notification failed' };
+    }
+  }, [supported]);
+
+  return { supported, permission, subscribed, loading, subscribe, unsubscribe, sendTestNotification };
 }

@@ -34,33 +34,40 @@ function normaliseAudioMime(mime) {
 // For images/video/documents we keep the link approach (those are more
 // tolerant of Content-Type mismatches).
 async function uploadMediaToMeta(phone_number_id, access_token, url, mimeType) {
-  // Step 1: download the file from Supabase
+  // Step 1: download the file from Supabase (public bucket — no auth needed)
   const dlRes = await fetch(url);
-  if (!dlRes.ok) throw new Error(`Failed to download media for Meta upload: ${dlRes.status}`);
-  const blob = await dlRes.blob();
-  const arrayBuffer = await blob.arrayBuffer();
+  if (!dlRes.ok) throw new Error(`Failed to download media for Meta upload: ${dlRes.status} ${url.slice(-40)}`);
+  const arrayBuffer = await dlRes.arrayBuffer();
   const buffer = Buffer.from(arrayBuffer);
+  if (buffer.length === 0) throw new Error('Downloaded media file is empty');
 
-  // Step 2: POST multipart/form-data to Meta media endpoint
+  // Step 2: POST multipart/form-data to Meta media endpoint.
+  // RFC 2046 requires CRLF (\r\n) as line endings in multipart bodies.
+  // Using bare LF (\n) causes Meta to reject the upload with a parsing error.
   const boundary = `----MetaUpload${Date.now()}`;
-  // Build a minimal multipart body manually (no FormData in Node edge runtimes)
-  const partHeader = Buffer.from(
-    `--${boundary}
-Content-Disposition: form-data; name="file"; filename="voice.ogg"
-Content-Type: ${mimeType}
+  const CRLF = '\r\n';
+  const ext = mimeType.includes('ogg') ? 'ogg'
+             : mimeType.includes('mp4') || mimeType.includes('aac') ? 'm4a'
+             : mimeType.includes('mpeg') || mimeType.includes('mp3') ? 'mp3'
+             : mimeType.includes('amr') ? 'amr' : 'ogg';
+  const filename = `voice.${ext}`;
 
-`
+  const partHeader = Buffer.from(
+    `--${boundary}${CRLF}` +
+    `Content-Disposition: form-data; name="file"; filename="${filename}"${CRLF}` +
+    `Content-Type: ${mimeType}${CRLF}` +
+    CRLF
   );
   const messagingPart = Buffer.from(
-    `
---${boundary}
-Content-Disposition: form-data; name="messaging_product"
-
-whatsapp
---${boundary}--
-`
+    `${CRLF}--${boundary}${CRLF}` +
+    `Content-Disposition: form-data; name="messaging_product"${CRLF}` +
+    CRLF +
+    `whatsapp${CRLF}` +
+    `--${boundary}--${CRLF}`
   );
   const body = Buffer.concat([partHeader, buffer, messagingPart]);
+
+  console.log(`[WA] Uploading ${buffer.length} bytes as ${mimeType} to Meta (boundary=${boundary.slice(-8)})`);
 
   const r = await fetch(`${GRAPH}/${phone_number_id}/media`, {
     method: 'POST',
@@ -70,10 +77,14 @@ whatsapp
     },
     body,
   });
-  const json = await r.json();
-  if (!r.ok) throw new Error(json.error?.message || `Meta media upload failed: ${r.status}`);
-  if (!json.id) throw new Error('Meta media upload returned no id');
-  return json.id; // e.g. "1234567890"
+  const json = await r.json().catch(() => ({}));
+  if (!r.ok) {
+    console.error('[WA] Meta media upload failed:', json);
+    throw new Error(json.error?.message || `Meta media upload failed HTTP ${r.status}`);
+  }
+  if (!json.id) throw new Error(`Meta media upload returned no id: ${JSON.stringify(json)}`);
+  console.log(`[WA] Meta media upload success, id=${json.id}`);
+  return json.id;
 }
 
 export class WhatsAppCloudProvider extends MessagingProvider {

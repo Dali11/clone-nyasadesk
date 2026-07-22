@@ -9,6 +9,37 @@ import { useNyasaAuth } from '@/lib/NyasaAuth';
 import { useToast } from '@/components/ui/use-toast';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger, DropdownMenuSeparator } from '@/components/ui/dropdown-menu';
 
+// ── Link renderer ────────────────────────────────────────────────────────────
+// Splits message text on URLs and renders them as tappable <a> tags.
+// Works inside whitespace-pre-wrap paragraphs so line breaks are preserved.
+const URL_RE = /https?:\/\/[^\s<>"']+[^\s<>"'.,;:!?\)\]]/gi;
+function LinkifiedText({ text }) {
+  if (!text) return null;
+  const parts = [];
+  let last = 0;
+  let match;
+  URL_RE.lastIndex = 0;
+  while ((match = URL_RE.exec(text)) !== null) {
+    if (match.index > last) parts.push(text.slice(last, match.index));
+    parts.push(
+      <a
+        key={match.index}
+        href={match[0]}
+        target="_blank"
+        rel="noopener noreferrer"
+        className="underline text-blue-300 hover:text-blue-200 break-all"
+        onClick={e => e.stopPropagation()}
+      >
+        {match[0]}
+      </a>
+    );
+    last = match.index + match[0].length;
+  }
+  if (last < text.length) parts.push(text.slice(last));
+  return <>{parts}</>;
+}
+
+
 const CHANNEL_COLOR = {
   whatsapp: '#DCF8C6',
   messenger: '#D6EAFF',
@@ -344,7 +375,7 @@ function Bubble({ msg, menuOpenId, onOpenMenu, onCopy, onShare, onDelete, onTogg
         {isDeleted ? (
           <p className="italic text-yellow-500/60 flex items-center gap-1"><Ban className="w-3 h-3" />This note was deleted</p>
         ) : (
-          <p className="whitespace-pre-wrap leading-relaxed">{msg.body}</p>
+          <p className="whitespace-pre-wrap leading-relaxed"><LinkifiedText text={msg.body} /></p>
         )}
         {!isDeleted && (
           <MessageActionsMenu msg={msg} isOut={false} open={menuOpen}
@@ -412,7 +443,7 @@ function Bubble({ msg, menuOpenId, onOpenMenu, onCopy, onShare, onDelete, onTogg
                   </span>
                 );
               }
-              return <p className="whitespace-pre-wrap break-words">{msg.body}</p>;
+              return <p className="whitespace-pre-wrap break-words"><LinkifiedText text={msg.body} /></p>;
             })()}
           </>
         )}
