@@ -1096,16 +1096,34 @@ async function withRetry(fn, attempts = 3) {
 
 export async function saveAiAgent(workspaceId, agent) {
   const { id, ...fields } = agent;
+  // Strip fields that may not exist in the DB yet (e.g. webhook_tool_url/secret
+  // if the migration hasn't been applied). Once the migration runs these will
+  // be saved correctly. Safe to include them once columns exist.
+  const OPTIONAL_COLUMNS = ['webhook_tool_url', 'webhook_tool_secret'];
+  const safeFields = { ...fields };
+  // We'll try with them first; on a column-unknown error, retry without them.
   return withRetry(async () => {
     if (id) {
-      const { data, error } = await supabase.from('ai_agents')
-        .update({ ...fields, updated_at: new Date().toISOString() })
+      let { data, error } = await supabase.from('ai_agents')
+        .update({ ...safeFields, updated_at: new Date().toISOString() })
         .eq('id', id).eq('workspace_id', workspaceId).select().single();
+      if (error?.code === '42703') {
+        // Unknown column — strip optional fields and retry once
+        OPTIONAL_COLUMNS.forEach(k => delete safeFields[k]);
+        ({ data, error } = await supabase.from('ai_agents')
+          .update({ ...safeFields, updated_at: new Date().toISOString() })
+          .eq('id', id).eq('workspace_id', workspaceId).select().single());
+      }
       if (error) throw error;
       return data;
     }
-    const { data, error } = await supabase.from('ai_agents')
-      .insert({ workspace_id: workspaceId, ...fields }).select().single();
+    let { data, error } = await supabase.from('ai_agents')
+      .insert({ workspace_id: workspaceId, ...safeFields }).select().single();
+    if (error?.code === '42703') {
+      OPTIONAL_COLUMNS.forEach(k => delete safeFields[k]);
+      ({ data, error } = await supabase.from('ai_agents')
+        .insert({ workspace_id: workspaceId, ...safeFields }).select().single());
+    }
     if (error) throw error;
     return data;
   });
