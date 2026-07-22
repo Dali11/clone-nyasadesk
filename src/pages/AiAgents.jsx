@@ -17,6 +17,7 @@ const BLANK_FORM = {
   system_instructions: '', personality: '', tone: '',
   languages: ['English'], enabled_channels: [], automation_mode: 'draft', status: 'active',
   agent_type: 'general', message_cap: null, handoff_assignment_rule_id: null,
+  webhook_tool_url: '', webhook_tool_secret: '',
 };
 
 const AGENT_TYPE_BADGES = {
@@ -604,6 +605,30 @@ export default function AiAgents() {
                   <p className="text-[11px] text-amber-400/80 mt-1.5">
                     This agent will reply on its own — no human review — to any new conversation on its
                     enabled channels, until a teammate sends a manual reply (which hands the conversation to them).
+                  </p>
+                )}
+              </Field>
+
+              {/* External webhook tool — optional, enables custom tools like register_student */}
+              <Field label="External webhook tool" hint="Optional: point to an endpoint that handles custom AI tool calls (e.g. student registration).">
+                <input
+                  placeholder="Webhook URL (e.g. https://yourapp.com/api/wa-register)"
+                  value={form.webhook_tool_url || ''}
+                  onChange={e => set('webhook_tool_url', e.target.value)}
+                  className="w-full bg-white/5 border border-white/10 rounded-lg px-3 py-2 text-sm text-white placeholder-gray-500 focus:outline-none focus:border-[#25D366]/50"
+                />
+                {form.webhook_tool_url && (
+                  <input
+                    placeholder="Shared secret (sent as Bearer token)"
+                    type="password"
+                    value={form.webhook_tool_secret || ''}
+                    onChange={e => set('webhook_tool_secret', e.target.value)}
+                    className="mt-1.5 w-full bg-white/5 border border-white/10 rounded-lg px-3 py-2 text-sm text-white placeholder-gray-500 focus:outline-none focus:border-[#25D366]/50"
+                  />
+                )}
+                {form.webhook_tool_url && (
+                  <p className="text-[11px] text-amber-400/80 mt-1">
+                    The agent will call this URL when it needs to execute an external action (e.g. creating a student account). Secure it with a shared secret.
                   </p>
                 )}
               </Field>
