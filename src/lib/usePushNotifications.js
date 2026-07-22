@@ -43,7 +43,11 @@ export function usePushNotifications(workspaceOwnerId) {
   const [permission, setPermission] = useState(
     typeof Notification !== 'undefined' ? Notification.permission : 'default'
   );
-  const [subscribed, setSubscribed] = useState(false);
+  // Seed from last-known state to avoid the initial false→true flash that makes
+  // the toggle look like it's reverting. The async check on mount will correct it.
+  const [subscribed, setSubscribed] = useState(() => {
+    try { return localStorage.getItem('nyasa_push_subscribed') === '1'; } catch (_) { return false; }
+  });
   const [loading, setLoading]       = useState(false);
   const didAutoSubscribe             = useRef(false);
 
@@ -65,11 +69,28 @@ export function usePushNotifications(workspaceOwnerId) {
 
     // Create browser subscription if needed
     if (!sub) {
-      sub = await reg.pushManager.subscribe({
-        userVisibleOnly: true,
-        applicationServerKey: urlBase64ToUint8Array(VAPID_PUBLIC_KEY),
-      });
-      console.log('[push] Browser subscription created:', sub.endpoint.slice(0, 60));
+      try {
+        sub = await reg.pushManager.subscribe({
+          userVisibleOnly: true,
+          applicationServerKey: urlBase64ToUint8Array(VAPID_PUBLIC_KEY),
+        });
+        console.log('[push] Browser subscription created:', sub.endpoint.slice(0, 60));
+      } catch (subscribeErr) {
+        console.warn('[push] pushManager.subscribe() failed, retrying after clearing state:', subscribeErr?.message);
+        // Some browsers (Android Chrome) fail if there's a stale/expired subscription
+        // state that wasn't cleaned up. Force-clear and retry once.
+        try {
+          const staleSub = await reg.pushManager.getSubscription();
+          if (staleSub) await staleSub.unsubscribe();
+        } catch (_) {}
+        // Small delay before retry to let the browser settle
+        await new Promise(resolve => setTimeout(resolve, 500));
+        sub = await reg.pushManager.subscribe({
+          userVisibleOnly: true,
+          applicationServerKey: urlBase64ToUint8Array(VAPID_PUBLIC_KEY),
+        });
+        console.log('[push] Browser subscription created (retry):', sub.endpoint.slice(0, 60));
+      }
     }
 
     // Save to DB — if this fails, undo the browser subscription to keep them in sync
@@ -80,25 +101,20 @@ export function usePushNotifications(workspaceOwnerId) {
       });
       console.log('[push] Subscription persisted to DB ✓');
       setSubscribed(true);
+      try { localStorage.setItem('nyasa_push_subscribed', '1'); } catch (_) {}
       return true;
     } catch (dbErr) {
       console.error('[push] DB save failed — rolling back browser subscription:', dbErr?.message);
       await sub.unsubscribe().catch(() => {});
       setSubscribed(false);
+      try { localStorage.setItem('nyasa_push_subscribed', '0'); } catch (_) {}
       throw dbErr; // re-throw so callers can surface the error
     }
   }, []);
 
-  // ── Auto-subscribe on mount if permission already granted ───────────────
-  useEffect(() => {
-    if (!supported || !workspaceOwnerId || didAutoSubscribe.current) return;
-    if (typeof Notification === 'undefined' || Notification.permission !== 'granted') return;
-    didAutoSubscribe.current = true;
-    setTimeout(() => {
-      subscribeInternal(workspaceOwnerId).catch(() => {});
-    }, 1500);
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [supported, workspaceOwnerId]);
+  // Auto-resubscription is handled in the mount check effect above.
+  // This effect is intentionally empty — kept as a placeholder.
+  // (Previously used setTimeout 1500ms which caused visible toggle flicker)
 
   // ── Check browser subscription state on mount ───────────────────────────
   useEffect(() => {
@@ -107,21 +123,46 @@ export function usePushNotifications(workspaceOwnerId) {
     setSupported(isSupported);
     if (!isSupported) return;
 
-    navigator.serviceWorker.register('/sw.js').then(async (reg) => {
+    // Use serviceWorker.ready (not register) so we wait for full activation
+    // before querying pushManager — avoids false negatives during SW install.
+    navigator.serviceWorker.ready.then(async (reg) => {
       const sub = await reg.pushManager.getSubscription();
       const browserHasSub = !!sub && !isDeadEndpoint(sub?.endpoint);
-      setSubscribed(browserHasSub);
 
-      // If browser has a subscription, silently re-sync it to the DB on mount
-      // This fixes the case where the DB row was lost but the browser sub persisted
-      if (browserHasSub && workspaceOwnerId) {
-        authedFetch('/api/team?action=push-subscribe', {
-          subscription: sub.toJSON(),
-          workspace_id: workspaceOwnerId,
-        }).catch((e) => {
-          // Silent — don't unsubscribe here, just log (user didn't ask us to change anything)
-          console.warn('[push] Background re-sync failed:', e?.message);
-        });
+      if (browserHasSub) {
+        setSubscribed(true);
+        try { localStorage.setItem('nyasa_push_subscribed', '1'); } catch (_) {}
+        // Re-sync to DB in case the row was lost
+        if (workspaceOwnerId) {
+          authedFetch('/api/team?action=push-subscribe', {
+            subscription: sub.toJSON(),
+            workspace_id: workspaceOwnerId,
+          }).catch((e) => console.warn('[push] Background re-sync failed:', e?.message));
+        }
+      } else {
+        // No browser subscription.
+        // If permission was previously granted, silently recreate it —
+        // subscriptions expire (~30 days) or get cleared on SW update.
+        // This is why the toggle appears to "reset": the sub expired but
+        // we were showing 'on' from localStorage.
+        if (
+          workspaceOwnerId &&
+          typeof Notification !== 'undefined' &&
+          Notification.permission === 'granted' &&
+          !didAutoSubscribe.current
+        ) {
+          didAutoSubscribe.current = true;
+          console.log('[push] Permission granted but no active subscription — recreating');
+          subscribeInternal(workspaceOwnerId).catch((e) => {
+            console.warn('[push] Auto-resubscribe failed:', e?.message || e);
+            // Subscription is truly gone — update the toggle to reflect reality
+            setSubscribed(false);
+            try { localStorage.setItem('nyasa_push_subscribed', '0'); } catch (_) {}
+          });
+        } else {
+          setSubscribed(false);
+          try { localStorage.setItem('nyasa_push_subscribed', '0'); } catch (_) {}
+        }
       }
     }).catch(() => {});
   // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -163,6 +204,7 @@ export function usePushNotifications(workspaceOwnerId) {
         await sub.unsubscribe();
       }
       setSubscribed(false);
+      try { localStorage.setItem('nyasa_push_subscribed', '0'); } catch (_) {}
     } catch (e) {
       console.error('[push] unsubscribe failed:', e?.message || e);
       // Don't leave UI in wrong state — force-recheck from browser
