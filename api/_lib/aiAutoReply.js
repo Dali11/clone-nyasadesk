@@ -38,6 +38,23 @@ export async function autoReplyIfEnabled(sb, { workspaceId, conversationId, chan
     const hasAccess = await workspaceHasAiAgentAccess(sb, workspaceId);
     if (!hasAccess) { console.warn('[aiAutoReply] workspace', workspaceId, 'no longer has AI Agent access (plan downgrade) -- skipping'); return; }
 
+    // ── Race condition guard: skip if an AI reply was sent in the last 8 seconds ──
+    // Two inbound messages arriving close together (e.g. user sends two in a row)
+    // can both hit this function before either reply is saved, causing double-replies.
+    // Checking for a recent AI outbound message is a lightweight mutex that costs
+    // one extra DB read but prevents the duplicate UX issue entirely.
+    const eightSecondsAgo = new Date(Date.now() - 8000).toISOString();
+    const { count: recentAiCount } = await sb.from('messages')
+      .select('id', { count: 'exact', head: true })
+      .eq('conversation_id', conversationId)
+      .eq('direction', 'outbound')
+      .like('sender_id', 'ai:%')
+      .gte('created_at', eightSecondsAgo);
+    if (recentAiCount > 0) {
+      console.log('[aiAutoReply] skipping — AI already replied in the last 8s for conv', conversationId);
+      return;
+    }
+
     // ── message_cap enforcement ────────────────────────────────────────────
     // Some agent types (notably the Receptionist) are deliberately short-lived
     // in a conversation: after a fixed number of outbound AI replies they must
