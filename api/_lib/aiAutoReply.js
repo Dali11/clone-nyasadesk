@@ -12,7 +12,7 @@
 
 import { generateDraftReply, workspaceHasAiAgentAccess } from './aiAgents.js';
 import { getProvider } from './providers/index.js';
-import { getDocumentTools, executeDocumentTool } from './aiDocumentTools.js';
+import { getDocumentTools, executeDocumentTool, getWebhookTools, executeWebhookTool } from './aiDocumentTools.js';
 
 export async function autoReplyIfEnabled(sb, { workspaceId, conversationId, channel, externalId, contact }) {
   try {
@@ -91,16 +91,23 @@ export async function autoReplyIfEnabled(sb, { workspaceId, conversationId, chan
       .eq('workspace_id', workspaceId).or('agent_id.eq.' + agent.id + ',agent_id.is.null')
       .order('created_at', { ascending: true });
 
-    // Phase 2 of the Quotation & Invoice Builder: a fully-automated agent can
-    // call create_quotation/create_invoice mid-conversation instead of ever
-    // hand-typing one -- see aiDocumentTools.js. Only enabled here (the
-    // no-human-review path), not for the human-reviewed draft flow.
+    // Merge document tools + webhook tools (e.g. register_student).
+    // Webhook tools are only present when the agent has webhook_tool_url set,
+    // so this is a no-op for agents that don't use external tools.
+    const allTools = [...getDocumentTools(), ...getWebhookTools(agent)];
+
     const replyText = await generateDraftReply(agent, messages || [], contact, knowledge || [], {
       sb, workspaceId, conversationId,
-      tools: getDocumentTools(),
-      executeTool: (name, args) => executeDocumentTool(sb, {
-        workspaceId, conversationId, contactId: contact?.id || null, agentId: agent.id, agentName: agent.name,
-      }, name, args),
+      tools: allTools,
+      executeTool: (name, args) => {
+        // Route to webhook executor for external tools, document executor for built-ins.
+        if (name === 'register_student') {
+          return executeWebhookTool(agent, name, args);
+        }
+        return executeDocumentTool(sb, {
+          workspaceId, conversationId, contactId: contact?.id || null, agentId: agent.id, agentName: agent.name,
+        }, name, args);
+      },
     });
 
     // Website live-chat has no outbound provider -- same special-case as
