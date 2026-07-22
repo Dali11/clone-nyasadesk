@@ -27,6 +27,7 @@ export default async function handler(req, res) {
   if (resource === 'ai-usage') return handleAiUsage(req, res, sb);
   if (resource === 'audit-log') return handleAuditLog(req, res, sb);
   if (resource === 'workspace-detail') return handleWorkspaceDetail(req, res, sb);
+  if (resource === 'migrate') return handleMigrate(req, res, sb);
   if (resource === 'users') return handleUsers(req, res, sb, admin);
   return handleWorkspaces(req, res, sb, admin);
 }
@@ -583,4 +584,63 @@ async function handleUsers(req, res, sb, admin) {
   }
 
   return res.status(405).json({ error: 'Method not allowed' });
+}
+
+// ── One-shot DB migration runner ─────────────────────────────────────────────
+// POST /api/admin/workspaces?resource=migrate
+// Requires admin auth + secret header. Run once to apply DDL migrations.
+async function handleMigrate(req, res) {
+  if (req.method !== 'POST') return res.status(405).json({ error: 'POST only' });
+  const secret = req.headers['x-migration-secret'];
+  if (secret !== 'nyasa-migrate-2026-xk9p') return res.status(401).json({ error: 'Wrong secret' });
+
+  const MIGRATIONS = [
+    'ALTER TABLE public.ai_agents ADD COLUMN IF NOT EXISTS webhook_tool_url text',
+    'ALTER TABLE public.ai_agents ADD COLUMN IF NOT EXISTS webhook_tool_secret text',
+    `CREATE TABLE IF NOT EXISTS public.push_subscriptions (
+      id uuid primary key default gen_random_uuid(),
+      user_id uuid not null references auth.users(id) on delete cascade,
+      owner_id uuid not null,
+      endpoint text not null,
+      subscription jsonb not null,
+      created_at timestamptz not null default now(),
+      updated_at timestamptz not null default now()
+    )`,
+    'CREATE UNIQUE INDEX IF NOT EXISTS push_subscriptions_endpoint_key ON public.push_subscriptions(endpoint)',
+    'CREATE INDEX IF NOT EXISTS push_subscriptions_owner_id_idx ON public.push_subscriptions(owner_id)',
+    'ALTER TABLE public.push_subscriptions ENABLE ROW LEVEL SECURITY',
+    `DO $pol$ BEGIN IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE tablename='push_subscriptions' AND policyname='Users can manage own push subscriptions') THEN CREATE POLICY "Users can manage own push subscriptions" ON public.push_subscriptions FOR ALL USING (auth.uid() = user_id) WITH CHECK (auth.uid() = user_id); END IF; END $pol$`,
+  ];
+
+  const results = [];
+  let pool;
+  try {
+    const pg = (await import('pg')).default;
+    const Pool = pg.Pool;
+    pool = new Pool({
+      host: 'aws-0-af-south-1.pooler.supabase.com',
+      port: 6543,
+      database: 'postgres',
+      user: 'postgres.pfbaepibelomiutlotkn',
+      password: process.env.SUPABASE_SERVICE_ROLE_KEY,
+      ssl: { rejectUnauthorized: false },
+      max: 1,
+      connectionTimeoutMillis: 15000,
+    });
+  } catch(e) {
+    return res.status(500).json({ error: 'pg init failed: ' + e.message });
+  }
+
+  for (let i = 0; i < MIGRATIONS.length; i++) {
+    const sql = MIGRATIONS[i];
+    const label = sql.trim().slice(0, 80).replace(/\n/g, ' ');
+    try {
+      await pool.query(sql);
+      results.push({ i, label, status: 'ok' });
+    } catch(e) {
+      results.push({ i, label, status: 'error', error: e.message });
+    }
+  }
+  try { await pool.end(); } catch(_) {}
+  return res.status(200).json({ results, done: true });
 }
