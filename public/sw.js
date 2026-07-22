@@ -1,4 +1,4 @@
-// ── Nyasadesk Service Worker v8 ────────────────────────────────────────────
+// ── Nyasadesk Service Worker v9 ────────────────────────────────────────────
 // Full offline-first PWA:
 //  - Pre-caches ALL Vite build chunks at install (app shell + all routes)
 //  - Cache-first for assets, network-first for navigation
@@ -7,9 +7,9 @@
 //  - Inline reply from notification bar
 //  - Badge icon support
 
-const SW_VERSION    = 8;                        // increment to force self-destruct on stale installs
-const STATIC_CACHE  = 'nyasadesk-static-v8';   // versioned static assets
-const DYNAMIC_CACHE = 'nyasadesk-dynamic-v8';   // runtime HTML pages
+const SW_VERSION    = 9;                        // increment to force self-destruct on stale installs
+const STATIC_CACHE  = 'nyasadesk-static-v9';   // versioned static assets
+const DYNAMIC_CACHE = 'nyasadesk-dynamic-v9';   // runtime HTML pages
 const SECRET_CACHE  = 'nyasa-sw-secrets-v1';    // inline reply secret
 const NOTIF_REPLY_ENDPOINT = '/api/team?action=notif-reply';
 

@@ -576,8 +576,12 @@ export default function MessageThread({ conversation, workspaceId }) {
         return;
       }
       setMessages(prev => {
-        const exists = prev.find(m => m.id === incoming.id);
-        if (exists) return prev.map(m => m.id === incoming.id ? { ...m, ...incoming } : m);
+        // Check for existing message by real ID OR by temp bubble that 
+        // might already contain this data (edge case: Realtime fires twice)
+        const existsById = prev.find(m => m.id === incoming.id);
+        if (existsById) return prev.map(m => m.id === incoming.id ? { ...m, ...incoming } : m);
+        // Extra guard: don't append if a temp bubble is about to be reconciled
+        // to this id (settledIds was already consumed but React state hasn't committed)
         return [...prev, incoming];
       });
     });
@@ -613,7 +617,10 @@ export default function MessageThread({ conversation, workspaceId }) {
       try {
         const saved = await addNote(wId, conversation.id, text, user?.full_name || 'You', user?.id, replyToSnapshot);
         if (saved?.id) settledIds.current.add(saved.id);
-        setMessages(prev => prev.map(m => m.id === tempId ? saved : m));
+        setMessages(prev => {
+          const without = prev.filter(m => m.id !== saved?.id);
+          return without.map(m => m.id === tempId ? saved : m);
+        });
       } catch (e) {
         console.error('[MessageThread] failed to save note:', e);
         setMessages(prev => prev.map(m => m.id === tempId ? { ...m, body: `${text}\n\n⚠ Failed to save — try again` } : m));
@@ -641,7 +648,12 @@ export default function MessageThread({ conversation, workspaceId }) {
         (id) => settledIds.current.add(id)
       );
       // If msg.status === 'queued', we're offline — keep optimistic bubble with queued style
-      setMessages(prev => prev.map(m => m.id === tempId ? { ...msg, direction: 'outbound' } : m));
+      setMessages(prev => {
+        // Filter out any real-id entry that Realtime may have appended before
+        // this reconcile ran, then swap the temp bubble with the real message.
+        const without = prev.filter(m => m.id !== msg.id);
+        return without.map(m => m.id === tempId ? { ...msg, direction: 'outbound' } : m);
+      });
       if (msg.status === 'queued') {
         toast({ title: 'No connection', description: 'Message queued — will send when back online 📤', variant: 'default' });
       }
@@ -668,7 +680,10 @@ export default function MessageThread({ conversation, workspaceId }) {
     try {
       const msg = await sendMediaMessage(wId, conversation.id, file, kind, user?.full_name || 'You', '', user?.id || null);
       if (msg?.id) settledIds.current.add(msg.id);
-      setMessages(prev => prev.map(m => m.id === tempId ? { ...msg, direction: 'outbound' } : m));
+      setMessages(prev => {
+        const without = prev.filter(m => m.id !== msg.id);
+        return without.map(m => m.id === tempId ? { ...msg, direction: 'outbound' } : m);
+      });
     } catch (e) {
       console.error('[MessageThread] media send failed:', e);
       setMessages(prev => prev.map(m => m.id === tempId ? { ...m, status: 'failed' } : m));
@@ -734,7 +749,10 @@ export default function MessageThread({ conversation, workspaceId }) {
       }).select().single();
       if (error) throw error;
       if (msg?.id) settledIds.current.add(msg.id);
-      setMessages(prev => prev.map(m => m.id === tempId ? { ...msg, direction: 'outbound' } : m));
+      setMessages(prev => {
+        const without = prev.filter(m => m.id !== msg.id);
+        return without.map(m => m.id === tempId ? { ...msg, direction: 'outbound' } : m);
+      });
       const res = await fetch('/api/channels?action=send', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
