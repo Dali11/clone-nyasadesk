@@ -244,6 +244,12 @@ async function pushSubscribeHandler(req, res, sb, sbAnon) {
   // a named UNIQUE constraint — a plain unique index is not enough for the
   // Supabase JS client's upsert helper.
   const endpoint = subscription.endpoint;
+
+  // Reject legacy FCM endpoints — they're dead and would pollute the DB
+  if (!endpoint || endpoint.includes('fcm.googleapis.com/fcm/send/')) {
+    return res.status(400).json({ error: 'Legacy FCM endpoints are not supported. Please re-enable notifications.' });
+  }
+
   const { data: existing } = await sb.from('push_subscriptions')
     .select('id').eq('endpoint', endpoint).maybeSingle();
 

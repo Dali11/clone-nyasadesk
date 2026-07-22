@@ -75,7 +75,16 @@ export async function notifyNewMessage(sb, {
       },
     });
 
+    // Filter out known dead endpoint patterns before attempting delivery
+    const isDeadEndpoint = (ep) => !ep || ep.includes('fcm.googleapis.com/fcm/send/');
+
     await Promise.all(subs.map(async (row) => {
+      const endpoint = row.subscription?.endpoint || '';
+      if (isDeadEndpoint(endpoint)) {
+        // Auto-clean legacy FCM endpoints — they never deliver but return 200
+        await sb.from('push_subscriptions').delete().eq('id', row.id);
+        return;
+      }
       try {
         await webpush.sendNotification(row.subscription, payload);
       } catch (e) {
