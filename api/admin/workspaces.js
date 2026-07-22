@@ -622,12 +622,26 @@ async function handleMigrate(req, res) {
   try {
     const pg = (await import('pg')).default;
     const Pool = pg.Pool;
-    pool = new Pool({
-      connectionString: `postgresql://postgres.pfbaepibelomiutlotkn:${encodeURIComponent(process.env.SUPABASE_DB_PASSWORD || 'Arthur@472003')}@aws-0-eu-central-1.pooler.supabase.com:6543/postgres`,
-      ssl: { rejectUnauthorized: false },
-      max: 1,
-      connectionTimeoutMillis: 20000,
-    });
+    // Try each region until connection succeeds
+    const regions = ['eu-west-1','eu-central-1','eu-west-2','us-east-1','us-east-2','us-west-1','ap-southeast-1','ap-northeast-1'];
+    const dbPass = encodeURIComponent(process.env.SUPABASE_DB_PASSWORD || 'Arthur@472003');
+    let lastErr = null;
+    for (const region of regions) {
+      try {
+        const connStr = `postgresql://postgres.pfbaepibelomiutlotkn:${dbPass}@aws-0-${region}.pooler.supabase.com:6543/postgres`;
+        pool = new Pool({ connectionString: connStr, ssl: { rejectUnauthorized: false }, max: 1, connectionTimeoutMillis: 8000 });
+        // Test the connection
+        const testClient = await pool.connect();
+        await testClient.query('SELECT 1');
+        testClient.release();
+        results.push({ info: `Connected via region: ${region}` });
+        break;
+      } catch(e) {
+        lastErr = e;
+        if (pool) { try { await pool.end(); } catch(_) {} pool = null; }
+      }
+    }
+    if (!pool) throw new Error('No region connected: ' + lastErr?.message);
   } catch(e) {
     return res.status(500).json({ error: 'pg init failed: ' + e.message });
   }
