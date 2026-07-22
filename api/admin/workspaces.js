@@ -623,11 +623,7 @@ async function handleMigrate(req, res) {
     const pg = (await import('pg')).default;
     const Pool = pg.Pool;
     pool = new Pool({
-      host: 'db.pfbaepibelomiutlotkn.supabase.co',
-      port: 5432,
-      database: 'postgres',
-      user: 'postgres',
-      password: process.env.SUPABASE_DB_PASSWORD || process.env.SUPABASE_SERVICE_ROLE_KEY,
+      connectionString: `postgresql://postgres.pfbaepibelomiutlotkn:${encodeURIComponent(process.env.SUPABASE_DB_PASSWORD || 'Arthur@472003')}@aws-0-eu-central-1.pooler.supabase.com:6543/postgres`,
       ssl: { rejectUnauthorized: false },
       max: 1,
       connectionTimeoutMillis: 20000,
