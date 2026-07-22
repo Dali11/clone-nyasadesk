@@ -428,7 +428,8 @@ async function handleAiAgentsSave(req, res) {
     const ALLOWED = ['name', 'description', 'role', 'template_key', 'model', 'system_instructions',
       'personality', 'tone', 'languages', 'enabled_channels', 'handoff_rules', 'permissions',
       'operating_hours', 'automation_mode', 'status',
-      'agent_type', 'message_cap', 'handoff_assignment_rule_id'];
+      'agent_type', 'message_cap', 'handoff_assignment_rule_id',
+      'webhook_tool_url', 'webhook_tool_secret'];
     const payload = {};
     for (const k of ALLOWED) if (k in fields) payload[k] = fields[k];
 
