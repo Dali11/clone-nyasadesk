@@ -239,11 +239,45 @@ async function pushSubscribeHandler(req, res, sb, sbAnon) {
   const callerId = await verifyCaller(req, res, sb, sbAnon);
   if (!callerId) return;
 
-  const { error } = await sb.from('push_subscriptions').upsert({
-    user_id: callerId, owner_id: workspace_id,
-    endpoint: subscription.endpoint, subscription,
-  }, { onConflict: 'endpoint' });
-  if (error) return res.status(500).json({ error: error.message });
+  // Two-step upsert: try insert first, fall back to update on conflict.
+  // This is more robust than .upsert({onConflict:'endpoint'}) which requires
+  // a named UNIQUE constraint — a plain unique index is not enough for the
+  // Supabase JS client's upsert helper.
+  const endpoint = subscription.endpoint;
+  const { data: existing } = await sb.from('push_subscriptions')
+    .select('id').eq('endpoint', endpoint).maybeSingle();
+
+  if (existing?.id) {
+    // Update existing row
+    const { error } = await sb.from('push_subscriptions')
+      .update({ user_id: callerId, owner_id: workspace_id, subscription, updated_at: new Date().toISOString() })
+      .eq('id', existing.id);
+    if (error) {
+      console.error('[push-subscribe] update failed:', error.message);
+      return res.status(500).json({ error: error.message });
+    }
+  } else {
+    // Insert new row
+    const { error } = await sb.from('push_subscriptions').insert({
+      user_id: callerId, owner_id: workspace_id, endpoint, subscription,
+    });
+    if (error) {
+      // If it's a unique constraint violation (race condition), try update
+      if (error.code === '23505') {
+        const { error: e2 } = await sb.from('push_subscriptions')
+          .update({ user_id: callerId, owner_id: workspace_id, subscription, updated_at: new Date().toISOString() })
+          .eq('endpoint', endpoint);
+        if (e2) {
+          console.error('[push-subscribe] conflict update failed:', e2.message);
+          return res.status(500).json({ error: e2.message });
+        }
+      } else {
+        console.error('[push-subscribe] insert failed:', error.message, 'code:', error.code);
+        return res.status(500).json({ error: error.message });
+      }
+    }
+  }
+  console.log('[push-subscribe] saved for user:', callerId, 'workspace:', workspace_id);
   return res.status(200).json({ success: true });
 }
 

@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
-import { useLocation } from 'react-router-dom';
+import { useLocation, useNavigate } from 'react-router-dom';
 import { Search, Plus, Loader2, MessageSquareOff, Pin, Pencil, X } from 'lucide-react';
 import Sidebar from '@/components/Sidebar';
 import ConvList from '@/components/inbox/ConvList';
@@ -42,21 +42,42 @@ export default function Inbox() {
 
   // Deep-link from push notification: ?conv=<id> → auto-open that conversation
   const location = useLocation();
+  const navigate = useNavigate();
+  // Deep-link: auto-open a conversation from ?conv= URL param.
+  // Only fires when conversations are first loaded (not on every URL change),
+  // because we manage the URL ourselves after that. We don't include
+  // location.search in the dep array to avoid a re-open loop when the user
+  // closes a chat and the URL still has ?conv=xxx.
+  const deepLinkHandled = useRef(false);
   useEffect(() => {
+    if (!conversations.length || deepLinkHandled.current) return;
     const params = new URLSearchParams(location.search);
     const convId = params.get('conv');
-    if (!convId || !conversations.length) return;
+    if (!convId) return;
     const target = conversations.find(c => c.id === convId);
-    if (target && (!activeConv || activeConv.id !== convId)) {
+    if (target) {
+      deepLinkHandled.current = true;
       setActiveConv(target);
     }
-  }, [location.search, conversations]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [conversations]);
 
   // ── Hardware / PWA back-button trap ──────────────────────────────────────
   // When a chat opens → push a synthetic history entry so the hardware back
   // button (Android, PWA) returns to the chat list instead of exiting.
   // When the chat closes programmatically → pop that entry silently.
   const suppressPopstate = useRef(false);
+
+  // Close the active conversation and clean up the ?conv= URL param so the
+  // deep-link effect doesn't immediately re-open it (the hardware back button
+  // path clears it inside the popstate handler; UI buttons call this helper).
+  const closeActiveConv = useCallback(() => {
+    deepLinkHandled.current = false;
+    setActiveConv(null);
+    const url = new URL(window.location.href);
+    url.searchParams.delete('conv');
+    window.history.replaceState({}, '', url.pathname + (url.search || ''));
+  }, []);
 
   useEffect(() => {
     if (activeConv && !chatHistoryPushed.current) {
@@ -80,8 +101,14 @@ export default function Inbox() {
       }
       if (chatHistoryPushed.current) {
         // Real hardware/PWA back button — close the chat.
+        // Also clear the ?conv= param so the deep-link effect doesn't re-open it.
         chatHistoryPushed.current = false;
+        deepLinkHandled.current = false;
         setActiveConv(null);
+        // Clear the ?conv= query param without adding a new history entry
+        const url = new URL(window.location.href);
+        url.searchParams.delete('conv');
+        window.history.replaceState({}, '', url.pathname + (url.search || ''));
       }
     };
     window.addEventListener('popstate', onPopState);
@@ -510,7 +537,7 @@ export default function Inbox() {
               users={teamUsers.length ? teamUsers : (user ? [{ id: user.id, full_name: user.full_name || user.email || 'You' }] : [])}
               currentUserId={user?.id}
               currentUserRole={profile?.role ?? 'agent'}
-              onBack={() => setActiveConv(null)}
+              onBack={closeActiveConv}
               onUpdate={handleConvUpdate}
               onOpenContact={() => setContactOpen(true)}
               onOpenDetail={() => setContactOpen(true)}
