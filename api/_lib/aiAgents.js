@@ -184,6 +184,29 @@ const ANTI_HALLUCINATION_RULE = 'CRITICAL RULE: only state specific facts (servi
 // never actually tracked anywhere despite the workspace-billed AI model --
 // this is the one place both draft mode and full-automation mode funnel
 // through, so logging here covers 100% of AI spend in a single spot.
+
+// Converts Markdown link syntax to plain text so WhatsApp/SMS channels
+// render properly. Two cases:
+//   [https://url](https://url) → https://url   (AI used URL as both label and href)
+//   [Label Text](https://url) → Label Text: https://url
+// Applied to ALL AI output regardless of channel, since we never render
+// Markdown in the inbox — the message is delivered verbatim.
+function normaliseMarkdownLinks(text) {
+  if (!text) return text;
+  return text.replace(
+    /\[([^\]]*)\]\((https?:\/\/[^\s)]+)\)/gi,
+    (_, label, url) => {
+      const cleanLabel = label.trim();
+      // If the label IS the URL (exact or very close match), just use the URL
+      if (cleanLabel === url || cleanLabel.replace(/\/$/, '') === url.replace(/\/$/, '')) {
+        return url;
+      }
+      // Otherwise: "Label: url"
+      return cleanLabel + ': ' + url;
+    }
+  );
+}
+
 function stripRedundantLinks(text) {
   if (!text) return text;
   let cleaned = text
@@ -229,8 +252,8 @@ export async function generateDraftReply(agent, recentMessages, contact, knowled
       ? 'Reply in the same language the customer is using; you are able to speak: ' + agent.languages.join(', ') + '.'
       : '',
     agent.automation_mode === 'auto'
-      ? 'Your reply is sent straight to the customer with no human review -- write it as the final message text only, no preamble, no explanation of what you are doing.'
-      : 'You are drafting a reply for a human staff member to review before sending -- write it as the final message text only, no preamble, no explanation of what you are doing.',
+      ? 'Your reply is sent straight to the customer with no human review -- write it as the final message text only, no preamble, no explanation of what you are doing. Never use Markdown formatting: no **bold**, no *italic*, no [link text](url) -- write plain text only. If you share a link, write the URL directly (e.g. https://example.com), never wrap it in Markdown brackets.'
+      : 'You are drafting a reply for a human staff member to review before sending -- write it as the final message text only, no preamble, no explanation of what you are doing. Never use Markdown formatting: no **bold**, no *italic*, no [link text](url) -- write plain text only. If you share a link, write the URL directly (e.g. https://example.com), never wrap it in Markdown brackets.',
     knowledgeBlock,
     ANTI_HALLUCINATION_RULE,
     (Array.isArray(ctx.tools) && ctx.tools.length)
@@ -325,6 +348,18 @@ export async function generateDraftReply(agent, recentMessages, contact, knowled
   // link (the document already arrives as its own attachment), but models
   // don't always comply -- strip any link it adds anyway rather than relying
   // on prompting alone. Cheap and can never make a reply worse.
+  // Always normalise Markdown link syntax → plain text (WhatsApp renders verbatim,
+  // so [url](url) appears literally as a duplicate link string to the customer).
+  finalText = normaliseMarkdownLinks(finalText);
+  // Strip residual Markdown formatting (bold/italic/headers) that GPT may
+  // still emit despite instructions — WhatsApp & email render these literally.
+  finalText = finalText
+    .replace(/\*\*([^*]+)\*\*/g, '$1')   // **bold**
+    .replace(/\*([^*]+)\*/g, '$1')          // *italic*
+    .replace(/^#{1,3}\s+/gm, '')             // ### headers
+    .trim();
+  // For tool-call results (quotation/invoice PDF), also strip the redundant URL
+  // since the document arrives as an attachment — the customer already sees it.
   if (lastToolResult?.ok) finalText = stripRedundantLinks(finalText);
 
   // Fire-and-forget usage logging -- never let a logging failure break the
