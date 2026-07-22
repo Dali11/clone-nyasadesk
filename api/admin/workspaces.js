@@ -623,14 +623,14 @@ async function handleMigrate(req, res) {
     const pg = (await import('pg')).default;
     const Pool = pg.Pool;
     pool = new Pool({
-      host: 'aws-0-af-south-1.pooler.supabase.com',
-      port: 6543,
+      host: 'db.pfbaepibelomiutlotkn.supabase.co',
+      port: 5432,
       database: 'postgres',
-      user: 'postgres.pfbaepibelomiutlotkn',
-      password: process.env.SUPABASE_SERVICE_ROLE_KEY,
+      user: 'postgres',
+      password: process.env.SUPABASE_DB_PASSWORD || process.env.SUPABASE_SERVICE_ROLE_KEY,
       ssl: { rejectUnauthorized: false },
       max: 1,
-      connectionTimeoutMillis: 15000,
+      connectionTimeoutMillis: 20000,
     });
   } catch(e) {
     return res.status(500).json({ error: 'pg init failed: ' + e.message });

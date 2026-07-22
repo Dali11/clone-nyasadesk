@@ -1107,7 +1107,7 @@ export async function saveAiAgent(workspaceId, agent) {
       let { data, error } = await supabase.from('ai_agents')
         .update({ ...safeFields, updated_at: new Date().toISOString() })
         .eq('id', id).eq('workspace_id', workspaceId).select().single();
-      if (error?.code === '42703') {
+      if (error?.code === '42703' || error?.code === 'PGRST204') {
         // Unknown column — strip optional fields and retry once
         OPTIONAL_COLUMNS.forEach(k => delete safeFields[k]);
         ({ data, error } = await supabase.from('ai_agents')
@@ -1119,7 +1119,7 @@ export async function saveAiAgent(workspaceId, agent) {
     }
     let { data, error } = await supabase.from('ai_agents')
       .insert({ workspace_id: workspaceId, ...safeFields }).select().single();
-    if (error?.code === '42703') {
+    if (error?.code === '42703' || error?.code === 'PGRST204') {
       OPTIONAL_COLUMNS.forEach(k => delete safeFields[k]);
       ({ data, error } = await supabase.from('ai_agents')
         .insert({ workspace_id: workspaceId, ...safeFields }).select().single());
