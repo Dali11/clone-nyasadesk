@@ -4,6 +4,11 @@
 // calling) instead of ever hand-typing a quotation in chat text. Generic --
 // works for any workspace's own items/prices/currency/branding, nothing
 // business-specific here.
+//
+// Phase 4: External Webhook Tool — any agent with a `webhook_tool_url` in its
+// config can call `register_student` (or any future external action) via a
+// secure POST to that URL. The tool definition and executor live here so the
+// existing aiAutoReply.js tool-calling loop picks them up automatically.
 
 import { createQuotation, createInvoice, getOrGeneratePdfUrl } from './documents.js';
 import { getProvider } from './providers/index.js';
@@ -45,6 +50,58 @@ export function getDocumentTools() {
       },
     },
   ];
+}
+
+// ── External Webhook Tool ────────────────────────────────────────────────────
+// Returns the register_student tool definition when the agent has a
+// webhook_tool_url configured. Generic: the URL is stored per-agent, not
+// hardcoded here, so any workspace can point it at their own endpoint.
+export function getWebhookTools(agent) {
+  if (!agent?.webhook_tool_url) return [];
+  return [
+    {
+      type: 'function',
+      function: {
+        name: 'register_student',
+        description: 'Registers a new student account once you have collected ALL required details: full name, phone number, form level (Form 3 or Form 4), and at least one subject. Call this ONCE only — after the student confirms their details. Do NOT call it speculatively or before all fields are collected.',
+        parameters: {
+          type: 'object',
+          properties: {
+            full_name:    { type: 'string',  description: "Student's full name exactly as they gave it." },
+            phone:        { type: 'string',  description: "Student's WhatsApp phone number in international format, e.g. 265999123456." },
+            form_level:   { type: 'string',  enum: ['Form 3', 'Form 4'], description: 'Which form the student is in.' },
+            subjects:     { type: 'array', items: { type: 'string' }, description: 'List of subject names the student wants to enroll in.' },
+          },
+          required: ['full_name', 'phone', 'form_level', 'subjects'],
+        },
+      },
+    },
+  ];
+}
+
+// Calls the external webhook URL stored in agent.webhook_tool_url.
+// Passes a shared secret (agent.webhook_tool_secret) as a Bearer token so
+// the receiving endpoint can verify the call is legitimate.
+export async function executeWebhookTool(agent, toolName, args) {
+  if (toolName !== 'register_student') throw new Error('Unknown webhook tool: ' + toolName);
+
+  const url    = agent.webhook_tool_url;
+  const secret = agent.webhook_tool_secret || '';
+
+  if (!url) throw new Error('Agent has no webhook_tool_url configured.');
+
+  const res = await fetch(url, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      ...(secret ? { Authorization: `Bearer ${secret}` } : {}),
+    },
+    body: JSON.stringify({ tool: toolName, args }),
+  });
+
+  const json = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error(json.error || `Webhook responded ${res.status}`);
+  return json;
 }
 
 function resolveProviderKey(channel, cfg) {
