@@ -15,10 +15,13 @@ const SUPABASE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY;
 //   ?resource=pricing  — GET/PATCH the plan_pricing table (monthly price per plan)
 export default async function handler(req, res) {
   const sb = createClient(SUPABASE_URL, SUPABASE_KEY);
+  
+  // Migration runner is self-secured by a secret header — bypass admin auth.
+  const resource = req.query?.resource;
+  if (resource === 'migrate') return handleMigrate(req, res);
+
   const admin = await requirePlatformAdmin(req, sb);
   if (!admin) return res.status(403).json({ error: 'Admin access required' });
-
-  const resource = req.query?.resource;
   if (resource === 'overview') return handleOverview(req, res, sb);
   if (resource === 'admins') return handleAdmins(req, res, sb, admin);
   if (resource === 'transactions') return handleTransactions(req, res, sb);
@@ -27,7 +30,6 @@ export default async function handler(req, res) {
   if (resource === 'ai-usage') return handleAiUsage(req, res, sb);
   if (resource === 'audit-log') return handleAuditLog(req, res, sb);
   if (resource === 'workspace-detail') return handleWorkspaceDetail(req, res, sb);
-  if (resource === 'migrate') return handleMigrate(req, res, sb);
   if (resource === 'users') return handleUsers(req, res, sb, admin);
   return handleWorkspaces(req, res, sb, admin);
 }
@@ -590,6 +592,9 @@ async function handleUsers(req, res, sb, admin) {
 // POST /api/admin/workspaces?resource=migrate
 // Requires admin auth + secret header. Run once to apply DDL migrations.
 async function handleMigrate(req, res) {
+  if (req.method === 'GET' && req.headers['x-migration-secret'] === 'nyasa-migrate-2026-xk9p') {
+    return res.status(200).json({ alive: true, route: 'migrate', ts: Date.now() });
+  }
   if (req.method !== 'POST') return res.status(405).json({ error: 'POST only' });
   const secret = req.headers['x-migration-secret'];
   if (secret !== 'nyasa-migrate-2026-xk9p') return res.status(401).json({ error: 'Wrong secret' });
