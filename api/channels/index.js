@@ -433,15 +433,27 @@ async function handleAiAgentsSave(req, res) {
     const payload = {};
     for (const k of ALLOWED) if (k in fields) payload[k] = fields[k];
 
-    if (id) {
-      const { data, error } = await sb.from('ai_agents').update({ ...payload, updated_at: new Date().toISOString() }).eq('id', id).eq('workspace_id', workspace_id).select().single();
-      if (error) throw error;
-      return res.status(200).json({ ok: true, agent: data });
-    } else {
-      const { data, error } = await sb.from('ai_agents').insert({ workspace_id, ...payload }).select().single();
-      if (error) throw error;
-      return res.status(200).json({ ok: true, agent: data });
+    // Helper: attempt save, retry without webhook_tool_* if column-not-found error
+    async function doSave(p) {
+      if (id) {
+        const { data, error } = await sb.from('ai_agents').update({ ...p, updated_at: new Date().toISOString() }).eq('id', id).eq('workspace_id', workspace_id).select().single();
+        return { data, error };
+      } else {
+        const { data, error } = await sb.from('ai_agents').insert({ workspace_id, ...p }).select().single();
+        return { data, error };
+      }
     }
+
+    let { data, error } = await doSave(payload);
+    // If error is due to missing webhook_tool columns, retry without them
+    if (error && (error.code === 'PGRST204' || (error.message && error.message.includes('webhook_tool')))) {
+      const { webhook_tool_url, webhook_tool_secret, ...safePayload } = payload;
+      const retry = await doSave(safePayload);
+      data = retry.data;
+      error = retry.error;
+    }
+    if (error) throw error;
+    return res.status(200).json({ ok: true, agent: data });
   } catch (e) {
     console.error('[ai-agents-save] error:', e);
     return res.status(500).json({ ok: false, error: e.message });
