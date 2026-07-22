@@ -63,16 +63,14 @@ export function getWebhookTools(agent) {
       type: 'function',
       function: {
         name: 'register_student',
-        description: 'Registers a new student account once you have collected ALL required details: full name, phone number, form level (Form 3 or Form 4), and at least one subject. Call this ONCE only — after the student confirms their details. Do NOT call it speculatively or before all fields are collected.',
+        description: 'Registers a new student account once you have their full name and phone number. Call this ONCE — as soon as you have both details. The system auto-generates the email and password. Do NOT ask the student for email, password, or class.',
         parameters: {
           type: 'object',
           properties: {
-            full_name:    { type: 'string',  description: "Student's full name exactly as they gave it." },
-            phone:        { type: 'string',  description: "Student's WhatsApp phone number in international format, e.g. 265999123456." },
-            form_level:   { type: 'string',  enum: ['Form 3', 'Form 4'], description: 'Which form the student is in.' },
-            subjects:     { type: 'array', items: { type: 'string' }, description: 'List of subject names the student wants to enroll in.' },
+            full_name: { type: 'string', description: "Student's full name exactly as they gave it." },
+            phone:     { type: 'string', description: "Student's phone number in international format, e.g. 265999123456. Use their WhatsApp number." },
           },
-          required: ['full_name', 'phone', 'form_level', 'subjects'],
+          required: ['full_name', 'phone'],
         },
       },
     },
@@ -90,17 +88,53 @@ export async function executeWebhookTool(agent, toolName, args) {
 
   if (!url) throw new Error('Agent has no webhook_tool_url configured.');
 
+  // Auto-generate email and password from phone number and name.
+  // Email  : <local_digits>@chibondoacademy.com  (strip country code prefix, use last 9+ digits)
+  // Password: FirstnameSurname + last 3 digits of phone (e.g. "EmmieChungà949")
+  //           — at least 8 chars, alphanumeric, predictable so agent can tell the student.
+  const enrichedArgs = { ...args };
+
+  if (!enrichedArgs.email && enrichedArgs.phone) {
+    // Strip non-digits, keep the local part (drop leading 265 / 0 prefix, keep 9 digits)
+    const digits = enrichedArgs.phone.replace(/\D/g, '');
+    // Use the full digit string as local part for uniqueness (phone number = unique ID)
+    const localPart = digits.length >= 6 ? digits : digits.padEnd(6, '0');
+    enrichedArgs.email = `${localPart}@chibondoacademy.com`;
+  }
+
+  if (!enrichedArgs.password && enrichedArgs.full_name) {
+    // Build password from first + last name parts, strip spaces/special chars
+    const nameParts = enrichedArgs.full_name.trim().split(/\s+/);
+    const firstName = (nameParts[0] || '').replace(/[^a-zA-Z]/g, '');
+    const lastName  = (nameParts[nameParts.length - 1] || '').replace(/[^a-zA-Z]/g, '');
+    const digits    = (enrichedArgs.phone || '').replace(/\D/g, '');
+    const suffix    = digits.slice(-3) || '000';
+    // e.g. "EmmieChungà949" → cap first letters for readability
+    const cap = s => s.charAt(0).toUpperCase() + s.slice(1).toLowerCase();
+    enrichedArgs.password = `${cap(firstName)}${cap(lastName)}${suffix}`;
+    // Ensure minimum 8 chars
+    while (enrichedArgs.password.length < 8) enrichedArgs.password += '0';
+    // Store generated password so the agent can share it with the student
+    enrichedArgs._generated_password = enrichedArgs.password;
+  }
+
   const res = await fetch(url, {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
       ...(secret ? { Authorization: `Bearer ${secret}` } : {}),
     },
-    body: JSON.stringify({ tool: toolName, args }),
+    body: JSON.stringify({ tool: toolName, args: enrichedArgs }),
   });
 
   const json = await res.json().catch(() => ({}));
   if (!res.ok) throw new Error(json.error || `Webhook responded ${res.status}`);
+
+  // Pass back the generated password so the agent can tell the student
+  if (enrichedArgs._generated_password) {
+    json.password = enrichedArgs._generated_password;
+    json.email    = enrichedArgs.email;
+  }
   return json;
 }
 
