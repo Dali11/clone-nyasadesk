@@ -22,6 +22,13 @@ export function AuthProvider({ children }) {
 
     supabase.auth.getSession().then(({ data: { session } }) => {
       if (done) return;
+      // If the URL has an OAuth callback hash fragment, DON'T resolve yet —
+      // let onAuthStateChange handle it. Otherwise the app briefly renders
+      // the "not logged in" state before the OAuth session is detected.
+      const hash = window.location.hash;
+      if (hash && (hash.includes('access_token') || hash.includes('error_description'))) {
+        return; // onAuthStateChange will fire shortly with the real session
+      }
       done = true;
       clearTimeout(timeout);
       setSession(session);
