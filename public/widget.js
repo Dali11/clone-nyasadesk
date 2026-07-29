@@ -1,19 +1,19 @@
-/* Nyasadesk WhatsApp Widget v2.0
- * Floating bubble:  <script src="https://nyasadesk.com/widget.js" data-workspace-id="YOUR_ID"></script>
- * 
- * v2.0: WhatsApp integration — messages are forwarded to the business
- * owner's WhatsApp number in addition to the NyasaDesk inbox. The widget
- * also offers a "Continue on WhatsApp" button so visitors can switch to
- * a direct WhatsApp conversation if they prefer.
- * Inline / support-page embed (fills its container, always open, no popup bubble):
- *   <div id="nyasa-inline-target"></div>
- *   <script src="https://nyasadesk.com/widget.js" data-workspace-id="YOUR_ID" data-mode="inline"></script>
+/* Nyasadesk WhatsApp Widget v3.0
+ * Floating WhatsApp button — redirects to WhatsApp app with prefilled message.
  *
- * Theming: the widget auto-adapts to the host site — it inherits the page's
- * font, follows OS/browser light-dark mode automatically, and (in inline
- * mode) reads the real background/text color of the container it's mounted
- * in so it visually blends into the surrounding page instead of looking like
- * a foreign popup. Force a theme with data-theme="light" | "dark" | "auto".
+ * Usage:
+ *   <script src="https://nyasadesk.com/widget.js" data-workspace-id="YOUR_ID"></script>
+ *
+ * The widget fetches the workspace's WhatsApp number + greeting from the
+ * Nyasadesk backend, then shows a floating WhatsApp button. When a visitor
+ * clicks it, it opens https://wa.me/<number>?text=<prefilled_message>
+ * directly in the WhatsApp app (or web fallback).
+ *
+ * Options:
+ *   data-workspace-id  (required) — workspace ID from Nyasadesk settings
+ *   data-position      (optional) — "bottom-right" (default) or "bottom-left"
+ *   data-prefill       (optional) — custom prefilled message text
+ *   data-label         (optional) — tooltip text on hover (default: "Chat with us")
  */
 (function () {
   'use strict';
@@ -21,1060 +21,191 @@
   const API    = 'https://nyasadesk.com/api/widget/chat';
   const script = document.currentScript || document.querySelector('script[data-workspace-id]');
   const WID    = script?.getAttribute('data-workspace-id');
-  const MODE   = (script?.getAttribute('data-mode') || 'popup').toLowerCase(); // 'popup' | 'inline'
-  const THEME  = (script?.getAttribute('data-theme') || 'auto').toLowerCase(); // 'auto' | 'light' | 'dark'
-  let POSITION = (script?.getAttribute('data-position') || 'bottom-right').toLowerCase(); // 'bottom-right' | 'bottom-left' — set from Settings > Channels > Website, baked into the copied embed snippet
-  // Whether to sniff the REAL host page's background/text/font (for genuine
-  // 3rd-party site embeds). Our own hosted Support Page already declares an
-  // explicit theme and correct contrast on its own — it opts out of this
-  // heuristic via data-native-detect="false" so it never inherits stray
-  // colors from the rest of the app's UI.
-  const NATIVE_DETECT = script?.getAttribute('data-native-detect') !== 'false';
+  let POSITION = (script?.getAttribute('data-position') || 'bottom-right').toLowerCase();
+  const CUSTOM_PREFILL = script?.getAttribute('data-prefill') || '';
+  const CUSTOM_LABEL    = script?.getAttribute('data-label') || '';
+
   if (!WID) { console.warn('[Nyasadesk] data-workspace-id is required'); return; }
 
-  const INLINE = MODE === 'inline';
-
   // ── State ─────────────────────────────────────────────────────────────────
-  let sessionId    = localStorage.getItem('nyasa_session_' + WID) || null;
-  let cfg          = null;
-  let visitorName  = localStorage.getItem('nyasa_name_' + WID)  || null;
-  const isReturningVisitor = !!sessionId; // has a real prior session — replay their history instead of a fresh greeting
-  let color        = '#25D366';
-  let lastPollAt   = new Date().toISOString();
-  let open         = INLINE ? true : false;
-  let pollTimer    = null;
+  let waNumber = '';
+  let greeting = 'Hi! I found you on your website and would like to chat.';
+  let label    = 'Chat with us';
+  let agentName = 'Support Team';
 
-  // ── Helpers ───────────────────────────────────────────────────────────────
-  const api = (body) => fetch(API, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ workspace_id: WID, ...body }),
-  }).then(r => r.json());
-
-  const esc = s => String(s).replace(/</g,'&lt;').replace(/>/g,'&gt;');
-  const fmt = iso => {
-    const d = new Date(iso);
-    const h = d.getHours(), m = String(d.getMinutes()).padStart(2,'0');
-    return `${h % 12 || 12}:${m} ${h < 12 ? 'AM' : 'PM'}`;
-  };
-
-  // ── Theme detection ───────────────────────────────────────────────────────
-  // Parse "rgb(r,g,b)" / "rgba(r,g,b,a)" into perceived luminance (0-255).
-  const luminanceOf = (colorStr) => {
-    if (!colorStr) return null;
-    const m = colorStr.match(/rgba?\(\s*(\d+)\s*,\s*(\d+)\s*,\s*(\d+)(?:\s*,\s*([\d.]+))?\s*\)/);
-    if (!m) return null;
-    const [_, r, g, b, a] = m;
-    if (a !== undefined && parseFloat(a) < 0.15) return null; // effectively transparent
-    return (0.299 * r + 0.587 * g + 0.114 * b);
-  };
-
-  const prefersDark = () => window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches;
-
-  let isDark = THEME === 'dark' ? true : THEME === 'light' ? false : prefersDark();
-
-  // In inline mode, try to read the REAL host container so we blend into the
-  // actual page instead of guessing — this is the "feels native" part.
-  let hostBg = null, hostText = null, hostFont = null, hostRadius = null;
-  if (INLINE && THEME === 'auto' && NATIVE_DETECT) {
+  // ── Fetch workspace config ────────────────────────────────────────────────
+  const loadConfig = async () => {
     try {
-      const mountEl = document.getElementById('nyasa-inline-target') || script.parentElement || document.body;
-      // Walk up until we find a container with a real (non-transparent) background.
-      let node = mountEl;
-      for (let i = 0; i < 6 && node; i++) {
-        const cs = window.getComputedStyle(node);
-        const lum = luminanceOf(cs.backgroundColor);
-        if (lum !== null) { hostBg = cs.backgroundColor; isDark = lum < 128; break; }
-        node = node.parentElement;
-      }
-      const bodyStyle = window.getComputedStyle(document.body);
-      hostText = bodyStyle.color || null;
-      hostFont = bodyStyle.fontFamily || null;
-      const btnLike = document.querySelector('button, a.btn, [class*="btn"]');
-      if (btnLike) {
-        const br = window.getComputedStyle(btnLike).borderRadius;
-        if (br && parseFloat(br) >= 0) hostRadius = br;
-      }
-    } catch (e) { /* cross-origin or unreadable — fall back to auto light/dark */ }
-  }
+      const res = await fetch(API, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'start', workspace_id: WID }),
+      });
+      const data = await res.json();
+      waNumber  = data.wa_number || '';
+      greeting  = data.greeting || greeting;
+      label     = CUSTOM_LABEL || data.label || label;
+      agentName = data.agent_name || agentName;
+    } catch (e) {
+      console.warn('[Nyasadesk] Could not load widget config', e);
+    }
+    render();
+  };
 
-  // ── DOM Build ─────────────────────────────────────────────────────────────
+  // ── Build the floating button + popup ────────────────────────────────────
+  const WA_SVG = '<svg viewBox="0 0 24 24" fill="currentColor"><path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51l-.57-.01c-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413z"/></svg>';
+
+  const host = document.createElement('div');
+  host.id = 'nyasa-wa-widget';
+  host.style.cssText = 'position:fixed;z-index:2147483640;' +
+    (POSITION === 'bottom-left' ? 'bottom:22px;left:22px;' : 'bottom:22px;right:22px;');
+  document.body.appendChild(host);
+
   const style = document.createElement('style');
   style.textContent = `
-    :host, :host * {
-      box-sizing: border-box; margin: 0; padding: 0;
-      font-family: var(--nyasa-font, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif);
+    #nyasa-wa-widget * { box-sizing: border-box; margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; }
+    #nyasa-wa-fab {
+      width: 56px; height: 56px; border-radius: 50%; border: none; cursor: pointer;
+      background: #25D366; color: #fff; display: flex; align-items: center; justify-content: center;
+      box-shadow: 0 4px 20px rgba(37,211,102,0.4); transition: transform .2s, box-shadow .2s;
+      animation: nyasa-pulse 2.5s ease-in-out infinite;
     }
-    :host {
-      --nyasa-color: #25D366;
-      --nyasa-header-grad: linear-gradient(135deg, #075E54 0%, #128C7E 100%);
-      --nyasa-page-bg: #ECE5DD; --nyasa-panel-bg: #ffffff; --nyasa-in-bubble: #ffffff;
-      --nyasa-out-bubble: #DCF8C6; --nyasa-text: #1a2530; --nyasa-muted: #888888;
-      --nyasa-border: #eeeeee; --nyasa-radius: 16px;
+    #nyasa-wa-fab:hover { transform: scale(1.08); box-shadow: 0 6px 28px rgba(37,211,102,0.5); }
+    #nyasa-wa-fab svg { width: 30px; height: 30px; }
+    @keyframes nyasa-pulse {
+      0%, 100% { box-shadow: 0 4px 20px rgba(37,211,102,0.4); }
+      50% { box-shadow: 0 4px 20px rgba(37,211,102,0.4), 0 0 0 12px rgba(37,211,102,0.12); }
     }
-    /* Dark theme mirrors the real Nyasadesk inbox exactly: #0B141A message
-       canvas, #202C33 header/composer bars, WhatsApp-green outbound bubbles —
-       so the widget reads as the same product, not a bolted-on extra. */
-    :host(.nyasa-theme-dark) {
-      --nyasa-page-bg: #0B141A; --nyasa-panel-bg: #202C33; --nyasa-in-bubble: #202C33;
-      --nyasa-out-bubble: #005C4B; --nyasa-text: #EDEDED; --nyasa-muted: #8696A0; --nyasa-border: rgba(255,255,255,0.08);
+    #nyasa-wa-popup {
+      position: absolute; bottom: 72px;
+      ${POSITION === 'bottom-left' ? 'left: 0;' : 'right: 0;'}
+      width: 320px; max-width: calc(100vw - 44px);
+      border-radius: 16px; overflow: hidden;
+      box-shadow: 0 8px 40px rgba(0,0,0,0.18);
+      background: #fff; opacity: 0; transform: translateY(12px) scale(0.95);
+      pointer-events: none; transition: all .25s cubic-bezier(.4,0,.2,1);
     }
-    #nyasa-fab {
-      position: fixed; bottom: 22px; right: 22px; z-index: 2147483640;
-      width: 52px; height: 52px; border-radius: 50%;
-      background: var(--nyasa-header-grad); border: none; cursor: pointer;
-      display: flex; align-items: center; justify-content: center;
-      box-shadow: 0 4px 20px rgba(0,0,0,0.28); transition: transform .2s, box-shadow .2s;
+    #nyasa-wa-popup.open { opacity: 1; transform: translateY(0) scale(1); pointer-events: auto; }
+    #nyasa-wa-popup .header {
+      background: linear-gradient(135deg, #075E54 0%, #128C7E 100%);
+      padding: 16px; display: flex; align-items: center; gap: 12px;
     }
-    #nyasa-fab:hover { transform: scale(1.08); box-shadow: 0 6px 28px rgba(0,0,0,0.32); }
-    #nyasa-fab svg { width: 27px; height: 27px; }
-    #nyasa-badge {
-      position: absolute; top: -3px; right: -3px;
-      background: #EF4444; color: #fff; font-size: 10px; font-weight: 700;
-      min-width: 18px; height: 18px; border-radius: 9px; padding: 0 4px;
-      display: none; align-items: center; justify-content: center;
-      border: 2px solid #fff;
+    #nyasa-wa-popup .header .avatar {
+      width: 40px; height: 40px; border-radius: 50%; background: rgba(255,255,255,0.25);
+      display: flex; align-items: center; justify-content: center; flex-shrink: 0;
     }
-    #nyasa-window {
-      position: fixed; bottom: 86px; right: 22px; z-index: 2147483639;
-      width: 360px; max-width: calc(100vw - 28px);
-      height: 500px; max-height: calc(100vh - 110px);
-      border-radius: var(--nyasa-radius); overflow: hidden;
-      box-shadow: 0 8px 40px rgba(0,0,0,0.4);
-      border: 1px solid var(--nyasa-border);
-      display: flex; flex-direction: column;
-      background: var(--nyasa-panel-bg);
-      transform-origin: bottom right;
-      transition: transform .25s cubic-bezier(.4,0,.2,1), opacity .25s;
+    #nyasa-wa-popup .header .avatar svg { width: 22px; height: 22px; fill: #fff; }
+    #nyasa-wa-popup .header .info { flex: 1; }
+    #nyasa-wa-popup .header .name { font-size: 15px; font-weight: 700; color: #fff; }
+    #nyasa-wa-popup .header .status { font-size: 12px; color: rgba(255,255,255,0.85); display: flex; align-items: center; gap: 5px; }
+    #nyasa-wa-popup .header .status .dot { width: 7px; height: 7px; border-radius: 50%; background: #4ADE80; }
+    #nyasa-wa-popup .header .close {
+      background: none; border: none; cursor: pointer; color: rgba(255,255,255,0.7);
+      font-size: 22px; padding: 4px; line-height: 1;
     }
-    #nyasa-window.closed { transform: scale(0.7) translateY(20px); opacity: 0; pointer-events: none; }
-    /* ── Inline / support-page mode: fill the container instead of floating ── */
-    :host(.nyasa-inline) #nyasa-window {
-      position: static; width: 100%; height: 100%; max-width: none; max-height: none;
-      border-radius: var(--nyasa-radius); box-shadow: none; transform: none !important; opacity: 1 !important;
-      pointer-events: auto !important; min-height: 480px;
+    #nyasa-wa-popup .header .close:hover { color: #fff; }
+    #nyasa-wa-popup .body {
+      padding: 20px 16px; background: #ECE5DD; min-height: 100px;
+      background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='40' height='40' viewBox='0 0 40 40'%3E%3Cg fill='%2300000005'%3E%3Cpath d='M20 10c-5.5 0-10 4.5-10 10s4.5 10 10 10 10-4.5 10-10-4.5-10-10-10zm0 18c-4.4 0-8-3.6-8-8s3.6-8 8-8 8 3.6 8 8-3.6 8-8 8z'/%3E%3C/g%3E%3C/svg%3E");
     }
-    :host(.nyasa-inline) { display: block; width: 100%; height: 100%; background: var(--nyasa-page-bg); border-radius: var(--nyasa-radius); }
-    #nyasa-header {
-      background: var(--nyasa-header-grad); padding: 12px 14px;
-      display: flex; align-items: center; gap: 10px; flex-shrink: 0;
+    #nyasa-wa-popup .body .bubble {
+      background: #fff; border-radius: 2px 12px 12px 12px; padding: 10px 14px;
+      font-size: 14px; line-height: 1.5; color: #1a2530; max-width: 85%;
+      box-shadow: 0 1px 2px rgba(0,0,0,0.08); position: relative;
     }
-    #nyasa-header .avatar {
-      width: 36px; height: 36px; border-radius: 50%;
-      background: rgba(255,255,255,0.25);
-      display: flex; align-items: center; justify-content: center; font-size: 18px;
+    #nyasa-wa-popup .body .bubble .time {
+      font-size: 10px; color: #999; text-align: right; margin-top: 4px;
     }
-    /* WhatsApp icon in the header avatar */
-    #nyasa-header .avatar svg { width: 20px; height: 20px; fill: #fff; }
-    /* "Continue on WhatsApp" link in the header dropdown area */
-    #nyasa-wa-link {
-      display: flex; align-items: center; gap: 6px; padding: 8px 14px;
-      background: rgba(255,255,255,0.1); color: #fff; font-size: 12px;
-      font-weight: 600; text-decoration: none; cursor: pointer;
-      transition: background 0.2s; flex-shrink: 0;
-    }
-    #nyasa-wa-link:hover { background: rgba(255,255,255,0.2); }
-    #nyasa-wa-link svg { width: 16px; height: 16px; fill: #fff; }
-    #nyasa-header .info { flex: 1; }
-    #nyasa-header .name { font-size: 14px; font-weight: 700; color: #fff; }
-    #nyasa-header .status { font-size: 11px; color: rgba(255,255,255,0.8); display: flex; align-items: center; gap: 4px; }
-    #nyasa-header .dot { width: 6px; height: 6px; border-radius: 50%; background: #fff; display: inline-block; }
-    #nyasa-close { background: none; border: none; cursor: pointer; color: rgba(255,255,255,0.8); font-size: 20px; padding: 4px; }
-    #nyasa-msgs {
-      flex: 1; overflow-y: auto; padding: 16px 20px; background: var(--nyasa-page-bg);
-      background-image: radial-gradient(circle at 1px 1px, rgba(255,255,255,0.03) 1px, transparent 0);
-      background-size: 20px 20px;
-      display: flex; flex-direction: column; gap: 8px;
-    }
-    :host(:not(.nyasa-theme-dark)) #nyasa-msgs { background-image: none; }
-    #nyasa-msgs::-webkit-scrollbar { width: 4px; }
-    #nyasa-msgs::-webkit-scrollbar-thumb { background: rgba(128,128,128,0.25); border-radius: 2px; }
-    .nyasa-bubble { display: flex; flex-direction: column; max-width: 72%; margin: 1px 0; }
-    .nyasa-bubble.out { align-self: flex-end; align-items: flex-end; }
-    .nyasa-bubble.in  { align-self: flex-start; align-items: flex-start; }
-    /* WhatsApp-style bubble. Timestamp is a SEPARATE row below the content
-       (matching the real Nyasadesk team inbox's Bubble component exactly)
-       rather than absolutely-positioned over the last line — the absolute
-       trick broke on media/captions where the last line's width didn't
-       match the image's width, cutting off caption text or overlapping it. */
-    .nyasa-bubble .text {
-      padding: 10px 16px 10px 16px;
-      font-size: 14px; line-height: 1.625; word-break: break-word; white-space: pre-wrap;
-      box-shadow: 0 1px 2px rgba(0,0,0,0.06); color: var(--nyasa-text);
-    }
-    .nyasa-bubble.out .text { background: var(--nyasa-out-bubble); border-radius: 12px 2px 12px 12px; }
-    .nyasa-bubble.in  .text { background: var(--nyasa-in-bubble);  border-radius: 2px 12px 12px 12px; color: var(--nyasa-text); }
-    .nyasa-bubble .meta-row {
-      display: flex; align-items: center; justify-content: flex-end; gap: 4px;
-      margin-top: 4px; font-size: 10px; line-height: 1; color: var(--nyasa-muted); opacity: 0.85;
-    }
-    .nyasa-bubble.out .meta-row { color: #667781; }
-    .nyasa-bubble.in .meta-row { justify-content: flex-start; }
-    :host(.nyasa-theme-dark) .nyasa-bubble.out .meta-row { color: rgba(255,255,255,0.65); }
-    :host(.nyasa-theme-dark) .nyasa-bubble.out .text { color: #E9FBF3; }
-    .nyasa-system { text-align: center; font-size: 11px; color: var(--nyasa-muted); padding: 4px 0; }
-    #nyasa-name-gate { background: var(--nyasa-panel-bg); padding: 16px; border-top: 1px solid var(--nyasa-border); flex-shrink: 0; }
-    #nyasa-name-gate p { font-size: 12px; color: var(--nyasa-muted); margin-bottom: 8px; }
-    /* WhatsApp continue link — shown below the name gate */
-    #nyasa-wa-continue {
+    #nyasa-wa-popup .footer { padding: 12px 16px; background: #fff; border-top: 1px solid #f0f0f0; }
+    #nyasa-wa-popup .footer .btn {
       display: flex; align-items: center; justify-content: center; gap: 8px;
-      padding: 10px; margin-top: 8px; font-size: 13px; font-weight: 600;
-      color: #25D366; background: transparent; border: 1px solid #25D366;
-      border-radius: 8px; cursor: pointer; transition: all 0.2s; text-decoration: none;
+      width: 100%; padding: 12px; border: none; border-radius: 10px; cursor: pointer;
+      background: #25D366; color: #fff; font-size: 15px; font-weight: 600;
+      transition: background .2s; text-decoration: none;
     }
-    #nyasa-wa-continue:hover { background: #25D366; color: #fff; }
-    #nyasa-wa-continue svg { width: 18px; height: 18px; fill: currentColor; }
-    #nyasa-name-gate input {
-      width: 100%; border: 1px solid var(--nyasa-border); border-radius: 10px; padding: 8px 12px;
-      font-size: 13px; margin-bottom: 8px; outline: none; background: var(--nyasa-panel-bg); color: var(--nyasa-text);
-    }
-    #nyasa-name-gate input:focus { border-color: var(--nyasa-color); }
-    #nyasa-name-gate button {
-      width: 100%; padding: 9px; border: none; border-radius: 10px;
-      background: var(--nyasa-color); color: #fff; font-size: 13px; font-weight: 600; cursor: pointer;
-    }
-    #nyasa-composer { background: var(--nyasa-panel-bg); padding: 8px 12px; display: flex; gap: 8px; align-items: flex-end; flex-shrink: 0; border-top: 1px solid var(--nyasa-border); }
-    #nyasa-attach {
-      width: 40px; height: 40px; border-radius: 50%; border: none; background: transparent;
-      color: var(--nyasa-muted); cursor: pointer; display: flex; align-items: center; justify-content: center;
-      flex-shrink: 0; transition: background .15s;
-    }
-    #nyasa-attach:hover { background: rgba(128,128,128,0.12); }
-    #nyasa-attach svg { width: 18px; height: 18px; fill: currentColor; }
-    #nyasa-input {
-      flex: 1; border: none; background: var(--nyasa-page-bg); color: var(--nyasa-text); border-radius: 12px;
-      padding: 10px 16px; font-size: 14px; resize: none; outline: none;
-      max-height: 128px; line-height: 1.625;
-    }
-    #nyasa-send {
-      width: 40px; height: 40px; border-radius: 50%; border: none;
-      background: var(--nyasa-color); color: #fff; cursor: pointer;
-      display: flex; align-items: center; justify-content: center; flex-shrink: 0;
-      transition: background .15s;
-    }
-    #nyasa-send:disabled { background: #ccc; cursor: default; }
-    #nyasa-send svg { width: 18px; height: 18px; fill: #fff; }
-    :host(.nyasa-theme-dark) #nyasa-input { background: #2A3942; color: #fff; }
-    /* WhatsApp-style read receipts on the visitor's own sent messages —
-       single grey check = sent/stored, double blue check = an agent has
-       opened the conversation. Mirrors StatusIcon in the real team inbox. */
-    .nyasa-bubble .ticks { display: inline-flex; vertical-align: -1px; }
-    .nyasa-bubble .ticks svg { width: 14px; height: 14px; }
-    .nyasa-bubble .ticks.sent svg { fill: none; stroke: rgba(255,255,255,0.7); }
-    :host(:not(.nyasa-theme-dark)) .nyasa-bubble .ticks.sent svg { stroke: rgba(0,0,0,0.45); }
-    .nyasa-bubble .ticks.read svg { fill: none; stroke: #53BDEB; }
-    .nyasa-bubble .attach-img { display: block; max-width: 240px; max-height: 240px; border-radius: 8px; margin-bottom: 4px; object-fit: cover; cursor: pointer; }
-    .nyasa-bubble .attach-video-wrap { position: relative; display: block; max-width: 240px; margin-bottom: 4px; cursor: pointer; border-radius: 8px; overflow: hidden; }
-    .nyasa-bubble .attach-video-wrap video { display: block; max-width: 240px; max-height: 240px; width: 100%; pointer-events: none; }
-    .nyasa-bubble .attach-video-wrap .play-overlay {
-      position: absolute; inset: 0; display: flex; align-items: center; justify-content: center;
-      background: rgba(0,0,0,0.25); transition: background 0.15s;
-    }
-    .nyasa-bubble .attach-video-wrap:hover .play-overlay { background: rgba(0,0,0,0.4); }
-    .nyasa-bubble .attach-video-wrap .play-overlay span {
-      width: 36px; height: 36px; border-radius: 50%; background: rgba(0,0,0,0.55);
-      display: flex; align-items: center; justify-content: center;
-    }
-    .nyasa-bubble .attach-video-wrap .play-overlay svg { width: 16px; height: 16px; fill: #fff; margin-left: 2px; }
-    /* ── Fullscreen media lightbox (tap any image/video thumbnail) ─────────── */
-    #nyasa-lightbox {
-      position: fixed; inset: 0; z-index: 2147483641; background: rgba(0,0,0,0.92);
-      display: none; align-items: center; justify-content: center; padding: 24px;
-    }
-    #nyasa-lightbox.active { display: flex; }
-    #nyasa-lightbox img, #nyasa-lightbox video { max-width: 100%; max-height: 100%; object-fit: contain; border-radius: 6px; }
-    #nyasa-lightbox .lb-actions { position: absolute; top: 16px; right: 16px; display: flex; gap: 8px; }
-    #nyasa-lightbox .lb-actions a, #nyasa-lightbox .lb-actions button {
-      width: 36px; height: 36px; border-radius: 50%; background: rgba(255,255,255,0.12); border: none;
-      display: flex; align-items: center; justify-content: center; cursor: pointer; color: #fff; text-decoration: none;
-    }
-    #nyasa-lightbox .lb-actions a:hover, #nyasa-lightbox .lb-actions button:hover { background: rgba(255,255,255,0.22); }
-    #nyasa-lightbox .lb-actions svg { width: 16px; height: 16px; fill: #fff; }
-    #nyasa-powered { background: var(--nyasa-panel-bg); text-align: center; font-size: 10px; color: var(--nyasa-muted); padding: 4px 0 6px; flex-shrink: 0; }
-    #nyasa-powered a { color: var(--nyasa-muted); text-decoration: none; }
-    @media (max-width: 420px) {
-      #nyasa-window { bottom: 84px; right: 12px; width: calc(100vw - 24px); }
-      #nyasa-fab { bottom: 16px; right: 16px; }
-    }
-    /* ── Voice notes (WhatsApp-style) ────────────────────────────────────── */
-    #nyasa-mic {
-      width: 40px; height: 40px; border-radius: 50%; border: none;
-      background: var(--nyasa-color); color: #fff; cursor: pointer;
-      display: flex; align-items: center; justify-content: center; flex-shrink: 0;
-      transition: background .15s, opacity .15s;
-    }
-    /* Inbox mic button uses a dark grey bg, not green — match that */
-    :host(.nyasa-theme-dark) #nyasa-mic { background: #2A3942; }
-    :host(.nyasa-theme-dark) #nyasa-mic svg { fill: #8696A0; }
-    #nyasa-mic:hover { opacity: 0.88; }
-    #nyasa-mic svg { width: 20px; height: 20px; fill: #fff; }
-    #nyasa-mic.recording { background: #EF4444; animation: nyasa-pulse 1.2s ease-in-out infinite; }
-    @keyframes nyasa-pulse { 0%,100% { transform: scale(1); } 50% { transform: scale(1.08); } }
-    /* Recording slide-over replaces the text input row */
-    #nyasa-recording-bar {
-      display: none; flex: 1; align-items: center; gap: 8px;
-      padding: 0 4px; height: 40px;
-    }
-    #nyasa-recording-bar.active { display: flex; }
-    #nyasa-recording-bar .rec-dot {
-      width: 10px; height: 10px; border-radius: 50%; background: #EF4444; flex-shrink: 0;
-      animation: nyasa-blink 1s ease-in-out infinite;
-    }
-    @keyframes nyasa-blink { 0%,100% { opacity: 1; } 50% { opacity: 0.3; } }
-    #nyasa-recording-bar .rec-timer {
-      font-size: 13px; font-weight: 600; color: var(--nyasa-text); font-variant-numeric: tabular-nums;
-    }
-    #nyasa-recording-bar .rec-wave {
-      flex: 1; height: 24px; display: flex; align-items: center; gap: 2px; overflow: hidden;
-    }
-    #nyasa-recording-bar .rec-wave span {
-      flex: 1; background: var(--nyasa-muted); border-radius: 2px; min-height: 4px;
-      transition: height .08s ease;
-    }
-    #nyasa-rec-cancel {
-      width: 32px; height: 32px; border-radius: 50%; border: none; background: transparent;
-      color: #EF4444; cursor: pointer; display: flex; align-items: center; justify-content: center; flex-shrink: 0;
-    }
-    #nyasa-rec-cancel svg { width: 18px; height: 18px; fill: currentColor; }
-    /* Audio player inside bubbles — compact, WhatsApp-style */
-    .nyasa-audio { display: flex; align-items: center; gap: 8px; padding: 6px 4px; min-width: 180px; }
-    .nyasa-audio .play-btn {
-      width: 32px; height: 32px; border-radius: 50%; border: none; cursor: pointer;
-      background: var(--nyasa-color); color: #fff; display: flex; align-items: center; justify-content: center; flex-shrink: 0;
-    }
-    :host(.nyasa-theme-dark) .nyasa-audio .play-btn { background: #25D366; }
-    :host(:not(.nyasa-theme-dark)) .nyasa-bubble.in .nyasa-audio .play-btn { background: #075E54; }
-    .nyasa-audio .play-btn svg { width: 15px; height: 15px; fill: #fff; }
-    .nyasa-audio .play-btn.pause svg { fill: #fff; }
-    .nyasa-audio .track {
-      flex: 1; height: 4px; border-radius: 2px; background: rgba(128,128,128,0.25); position: relative; cursor: pointer;
-    }
-    .nyasa-audio .track-fill { height: 100%; border-radius: 2px; background: var(--nyasa-color); width: 0%; transition: width .1s linear; }
-    :host(.nyasa-theme-dark) .nyasa-audio .track-fill { background: #25D366; }
-    :host(:not(.nyasa-theme-dark)) .nyasa-bubble.in .nyasa-audio .track-fill { background: #075E54; }
-    .nyasa-audio .dur { font-size: 11px; color: var(--nyasa-muted); font-variant-numeric: tabular-nums; white-space: nowrap; }
-    :host(.nyasa-theme-dark) .nyasa-bubble.out .nyasa-audio .dur { color: rgba(255,255,255,0.6); }
-
-        /* ── Media preview / caption overlay (WhatsApp-style) ─────────────────── */
-    #nyasa-preview {
-      position: absolute; inset: 0; z-index: 10; background: #000;
-      display: none; flex-direction: column; border-radius: var(--nyasa-radius); overflow: hidden;
-    }
-    #nyasa-preview.active { display: flex; }
-    #nyasa-preview .preview-header {
-      display: flex; align-items: center; gap: 12px; padding: 14px 16px;
-      background: rgba(0,0,0,0.85); flex-shrink: 0;
-    }
-    #nyasa-preview .preview-header .pv-title { color: #fff; font-size: 14px; font-weight: 600; flex: 1; }
-    #nyasa-preview .preview-close {
-      background: none; border: none; cursor: pointer; color: #fff; font-size: 22px; padding: 4px;
-    }
-    #nyasa-preview .preview-media {
-      flex: 1; display: flex; align-items: center; justify-content: center; overflow: hidden;
-      background: #0a0a0a; min-height: 0;
-    }
-    #nyasa-preview .preview-media img {
-      max-width: 100%; max-height: 100%; object-fit: contain;
-    }
-    #nyasa-preview .preview-media video {
-      max-width: 100%; max-height: 100%; object-fit: contain;
-    }
-    #nyasa-preview .preview-caption-bar {
-      display: flex; gap: 8px; align-items: flex-end; padding: 10px 12px;
-      background: rgba(0,0,0,0.85); flex-shrink: 0;
-    }
-    #nyasa-preview .preview-caption {
-      flex: 1; border: 1px solid rgba(255,255,255,0.2); background: rgba(255,255,255,0.1);
-      color: #fff; border-radius: 22px; padding: 10px 16px; font-size: 14px;
-      outline: none; resize: none; max-height: 80px; line-height: 1.4;
-      font-family: inherit;
-    }
-    #nyasa-preview .preview-caption::placeholder { color: rgba(255,255,255,0.5); }
-    #nyasa-preview .preview-send {
-      width: 42px; height: 42px; border-radius: 50%; border: none;
-      background: var(--nyasa-color); color: #fff; cursor: pointer;
-      display: flex; align-items: center; justify-content: center; flex-shrink: 0;
-    }
-    #nyasa-preview .preview-send svg { width: 20px; height: 20px; fill: #fff; }
-
-        /* Widget position — configurable in Settings > Channels > Website, baked into the embed snippet */
-    #nyasa-widget.nyasa-pos-left #nyasa-fab { left: 24px; right: auto; }
-    #nyasa-widget.nyasa-pos-left #nyasa-window { left: 24px; right: auto; transform-origin: bottom left; }
-    @media (max-width: 420px) {
-      #nyasa-widget.nyasa-pos-left #nyasa-window { left: 12px; right: auto; }
-      #nyasa-widget.nyasa-pos-left #nyasa-fab { left: 16px; right: auto; }
-    }
+    #nyasa-wa-popup .footer .btn:hover { background: #1FB855; }
+    #nyasa-wa-popup .footer .btn svg { width: 20px; height: 20px; fill: currentColor; }
+    #nyasa-wa-popup .footer .hint { text-align: center; font-size: 11px; color: #999; margin-top: 8px; }
   `;
-  // (style will be injected into the shadow root below)
+  host.appendChild(style);
 
-  const root = document.createElement('div');
-  root.id = 'nyasa-widget';
-  // Resolve to a concrete theme class using the JS-computed isDark value —
-  // this covers explicit dark/light AND 'auto', so there's no separate CSS
-  // media-query path to fall out of sync with what we just calculated.
-  if (isDark) root.classList.add('nyasa-theme-dark');
-  if (POSITION === 'bottom-left') root.classList.add('nyasa-pos-left');
-  if (INLINE) {
-    root.classList.add('nyasa-inline');
-    // In inline mode, mount into a target container if present, else right where the script tag is
-    const target = document.getElementById('nyasa-inline-target') || script.parentElement || document.body;
-    target.appendChild(root);
-  } else {
-    document.body.appendChild(root);
-  }
+  const fab = document.createElement('button');
+  fab.id = 'nyasa-wa-fab';
+  fab.innerHTML = WA_SVG;
+  fab.setAttribute('aria-label', 'Chat on WhatsApp');
+  host.appendChild(fab);
 
-  // ── Shadow DOM ────────────────────────────────────────────────────────────
-  // Attach a shadow root so host-page CSS (Tailwind preflight, resets, etc.)
-  // can NEVER override the widget's internal styles.
-  const shadow = root.attachShadow({ mode: 'open' });
-
-  // Apply host-detected theme values (inline mode only) as inline CSS vars —
-  // these override the auto light/dark defaults with the page's real colors.
-  if (hostFont) root.style.setProperty('--nyasa-font', hostFont);
-  if (hostRadius) root.style.setProperty('--nyasa-radius', hostRadius);
-  if (hostBg) {
-    root.style.setProperty('--nyasa-page-bg', hostBg);
-    root.style.setProperty('--nyasa-panel-bg', hostBg);
-    if (hostText) {
-      root.style.setProperty('--nyasa-text', hostText);
-      root.style.setProperty('--nyasa-muted', hostText);
-    }
-    root.style.setProperty('--nyasa-in-bubble', isDark ? 'rgba(255,255,255,0.06)' : 'rgba(0,0,0,0.035)');
-    root.style.setProperty('--nyasa-border', isDark ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.08)');
-  }
-
-  shadow.innerHTML = `<style>\n` + style.textContent + `\n</style>\n  ` + `
-    ${INLINE ? '' : `
-    <button id="nyasa-fab" title="Chat with us">
-      <span id="nyasa-badge"></span>
-      <svg viewBox="0 0 32 32" fill="none"><path fill="#fff" d="M16.004 0C7.168 0 .004 7.164.004 16c0 2.824.736 5.476 2.024 7.788L0 32l8.36-2.196A15.932 15.932 0 0 0 16.004 32C24.84 32 32.004 24.836 32.004 16S24.84 0 16.004 0z" opacity="0"/><path fill="#fff" d="M16.004 2.912c-7.176 0-13.088 5.912-13.088 13.088 0 2.348.628 4.552 1.72 6.452L2.96 29.08l5.76-1.516a13.028 13.028 0 0 0 7.284 2.216c7.176 0 13.088-5.912 13.088-13.088S23.18 2.912 16.004 2.912zm0 23.84a10.708 10.708 0 0 1-5.464-1.496l-.392-.236-4.088 1.076 1.092-3.988-.256-.404a10.72 10.72 0 0 1-1.64-5.704c0-5.94 4.836-10.776 10.78-10.776 5.94 0 10.776 4.836 10.776 10.776s-4.836 10.776-10.776 10.776z"/><path fill="#fff" d="M16.004 5.224c-5.94 0-10.776 4.836-10.776 10.776 0 2.072.592 4.068 1.712 5.78l-1.144 4.18 4.28-1.124a10.756 10.756 0 0 0 5.928 1.784c5.94 0 10.776-4.836 10.776-10.776S21.944 5.224 16.004 5.224z M13.224 10.468c-.232-.516-.476-.528-.696-.536l-.596-.008c-.208 0-.544.076-.828.392s-1.088 1.064-1.088 2.596 1.112 3.012 1.268 3.224c.156.212 2.176 3.516 5.356 4.784 2.656 1.06 3.196.848 3.772.796.576-.052 1.856-.76 2.12-1.492.264-.732.264-1.36.184-1.492-.08-.132-.288-.212-.6-.372s-1.856-.916-2.144-1.02c-.288-.104-.496-.156-.704.156-.208.312-.808 1.02-.992 1.228-.184.208-.368.236-.68.078-.312-.156-1.316-.484-2.508-1.548-.928-.828-1.552-1.848-1.736-2.16-.184-.312-.02-.48.136-.636.14-.14.312-.368.468-.552.156-.184.208-.312.312-.52.104-.208.052-.392-.024-.552-.078-.16-.704-1.7-.964-2.328z"/></svg>
-    </button>`}
-    <div id="nyasa-window" class="${INLINE ? '' : 'closed'}">
-      <div id="nyasa-header">
-        <div class="avatar"><svg viewBox="0 0 24 24"><path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51l-.57-.01c-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413z"/></svg></div>
-        <div class="info">
-          <div class="name" id="nyasa-header-name">Support Team</div>
-          <div class="status"><span class="dot"></span> Online</div>
-        </div>
-        ${INLINE ? '' : '<button id="nyasa-close" title="Close">✕</button>'}
+  const popup = document.createElement('div');
+  popup.id = 'nyasa-wa-popup';
+  popup.innerHTML = `
+    <div class="header">
+      <div class="avatar">${WA_SVG}</div>
+      <div class="info">
+        <div class="name" id="nyasa-wa-name">${agentName}</div>
+        <div class="status"><span class="dot"></span> <span>typically replies in minutes</span></div>
       </div>
-      <div id="nyasa-msgs"></div>
-      <div id="nyasa-name-gate" style="display:none">
-        <p>Before we start, what's your name?</p>
-        <input id="nyasa-name-input" placeholder="Your name" maxlength="60" />
-        <input id="nyasa-email-input" placeholder="Email (optional)" type="email" style="margin-bottom:8px" />
-        <button id="nyasa-name-btn">Start Chat</button>
-      </div>
-      <div id="nyasa-composer" style="display:none">
-        <button id="nyasa-attach" title="Attach image or video">
-          <svg viewBox="0 0 24 24"><path d="M16.5 6v11.5c0 2.21-1.79 4-4 4s-4-1.79-4-4V5a2.5 2.5 0 0 1 5 0v10.5a1 1 0 0 1-2 0V6H10v9.5a2.5 2.5 0 0 0 5 0V5a4 4 0 0 0-8 0v12.5a5.5 5.5 0 0 0 11 0V6h-1.5z"/></svg>
-        </button>
-        <input type="file" id="nyasa-file" accept="image/*,video/*" style="display:none" />
-        <div id="nyasa-recording-bar">
-          <span class="rec-dot"></span>
-          <span class="rec-timer">0:00</span>
-          <div class="rec-wave" id="nyasa-rec-wave"></div>
-          <button id="nyasa-rec-cancel" title="Cancel">
-            <svg viewBox="0 0 24 24"><path d="M6 6l12 12M18 6L6 18" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round"/></svg>
-          </button>
-        </div>
-        <textarea id="nyasa-input" placeholder="Type a message…" rows="1"></textarea>
-        <button id="nyasa-mic" title="Record voice note">
-          <svg viewBox="0 0 24 24"><path d="M12 14a3 3 0 0 0 3-3V6a3 3 0 0 0-6 0v5a3 3 0 0 0 3 3zm5-3a5 5 0 0 1-10 0H5a7 7 0 0 0 6 6.92V21h2v-3.08A7 7 0 0 0 19 11h-2z"/></svg>
-        </button>
-        <button id="nyasa-send" disabled style="display:none">
-          <svg viewBox="0 0 24 24"><path d="M2.01 21L23 12 2.01 3 2 10l15 2-15 2z"/></svg>
-        </button>
-      </div>
-      <div id="nyasa-preview">
-        <div class="preview-header">
-          <button class="preview-close" id="nyasa-pv-close">✕</button>
-          <span class="pv-title">Send media</span>
-        </div>
-        <div class="preview-media" id="nyasa-pv-media"></div>
-        <div class="preview-caption-bar">
-          <textarea class="preview-caption" id="nyasa-pv-caption" placeholder="Add caption…" rows="1"></textarea>
-          <button class="preview-send" id="nyasa-pv-send">
-            <svg viewBox="0 0 24 24"><path d="M2.01 21L23 12 2.01 3 2 10l15 2-15 2z"/></svg>
-          </button>
-        </div>
-      </div>
-      <div id="nyasa-powered"><a href="https://nyasadesk.com" target="_blank">Powered by Nyasadesk</a></div>
+      <button class="close" id="nyasa-wa-close">&times;</button>
     </div>
-    <div id="nyasa-lightbox">
-      <div class="lb-actions">
-        <a id="nyasa-lb-download" href="#" download title="Download">
-          <svg viewBox="0 0 24 24"><path d="M12 16l5-5h-3V4h-4v7H7l5 5zm-7 2h14v2H5v-2z"/></svg>
-        </a>
-        <button id="nyasa-lb-close" title="Close">
-          <svg viewBox="0 0 24 24"><path d="M6 6l12 12M18 6L6 18" stroke="#fff" stroke-width="2" fill="none" stroke-linecap="round"/></svg>
-        </button>
+    <div class="body">
+      <div class="bubble">
+        ${greeting.replace(/</g, '&lt;')}
+        <div class="time">${new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</div>
       </div>
-      <div id="nyasa-lb-media"></div>
+    </div>
+    <div class="footer">
+      <a class="btn" id="nyasa-wa-go" href="#" target="_blank" rel="noopener">
+        ${WA_SVG}
+        <span>Chat on WhatsApp</span>
+      </a>
+      <div class="hint">Opens WhatsApp app with a message ready to send</div>
     </div>
   `;
+  host.appendChild(popup);
 
-  // ── Refs ──────────────────────────────────────────────────────────────────
-  const fab        = shadow.getElementById('nyasa-fab');
-  const win         = shadow.getElementById('nyasa-window');
-  const badge       = shadow.getElementById('nyasa-badge');
-  const msgs        = shadow.getElementById('nyasa-msgs');
-  const nameGate    = shadow.getElementById('nyasa-name-gate');
-  const composer    = shadow.getElementById('nyasa-composer');
-  const lightbox    = shadow.getElementById('nyasa-lightbox');
-  const lbMedia     = shadow.getElementById('nyasa-lb-media');
-  const lbClose     = shadow.getElementById('nyasa-lb-close');
-  const lbDownload  = shadow.getElementById('nyasa-lb-download');
-  const nameInput   = shadow.getElementById('nyasa-name-input');
-  const emailInput  = shadow.getElementById('nyasa-email-input');
-  const nameBtn     = shadow.getElementById('nyasa-name-btn');
-  const input       = shadow.getElementById('nyasa-input');
-  const sendBtn     = shadow.getElementById('nyasa-send');
-  const attachBtn   = shadow.getElementById('nyasa-attach');
-  const fileInput   = shadow.getElementById('nyasa-file');
-  const micBtn      = shadow.getElementById('nyasa-mic');
-  const sendBtn2    = shadow.getElementById('nyasa-send');
-  const recBar      = shadow.getElementById('nyasa-recording-bar');
-  const recWave     = shadow.getElementById('nyasa-rec-wave');
-  const recCancel   = shadow.getElementById('nyasa-rec-cancel');
-  const recTimer    = recBar.querySelector('.rec-timer');
-  const preview     = shadow.getElementById('nyasa-preview');
-  const pvMedia     = shadow.getElementById('nyasa-pv-media');
-  const pvCaption   = shadow.getElementById('nyasa-pv-caption');
-  const pvSend      = shadow.getElementById('nyasa-pv-send');
-  const pvClose     = shadow.getElementById('nyasa-pv-close');
-  let pendingFile   = null;  // file waiting in the preview overlay
-  const closeBtn    = shadow.getElementById('nyasa-close');
-  const headerName  = shadow.getElementById('nyasa-header-name');
-  let lastReadAt    = null; // ISO string — an agent has read everything up to this point
+  // ── Interactions ─────────────────────────────────────────────────────────
+  let isOpen = false;
 
-  const showComposerOrGate = () => {
-    if (!visitorName) { nameGate.style.display = 'block'; composer.style.display = 'none'; }
-    else { nameGate.style.display = 'none'; composer.style.display = 'flex'; }
+  const togglePopup = (open) => {
+    isOpen = open !== undefined ? open : !isOpen;
+    popup.classList.toggle('open', isOpen);
   };
+
+  fab.addEventListener('click', () => {
+    togglePopup();
+  });
+
+  document.getElementById('nyasa-wa-close').addEventListener('click', () => togglePopup(false));
+
+  // Close popup when clicking outside
+  document.addEventListener('click', (e) => {
+    if (isOpen && !host.contains(e.target)) togglePopup(false);
+  });
+
+  // ── Render with config ───────────────────────────────────────────────────
+  function render() {
+    const nameEl = document.getElementById('nyasa-wa-name');
+    if (nameEl) nameEl.textContent = agentName;
+
+    // Update greeting bubble
+    const bubble = popup.querySelector('.bubble');
+    if (bubble) {
+      bubble.innerHTML = `${greeting.replace(/</g, '&lt;')}<div class="time">${new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</div>`;
+    }
+
+    // Set the WhatsApp link
+    const goBtn = document.getElementById('nyasa-wa-go');
+    if (goBtn && waNumber) {
+      const prefill = CUSTOM_PREFILL || greeting;
+      const cleanNumber = waNumber.replace(/[^0-9]/g, '');
+      goBtn.href = `https://wa.me/${cleanNumber}?text=${encodeURIComponent(prefill)}`;
+    } else if (goBtn && !waNumber) {
+      // No number configured — disable the button
+      goBtn.style.opacity = '0.5';
+      goBtn.style.pointerEvents = 'none';
+      goBtn.querySelector('span').textContent = 'WhatsApp not configured';
+    }
+  }
 
   // ── Init ──────────────────────────────────────────────────────────────────
-  // Returning visitors (their browser already has a stored session_id for
-  // this workspace) get their real past conversation replayed instead of a
-  // fresh canned greeting every time — chat history is fully persistent on
-  // both ends and only ever goes away if the business explicitly deletes it.
-  const loadHistory = async () => {
-    try {
-      const data = await api({ action: 'history', session_id: sessionId });
-      lastReadAt = data.last_read_at || null;
-      const history = data.messages || [];
-      if (history.length === 0) return false;
-      for (const m of history) {
-        addMsg(m.direction === 'outbound' ? 'in' : 'out', m.body, m.created_at, m.attachments, m.status);
-        lastPollAt = m.created_at;
-      }
-      refreshTicks();
-      return true;
-    } catch { return false; }
-  };
-
-  api({ action: 'start', session_id: sessionId }).then(async (data) => {
-    color = data.color || '#25D366';
-    root.style.setProperty('--nyasa-color', color);
-    if (data.last_read_at) lastReadAt = data.last_read_at;
-    if (data.session_id) { sessionId = data.session_id; localStorage.setItem('nyasa_session_' + WID, sessionId); }
-    // Self-heal position if this site's copied snippet is stale vs. what's
-    // now saved in Settings (the data-position attribute already applied it
-    // instantly with zero flash for anyone on the latest snippet).
-    const wantsLeft = (data.position || 'bottom-right') === 'bottom-left';
-    root.classList.toggle('nyasa-pos-left', wantsLeft);
-    const label = data.label || 'Chat with us';
-    if (fab) fab.title = label;
-    if (headerName) headerName.textContent = data.agent_name || 'Support Team';
-
-    const hadHistory = isReturningVisitor ? await loadHistory() : false;
-    if (!hadHistory) addMsg('in', data.greeting || 'Hi! How can we help?', new Date().toISOString());
-
-    if (!INLINE) {
-      // Don't nag returning visitors with a fake "1 new message" badge for
-      // history they've already seen — only genuinely new replies (via poll)
-      // should badge from here on.
-      if (!hadHistory) { badge.style.display = 'flex'; badge.textContent = '1'; }
-    } else {
-      showComposerOrGate();
-      startPolling();
-      if (visitorName) input.focus();
-    }
-  }).catch(() => {
-    root.style.setProperty('--nyasa-color', '#25D366');
-    if (INLINE) showComposerOrGate();
-  });
-
-  // ── Toggle (popup mode only) ─────────────────────────────────────────────
-  const toggleOpen = () => {
-    open = !open;
-    win.classList.toggle('closed', !open);
-    badge.style.display = 'none';
-    badge.textContent = '0';
-    if (open) {
-      showComposerOrGate();
-      if (visitorName) input.focus();
-      startPolling();
-      msgs.scrollTop = msgs.scrollHeight;
-    } else {
-      stopPolling();
-    }
-  };
-  if (fab) fab.addEventListener('click', toggleOpen);
-  if (closeBtn) closeBtn.addEventListener('click', toggleOpen);
-
-  // ── Name gate ─────────────────────────────────────────────────────────────
-  nameBtn.addEventListener('click', () => {
-    const n = nameInput.value.trim();
-    if (!n) { nameInput.focus(); return; }
-    visitorName = n;
-    localStorage.setItem('nyasa_name_' + WID, n);
-    nameGate.style.display = 'none';
-    composer.style.display = 'flex';
-    input.focus();
-  });
-  nameInput.addEventListener('keydown', e => { if (e.key === 'Enter') nameBtn.click(); });
-
-  // ── Messaging ─────────────────────────────────────────────────────────────
-  // Two small inline SVG tick sets — single check (sent) / double check
-  // (read) — same shapes the real inbox uses, just sized for the widget.
-  const TICK_SENT = '<svg viewBox="0 0 16 16"><path d="M2 8.5l3.2 3.5L14 3" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>';
-  const TICK_READ = '<svg viewBox="0 0 20 16"><path d="M1 8.5l3.2 3.5L11 4" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/><path d="M7 8.5l3.2 3.5L19 4" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>';
-
-  // Placeholder caption texts to hide when a real media element is already
-  // rendered — must match EXACTLY what both the widget itself and the main
-  // team inbox (src/lib/channels.js / MessageThread.jsx) use as fallback
-  // body text, since a message can originate from either side.
-  const MEDIA_PLACEHOLDERS = ['📷 Photo', '🎥 Video', '🎤 Voice message', '🎤 Voice note'];
-
-  const addMsg = (dir, text, ts, attachment, status) => {
-    const b = document.createElement('div');
-    b.className = `nyasa-bubble ${dir}`;
-    b.dataset.ts = ts;
-    const time = fmt(ts);
-    const att = Array.isArray(attachment) ? attachment[0] : attachment;
-    let mediaHtml = '';
-    if (att?.url) {
-      if (att.type === 'audio') {
-        mediaHtml = `<div class="nyasa-audio" data-url="${att.url}">
-          <button class="play-btn"><svg viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg></button>
-          <div class="track"><div class="track-fill"></div></div>
-          <span class="dur">0:00</span>
-        </div>`;
-      } else if (att.type === 'video') {
-        mediaHtml = `<div class="attach-video-wrap" data-lightbox-url="${att.url}" data-lightbox-type="video">
-          <video class="attach-video" src="${att.url}"></video>
-          <span class="play-overlay"><span><svg viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg></span></span>
-        </div>`;
-      } else {
-        mediaHtml = `<img class="attach-img" src="${att.url}" alt="attachment" data-lightbox-url="${att.url}" data-lightbox-type="image" />`;
-      }
-    }
-    // Skip rendering placeholder caption text like "📷 Photo" twice when there's
-    // already a real media element — same rule the team inbox uses.
-    const showText = text && !(att && MEDIA_PLACEHOLDERS.includes(text));
-    const ticksHtml = dir === 'out' ? `<span class="ticks ${status === 'read' ? 'read' : 'sent'}">${status === 'read' ? TICK_READ : TICK_SENT}</span>` : '';
-    // Timestamp + ticks render as a separate row below the content — same
-    // pattern as the real team inbox's Bubble component. This is robust for
-    // any content type (text, image, video, audio, or image+caption) since
-    // it never depends on the width of the last line of text.
-    b.innerHTML = `<div class="text">${mediaHtml}${showText ? esc(text) : ''}<div class="meta-row"><span>${time}</span>${ticksHtml}</div></div>`;
-    msgs.appendChild(b);
-    msgs.scrollTop = msgs.scrollHeight;
-    // Wire up audio player if this bubble has one
-    const audioEl = b.querySelector('.nyasa-audio');
-    if (audioEl) wireAudioPlayer(audioEl);
-  };
-
-  // ── Fullscreen media lightbox ──────────────────────────────────────────────
-  // Tapping any image/video thumbnail in the thread opens it fullscreen --
-  // same behaviour as the main team inbox. Single delegated listener on the
-  // messages container covers every bubble, including ones rendered later.
-  const openLightbox = (url, type) => {
-    lbMedia.innerHTML = type === 'video'
-      ? `<video src="${url}" controls autoplay></video>`
-      : `<img src="${url}" alt="attachment" />`;
-    lbDownload.setAttribute('href', url);
-    lightbox.classList.add('active');
-  };
-  const closeLightbox = () => {
-    lightbox.classList.remove('active');
-    lbMedia.innerHTML = ''; // stops video playback immediately
-  };
-  msgs.addEventListener('click', e => {
-    const el = e.target.closest('[data-lightbox-url]');
-    if (!el) return;
-    openLightbox(el.getAttribute('data-lightbox-url'), el.getAttribute('data-lightbox-type'));
-  });
-  lbClose.addEventListener('click', closeLightbox);
-  lightbox.addEventListener('click', e => { if (e.target === lightbox) closeLightbox(); });
-  lbDownload.addEventListener('click', e => e.stopPropagation());
-  window.addEventListener('keydown', e => { if (e.key === 'Escape' && lightbox.classList.contains('active')) closeLightbox(); });
-
-  // ── Audio player logic ────────────────────────────────────────────────────
-  // Mini WhatsApp-style player: play/pause toggle, clickable seek bar,
-  // duration display, and a singleton lock so starting one voice note
-  // auto-pauses any other one currently playing.
-  let currentAudio = null;
-  function wireAudioPlayer(container) {
-    const url = container.dataset.url;
-    const btn = container.querySelector('.play-btn');
-    const track = container.querySelector('.track');
-    const fill = container.querySelector('.track-fill');
-    const durEl = container.querySelector('.dur');
-    let audio = new Audio(url);
-    let isPlaying = false;
-
-    const fmtDur = s => `${Math.floor(s/60)}:${String(Math.floor(s%60)).padStart(2,'0')}`;
-
-    const setPlaying = (playing) => {
-      isPlaying = playing;
-      btn.classList.toggle('pause', playing);
-      btn.innerHTML = playing
-        ? '<svg viewBox="0 0 24 24"><path d="M6 4h4v16H6zm8 0h4v16h-4z"/></svg>'
-        : '<svg viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg>';
-    };
-
-    btn.addEventListener('click', (e) => {
-      e.stopPropagation();
-      if (isPlaying) { audio.pause(); return; }
-      // Singleton: pause any other audio currently playing
-      if (currentAudio && currentAudio !== audio) {
-        currentAudio.pause();
-      }
-      currentAudio = audio;
-      audio.play();
-      setPlaying(true);
-    });
-
-    audio.addEventListener('timeupdate', () => {
-      if (audio.duration) {
-        fill.style.width = (audio.currentTime / audio.duration * 100) + '%';
-        durEl.textContent = fmtDur(audio.currentTime) + ' / ' + fmtDur(audio.duration);
-      }
-    });
-
-    audio.addEventListener('loadedmetadata', () => {
-      durEl.textContent = '0:00 / ' + fmtDur(audio.duration);
-    });
-
-    audio.addEventListener('ended', () => {
-      setPlaying(false);
-      fill.style.width = '0%';
-      durEl.textContent = '0:00 / ' + fmtDur(audio.duration);
-    });
-
-    audio.addEventListener('pause', () => {
-      setPlaying(false);
-      if (currentAudio === audio) currentAudio = null;
-    });
-
-    track.addEventListener('click', (e) => {
-      if (!audio.duration) return;
-      const rect = track.getBoundingClientRect();
-      audio.currentTime = ((e.clientX - rect.left) / rect.width) * audio.duration;
-    });
-  }
-
-  // Re-evaluates every one of the visitor's own bubbles against the latest
-  // lastReadAt — flips single-grey ticks to double-blue the moment an agent
-  // opens the conversation (checked on every poll tick, so it updates live
-  // without the visitor needing to do anything).
-  const refreshTicks = () => {
-    if (!lastReadAt) return;
-    const readCutoff = new Date(lastReadAt).getTime();
-    msgs.querySelectorAll('.nyasa-bubble.out').forEach(b => {
-      const ts = new Date(b.dataset.ts).getTime();
-      const tickEl = b.querySelector('.ticks');
-      if (tickEl && ts <= readCutoff && !tickEl.classList.contains('read')) {
-        tickEl.classList.remove('sent');
-        tickEl.classList.add('read');
-        tickEl.innerHTML = TICK_READ;
-      }
-    });
-  };
-
-  input.addEventListener('input', () => {
-    const hasText = !!input.value.trim();
-    sendBtn.disabled = !hasText;
-    sendBtn.style.display = hasText ? 'flex' : 'none';
-    micBtn.style.display = hasText ? 'none' : 'flex';
-    input.style.height = 'auto';
-    input.style.height = Math.min(input.scrollHeight, 100) + 'px';
-  });
-  input.addEventListener('keydown', e => {
-    if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendBtn.click(); }
-  });
-
-  sendBtn.addEventListener('click', () => {
-    const text = input.value.trim();
-    if (!text || !visitorName) return;
-    input.value = '';
-    input.style.height = 'auto';
-    sendBtn.disabled = true;
-    const now = new Date().toISOString();
-    addMsg('out', text, now, null, 'sent');
-    api({
-      action: 'send', session_id: sessionId,
-      name: visitorName, email: emailInput?.value || null,
-      body: text, page_url: window.location.href,
-    }).catch(() => {
-      const errBubble = document.createElement('div');
-      errBubble.className = 'nyasa-system';
-      errBubble.textContent = '⚠ Message failed to send';
-      msgs.appendChild(errBubble);
-    });
-  });
-
-  // ── Attachments (image/video) ────────────────────────────────────────────
-  // ── Media preview + caption (WhatsApp-style) ─────────────────────────────
-  // Instead of sending immediately, picking a file opens a full-screen
-  // preview overlay where the user can add a caption before sending.
-  attachBtn.addEventListener('click', () => fileInput.click());
-
-  fileInput.addEventListener('change', () => {
-    const file = fileInput.files?.[0];
-    fileInput.value = '';
-    if (!file || !visitorName) return;
-    if (file.size > 6 * 1024 * 1024) {
-      const errBubble = document.createElement('div');
-      errBubble.className = 'nyasa-system';
-      errBubble.textContent = '⚠ File too large (max 6MB)';
-      msgs.appendChild(errBubble);
-      msgs.scrollTop = msgs.scrollHeight;
-      return;
-    }
-    // Show the preview overlay
-    pendingFile = file;
-    const kind = file.type.startsWith('video') ? 'video' : 'image';
-    const localUrl = URL.createObjectURL(file);
-    pvMedia.innerHTML = kind === 'video'
-      ? `<video src="${localUrl}" controls autoplay></video>`
-      : `<img src="${localUrl}" alt="preview" />`;
-    pvCaption.value = '';
-    preview.classList.add('active');
-    pvCaption.focus();
-  });
-
-  // Cancel preview
-  pvClose.addEventListener('click', () => {
-    preview.classList.remove('active');
-    pvMedia.innerHTML = '';
-    pendingFile = null;
-  });
-
-  // Auto-grow caption textarea
-  pvCaption.addEventListener('input', () => {
-    pvCaption.style.height = 'auto';
-    pvCaption.style.height = Math.min(pvCaption.scrollHeight, 80) + 'px';
-  });
-  pvCaption.addEventListener('keydown', e => {
-    if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); pvSend.click(); }
-  });
-
-  // Send media + caption
-  pvSend.addEventListener('click', async () => {
-    if (!pendingFile) return;
-    const file = pendingFile;
-    const caption = pvCaption.value.trim();
-    const kind = file.type.startsWith('video') ? 'video' : 'image';
-    pendingFile = null;
-    preview.classList.remove('active');
-    pvMedia.innerHTML = '';
-
-    const now = new Date().toISOString();
-    const localUrl = URL.createObjectURL(file);
-    // If there's a caption, show it as the bubble text alongside the media
-    addMsg('out', caption, now, [{ url: localUrl, type: kind }], 'sent');
-
-    try {
-      const file_base64 = await new Promise((resolve, reject) => {
-        const reader = new FileReader();
-        reader.onload = () => resolve(reader.result.split(',')[1]);
-        reader.onerror = reject;
-        reader.readAsDataURL(file);
-      });
-      await api({
-        action: 'upload', session_id: sessionId,
-        name: visitorName, email: emailInput?.value || null,
-        file_base64, file_name: file.name, file_type: file.type, kind,
-        body: caption || null, page_url: window.location.href,
-      });
-    } catch {
-      const errBubble = document.createElement('div');
-      errBubble.className = 'nyasa-system';
-      errBubble.textContent = '⚠ Upload failed';
-      msgs.appendChild(errBubble);
-      msgs.scrollTop = msgs.scrollHeight;
-    }
-  });
-
-  // ── Voice notes (MediaRecorder) ───────────────────────────────────────────
-  // WhatsApp-style: mic button replaces send when input is empty. Tap to
-  // start recording, tap again (or the send/checkmark) to stop+send, or
-  // tap the cancel (trash) button to discard. Shows a live timer + a
-  // pseudo-waveform of volume levels while recording.
-  let mediaRecorder = null;
-  let audioChunks = [];
-  let recStartTime = 0;
-  let recTimerInt = null;
-  let recAnalyser = null;
-  let recStream = null;
-  let waveBars = [];
-
-  const fmtRec = ms => {
-    const s = Math.floor(ms / 1000);
-    return `${Math.floor(s/60)}:${String(s%60).padStart(2,'0')}`;
-  };
-
-  const stopRecordingUI = () => {
-    clearInterval(recTimerInt);
-    micBtn.classList.remove('recording');
-    recBar.classList.remove('active');
-    input.style.display = '';
-    attachBtn.style.display = '';
-    // Reset wave bars
-    waveBars.forEach(b => b.style.height = '4px');
-  };
-
-  micBtn.addEventListener('click', async () => {
-    // If already recording, stop and send
-    if (mediaRecorder && mediaRecorder.state === 'recording') {
-      mediaRecorder.stop();
-      return;
-    }
-    // Start recording
-    try {
-      recStream = await navigator.mediaDevices.getUserMedia({ audio: true });
-    } catch (e) {
-      const errBubble = document.createElement('div');
-      errBubble.className = 'nyasa-system';
-      errBubble.textContent = '⚠ Microphone permission denied';
-      msgs.appendChild(errBubble);
-      msgs.scrollTop = msgs.scrollHeight;
-      return;
-    }
-
-    // Build wave bars (24 bars)
-    recWave.innerHTML = '';
-    waveBars = [];
-    for (let i = 0; i < 24; i++) {
-      const bar = document.createElement('span');
-      bar.style.height = '4px';
-      recWave.appendChild(bar);
-      waveBars.push(bar);
-    }
-
-    audioChunks = [];
-    mediaRecorder = new MediaRecorder(recStream);
-    mediaRecorder.ondataavailable = e => { if (e.data.size > 0) audioChunks.push(e.data); };
-    mediaRecorder.onstop = async () => {
-      const duration = Date.now() - recStartTime;
-      stopRecordingUI();
-      // Stop all tracks to release the mic
-      recStream.getTracks().forEach(t => t.stop());
-
-      if (audioChunks.length === 0) return;
-      const blob = new Blob(audioChunks, { type: 'audio/webm' });
-      // Discard if too short (< 1 second)
-      if (duration < 1000) {
-        const errBubble = document.createElement('div');
-        errBubble.className = 'nyasa-system';
-        errBubble.textContent = '⚠ Recording too short';
-        msgs.appendChild(errBubble);
-        msgs.scrollTop = msgs.scrollHeight;
-        return;
-      }
-
-      const localUrl = URL.createObjectURL(blob);
-      const now = new Date().toISOString();
-      addMsg('out', '', now, [{ url: localUrl, type: 'audio' }], 'sent');
-
-      // Upload
-      try {
-        const file_base64 = await new Promise((resolve, reject) => {
-          const reader = new FileReader();
-          reader.onload = () => resolve(reader.result.split(',')[1]);
-          reader.onerror = reject;
-          reader.readAsDataURL(blob);
-        });
-        await api({
-          action: 'upload', session_id: sessionId,
-          name: visitorName, email: emailInput?.value || null,
-          file_base64, file_name: 'voice.webm', file_type: 'audio/webm',
-          kind: 'audio', page_url: window.location.href,
-        });
-      } catch {
-        const errBubble = document.createElement('div');
-        errBubble.className = 'nyasa-system';
-        errBubble.textContent = '⚠ Voice note failed to send';
-        msgs.appendChild(errBubble);
-        msgs.scrollTop = msgs.scrollHeight;
-      }
-    };
-
-    mediaRecorder.start();
-    recStartTime = Date.now();
-    micBtn.classList.add('recording');
-    recBar.classList.add('active');
-    input.style.display = 'none';
-    attachBtn.style.display = 'none';
-
-    // Timer + volume meter
-    const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
-    const source = audioCtx.createMediaStreamSource(recStream);
-    recAnalyser = audioCtx.createAnalyser();
-    recAnalyser.fftSize = 64;
-    source.connect(recAnalyser);
-    const dataArr = new Uint8Array(recAnalyser.frequencyBinCount);
-
-    recTimerInt = setInterval(() => {
-      const elapsed = Date.now() - recStartTime;
-      recTimer.textContent = fmtRec(elapsed);
-      // Update wave bars from volume data
-      if (recAnalyser) {
-        recAnalyser.getByteFrequencyData(dataArr);
-        for (let i = 0; i < waveBars.length; i++) {
-          const idx = Math.floor(i * dataArr.length / waveBars.length);
-          const vol = dataArr[idx] || 0;
-          waveBars[i].style.height = Math.max(4, (vol / 255) * 24) + 'px';
-        }
-      }
-    }, 100);
-  });
-
-  // Cancel recording (discard)
-  recCancel.addEventListener('click', (e) => {
-    e.stopPropagation();
-    if (mediaRecorder && mediaRecorder.state === 'recording') {
-      // Set onstop to do nothing (discard)
-      mediaRecorder.onstop = () => {
-        stopRecordingUI();
-        recStream.getTracks().forEach(t => t.stop());
-      };
-      mediaRecorder.stop();
-    }
-  });
-
-  // ── Polling for agent replies ─────────────────────────────────────────────
-  const poll = async () => {
-    if (!sessionId || !visitorName) return;
-    try {
-      const data = await api({ action: 'poll', session_id: sessionId, since: lastPollAt });
-      if (data.last_read_at) lastReadAt = data.last_read_at;
-      for (const m of data.messages || []) {
-        addMsg('in', m.body, m.created_at, m.attachments);
-        lastPollAt = m.created_at;
-        if (!open) {
-          const n = parseInt(badge.textContent || '0') + 1;
-          badge.textContent = n;
-          badge.style.display = 'flex';
-        }
-      }
-      refreshTicks();
-    } catch {}
-  };
-
-  const startPolling = () => { if (!pollTimer) pollTimer = setInterval(poll, 4000); };
-  const stopPolling  = () => { clearInterval(pollTimer); pollTimer = null; };
+  loadConfig();
 })();
