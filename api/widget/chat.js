@@ -15,7 +15,7 @@ export default async function handler(req, res) {
 
     if (!workspace_id) return res.status(400).json({ error: 'workspace_id required' });
 
-    // Get website channel config (greeting, label, agent name, position)
+    // Get website channel config (agent name, prefill, position, etc.)
     const { data: cfg } = await sb.from('channel_configs').select('config')
       .eq('workspace_id', workspace_id).eq('channel', 'website').maybeSingle();
 
@@ -27,14 +27,16 @@ export default async function handler(req, res) {
       wa_number = waConfig?.config?.phone_number || '';
     } catch (_) {}
 
-    const greeting   = cfg?.config?.greeting || "Hi there! 👋 How can we help you today?";
-    const label      = cfg?.config?.label || 'Chat with us';
-    const agent_name = cfg?.config?.agent_name || 'Support Team';
-    const position   = cfg?.config?.widget_position || 'bottom-right';
+    const config = cfg?.config || {};
+    const prefill_message = config.prefill_message || config.greeting || "Hi! I found you on your website and would like to chat.";
+    const agent_name = config.agent_name || 'Support Team';
+    const label       = config.label || 'Chat with us';
+    const position    = config.widget_position || 'bottom-right';
 
     return res.status(200).json({
       wa_number,
-      greeting,
+      prefill_message,
+      greeting: prefill_message, // backward compat for old widgets
       label,
       agent_name,
       position,

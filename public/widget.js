@@ -1,4 +1,4 @@
-/* Nyasadesk WhatsApp Widget v3.1
+/* Nyasadesk WhatsApp Widget v3.2
  * Floating WhatsApp button — one tap opens WhatsApp directly with prefilled message.
  *
  * Usage:
@@ -7,7 +7,7 @@
  * Options:
  *   data-workspace-id  (required) — workspace ID from Nyasadesk settings
  *   data-position      (optional) — "bottom-right" (default) or "bottom-left"
- *   data-prefill       (optional) — custom prefilled message text
+ *   data-prefill       (optional) — override the admin-configured prefill message
  */
 (function () {
   'use strict';
@@ -21,7 +21,8 @@
   if (!WID) { console.warn('[Nyasadesk] data-workspace-id is required'); return; }
 
   let waNumber = '';
-  let greeting = 'Hi! I found you on your website and would like to chat.';
+  let prefillMessage = 'Hi! I found you on your website and would like to chat.';
+  let agentName = 'Support Team';
 
   // ── Fetch workspace config ─────────────────────────────────────────────
   const loadConfig = async () => {
@@ -32,8 +33,9 @@
         body: JSON.stringify({ action: 'start', workspace_id: WID }),
       });
       const data = await res.json();
-      waNumber = data.wa_number || '';
-      greeting = data.greeting || greeting;
+      waNumber       = data.wa_number || '';
+      prefillMessage = data.prefill_message || data.greeting || prefillMessage;
+      agentName      = data.agent_name || agentName;
     } catch (e) {
       console.warn('[Nyasadesk] Could not load widget config', e);
     }
@@ -94,19 +96,21 @@
   fab.setAttribute('aria-label', 'Chat on WhatsApp');
   fab.setAttribute('target', '_blank');
   fab.setAttribute('rel', 'noopener noreferrer');
-  fab.href = '#'; // updated by render()
-  fab.innerHTML = WA_SVG + '<span id="nyasa-wa-tooltip">Chat on WhatsApp</span>';
+  fab.href = '#';
+  fab.innerHTML = WA_SVG + '<span id="nyasa-wa-tooltip">' + agentName + '</span>';
   host.appendChild(fab);
 
   // ── Render with config ─────────────────────────────────────────────────
   function render() {
+    // Update tooltip with agent name
+    const tooltip = fab.querySelector('#nyasa-wa-tooltip');
+    if (tooltip) tooltip.textContent = agentName;
+
     if (waNumber) {
-      const prefill  = CUSTOM_PREFILL || greeting;
+      const prefill  = CUSTOM_PREFILL || prefillMessage;
       const cleanNum = waNumber.replace(/[^0-9]/g, '');
-      fab.href = `https://wa.me/${cleanNum}?text=${encodeURIComponent(prefill)}`;
-    }
-    // If no number configured, clicking just opens wa.me (app landing page)
-    else {
+      fab.href = 'https://wa.me/' + cleanNum + '?text=' + encodeURIComponent(prefill);
+    } else {
       fab.href = 'https://wa.me/';
     }
   }
