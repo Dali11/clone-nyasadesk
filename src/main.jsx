@@ -18,7 +18,7 @@ if ('serviceWorker' in navigator) {
         // Separately poll /sw-version.txt every 30s.
         // If the server version is newer, force unregister + reload immediately
         // (handles the case where the old SW intercepts reg.update() from cache).
-        const SW_CLIENT_VERSION = 9;
+        const SW_CLIENT_VERSION = 10;
         setInterval(async () => {
           try {
             const r = await fetch('/sw-version.txt', { cache: 'no-store' });

@@ -7,9 +7,9 @@
 //  - Inline reply from notification bar
 //  - Badge icon support
 
-const SW_VERSION    = 9;                        // increment to force self-destruct on stale installs
-const STATIC_CACHE  = 'nyasadesk-static-v9';   // versioned static assets
-const DYNAMIC_CACHE = 'nyasadesk-dynamic-v9';   // runtime HTML pages
+const SW_VERSION    = 10;                        // increment to force self-destruct on stale installs
+const STATIC_CACHE  = 'nyasadesk-static-v10';   // versioned static assets
+const DYNAMIC_CACHE = 'nyasadesk-dynamic-v10';   // runtime HTML pages
 const SECRET_CACHE  = 'nyasa-sw-secrets-v1';    // inline reply secret
 const NOTIF_REPLY_ENDPOINT = '/api/team?action=notif-reply';
 
@@ -213,8 +213,8 @@ self.addEventListener('push', (event) => {
       badge:     '/badge-n.png',
       tag:       convTag,
       renotify:  true,
-      silent:    msgCount > 1,
-      vibrate:   msgCount === 1 ? [200, 100, 200] : [],
+      silent:    false,
+      vibrate:   msgCount === 1 ? [200, 100, 200] : [100],
       timestamp: Date.now(),
       data: { url, conversationId: convId, workspaceId, channel, msgCount, unreadTotal: unread },
       actions: [
@@ -234,7 +234,8 @@ self.addEventListener('push', (event) => {
         badge:   '/badge-n.png',
         tag:     'nyasa-summary',
         renotify: false,
-        silent:  true,
+        silent:  false,
+        vibrate: [100],
         data:    { url: '/inbox', isSummary: true, unreadTotal: unread },
         actions: [{ action: 'open', title: 'Open inbox' }],
       });
@@ -247,49 +248,51 @@ self.addEventListener('push', (event) => {
 });
 
 // ── Inline reply from notification bar ────────────────────────────────────
-self.addEventListener('notificationreply', (event) => {
-  event.notification.close();
-  const replyText   = event.reply;
-  const notifData   = event.notification.data || {};
+// NOTE: 'notificationreply' is NOT a standard Web API event. Inline replies
+// are handled in the 'notificationclick' event with event.reply containing
+// the typed text. The old notificationreply listener never fired — this
+// was the #1 reason inline replies didn't work.
+
+async function handleInlineReply(event) {
+  const replyText = event.reply;
+  const notifData = event.notification.data || {};
   const { conversationId, workspaceId, channel } = notifData;
   if (!replyText?.trim() || !conversationId || !workspaceId) return;
 
-  event.waitUntil((async () => {
-    try {
-      const secret = await getReplySecret();
-      const res = await fetch(NOTIF_REPLY_ENDPOINT, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ secret, conversationId, workspaceId, channel: channel || 'whatsapp', text: replyText.trim() }),
-      });
+  try {
+    const secret = await getReplySecret();
+    const res = await fetch(NOTIF_REPLY_ENDPOINT, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ secret, conversationId, workspaceId, channel: channel || 'whatsapp', text: replyText.trim() }),
+    });
 
-      if (res.ok) {
-        await self.registration.showNotification('Message sent ✓', {
-          body:    replyText.trim().slice(0, 80),
-          icon:    '/icon-192.png',
-          badge:   '/badge-n.png',
-          tag:     `conv-${conversationId}`,
-          silent:  true,
-          vibrate: [100],
-          data:    { url: notifData.url || '/', conversationId, msgCount: 0, unreadTotal: 0 },
-          actions: [{ action: 'open', title: 'Open chat' }],
-        });
-      } else {
-        const err = await res.json().catch(() => ({}));
-        await self.registration.showNotification('Reply failed', {
-          body:   err.error || 'Could not send. Tap to open.',
-          icon:   '/icon-192.png',
-          badge:  '/badge-n.png',
-          tag:    'nyasa-reply-error',
-          silent: true,
-          data:   { url: notifData.url || '/' },
-        });
-      }
-    } catch (e) {
-      console.error('[SW] notifReply error:', e);
+    if (res.ok) {
+      await self.registration.showNotification('Message sent ✓', {
+        body:    replyText.trim().slice(0, 80),
+        icon:    '/icon-192.png',
+        badge:   '/badge-n.png',
+        tag:     `conv-${conversationId}`,
+        silent:  true,
+        vibrate: [100],
+        data:    { url: notifData.url || '/', conversationId, msgCount: 0, unreadTotal: 0 },
+        actions: [{ action: 'open', title: 'Open chat' }],
+      });
+    } else {
+      const err = await res.json().catch(() => ({}));
+      await self.registration.showNotification('Reply failed', {
+        body:   err.error || 'Could not send. Tap to open.',
+        icon:   '/icon-192.png',
+        badge:  '/badge-n.png',
+        tag:    'nyasa-reply-error',
+        silent: true,
+        data:   { url: notifData.url || '/' },
+      });
     }
-  })());
-});
+  } catch (e) {
+    console.error('[SW] notifReply error:', e);
+  }
+}
 
 // ── Secret management ──────────────────────────────────────────────────────
 async function getReplySecret() {
@@ -310,8 +313,18 @@ self.addEventListener('message', (event) => {
   if (event.data?.type === 'SKIP_WAITING') self.skipWaiting();
 });
 
-// ── Notification click ─────────────────────────────────────────────────────
+// ── Notification click (handles ALL actions including inline reply) ─────────
 self.addEventListener('notificationclick', (event) => {
+  // ── Inline reply action ──────────────────────────────────────────────
+  // When the user types a reply in a 'type: text' action, event.reply
+  // contains the typed text. This replaces the old notificationreply event
+  // which was never a real Web API event and never fired.
+  if (event.action === 'reply' && event.reply) {
+    event.notification.close();
+    event.waitUntil(handleInlineReply(event));
+    return;
+  }
+
   event.notification.close();
 
   // Dismiss action — nothing to do

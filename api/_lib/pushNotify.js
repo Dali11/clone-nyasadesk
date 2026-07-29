@@ -40,13 +40,15 @@ export async function notifyNewMessage(sb, {
 
     // Badge count = unread conversations (like WhatsApp home-screen badge)
     let unreadConvs = 0;
+    let unreadTotal = 0;
     try {
-      const { count } = await sb
+      const { data: unreadRows } = await sb
         .from('conversations')
-        .select('id', { count: 'exact', head: true })
+        .select('unread_count')
         .eq('workspace_id', ownerId)
         .gt('unread_count', 0);
-      unreadConvs = count || 0;
+      unreadConvs = unreadRows?.length || 0;
+      unreadTotal = unreadRows?.reduce((sum, c) => sum + (c.unread_count || 0), 0) || 0;
     } catch { /* badge is best-effort */ }
 
     // Resolve sender icon: prefer stored contact avatar, fall back to app icon
@@ -72,6 +74,7 @@ export async function notifyNewMessage(sb, {
         contactPhone:   contactPhone || '',
         contactAvatar:  senderIcon,
         unreadConvs,
+        unreadTotal,
       },
     });
 
