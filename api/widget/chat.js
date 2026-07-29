@@ -6,6 +6,63 @@ const PROD = 'https://nyasadesk.com';
 
 export const config = { api: { bodyParser: { sizeLimit: '8mb' } } }; // allow base64 image uploads
 
+// ── WhatsApp forwarding ────────────────────────────────────────────────────
+// When a website visitor sends a message through the widget, we forward it
+// to the business owner's WhatsApp number so they get an instant
+// notification on their phone — just like WhatsApp's own "click to chat".
+//
+// Flow: visitor sends message → stored in DB (website channel) → forwarded
+// to business owner via WhatsApp Cloud API → business owner opens NyasaDesk
+// inbox and replies → reply shows in widget.
+//
+// The WhatsApp send is best-effort: if the 24-hour window has expired, the
+// config is missing, or the business owner hasn't linked their WhatsApp
+// number, it silently fails. The message is already in the inbox either way.
+const GRAPH_VERSION = 'v21.0';
+const GRAPH = `https://graph.facebook.com/${GRAPH_VERSION}`;
+
+async function forwardToWhatsApp(sb, { workspace_id, visitorName, messageText, pageUrl, sessionId }) {
+  try {
+    // 1. Get the workspace's WhatsApp channel config (the business number to send FROM)
+    const { data: waConfig } = await sb.from('channel_configs')
+      .select('config').eq('workspace_id', workspace_id).eq('channel', 'whatsapp').maybeSingle();
+    if (!waConfig?.config?.phone_number_id || !waConfig?.config?.access_token) return;
+
+    const { phone_number_id, access_token } = waConfig.config;
+
+    // 2. Get the business owner's WhatsApp number (to send TO)
+    const { data: members } = await sb.from('business_members')
+      .select('whatsapp_number').eq('business_id', workspace_id)
+      .not('whatsapp_number', 'is', null).limit(1);
+    if (!members?.length || !members[0].whatsapp_number) return;
+
+    const toNumber = members[0].whatsapp_number;
+
+    // 3. Format the notification message
+    const preview = messageText.length > 200 ? messageText.slice(0, 200) + '…' : messageText;
+    const text = `💬 *New website chat*\n\nFrom: ${visitorName}\n${pageUrl ? `Page: ${pageUrl}\n` : ''}\n"${preview}"\n\n_Reply in your NyasaDesk inbox_`;
+
+    // 4. Send via WhatsApp Cloud API
+    const res = await fetch(`${GRAPH}/${phone_number_id}/messages`, {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${access_token}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        messaging_product: 'whatsapp',
+        to: toNumber,
+        type: 'text',
+        text: { body: text },
+      }),
+    });
+
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      console.error('[widget] WhatsApp forward failed:', err?.error?.message || res.status);
+    }
+  } catch (e) {
+    console.error('[widget] WhatsApp forward error:', e?.message || e);
+  }
+}
+
 export default async function handler(req, res) {
   // Allow widget to call from any domain
   res.setHeader('Access-Control-Allow-Origin', '*');
@@ -33,6 +90,14 @@ export default async function handler(req, res) {
       const agent_name = cfg?.config?.agent_name || 'Support Team';
       const position    = cfg?.config?.widget_position || 'bottom-right';
 
+      // Look up the workspace's WhatsApp number for the "Continue on WhatsApp" link
+      let wa_number = '';
+      try {
+        const { data: waConfig } = await sb.from('channel_configs')
+          .select('config').eq('workspace_id', workspace_id).eq('channel', 'whatsapp').maybeSingle();
+        wa_number = waConfig?.config?.phone_number || '';
+      } catch (_) {}
+
       // Look up any existing conversation so we can hand back last_read_at
       // right away — lets the widget render correct tick marks on first paint
       // for a returning visitor, before the first poll cycle even runs.
@@ -43,7 +108,7 @@ export default async function handler(req, res) {
         last_read_at = conv?.last_read_at || null;
       }
 
-      return res.status(200).json({ session_id: visitorId, greeting, color, label, agent_name, position, last_read_at });
+      return res.status(200).json({ session_id: visitorId, greeting, color, label, agent_name, position, last_read_at, wa_number });
     }
 
     // ── HISTORY: returning visitor reopens the widget — replay their full
@@ -84,6 +149,27 @@ export default async function handler(req, res) {
         sender_name: name || 'Website Visitor', sender_id: session_id, status: 'sent',
       }).select('id').single();
 
+      // Forward to business owner's WhatsApp (best-effort, non-blocking)
+      forwardToWhatsApp(sb, {
+        workspace_id, visitorName: name || 'Website Visitor',
+        messageText: body.trim(), pageUrl: page_url || '',
+        sessionId,
+      }).catch(() => {}); // never block the response on WhatsApp delivery
+
+      // Also trigger web push notifications for all team members
+      try {
+        const { notifyNewMessage } = await import('../_lib/pushNotify.js');
+        await notifyNewMessage(sb, {
+          ownerId: workspace_id,
+          contactName: name || 'Website Visitor',
+          body: body.trim(),
+          conversationId: conv.id,
+          channel: 'website',
+          contactPhone: '',
+          contactAvatar: '',
+        });
+      } catch (e) { /* push is best-effort */ }
+
       return res.status(200).json({ ok: true, message_id: msg?.id, conversation_id: conv.id });
     }
 
@@ -117,6 +203,14 @@ export default async function handler(req, res) {
         sender_name: name || 'Website Visitor', sender_id: session_id, status: 'sent',
         attachments: [{ url: pub.publicUrl, type: attType }],
       }).select('id').single();
+
+      // Forward media notification to business owner's WhatsApp
+      forwardToWhatsApp(sb, {
+        workspace_id, visitorName: name || 'Website Visitor',
+        messageText: `[${attType === 'video' ? 'Video' : 'Photo'}] ${caption || msgBody}`,
+        pageUrl: page_url || '',
+        sessionId,
+      }).catch(() => {});
 
       return res.status(200).json({ ok: true, message_id: msg?.id, conversation_id: conv.id, url: pub.publicUrl });
     }
