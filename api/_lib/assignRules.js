@@ -12,6 +12,21 @@
 // to guarantee agents have a visible owner on every chat.
 export async function applyAssignmentRules(sb, { workspaceId, conversationId, channel, contact }) {
   try {
+    // AI-first workspaces (e.g. Chibondo Academy): when an active ai_agent is
+    // running in fully autonomous mode (automation_mode = 'auto'), skip the
+    // "assign to owner" safety-net fallback below. That fallback exists for
+    // human-staffed shared inboxes so nothing sits unowned -- but for an
+    // autonomous AI agent it silently and permanently kills auto-replies for
+    // every conversation after the first message (since the AI-reply gate in
+    // base.js checks `!conv.assigned_to`). Explicit rules (round_robin,
+    // lead_source, territory) still apply normally below -- this only
+    // disables the *implicit* owner fallback when there are no matching rules.
+    // A real human taking over via a manual reply still works: that's a
+    // separate DB trigger (auto_assign_on_reply) unaffected by this flag.
+    const { data: aiAgents } = await sb.from('ai_agents')
+      .select('automation_mode').eq('workspace_id', workspaceId).eq('status', 'active');
+    const isAiAutonomous = !!aiAgents?.some(a => a.automation_mode === 'auto');
+
     // Fetch full contact from DB if we only have a partial object
     let fullContact = contact || {};
     if (conversationId && (!fullContact.lead_source && !fullContact.company)) {
@@ -59,6 +74,12 @@ export async function applyAssignmentRules(sb, { workspaceId, conversationId, ch
     // there are team members on the workspace. The owner (admin) sees all
     // conversations regardless, so this is just a label ensuring the conv
     // appears in *someone's* queue.
+    // Skipped entirely for AI-autonomous workspaces -- see isAiAutonomous above.
+    if (isAiAutonomous) {
+      console.log('[assignRules] skipping owner fallback -- workspace has an autonomous AI agent');
+      return null;
+    }
+
     const { data: owner } = await sb.from('profiles')
       .select('id, full_name')
       .eq('workspace_id', workspaceId)
