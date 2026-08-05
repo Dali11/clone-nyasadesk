@@ -1,5 +1,10 @@
 // api/webhooks/whatsapp.js
 // Webhook handler for WhatsApp (Meta Cloud API — direct).
+//
+// Also intercepts auth messages (login/register/reset) and forwards them
+// to Chibondo Academy's wa-otp endpoint so students get magic-link
+// replies from the same WhatsApp number.  The message is still persisted
+// in Nyasadesk so agents can see the student initiated an auth request.
 
 import { createClient } from '@supabase/supabase-js';
 import { getProvider } from '../_lib/providers/index.js';
@@ -7,6 +12,57 @@ import { applyAssignmentRules } from '../_lib/assignRules.js';
 
 const SUPABASE_URL = 'https://pfbaepibelomiutlotkn.supabase.co';
 const SUPABASE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY;
+
+// Chibondo Academy auth webhook — forwarded auth messages go here.
+const CHIBONDO_WA_OTP_URL = process.env.CHIBONDO_WA_OTP_URL || 'https://chibondoacademy.com/api/wa-otp';
+
+// ─── Auth message detection ─────────────────────────────────────────────────
+// Keywords that Chibondo Academy's wa-otp webhook treats as auth requests.
+// Must stay in sync with the isLogin/isRegister/isReset logic in wa-otp.js.
+const AUTH_KEYWORDS = [
+  'login', 'verify', 'hi', 'hello', 'start',  // login
+  'register',                                  // registration
+  'reset', 'forgot',                           // password reset
+];
+
+function isAuthMessage(text) {
+  if (!text) return false;
+  const lower = text.toLowerCase().trim();
+  return AUTH_KEYWORDS.some(kw => lower.startsWith(kw) || lower.includes(kw));
+}
+
+// Check if any message in the Meta webhook payload is an auth message.
+function payloadHasAuthMessage(payload) {
+  for (const entry of payload.entry || []) {
+    for (const change of entry.changes || []) {
+      for (const msg of change.value?.messages || []) {
+        const text = msg.text?.body || '';
+        if (isAuthMessage(text)) return true;
+      }
+    }
+  }
+  return false;
+}
+
+// Forward the full Meta webhook payload to Chibondo Academy's wa-otp.
+// The wa-otp handler will generate a magic link and reply to the user
+// directly via WhatsApp (same number, same chat).
+async function forwardAuthToChibondo(payload) {
+  try {
+    const res = await fetch(CHIBONDO_WA_OTP_URL, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload),
+    });
+    if (res.ok) {
+      console.log('[webhook/whatsapp] Auth message forwarded to Chibondo Academy');
+    } else {
+      console.error('[webhook/whatsapp] Chibondo forward returned', res.status);
+    }
+  } catch (err) {
+    console.error('[webhook/whatsapp] Forward to Chibondo failed:', err.message);
+  }
+}
 
 export default async function handler(req, res) {
   try {
@@ -48,6 +104,17 @@ export default async function handler(req, res) {
 
     const payload = req.body || {};
     const wsId    = req.query.workspace_id;
+
+    // ── Intercept auth messages for Chibondo Academy ──────────────────────
+    // If any message in this payload looks like a login/register/reset
+    // request, forward the FULL payload to Chibondo's wa-otp endpoint.
+    // The wa-otp handler will reply to the student directly via WhatsApp.
+    // We do this before (and independently of) the normal Nyasadesk
+    // processing so the message is also saved as a conversation.
+    if (payloadHasAuthMessage(payload)) {
+      // Fire-and-forget — don't block the webhook response
+      forwardAuthToChibondo(payload);
+    }
 
     const { data: cfgs } = await sb.from('channel_configs').select('*').eq('channel', 'whatsapp');
 
