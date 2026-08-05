@@ -367,7 +367,10 @@ export async function generateDraftReply(agent, recentMessages, contact, knowled
     .trim();
   // For tool-call results (quotation/invoice PDF), also strip the redundant URL
   // since the document arrives as an attachment — the customer already sees it.
-  if (lastToolResult?.ok) finalText = stripRedundantLinks(finalText);
+  // Only strip redundant URLs for document tools (quotation/invoice) where the
+  // PDF arrives as a separate attachment. For webhook tools like generate_login_link,
+  // the URL IS the payload — stripping it would delete the magic link the student needs.
+  if (lastToolResult?.ok && lastToolResult?.document_type) finalText = stripRedundantLinks(finalText);
 
   // Fire-and-forget usage logging -- never let a logging failure break the
   // actual reply that's already been generated successfully.
