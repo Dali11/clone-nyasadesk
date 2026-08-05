@@ -118,7 +118,7 @@ export async function autoReplyIfEnabled(sb, { workspaceId, conversationId, chan
       tools: allTools,
       executeTool: (name, args) => {
         // Route to webhook executor for external tools, document executor for built-ins.
-        if (name === 'register_student') {
+        if (name === 'register_student' || name === 'generate_login_link') {
           return executeWebhookTool(agent, name, args);
         }
         return executeDocumentTool(sb, {
