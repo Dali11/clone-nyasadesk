@@ -1,10 +1,11 @@
 // api/webhooks/whatsapp.js
 // Webhook handler for WhatsApp (Meta Cloud API — direct).
 //
-// Also intercepts auth messages (login/register/reset) and forwards them
-// to Chibondo Academy's wa-otp endpoint so students get magic-link
-// replies from the same WhatsApp number.  The message is still persisted
-// in Nyasadesk so agents can see the student initiated an auth request.
+// Supports per-workspace auth forwarding: if a workspace's channel config
+// has `auth_forward_url` set, auth-related messages (login/register/reset)
+// are forwarded to that URL so a third-party auth system (e.g. Chibondo
+// Academy) can reply with magic links.  The message is still persisted
+// normally in Nyasadesk so agents can see the student's request.
 
 import { createClient } from '@supabase/supabase-js';
 import { getProvider } from '../_lib/providers/index.js';
@@ -13,8 +14,10 @@ import { applyAssignmentRules } from '../_lib/assignRules.js';
 const SUPABASE_URL = 'https://pfbaepibelomiutlotkn.supabase.co';
 const SUPABASE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY;
 
-// Chibondo Academy auth webhook — forwarded auth messages go here.
-const CHIBONDO_WA_OTP_URL = process.env.CHIBONDO_WA_OTP_URL || 'https://chibondoacademy.com/api/wa-otp';
+// Default auth-forward URL (used when a workspace config has
+// `auth_forward: true` but no explicit URL).  Set per-workspace via
+// channel_configs.config.auth_forward_url to override.
+const DEFAULT_AUTH_FORWARD_URL = process.env.CHIBONDO_WA_OTP_URL || 'https://chibondoacademy.com/api/wa-otp';
 
 // ─── Auth message detection ─────────────────────────────────────────────────
 // Keywords that Chibondo Academy's wa-otp webhook treats as auth requests.
@@ -44,23 +47,23 @@ function payloadHasAuthMessage(payload) {
   return false;
 }
 
-// Forward the full Meta webhook payload to Chibondo Academy's wa-otp.
-// The wa-otp handler will generate a magic link and reply to the user
-// directly via WhatsApp (same number, same chat).
-async function forwardAuthToChibondo(payload) {
+// Forward the full Meta webhook payload to a workspace's auth endpoint.
+// The receiving system (e.g. Chibondo Academy's wa-otp) will generate a
+// magic link and reply to the user directly via WhatsApp.
+async function forwardAuthPayload(url, payload) {
   try {
-    const res = await fetch(CHIBONDO_WA_OTP_URL, {
+    const res = await fetch(url, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(payload),
     });
     if (res.ok) {
-      console.log('[webhook/whatsapp] Auth message forwarded to Chibondo Academy');
+      console.log('[webhook/whatsapp] Auth message forwarded to', url);
     } else {
-      console.error('[webhook/whatsapp] Chibondo forward returned', res.status);
+      console.error('[webhook/whatsapp] Auth forward returned', res.status, 'from', url);
     }
   } catch (err) {
-    console.error('[webhook/whatsapp] Forward to Chibondo failed:', err.message);
+    console.error('[webhook/whatsapp] Auth forward failed:', err.message, '→', url);
   }
 }
 
@@ -105,17 +108,6 @@ export default async function handler(req, res) {
     const payload = req.body || {};
     const wsId    = req.query.workspace_id;
 
-    // ── Intercept auth messages for Chibondo Academy ──────────────────────
-    // If any message in this payload looks like a login/register/reset
-    // request, forward the FULL payload to Chibondo's wa-otp endpoint.
-    // The wa-otp handler will reply to the student directly via WhatsApp.
-    // We do this before (and independently of) the normal Nyasadesk
-    // processing so the message is also saved as a conversation.
-    if (payloadHasAuthMessage(payload)) {
-      // Fire-and-forget — don't block the webhook response
-      forwardAuthToChibondo(payload);
-    }
-
     const { data: cfgs } = await sb.from('channel_configs').select('*').eq('channel', 'whatsapp');
 
     // Match workspace by query param → phone_number_id → display_phone_number
@@ -127,6 +119,19 @@ export default async function handler(req, res) {
     if (!cfg)       cfg = cfgs?.find(c => c.config?.phone_number_id === phoneId);
     if (!cfg)       cfg = cfgs?.find(c => c.config?.phone_number && c.config.phone_number === displayPhone);
     if (!cfg)       return res.status(200).send('OK');
+
+    // ── Per-workspace auth forwarding ─────────────────────────────────────
+    // Only forward if this workspace's channel config has auth forwarding
+    // enabled.  This keeps the feature multi-tenant: each workspace opts in
+    // individually by setting config.auth_forward_url (or config.auth_forward
+    // = true to use the default URL).
+    const authForwardUrl = cfg.config?.auth_forward_url
+      || (cfg.config?.auth_forward ? DEFAULT_AUTH_FORWARD_URL : null);
+
+    if (authForwardUrl && payloadHasAuthMessage(payload)) {
+      // Fire-and-forget — don't block the webhook response
+      forwardAuthPayload(authForwardUrl, payload);
+    }
 
     const providerKey = 'whatsapp:cloud';
     const provider    = getProvider(providerKey);
