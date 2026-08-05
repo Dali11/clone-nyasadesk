@@ -549,6 +549,7 @@ export class WhatsAppCloudProvider extends MessagingProvider {
             body, attachments, externalMsgId: msgId, senderId: from, senderName: contactName,
             timestamp: ts, leadSource, adAttribution,
             ...(replyTo ? { replyTo } : {}),
+            ...(ctx.skipAutoReply ? { skipAutoReply: true } : {}),
           });
 
           if (conv?.id && !conv.assigned_to) {

@@ -128,7 +128,9 @@ export default async function handler(req, res) {
     const authForwardUrl = cfg.config?.auth_forward_url
       || (cfg.config?.auth_forward ? DEFAULT_AUTH_FORWARD_URL : null);
 
-    if (authForwardUrl && payloadHasAuthMessage(payload)) {
+    const isAuthForwarded = !!(authForwardUrl && payloadHasAuthMessage(payload));
+
+    if (isAuthForwarded) {
       // Fire-and-forget — don't block the webhook response
       forwardAuthPayload(authForwardUrl, payload);
     }
@@ -138,6 +140,11 @@ export default async function handler(req, res) {
 
     await provider.handleInbound(payload, cfg.config, {
       sb, workspaceId: cfg.workspace_id, applyAssignmentRules,
+      // When auth messages are forwarded to an external system (e.g.
+      // Chibondo Academy's wa-otp), that system sends the reply — so
+      // we must suppress Nyasadesk's own AI auto-reply to avoid the
+      // student getting two conflicting responses.
+      ...(isAuthForwarded ? { skipAutoReply: true } : {}),
     });
 
     return res.status(200).send('OK');

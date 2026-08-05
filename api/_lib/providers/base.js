@@ -130,7 +130,10 @@ export async function persistInboundMessage(sb, workspaceId, params) {
     // avoid a circular import: providers/index.js imports this same base.js.
     // Must be awaited for the same Vercel-freezes-on-response reason as push
     // above; autoReplyIfEnabled swallows its own errors so this can't throw.
-    if (!conv.assigned_to) {
+    //
+    // skipAutoReply: set by callers (e.g. auth-forwarded messages) to suppress
+    // the AI auto-reply when an external system is already handling the reply.
+    if (!conv.assigned_to && !params.skipAutoReply) {
       const { autoReplyIfEnabled } = await import('../aiAutoReply.js');
       await autoReplyIfEnabled(sb, { workspaceId, conversationId: conv.id, channel, externalId, contact });
     }
