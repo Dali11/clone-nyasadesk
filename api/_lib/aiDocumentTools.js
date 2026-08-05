@@ -74,6 +74,20 @@ export function getWebhookTools(agent) {
         },
       },
     },
+    {
+      type: 'function',
+      function: {
+        name: 'generate_login_link',
+        description: 'Generates a one-tap login link for a student so they can jump straight into Chibondo Academy without typing a password. Call this when a student wants to start learning, access their courses, or log in. The link expires in 5 minutes. Reply with the link and a short encouraging message. If the student is not registered yet, register them first with register_student, then call this.',
+        parameters: {
+          type: 'object',
+          properties: {
+            phone: { type: 'string', description: "Student's phone number in international format, e.g. 265999123456. Use their WhatsApp number." },
+          },
+          required: ['phone'],
+        },
+      },
+    },
   ];
 }
 
@@ -81,12 +95,41 @@ export function getWebhookTools(agent) {
 // Passes a shared secret (agent.webhook_tool_secret) as a Bearer token so
 // the receiving endpoint can verify the call is legitimate.
 export async function executeWebhookTool(agent, toolName, args) {
-  if (toolName !== 'register_student') throw new Error('Unknown webhook tool: ' + toolName);
-
   const url    = agent.webhook_tool_url;
   const secret = agent.webhook_tool_secret || '';
 
   if (!url) throw new Error('Agent has no webhook_tool_url configured.');
+
+  // generate_login_link: call Chibondo Academy's /api/wa-otp?action=generate-link
+  // endpoint instead of the register endpoint. Uses the same shared secret.
+  if (toolName === 'generate_login_link') {
+    // Derive the generate-link URL from the register URL
+    // (replace /api/wa-register with /api/wa-otp?action=generate-link)
+    const authUrl = url.replace(/\/api\/wa-register$/, '/api/wa-otp?action=generate-link');
+    const authSecret = agent.webhook_tool_secret || '';
+
+    const res = await fetch(authUrl, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        ...(authSecret ? { Authorization: `Bearer ${authSecret}` } : {}),
+      },
+      body: JSON.stringify({ phone: args.phone }),
+    });
+
+    const json = await res.json().catch(() => ({}));
+    if (!res.ok) throw new Error(json.error || `Auth endpoint responded ${res.status}`);
+
+    return {
+      ok: true,
+      link: json.link,
+      registered: json.registered,
+      name: json.name,
+      expires_in_seconds: json.expires_in_seconds,
+    };
+  }
+
+  if (toolName !== 'register_student') throw new Error('Unknown webhook tool: ' + toolName);
 
   // Auto-generate email and password from phone number and name.
   // Email  : <local_digits>@chibondoacademy.com  (strip country code prefix, use last 9+ digits)
