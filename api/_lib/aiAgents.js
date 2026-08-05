@@ -257,7 +257,13 @@ export async function generateDraftReply(agent, recentMessages, contact, knowled
     knowledgeBlock,
     ANTI_HALLUCINATION_RULE,
     (Array.isArray(ctx.tools) && ctx.tools.length)
-      ? 'You can create a real quotation/invoice PDF using the create_quotation/create_invoice tools -- the document is automatically shown/sent to the customer the moment you call the tool, so after calling it just acknowledge naturally in plain language (e.g. confirm what you just sent and ask a relevant follow-up). Never paste the PDF URL, a markdown link, or technical file details in your text reply -- the customer already sees the document itself.'
+      ? [
+          'You have access to the following tools. USE THEM when the conversation calls for it -- do not type out text that a tool should handle:',
+          '- create_quotation / create_invoice: Generates a professional PDF document and sends it automatically. After calling, just acknowledge naturally. Never paste the PDF URL.',
+          '- register_student: Registers a new student account. Call this ONCE when a student wants to join/register. You need their full_name and phone number. The system auto-generates email and password. Do NOT ask for email or password.',
+          '- generate_login_link: Generates a one-tap login link for a student. Call this when a student wants to log in, start learning, or access their courses. You need their phone number. Reply with the link and a short encouraging message.',
+          'IMPORTANT: When a student wants to log in or start learning, call generate_login_link -- do NOT give them a manual URL or tell them to go to the website. When a student wants to register/join, call register_student -- do NOT tell them to go to a registration page. The tools handle everything.',
+        ].join('\n')
       : '',
   ].filter(Boolean);
 
