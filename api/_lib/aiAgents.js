@@ -275,6 +275,7 @@ export async function generateDraftReply(agent, recentMessages, contact, knowled
   const messages = [
     { role: 'system', content: systemParts.join('\n') },
     ...(contact?.name ? [{ role: 'system', content: 'Customer name: ' + contact.name }] : []),
+    ...(ctx.customerPhone ? [{ role: 'system', content: 'Customer phone number: ' + ctx.customerPhone + '. Use this phone number when calling register_student or generate_login_link tools.' }] : []),
     ...history,
   ];
 

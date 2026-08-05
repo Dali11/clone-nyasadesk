@@ -114,7 +114,7 @@ export async function autoReplyIfEnabled(sb, { workspaceId, conversationId, chan
     const allTools = [...getDocumentTools(), ...getWebhookTools(agent)];
 
     const replyText = await generateDraftReply(agent, messages || [], contact, knowledge || [], {
-      sb, workspaceId, conversationId,
+      sb, workspaceId, conversationId, customerPhone: externalId,
       tools: allTools,
       executeTool: (name, args) => {
         // Route to webhook executor for external tools, document executor for built-ins.
