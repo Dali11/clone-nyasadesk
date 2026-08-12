@@ -263,13 +263,21 @@ export async function generateDraftReply(agent, recentMessages, contact, knowled
           '- register_student: Registers a new student account. Call this ONCE when a student wants to join/register. You need their full_name and phone number. The system auto-generates email and password. Do NOT ask for email or password.',
           '- generate_login_link: Generates a one-tap login link for a student. Call this when a student wants to log in, start learning, or access their courses. You need their phone number. Reply with the link and a short encouraging message.',
           'IMPORTANT: When a student wants to log in or start learning, call generate_login_link -- do NOT give them a manual URL or tell them to go to the website. When a student wants to register/join, call register_student -- do NOT tell them to go to a registration page. The tools handle everything.',
+          'CRITICAL: Login links expire in 15 minutes. If a student asks to log in again -- even if you already sent a link earlier in this same conversation -- you MUST call generate_login_link again to get a FRESH link. NEVER copy, repeat, or reuse a login link URL that appears earlier in the chat history -- it may be expired and will fail. Any earlier link in the history has already been redacted for this reason; always call the tool fresh.',
         ].join('\n')
       : '',
   ].filter(Boolean);
 
+  // Strip any verify-link URLs from history so the model can never copy-paste
+  // a stale (expired) login link instead of calling generate_login_link fresh.
+  const redactStaleLoginLinks = (text) => (text || '').replace(
+    /https:\/\/chibondoacademy\.com\/verify-link\?t=[a-zA-Z0-9]+/gi,
+    '[an earlier login link -- now expired, call generate_login_link again for a new one]'
+  );
+
   const history = (recentMessages || []).slice(-12).map(m => ({
     role: m.direction === 'inbound' ? 'user' : 'assistant',
-    content: m.body || (m.attachments?.length ? '[' + m.attachments[0].type + ']' : ''),
+    content: redactStaleLoginLinks(m.body) || (m.attachments?.length ? '[' + m.attachments[0].type + ']' : ''),
   })).filter(m => m.content);
 
   const messages = [
@@ -344,10 +352,20 @@ export async function generateDraftReply(agent, recentMessages, contact, knowled
 
   // If the model called a tool but then returned no closing text (can happen
   // when it treats the tool call itself as "done"), don't leave the customer
-  // hanging with a blank message -- acknowledge the document that was just sent.
+  // hanging with a blank message -- generate appropriate fallback text.
   if (!finalText && lastToolResult?.ok) {
-    const label = lastToolResult.document_type === 'invoice' ? 'invoice' : 'quotation';
-    finalText = `Here's your ${label} (#${lastToolResult.number}) -- let me know if you'd like any changes!`;
+    if (lastToolResult.link) {
+      // generate_login_link — the URL IS the payload, must include it
+      finalText = `Here's your one-tap login link: ${lastToolResult.link}\n\nTap it and you'll be logged in instantly!`;
+    } else if (lastToolResult.document_type) {
+      const label = lastToolResult.document_type === 'invoice' ? 'invoice' : 'quotation';
+      finalText = `Here's your ${label} (#${lastToolResult.number}) -- let me know if you'd like any changes!`;
+    } else if (lastToolResult.registered !== undefined) {
+      // register_student — account created
+      finalText = `You're registered! Welcome to the academy. What would you like to do next?`;
+    } else {
+      finalText = 'Done! How else can I help?';
+    }
   }
   if (!finalText) throw new Error('OpenAI returned an empty response');
 

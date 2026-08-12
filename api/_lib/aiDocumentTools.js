@@ -78,7 +78,7 @@ export function getWebhookTools(agent) {
       type: 'function',
       function: {
         name: 'generate_login_link',
-        description: 'Generates a one-tap login link for a student so they can jump straight into Chibondo Academy without typing a password. Call this when a student wants to start learning, access their courses, or log in. The link expires in 5 minutes. Reply with the link and a short encouraging message. If the student is not registered yet, register them first with register_student, then call this.',
+        description: 'Generates a one-tap login link for a student so they can jump straight into Chibondo Academy without typing a password. Call this when a student wants to start learning, access their courses, or log in. The link expires in 15 minutes -- but ALWAYS call this tool again fresh for every login request, never reuse an old link from earlier in the conversation. Reply with the link and a short encouraging message. If the student is not registered yet, register them first with register_student, then call this.',
         parameters: {
           type: 'object',
           properties: {
