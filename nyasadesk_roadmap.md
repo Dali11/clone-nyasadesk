@@ -128,3 +128,26 @@ Things WhatsApp Business has + things it doesn't.
 4. Fix any audit-discovered issues
 5. Push to main → Vercel auto-deploys
 6. Log what was done
+
+---
+
+## PHASE 5 — WhatChimp Parity (competitive gap closure, started 2026-09-22)
+Direct competitor: WhatChimp.com. Features they ship that we don't, in priority order.
+
+- [ ] P0 CRITICAL BLOCKER — Supabase anon key in src/lib/supabase.js is rejected by Supabase (401 UNAUTHORIZED_INVALID_API_KEY). Frontend live data + realtime dead until owner pastes current anon key from Supabase dashboard → Settings → API. Do NOT attempt to fix by editing the key.
+- [ ] WhatsApp Number Coexistence — Embedded Signup coexistence mode (Meta, May 2025): same number on Business App + Cloud API, 6-month history sync, message echoes handled in webhook (direction tagging for app-sent messages). NOTE: read receipts, edit/undo, disappearing messages, live location are DISABLED in coexistence 1:1 chats.
+- [ ] WhatsApp Flows / Native Forms — in-chat step-by-step data collection (WhatsApp Flows API)
+- [ ] WhatsApp Catalog — product catalog send/browse in chat
+- [ ] Payments in chat — payment links, status updates in thread (PayChangu/Stripe)
+- [ ] Contact Segments — segment subscribers for targeted broadcasts
+- [ ] Custom Fields on contacts
+- [ ] Drip Messaging — automated multi-step sequences with delays
+- [ ] Phone Number Masking — hide customer number from agents (privacy toggle)
+- [ ] Public API + API keys — send messages, manage contacts/segments
+- [ ] Outgoing webhooks — push incoming messages to customer URLs
+- [ ] Webhook Listener — receive JSON from external systems, trigger WhatsApp
+- [ ] Integrations: Google Sheets, Zapier, Make, n8n, Shopify, WooCommerce
+- [ ] Click-to-WhatsApp Ads — campaign manager + CTWA landing pages
+- [ ] Appointment Booking on WhatsApp
+- [ ] Broadcast analytics — per-campaign sent/delivered/read/replied
+- [ ] Template approval workflow (submission + status tracking in-app)
