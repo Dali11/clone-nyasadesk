@@ -155,6 +155,12 @@ function WhatsAppCard({ saved, workspaceId, onSave, onDelete }) {
   const [verifyResult, setVerifyResult] = useState(null);
   const [error, setError] = useState('');
   const [refreshing, setRefreshing] = useState(false);
+  const [coexistenceMode, setCoexistenceMode] = useState(!!saved?.config?.coexistence_mode);
+
+  const handleCoexistenceToggle = async (enabled) => {
+    setCoexistenceMode(enabled);
+    if (onSave) await onSave('whatsapp', { ...saved.config, coexistence_mode: enabled });
+  };
 
   const embeddedSignupDataRef = useState({ current: null })[0];
   const { loadFacebookSDK, sdkReady } = useFacebookSDK();
@@ -476,6 +482,18 @@ function WhatsAppCard({ saved, workspaceId, onSave, onDelete }) {
                 WABA: {saved.config.waba_id} · PID: {saved.config.phone_number_id}
               </div>
             )}
+
+            {/* WhatsApp Business App coexistence */}
+            <label className="flex items-start gap-3 rounded-lg border border-white/5 bg-white/[0.02] p-3 cursor-pointer">
+              <input type="checkbox" className="mt-0.5 accent-[#25D366]" checked={coexistenceMode}
+                onChange={e => handleCoexistenceToggle(e.target.checked)} />
+              <span>
+                <span className="block text-xs font-semibold text-white">Business App coexistence</span>
+                <span className="block text-[11px] text-gray-500 leading-relaxed mt-0.5">
+                  Keep using this number in the WhatsApp Business App. Messages sent from the app will appear as outbound activity here without creating duplicate AI replies.
+                </span>
+              </span>
+            </label>
 
             {/* Webhook info for Meta configuration */}
             <div className="bg-[var(--nyasa-surface-1)] rounded-xl p-3 space-y-1.5 border border-white/5">
