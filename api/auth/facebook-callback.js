@@ -3,7 +3,7 @@
 // After user approves, Facebook redirects to:
 //   https://nyasadesk.com/api/auth/facebook-callback?code=...&state=...
 
-import { createClient } from '@supabase/supabase-js';
+import { createClient } from '../_lib/dbFactory.js';
 
 const SUPABASE_URL  = 'https://pfbaepibelomiutlotkn.supabase.co';
 const SUPABASE_KEY  = process.env.SUPABASE_SERVICE_ROLE_KEY;

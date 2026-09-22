@@ -1,4 +1,4 @@
-import { createClient } from '@supabase/supabase-js';
+import { createClient } from '../_lib/dbFactory.js';
 import { applyAssignmentRules } from '../_lib/assignRules.js';
 import { notifyNewMessage } from '../_lib/pushNotify.js';
 

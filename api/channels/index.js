@@ -8,7 +8,7 @@
 // All messaging operations go through NyasaDesk's provider abstraction layer
 // (api/_lib/providers/), keeping the app independent of the underlying BSP.
 
-import { createClient } from '@supabase/supabase-js';
+import { createClient } from '../_lib/dbFactory.js';
 import { getProvider } from '../_lib/providers/index.js';
 import { AI_AGENT_TEMPLATES, generateDraftReply } from '../_lib/aiAgents.js';
 import { ingestUrl, ingestFile } from '../_lib/knowledgeIngest.js';
@@ -1047,7 +1047,7 @@ async function handleWhatsappManualConnect(req, res) {
     // Meta's callback verification ping arrives immediately when we call
     // subscribeWebhooks — if the token isn't in the DB yet, our webhook
     // handler returns 403 and Meta rejects the connection (#2200).
-    const { createClient } = await import('@supabase/supabase-js');
+    const { createClient } = await import('../_lib/dbFactory.js');
     const sb = createClient(
       'https://pfbaepibelomiutlotkn.supabase.co',
       process.env.SUPABASE_SERVICE_ROLE_KEY
@@ -1123,7 +1123,7 @@ async function handleWhatsappCompleteRegistration(req, res) {
     }
 
     // Step 3: Update the existing config with full phone details (webhook already subscribed)
-    const { createClient } = await import('@supabase/supabase-js');
+    const { createClient } = await import('../_lib/dbFactory.js');
     const sb = createClient('https://pfbaepibelomiutlotkn.supabase.co', process.env.SUPABASE_SERVICE_ROLE_KEY);
     const { data: existing } = await sb.from('channel_configs').select('config').eq('workspace_id', workspace_id).eq('channel', 'whatsapp').maybeSingle();
     if (!existing?.config) {
@@ -1156,7 +1156,7 @@ async function handleWhatsappRefreshStatus(req, res) {
     }
     const phone = await getPhoneDetails(access_token, phone_number_id);
     // Update config in DB with fresh details
-    const { createClient } = await import('@supabase/supabase-js');
+    const { createClient } = await import('../_lib/dbFactory.js');
     const sb = createClient('https://pfbaepibelomiutlotkn.supabase.co', process.env.SUPABASE_SERVICE_ROLE_KEY);
     const { data: existing } = await sb.from('channel_configs').select('config').eq('workspace_id', workspace_id).eq('channel', 'whatsapp').maybeSingle();
     if (existing?.config) {

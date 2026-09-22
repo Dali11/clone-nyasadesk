@@ -1,4 +1,4 @@
-import { createClient } from '@supabase/supabase-js';
+import { createClient } from '_lib/dbFactory.js';
 import crypto from 'crypto';
 import { PLAN_PRICING_MWK, PLAN_LABEL, getPlanPricing } from './_lib/adminAuth.js';
 

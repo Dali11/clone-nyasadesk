@@ -1,4 +1,4 @@
-import { createClient } from '@supabase/supabase-js';
+import { createClient } from '../_lib/dbFactory.js';
 import { requirePlatformAdmin, PLAN_LIMITS, PLAN_PRICING_MWK, PLAN_LABEL, getPlanPricing } from '../_lib/adminAuth.js';
 
 const SUPABASE_URL = 'https://pfbaepibelomiutlotkn.supabase.co';

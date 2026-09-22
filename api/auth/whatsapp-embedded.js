@@ -13,7 +13,7 @@
 //          runs autoSetup (registers if needed, subscribes webhooks,
 //          fetches messaging limits), and saves the channel config.
 
-import { createClient } from '@supabase/supabase-js';
+import { createClient } from '../_lib/dbFactory.js';
 import { autoSetup, subscribeWebhooks } from '../_lib/whatsappSetup.js';
 
 const SUPABASE_URL = 'https://pfbaepibelomiutlotkn.supabase.co';

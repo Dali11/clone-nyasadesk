@@ -1,7 +1,7 @@
 // api/webhooks/instagram.js
 // Thin webhook handler — delegates to the Instagram provider.
 
-import { createClient } from '@supabase/supabase-js';
+import { createClient } from '../_lib/dbFactory.js';
 import { getProvider } from '../_lib/providers/index.js';
 import { applyAssignmentRules } from '../_lib/assignRules.js';
 

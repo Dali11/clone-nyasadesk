@@ -6,7 +6,7 @@
 // tools (generate_login_link, register_student) as needed. No keyword-based
 // interception is performed — the AI is the single point of intelligence.
 
-import { createClient } from '@supabase/supabase-js';
+import { createClient } from '../_lib/dbFactory.js';
 import { getProvider } from '../_lib/providers/index.js';
 import { applyAssignmentRules } from '../_lib/assignRules.js';
 
