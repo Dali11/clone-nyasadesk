@@ -134,7 +134,7 @@ Things WhatsApp Business has + things it doesn't.
 ## PHASE 5 — WhatChimp Parity (competitive gap closure, started 2026-09-22)
 Direct competitor: WhatChimp.com. Features they ship that we don't, in priority order.
 
-- [ ] P0 CRITICAL BLOCKER — Supabase anon key in src/lib/supabase.js is rejected by Supabase (401 UNAUTHORIZED_INVALID_API_KEY). Frontend live data + realtime dead until owner pastes current anon key from Supabase dashboard → Settings → API. Do NOT attempt to fix by editing the key.
+- [x] P0 ~~CRITICAL BLOCKER~~ FIXED (2026-09-22): Supabase anon key was corrupted (one-char ref mismatch). Replaced hardcoded key in src/lib/supabase.js, api/_lib/adminAuth.js, api/billing.js, api/team.js with the valid production key from the old Vercel project env. Verified working against live Supabase (HTTP 200).
 - [ ] WhatsApp Number Coexistence — Embedded Signup coexistence mode (Meta, May 2025): same number on Business App + Cloud API, 6-month history sync, message echoes handled in webhook (direction tagging for app-sent messages). NOTE: read receipts, edit/undo, disappearing messages, live location are DISABLED in coexistence 1:1 chats.
 - [ ] WhatsApp Flows / Native Forms — in-chat step-by-step data collection (WhatsApp Flows API)
 - [ ] WhatsApp Catalog — product catalog send/browse in chat
