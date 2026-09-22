@@ -151,3 +151,6 @@ Direct competitor: WhatChimp.com. Features they ship that we don't, in priority 
 - [ ] Appointment Booking on WhatsApp
 - [ ] Broadcast analytics — per-campaign sent/delivered/read/replied
 - [ ] Template approval workflow (submission + status tracking in-app)
+
+### Night Log
+- 2026-09-22 (day): Fixed chat-refresh root cause (corrupted Supabase anon key, 401s) — commit 10b830d, verified live. Copied all 23 env vars to new geniuspulse22 Vercel project. Domain move pending TXT records.
