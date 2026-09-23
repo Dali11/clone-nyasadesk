@@ -4,8 +4,8 @@
 // - Supabase user UUIDs are preserved, so profiles/workspace data stays intact.
 import { betterAuth } from 'better-auth';
 import { Kysely } from 'kysely';
-import { NeonDialect } from 'kysely-neon';
 import { neon } from '@neondatabase/serverless';
+import { NeonDialect } from './neonDialect.mjs';
 import bcrypt from 'bcryptjs';
 import { randomUUID } from 'crypto';
 
