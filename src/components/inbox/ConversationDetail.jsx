@@ -1,11 +1,10 @@
 import { useState } from 'react';
 import {
-  ArrowLeft, Check, Bot, TrendingUp, Pin, PinOff, Trash2,
+  ArrowLeft, Check, Bot, Pin, PinOff, Trash2,
   ChevronRight, Phone, MessageCircle, Clock, CheckCircle2,
   UserPlus, Mail, Building2, Tag, Calendar,
 } from 'lucide-react';
 import Avatar from '@/components/Avatar';
-import { RecordSaleModal } from '@/pages/Sales';
 
 const STATUSES = [
   { key: 'open',    label: 'Open',    color: '#25D366' },
@@ -39,7 +38,6 @@ export default function ConversationDetail({
   onDelete,
   onBackToChat,   // called when "Message" button is tapped — closes detail and shows chat
 }) {
-  const [showSaleModal, setShowSaleModal] = useState(false);
 
   if (!conversation) return null;
 
@@ -287,12 +285,6 @@ export default function ConversationDetail({
           {/* ACTIONS */}
           <Section title="Actions">
             <div className="flex flex-col gap-2">
-              <ActionRow
-                icon={<TrendingUp className="w-4 h-4" />}
-                label="Mark as sale"
-                color="#25D366"
-                onClick={() => setShowSaleModal(true)}
-              />
               {isPinnedForMe && (
                 <ActionRow
                   icon={<PinOff className="w-4 h-4" />}
@@ -326,15 +318,6 @@ export default function ConversationDetail({
         </div>
       </div>
 
-      {showSaleModal && (
-        <RecordSaleModal
-          workspaceId={conversation.workspace_id || conversation.created_by}
-          currency="MWK"
-          onClose={() => setShowSaleModal(false)}
-          onSaved={() => setShowSaleModal(false)}
-          prefillConversation={conversation}
-        />
-      )}
     </>
   );
 }

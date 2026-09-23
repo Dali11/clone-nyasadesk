@@ -10,7 +10,6 @@ import {
   ShieldCheck,
   Bot,
   FileText,
-  TrendingUp,
   RefreshCw,
   Phone,
 }from 'lucide-react';
@@ -26,7 +25,6 @@ const NAV = [
   { path: '/broadcasts', icon: Megaphone,     label: 'Broadcasts'        },
   { path: '/ai-agents',  icon: Bot,           label: 'AI Agents'         },
   { path: '/documents',  icon: FileText,      label: 'Quotes & Invoices' },
-  { path: '/sales',      icon: TrendingUp,    label: 'Sales'             },
   { path: '/rules',      icon: Zap,           label: 'Rules'             },
   { path: '/canned',     icon: BookOpen,      label: 'Responses'         },
   { path: '/settings',   icon: Settings,      label: 'Settings'          },

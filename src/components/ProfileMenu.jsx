@@ -38,7 +38,6 @@ import {
   Megaphone,
   Bot,
   FileText,
-  TrendingUp,
   Zap,
   BookOpen,
   Settings,
@@ -213,7 +212,6 @@ function MenuContent({ onClose }) {
       <Row icon={Megaphone}  label="Broadcasts"         onClick={() => go('/broadcasts')} />
       <Row icon={Bot}        label="AI Agents"          onClick={() => go('/ai-agents')} />
       <Row icon={FileText}   label="Quotes & Invoices"  onClick={() => go('/documents')} />
-      <Row icon={TrendingUp} label="Sales"              onClick={() => go('/sales')} />
       <Row icon={Zap}        label="Automation Rules"   onClick={() => go('/rules')} />
       <Row icon={BookOpen}   label="Canned Responses"   onClick={() => go('/canned')} />
 

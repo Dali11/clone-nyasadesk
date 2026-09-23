@@ -67,7 +67,7 @@ export default async function handler(req, res) {
     'templates', 'ai-templates', 'ai-agent-list', 'ai-agent-get',
     'knowledge-list', 'knowledge-search', 'billing-status',
     'doc-settings-get', 'quotation-list', 'quotation-get', 'invoice-list', 'invoice-get',
-    'sales-list', 'gmail-oauth-url',
+    'gmail-oauth-url',
     'gmail-oauth-callback', 'whatsapp-refresh-status',
   ];
   if (req.method !== 'POST' && !getActions.includes(req.query.action)) return res.status(405).json({ error: 'Method Not Allowed' });
@@ -110,10 +110,6 @@ export default async function handler(req, res) {
   if (action === 'whatsapp-refresh-status') return handleWhatsappRefreshStatus(req, res);
   if (action === 'whatsapp-complete-registration') return handleWhatsappCompleteRegistration(req, res);
   if (action === 'whatsapp-embedded-save')   return handleWhatsappEmbeddedSave(req, res);
-  if (action === 'sales-create')  return handleSalesCreate(req, res);
-  if (action === 'sales-list')    return handleSalesList(req, res);
-  if (action === 'sales-verify')  return handleSalesVerify(req, res);
-  if (action === 'sales-delete')  return handleSalesDelete(req, res);
   if (action === 'gmail-oauth-url')       return handleGmailOAuthUrl(req, res);
   if (action === 'gmail-oauth-callback')  return handleGmailOAuthCallback(req, res);
   if (action === 'email-test')            return handleEmailTest(req, res);
@@ -1183,129 +1179,6 @@ async function handleWhatsappRefreshStatus(req, res) {
   }
 }
 
-// ── Sales Tracking ────────────────────────────────────────────────────────
-
-async function handleSalesCreate(req, res) {
-  try {
-    const { user, sb } = await requireAuth(req, res);
-    if (!user) return;
-    const { workspace_id, conversation_id, contact_name, contact_phone,
-            document_id, document_type, document_number,
-            sale_value, currency, notes } = req.body || {};
-    if (!workspace_id || !sale_value) return res.status(400).json({ error: 'workspace_id and sale_value are required' });
-
-    // Resolve agent display name from profile
-    const { data: profile } = await sb.from('profiles').select('full_name').eq('id', user.id).maybeSingle();
-    const agent_name = profile?.full_name || user.email || 'Unknown';
-
-    const { data, error } = await sb.from('sales').insert({
-      workspace_id,
-      agent_id: user.id,
-      agent_name,
-      conversation_id: conversation_id || null,
-      contact_name: contact_name || null,
-      contact_phone: contact_phone || null,
-      document_id: document_id || null,
-      document_type: document_type || null,
-      document_number: document_number || null,
-      sale_value: Number(sale_value),
-      currency: currency || 'MWK',
-      notes: notes || null,
-      status: 'claimed',
-    }).select().single();
-    if (error) throw new Error(error.message);
-    return res.status(200).json({ ok: true, sale: data });
-  } catch (e) {
-    console.error('[sales-create]', e);
-    return res.status(500).json({ ok: false, error: e.message });
-  }
-}
-
-async function handleSalesList(req, res) {
-  try {
-    const { user, sb } = await requireAuth(req, res);
-    if (!user) return;
-    const { workspace_id, agent_id, from_date, to_date } = req.query;
-    if (!workspace_id) return res.status(400).json({ error: 'workspace_id required' });
-
-    let q = sb.from('sales').select('*').eq('workspace_id', workspace_id).order('created_at', { ascending: false });
-    if (agent_id) q = q.eq('agent_id', agent_id);
-    if (from_date) q = q.gte('created_at', from_date);
-    if (to_date) q = q.lte('created_at', to_date);
-
-    const { data, error } = await q.limit(500);
-    if (error) throw new Error(error.message);
-    return res.status(200).json({ ok: true, sales: data || [] });
-  } catch (e) {
-    return res.status(500).json({ ok: false, error: e.message });
-  }
-}
-
-async function handleSalesVerify(req, res) {
-  try {
-    const { user, sb } = await requireAuth(req, res);
-    if (!user) return;
-    const { sale_id, status } = req.body || {};
-    if (!sale_id || !status) return res.status(400).json({ error: 'sale_id and status required' });
-    // Only admins (role='admin') or the workspace owner (no workspace_id set
-    // on their own profile, because workspace_id points to the owner in
-    // invited members' rows) can verify/dispute sales.
-    const { data: profile } = await sb.from('profiles').select('role, workspace_id').eq('id', user.id).maybeSingle();
-    const isOwner = !profile?.workspace_id; // workspace owner has no workspace_id (they ARE the workspace)
-    const isAdmin = profile?.role === 'admin' || profile?.role === 'sales_manager';
-    if (!isOwner && !isAdmin) {
-      return res.status(403).json({ error: 'Only admins can verify sales' });
-    }
-    const { data, error } = await sb.from('sales')
-      .update({ status, verified_by: user.id, verified_at: new Date().toISOString() })
-      .eq('id', sale_id).select().single();
-    if (error) throw new Error(error.message);
-    return res.status(200).json({ ok: true, sale: data });
-  } catch (e) {
-    return res.status(500).json({ ok: false, error: e.message });
-  }
-}
-
-async function handleSalesDelete(req, res) {
-  try {
-    const { user, sb } = await requireAuth(req, res);
-    if (!user) return;
-    const { sale_id } = req.body || {};
-    if (!sale_id) return res.status(400).json({ error: 'sale_id required' });
-    // Only the agent who created it (if still 'claimed') or an admin can delete
-    const { data: sale } = await sb.from('sales').select('agent_id, status').eq('id', sale_id).maybeSingle();
-    if (!sale) return res.status(404).json({ error: 'Not found' });
-    const { data: profile } = await sb.from('profiles').select('role').eq('id', user.id).maybeSingle();
-    const isAdmin = !profile?.workspace_id || profile?.role === 'admin';
-    if (!isAdmin && (sale.agent_id !== user.id || sale.status !== 'claimed')) {
-      return res.status(403).json({ error: 'Cannot delete a verified sale' });
-    }
-    await sb.from('sales').delete().eq('id', sale_id);
-    return res.status(200).json({ ok: true });
-  } catch (e) {
-    return res.status(500).json({ ok: false, error: e.message });
-  }
-}
-
-// ── Auth helper (used by Sales actions) ──────────────────────────────────
-// Verifies the Bearer token from the Authorization header, returns the user
-// and a service-role Supabase client. Sends 401 and returns { user: null }
-// when the token is missing or invalid so callers can early-return.
-async function requireAuth(req, res) {
-  const authHeader = req.headers?.authorization || '';
-  const token = authHeader.startsWith('Bearer ') ? authHeader.slice(7) : null;
-  if (!token) {
-    res.status(401).json({ error: 'Authentication required' });
-    return { user: null, sb: null };
-  }
-  const sb = createClient(SUPABASE_URL, SUPABASE_KEY);
-  const { data: { user } = {}, error } = await sb.auth.getUser(token);
-  if (error || !user) {
-    res.status(401).json({ error: 'Invalid or expired token' });
-    return { user: null, sb: null };
-  }
-  return { user, sb };
-}
 
 
 // ── Email: Gmail OAuth one-click connect ──────────────────────────────────
