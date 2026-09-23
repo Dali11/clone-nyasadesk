@@ -42,7 +42,7 @@ export const auth = betterAuth({
       // Resend — same provider the team-invite emails use.
       const key = process.env.RESEND_API_KEY;
       if (!key) { console.error('[auth] RESEND_API_KEY missing, cannot send reset email'); return; }
-      await fetch('https://api.resend.com/emails', {
+      const res = await fetch('https://api.resend.com/emails', {
         method: 'POST',
         headers: { Authorization: 'Bearer ' + key, 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -56,7 +56,12 @@ export const auth = betterAuth({
             <p style="color:#888;font-size:13px">This link expires in 1 hour. If you didn't request this, you can ignore this email.</p>
           </div>`,
         }),
-      }).catch(e => console.error('[auth] reset email error:', e.message));
+      }).catch(e => { console.error('[auth] reset email network error:', e.message); throw e; });
+      if (!res.ok) {
+        const body = await res.text().catch(() => '');
+        console.error('[auth] resend rejected reset email:', res.status, body.slice(0, 300), 'keylen:', key.length, 'prefix:', key.slice(0, 6));
+        throw new Error('Reset email rejected by provider (' + res.status + ')');
+      }
     },
     password: {
       hash: (password) => bcrypt.hash(password, 10),
