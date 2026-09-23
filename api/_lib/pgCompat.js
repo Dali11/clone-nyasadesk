@@ -208,6 +208,31 @@ class PgClient {
       from: (bucket) => new PgBucket(bucket),
     };
   }
+  // supabase-js .auth.getUser() parity: the frontend sends the Better Auth
+  // session token as a Bearer token (billing.js / team.js / adminAuth.js
+  // verify callers through this). Resolves the token against the self-hosted
+  // Better Auth instance instead of Supabase Auth.
+  get auth() {
+    return {
+      getUser: async (token) => {
+        try {
+          // BA cookie value = "<sessionToken>.<HMAC-SHA256(secret, token) in base64>"
+          // (the sign-in response body exposes the raw token only).
+          const { createHmac } = await import('crypto');
+          const sig = createHmac('sha256', process.env.BETTER_AUTH_SECRET || '')
+            .update(String(token)).digest('base64');
+          const { auth } = await import('./betterAuth.js');
+          const headers = new Headers();
+          headers.append('cookie', `better-auth.session_token=${token}.${sig}`);
+          const s = await auth.api.getSession({ headers });
+          if (!s?.user) return { data: { user: null }, error: { message: 'Invalid or expired session' } };
+          return { data: { user: s.user }, error: null };
+        } catch (e) {
+          return { data: { user: null }, error: { message: e.message } };
+        }
+      },
+    };
+  }
   async rpc(fn, params = {}) {
     try {
       const args = Object.entries(params).map(([k, v]) => `${lit(v)}`).join(', ');
