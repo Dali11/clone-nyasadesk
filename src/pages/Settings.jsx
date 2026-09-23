@@ -7,7 +7,6 @@ import Sidebar from '@/components/Sidebar';
 import Avatar from '@/components/Avatar';
 import TeamSection from '@/components/settings/TeamSection';
 import NoticeboardSection from '@/components/settings/NoticeboardSection';
-import SalesSettingsSection from '@/components/settings/SalesSettingsSection';
 import { useNyasaAuth } from '@/lib/NyasaAuth';
 import { getChannelConfigs, saveChannelConfig, deleteChannelConfig } from '@/lib/channels';
 import { supabase } from '@/lib/supabase';
@@ -25,7 +24,6 @@ const SECTIONS = [
   { id: 'channels',  label: 'Channels',  icon: Globe,     adminOnly: true  },
   { id: 'sla',       label: 'SLA',       icon: Bell,      adminOnly: true  },
   { id: 'subscription', label: 'Subscription', icon: CreditCard, adminOnly: true  },
-  { id: 'sales',       label: 'Sales',       icon: BadgeDollarSign, adminOnly: true },
   { id: 'noticeboard', label: 'Noticeboard', icon: Megaphone, adminOnly: false },
 ];
 
@@ -1893,10 +1891,6 @@ export default function Settings() {
                   <p className="text-sm text-gray-500">Could not load subscription info.</p>
                 )}
               </div>
-            )}
-
-            {section === 'sales' && isWorkspaceAdmin && (
-              <SalesSettingsSection workspaceOwnerId={workspaceOwnerId} />
             )}
 
             {section === 'noticeboard' && (

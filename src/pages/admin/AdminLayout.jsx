@@ -19,7 +19,6 @@ const ADMIN_NAV = [
   { path: '/admin/pricing',     icon: DollarSign,   label: 'Pricing'    },
   { path: '/admin/admins',      icon: Users2,       label: 'Admins'     },
   { path: '/admin/audit-log',   icon: ScrollText,      label: 'Audit Log'   },
-  { path: '/admin/commissions',  icon: BadgeDollarSign, label: 'Commissions' },
 ];
 const MOBILE_PRIMARY = ['/admin', '/admin/workspaces', '/admin/churn'];
 const mobilePrimaryNav = ADMIN_NAV.filter(i => MOBILE_PRIMARY.includes(i.path));

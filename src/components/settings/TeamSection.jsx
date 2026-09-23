@@ -23,7 +23,7 @@ const ROLES = {
   },
   sales_manager: {
     label: 'Sales Manager',
-    desc: 'Can view all chats, manage sales records, and approve commissions',
+    desc: 'Can view all chats and manage sales records',
     color: 'text-purple-400',
     bg: 'bg-purple-500/10',
     icon: Shield,

@@ -41,8 +41,6 @@ import AdminAuditLog   from "./pages/admin/AdminAuditLog";
 import PrivacyPolicy   from './pages/PrivacyPolicy';
 import DataDeletion    from './pages/DataDeletion';
 import SupportPage     from './pages/SupportPage';
-import MyCommissions    from './pages/MyCommissions';
-import AdminCommissions from './pages/admin/AdminCommissions';
 import AdminUsers      from './pages/admin/AdminUsers';
 import { LockKeyhole } from 'lucide-react';
 import InstallPrompt from './components/InstallPrompt';
@@ -192,7 +190,6 @@ function AppRoutes() {
       <Route path="/ai-agents"  element={<AiAgents />} />
       <Route path="/documents"  element={<Documents />} />
       <Route path="/sales"      element={<Sales />} />
-      <Route path="/commissions" element={<MyCommissions />} />
       <Route path="/privacy"        element={<PrivacyPolicy />} />
       <Route path="/data-deletion"   element={<DataDeletion />} />
       <Route path="/settings"   element={<Settings />} />
@@ -206,7 +203,6 @@ function AppRoutes() {
         <Route path="ai-usage"    element={<AdminAiUsage />} />
         <Route path="transactions" element={<AdminTransactions />} />
         <Route path="audit-log"   element={<AdminAuditLog />} />
-        <Route path="commissions" element={<AdminCommissions />} />
         <Route path="users"       element={<AdminUsers />} />
       </Route>
       <Route path="/login"      element={<Navigate to="/" replace />} />
@@ -243,7 +239,6 @@ const SECONDARY_PAGES = [
   { path: '/ai-agents',  Component: AiAgents        },
   { path: '/documents',  Component: Documents       },
   { path: '/sales',      Component: Sales           },
-  { path: '/commissions',Component: MyCommissions   },
   { path: '/settings',   Component: Settings        },
   { path: '/pricing',    Component: Pricing         },
   { path: '/privacy',    Component: PrivacyPolicy   },
@@ -269,8 +264,7 @@ function PersistentShell() {
           <Route path="ai-usage"    element={<AdminAiUsage />} />
           <Route path="transactions" element={<AdminTransactions />} />
           <Route path="audit-log"   element={<AdminAuditLog />} />
-          <Route path="commissions" element={<AdminCommissions />} />
-          <Route path="users"       element={<AdminUsers />} />
+            <Route path="users"       element={<AdminUsers />} />
         </Route>
         <Route path="*" element={<Navigate to="/admin" replace />} />
       </Routes>

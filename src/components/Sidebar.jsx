@@ -1,4 +1,3 @@
-import {useState, useEffect}from 'react';
 import {Link, useLocation}from 'react-router-dom';
 import {
   MessageSquare,
@@ -12,12 +11,10 @@ import {
   Bot,
   FileText,
   TrendingUp,
-  BadgeDollarSign,
   RefreshCw,
   Phone,
 }from 'lucide-react';
 import Avatar from './Avatar';
-import {supabase}from '@/lib/supabase';
 import {useNyasaAuth}from '@/lib/NyasaAuth';
 import {ProfileMenuMobile, ProfileMenuDesktop}from '@/components/ProfileMenu';
 
@@ -30,7 +27,6 @@ const NAV = [
   { path: '/ai-agents',  icon: Bot,           label: 'AI Agents'         },
   { path: '/documents',  icon: FileText,      label: 'Quotes & Invoices' },
   { path: '/sales',      icon: TrendingUp,    label: 'Sales'             },
-  { path: '/commissions',icon: BadgeDollarSign,label: 'Commissions'       },
   { path: '/rules',      icon: Zap,           label: 'Rules'             },
   { path: '/canned',     icon: BookOpen,      label: 'Responses'         },
   { path: '/settings',   icon: Settings,      label: 'Settings'          },
@@ -46,41 +42,9 @@ const MOBILE_NAV = [
 
 export default function Sidebar({ hideMobileChrome = false } = {}) {
   const { pathname } = useLocation();
-  const { user, profile, isPlatformAdmin, workspaceOwnerId } = useNyasaAuth();
-  const workspaceName = profile?.workspace_name || user?.workspace_name || '';
-  const [commissionsEnabled, setCommissionsEnabled] = useState(false);
+  const { user, profile, isPlatformAdmin } = useNyasaAuth();
 
-  useEffect(() => {
-    if (!workspaceOwnerId) return;
-    (async () => {
-      try {
-        const { data: { session } } = await supabase.auth.getSession();
-        const res = await fetch('/api/billing?action=get-commission-settings', {
-          headers: session?.access_token ? { Authorization: `Bearer ${session.access_token}` } : {},
-        });
-        const d = await res.json();
-        setCommissionsEnabled(!!d.enabled);
-      } catch { /* silently ignore */ }
-    })();
-  }, [workspaceOwnerId]);
-
-  const canViewCommissionAdmin = profile?.role === 'admin' || !profile?.workspace_id;
-  // For workspace admins/owners: show /admin/commissions instead of /commissions
-  // For agents: show /commissions only when commissions are enabled
-  const commissionsNavItem = canViewCommissionAdmin
-    ? { path: '/admin/commissions', icon: BadgeDollarSign, label: 'Commissions' }
-    : { path: '/commissions', icon: BadgeDollarSign, label: 'Commissions' };
-
-  const filteredNAV = NAV
-    .filter(item => item.path !== '/commissions')
-    .flatMap(item => {
-      // Insert commissions after Sales
-      if (item.path === '/sales') {
-        const extras = commissionsEnabled ? [item, commissionsNavItem] : [item];
-        return extras;
-      }
-      return [item];
-    });
+  const filteredNAV = NAV;
 
   const navItems = isPlatformAdmin
     ? [...filteredNAV, { path: '/admin', icon: ShieldCheck, label: 'Admin Panel' }]

@@ -19,7 +19,6 @@ const PLAN_PERKS = {
     'Automation rules (auto-assign, auto-tag)',
     'Quotes & invoice generation',
     'Sales pipeline tracking',
-    'Commission management',
   ],
   scale: [
     'AI agents that draft & send replies',
