@@ -31,8 +31,8 @@ const NAV = [
 // Mobile bottom bar: WhatsApp bottom nav exactly
 const MOBILE_NAV = [
   { path: '/',          icon: MessageSquare, label: 'Chats'    },
-  { path: '/dashboard', icon: BarChart2,     label: 'Reports'  },
   { path: '/contacts',  icon: Users,         label: 'CRM' },
+  { path: '/dashboard', icon: BarChart2,     label: 'Reports'  },
   { path: '/settings',  icon: Settings,      label: 'Settings' },
 ];
 
