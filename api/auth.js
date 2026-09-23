@@ -7,11 +7,19 @@ import { auth } from './_lib/betterAuth.js';
 
 const handler = toNodeHandler(auth.handler);
 
-export default async function (req, res) {
+export default async function (req, res) => {
   const p = req.query && req.query.path;
   if (p) {
-    const sub = Array.isArray(p) ? p.join('/') : String(p);
-    req.url = '/api/auth/' + sub.replace(/^\/+/, '');
+    const sub = (Array.isArray(p) ? p.join('/') : String(p)).replace(/^\/+/, '');
+    // Rebuild the full original URL, keeping every query param EXCEPT our
+    // internal `path` one. BA's password-reset email links carry the user to
+    // GET /api/auth/reset-password/<token>?callbackURL=<spa url>, which
+    // redirects to the SPA with the token — dropping callbackURL broke the
+    // whole reset flow at the email click.
+    const q = { ...req.query };
+    delete q.path;
+    const qs = new URLSearchParams(q).toString();
+    req.url = '/api/auth/' + sub + (qs ? '?' + qs : '');
   }
   return handler(req, res);
 };
