@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef, Fragment } from 'react';
 import { Send, StickyNote, Loader2, Check, CheckCheck, X, Zap, Bot, Sparkles, Paperclip, Mic, Square, Play, Pause,
-         ChevronDown, Copy, Share2, Pin, PinOff, Trash2, Ban, Reply, Palette, Download, Maximize2 } from 'lucide-react';
+         ChevronDown, Copy, Share2, Pin, PinOff, Trash2, Ban, Reply, Palette, Download, Maximize2, Info } from 'lucide-react';
 import { formatDistanceToNow, isToday, isYesterday, format as formatDate } from 'date-fns';
 import { motion, AnimatePresence } from 'framer-motion';
 import { getMessages, sendMessage, sendMediaMessage, addNote, deleteMessage, setMessagePinned, subscribeToMessages, getCannedResponses, setChatBackground, getAiAgents, generateAiDraft } from '@/lib/channels';
@@ -297,7 +297,7 @@ function MediaLightbox({ att, onClose }) {
 // WhatsApp-style action menu: a small always-reachable "chevron" button, a
 // long-press (pointer-hold) on the bubble itself, and right-click on desktop
 // all open the same dropdown — Copy / Share / Pin / Delete.
-function MessageActionsMenu({ msg, isOut, open, onOpenChange, onCopy, onShare, onTogglePin, onDelete, onReply }) {
+function MessageActionsMenu({ msg, isOut, open, onOpenChange, onCopy, onShare, onTogglePin, onDelete, onReply, onInfo }) {
   return (
     <DropdownMenu open={open} onOpenChange={onOpenChange}>
       <DropdownMenuTrigger asChild>
@@ -323,6 +323,9 @@ function MessageActionsMenu({ msg, isOut, open, onOpenChange, onCopy, onShare, o
         <DropdownMenuItem onClick={onShare} className="text-xs gap-2 hover:bg-white/10 focus:bg-white/10 cursor-pointer">
           <Share2 className="w-3.5 h-3.5" />Share
         </DropdownMenuItem>
+        <DropdownMenuItem onClick={onInfo} className="text-xs gap-2 hover:bg-white/10 focus:bg-white/10 cursor-pointer">
+          <Info className="w-3.5 h-3.5" />Message info
+        </DropdownMenuItem>
         <DropdownMenuItem onClick={onTogglePin} className="text-xs gap-2 hover:bg-white/10 focus:bg-white/10 cursor-pointer">
           {msg.pinned ? <><PinOff className="w-3.5 h-3.5" />Unpin</> : <><Pin className="w-3.5 h-3.5" />Pin</>}
         </DropdownMenuItem>
@@ -335,7 +338,7 @@ function MessageActionsMenu({ msg, isOut, open, onOpenChange, onCopy, onShare, o
   );
 }
 
-function Bubble({ msg, menuOpenId, onOpenMenu, onCopy, onShare, onDelete, onTogglePin, onReply, onJumpToReply, bubbleRef, onOpenMedia }) {
+function Bubble({ msg, menuOpenId, onOpenMenu, onCopy, onShare, onDelete, onTogglePin, onReply, onInfo, onJumpToReply, bubbleRef, onOpenMedia }) {
   const isNote     = msg.direction === 'note';
   const isActivity = msg.direction === 'activity';
   const isOut      = msg.direction === 'outbound';
@@ -382,7 +385,7 @@ function Bubble({ msg, menuOpenId, onOpenMenu, onCopy, onShare, onDelete, onTogg
             onOpenChange={v => onOpenMenu(v ? msg.id : null)}
             onCopy={() => onCopy(msg)} onShare={() => onShare(msg)}
             onTogglePin={() => onTogglePin(msg)} onDelete={() => onDelete(msg)}
-            onReply={() => onReply(msg)} />
+            onReply={() => onReply(msg)} onInfo={() => onInfo(msg)} />
         )}
       </div>
     </div>
@@ -458,10 +461,41 @@ function Bubble({ msg, menuOpenId, onOpenMenu, onCopy, onShare, onDelete, onTogg
             onOpenChange={v => onOpenMenu(v ? msg.id : null)}
             onCopy={() => onCopy(msg)} onShare={() => onShare(msg)}
             onTogglePin={() => onTogglePin(msg)} onDelete={() => onDelete(msg)}
-            onReply={() => onReply(msg)} />
+            onReply={() => onReply(msg)} onInfo={() => onInfo(msg)} />
         )}
       </div>
     </motion.div>
+  );
+}
+
+function MessageInfoPanel({ msg, onClose }) {
+  if (!msg) return null;
+  const created = msg.created_at || msg.created_date;
+  const status = msg.status || 'unknown';
+  const statusLabel = { sending: 'Sending', sent: 'Sent', delivered: 'Delivered', read: 'Read', failed: 'Failed' }[status] || status;
+  const times = [
+    ['Sent', msg.sent_at || (['sent', 'delivered', 'read'].includes(status) ? created : null)],
+    ['Delivered', msg.delivered_at],
+    ['Read', msg.read_at],
+  ];
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4" onClick={onClose}>
+      <div className="w-full max-w-sm rounded-xl bg-[var(--nyasa-surface-2)] border border-[var(--nyasa-border)] shadow-2xl" onClick={e => e.stopPropagation()}>
+        <div className="flex items-center justify-between px-4 py-3 border-b border-[var(--nyasa-border)]">
+          <div className="flex items-center gap-2 text-sm font-semibold text-white"><Info className="w-4 h-4 text-[#25D366]" />Message info</div>
+          <button onClick={onClose} className="p-1 rounded hover:bg-white/10 text-gray-400" aria-label="Close message info"><X className="w-4 h-4" /></button>
+        </div>
+        <div className="p-4 space-y-4 text-xs">
+          <div className="rounded-lg bg-black/15 px-3 py-2 text-gray-300 whitespace-pre-wrap break-words max-h-28 overflow-y-auto">{msg.body || (msg.attachments?.[0] ? `[${msg.attachments[0].type || 'attachment'}]` : 'Attachment')}</div>
+          <div className="space-y-2">
+            <div className="flex justify-between"><span className="text-gray-400">Current status</span><span className={status === 'read' ? 'text-[#53BDEB] font-medium' : 'text-gray-200'}>{statusLabel}</span></div>
+            {times.map(([label, value]) => value && <div key={label} className="flex justify-between gap-4"><span className="text-gray-400">{label}</span><time className="text-gray-200 text-right">{formatDate(new Date(value), 'MMM d, yyyy h:mm:ss a')}</time></div>)}
+            {msg.error_reason && <div className="flex justify-between gap-4"><span className="text-gray-400">Error</span><span className="text-red-300 text-right max-w-[65%]">{msg.error_reason}</span></div>}
+          </div>
+          <p className="text-[11px] text-gray-500">Read receipts reflect delivery events received from the connected channel.</p>
+        </div>
+      </div>
+    </div>
   );
 }
 
@@ -491,6 +525,7 @@ export default function MessageThread({ conversation, workspaceId }) {
   const [menuOpenId, setMenuOpenId] = useState(null);
   const [replyingTo, setReplyingTo] = useState(null);
   const [lightboxMedia, setLightboxMedia] = useState(null); // { url, type } or null
+  const [infoMessage, setInfoMessage] = useState(null);
   const bottomRef = useRef(null);
   const inputRef  = useRef(null);
   const fileInputRef = useRef(null);
@@ -867,6 +902,11 @@ export default function MessageThread({ conversation, workspaceId }) {
     messageRefs.current[id]?.scrollIntoView({ behavior: 'smooth', block: 'center' });
   };
 
+  const handleInfoMessage = (msg) => {
+    setMenuOpenId(null);
+    setInfoMessage(msg);
+  };
+
   const handleReplyMessage = (msg) => {
     setReplyingTo(msg);
     inputRef.current?.focus();
@@ -939,6 +979,7 @@ export default function MessageThread({ conversation, workspaceId }) {
                   onOpenMenu={setMenuOpenId}
                   onCopy={handleCopyMessage}
                   onShare={handleShareMessage}
+                  onInfo={handleInfoMessage}
                   onTogglePin={handleTogglePinMessage}
                   onDelete={handleDeleteMessage}
                   onReply={handleReplyMessage}
@@ -1130,6 +1171,7 @@ export default function MessageThread({ conversation, workspaceId }) {
       )}
 
       {lightboxMedia && <MediaLightbox att={lightboxMedia} onClose={() => setLightboxMedia(null)} />}
+      {infoMessage && <MessageInfoPanel msg={infoMessage} onClose={() => setInfoMessage(null)} />}
     </div>
   );
 }
