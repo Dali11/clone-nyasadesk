@@ -55,7 +55,7 @@ export default async function handler(req, res) {
   let shortToken;
   try {
     const tokenRes = await fetch(
-      `https://graph.facebook.com/v21.0/oauth/access_token?client_id=${APP_ID}&redirect_uri=&client_secret=${APP_SECRET}&code=${code}`
+      `https://graph.facebook.com/v26.0/oauth/access_token?client_id=${APP_ID}&redirect_uri=&client_secret=${APP_SECRET}&code=${code}`
     );
     const tokenData = await tokenRes.json();
     if (tokenData.error) throw new Error(tokenData.error.message);
@@ -69,7 +69,7 @@ export default async function handler(req, res) {
   let longToken;
   try {
     const longRes = await fetch(
-      `https://graph.facebook.com/v21.0/oauth/access_token?grant_type=fb_exchange_token&client_id=${APP_ID}&client_secret=${APP_SECRET}&fb_exchange_token=${shortToken}`
+      `https://graph.facebook.com/v26.0/oauth/access_token?grant_type=fb_exchange_token&client_id=${APP_ID}&client_secret=${APP_SECRET}&fb_exchange_token=${shortToken}`
     );
     const longData = await longRes.json();
     if (longData.error) throw new Error(longData.error.message);
@@ -88,7 +88,7 @@ export default async function handler(req, res) {
     try {
       const appToken = `${APP_ID}|${APP_SECRET}`;
       const debugRes = await fetch(
-        `https://graph.facebook.com/v21.0/debug_token?input_token=${longToken}&access_token=${appToken}`
+        `https://graph.facebook.com/v26.0/debug_token?input_token=${longToken}&access_token=${appToken}`
       );
       const debugData = await debugRes.json();
       const granular = debugData.data?.granular_scopes || [];
@@ -111,14 +111,14 @@ export default async function handler(req, res) {
   try {
     if (hintedPhoneId) {
       const phoneRes = await fetch(
-        `https://graph.facebook.com/v21.0/${hintedPhoneId}?fields=id,display_phone_number,verified_name,quality_rating,name_status,account_mode&access_token=${longToken}`
+        `https://graph.facebook.com/v26.0/${hintedPhoneId}?fields=id,display_phone_number,verified_name,quality_rating,name_status,account_mode&access_token=${longToken}`
       );
       const phoneData = await phoneRes.json();
       if (!phoneData.error) phone = phoneData;
     }
     if (!phone) {
       const phonesRes = await fetch(
-        `https://graph.facebook.com/v21.0/${wabaId}/phone_numbers?fields=id,display_phone_number,verified_name,quality_rating,name_status,account_mode&access_token=${longToken}`
+        `https://graph.facebook.com/v26.0/${wabaId}/phone_numbers?fields=id,display_phone_number,verified_name,quality_rating,name_status,account_mode&access_token=${longToken}`
       );
       const phonesData = await phonesRes.json();
       phone = phonesData.data?.[0] || null;
