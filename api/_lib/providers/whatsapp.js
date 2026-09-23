@@ -7,7 +7,7 @@
 // Part of NyasaDesk's provider abstraction layer. The rest of the app
 // never touches the Meta Graph API directly — it goes through this provider.
 
-import { MessagingProvider, persistInboundMessage } from './base.js';
+import { MessagingProvider, persistInboundMessage, persistOutboundEcho } from './base.js';
 
 const GRAPH_VERSION = 'v21.0';
 const GRAPH = `https://graph.facebook.com/${GRAPH_VERSION}`;
@@ -395,7 +395,16 @@ export class WhatsAppCloudProvider extends MessagingProvider {
         for (const msg of value.messages || []) {
           const from = msg.from;
           const msgId = msg.id;
-          const contactName = value.contacts?.find(c => c.wa_id === from)?.profile?.name || from;
+          const normalisePhone = (v) => String(v || '').replace(/\D/g, '').replace(/^0+/, '');
+          // In Meta's coexistence webhooks, messages sent from the Business App
+          // arrive as a message whose `from` is our business number and whose
+          // `to` is the customer. Treat these as outbound echoes, not new
+          // customer messages. The flag is opt-in per connected number.
+          const businessNumber = config.phone_number || value.metadata?.display_phone_number;
+          const isCoexistenceEcho = !!(config.coexistence_mode && msg.to &&
+            normalisePhone(from) === normalisePhone(businessNumber));
+          const contactNumber = isCoexistenceEcho ? msg.to : from;
+          const contactName = value.contacts?.find(c => c.wa_id === contactNumber)?.profile?.name || contactNumber;
           const ts = new Date(parseInt(msg.timestamp || Date.now() / 1000) * 1000).toISOString();
 
           // ── Reactions: update the original message, don't create a new row ──
@@ -493,6 +502,16 @@ export class WhatsAppCloudProvider extends MessagingProvider {
           }
 
           // Click-to-WhatsApp ad attribution (first-touch)
+          // App-sent echoes are already outbound and must never enter the
+          // inbound assignment/AI path. Persist them in the same conversation.
+          if (isCoexistenceEcho) {
+            await persistOutboundEcho(sb, workspaceId, {
+              channel: 'whatsapp', externalId: contactNumber, contactName, phone: '+' + contactNumber,
+              body, attachments, externalMsgId: msgId, senderId: from, senderName: 'You', timestamp: ts,
+            });
+            continue;
+          }
+
           const { data: existingContact } = await sb.from('contacts')
             .select('lead_source, ad_attribution')
             .eq('workspace_id', workspaceId).eq('channel', 'whatsapp').eq('external_id', from)

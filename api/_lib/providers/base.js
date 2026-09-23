@@ -24,6 +24,46 @@ export class MessagingProvider {
 }
 
 // Shared helper: upsert contact + conversation + insert inbound message
+// Persist a message echoed from the WhatsApp Business App in coexistence mode.
+// Echoes are outbound activity, so they must not increment unread counts or
+// trigger AI auto-replies. Keeping this separate from inbound persistence also
+// makes the direction explicit for read receipts and inbox rendering.
+export async function persistOutboundEcho(sb, workspaceId, params) {
+  const { channel, externalId, contactName, phone, body, attachments, externalMsgId,
+    senderId, senderName, timestamp, replyTo } = params;
+
+  const { data: contact } = await sb.from('contacts').upsert({
+    workspace_id: workspaceId, channel, external_id: externalId,
+    full_name: contactName, ...(phone ? { phone } : {}),
+  }, { onConflict: 'workspace_id,channel,external_id' }).select('*').single();
+
+  const { data: existingConv } = await sb.from('conversations')
+    .select('id,assigned_to,assigned_to_name,status').eq('workspace_id', workspaceId)
+    .eq('channel', channel).eq('external_id', externalId).maybeSingle();
+
+  const payload = {
+    workspace_id: workspaceId, channel, external_id: externalId,
+    contact_id: contact?.id, subject: contactName, last_message: body,
+    last_message_at: timestamp, status: existingConv?.status || 'open',
+    ...(existingConv?.assigned_to ? { assigned_to: existingConv.assigned_to, assigned_to_name: existingConv.assigned_to_name } : {}),
+  };
+  const { data: conv } = await sb.from('conversations').upsert(payload, {
+    onConflict: 'workspace_id,channel,external_id',
+  }).select('id,assigned_to,assigned_to_name').single();
+
+  if (conv?.id) {
+    await sb.from('conversations').update({ last_message: body, last_message_at: timestamp })
+      .eq('id', conv.id);
+    await sb.from('messages').upsert({
+      conversation_id: conv.id, workspace_id: workspaceId, direction: 'outbound',
+      body, channel, external_id: externalMsgId, sender_name: senderName || 'You',
+      sender_id: senderId || 'whatsapp_business_app', status: 'sent', created_at: timestamp,
+      ...(attachments ? { attachments } : {}), ...(replyTo ? { reply_to: replyTo } : {}),
+    }, { onConflict: 'conversation_id,external_id' });
+  }
+  return { contact, conversation: conv };
+}
+
 export async function persistInboundMessage(sb, workspaceId, params) {
   const {
     channel, externalId, contactName, phone, email,

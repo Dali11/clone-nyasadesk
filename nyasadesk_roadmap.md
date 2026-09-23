@@ -135,7 +135,7 @@ Things WhatsApp Business has + things it doesn't.
 Direct competitor: WhatChimp.com. Features they ship that we don't, in priority order.
 
 - [x] P0 ~~CRITICAL BLOCKER~~ FIXED (2026-09-22): Supabase anon key was corrupted (one-char ref mismatch). Replaced hardcoded key in src/lib/supabase.js, api/_lib/adminAuth.js, api/billing.js, api/team.js with the valid production key from the old Vercel project env. Verified working against live Supabase (HTTP 200).
-- [ ] WhatsApp Number Coexistence — Embedded Signup coexistence mode (Meta, May 2025): same number on Business App + Cloud API, 6-month history sync, message echoes handled in webhook (direction tagging for app-sent messages). NOTE: read receipts, edit/undo, disappearing messages, live location are DISABLED in coexistence 1:1 chats.
+- [x] WhatsApp Number Coexistence — Embedded Signup coexistence mode (Meta, May 2025): same number on Business App + Cloud API, with an opt-in Business App coexistence setting, outbound echo persistence, direction tagging, and duplicate-AI-reply protection. Meta-managed 6-month history sync is accepted through the webhook path. NOTE: read receipts, edit/undo, disappearing messages, live location are DISABLED in coexistence 1:1 chats.
 - [ ] WhatsApp Flows / Native Forms — in-chat step-by-step data collection (WhatsApp Flows API)
 - [ ] WhatsApp Catalog — product catalog send/browse in chat
 - [ ] Payments in chat — payment links, status updates in thread (PayChangu/Stripe)
@@ -154,3 +154,4 @@ Direct competitor: WhatChimp.com. Features they ship that we don't, in priority 
 
 ### Night Log
 - 2026-09-22 (day): Fixed chat-refresh root cause (corrupted Supabase anon key, 401s) — commit 10b830d, verified live. Copied all 23 env vars to new geniuspulse22 Vercel project. Domain move pending TXT records.
+- 2026-09-22 (night): Shipped WhatsApp Business App coexistence support — commit 68afc02. Added a per-number coexistence toggle in Settings, detected Business App outbound echoes in the WhatsApp webhook, persisted them as outbound messages without unread increments or AI auto-replies, and preserved conversation assignment/status. Build passed and production deployment `dpl_EJXWWfXbzMsTdHzTcLgVMKWVunbR` is READY. Next: WhatsApp Flows / Native Forms.
