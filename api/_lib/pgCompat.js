@@ -165,8 +165,49 @@ class Builder {
   }
 }
 
+// ── storage: chat media lives in the media_files table (Supabase Storage replacement) ──
+function publicBaseUrl() {
+  return process.env.PUBLIC_BASE_URL || 'https://nyasadesk.com';
+}
+
+class PgBucket {
+  constructor(bucket) { this.bucket = bucket; }
+  async upload(path, data, opts = {}) {
+    try {
+      const buf = Buffer.isBuffer(data) ? data : Buffer.from(data);
+      const mime = opts.contentType || 'application/octet-stream';
+      const b64 = buf.toString('base64');
+      const rows = await raw(
+        `INSERT INTO media_files (bucket, path, mime, size, data)
+         VALUES (${lit(this.bucket)}, ${lit(path)}, ${lit(mime)}, ${buf.length}, ${lit(b64)})
+         ON CONFLICT (bucket, path) DO UPDATE
+           SET data = EXCLUDED.data, mime = EXCLUDED.mime, size = EXCLUDED.size
+         RETURNING id`);
+      return { data: { path: this.bucket + '/' + path, id: rows[0]?.id }, error: null };
+    } catch (e) {
+      return { data: null, error: { message: 'storage upload failed: ' + e.message } };
+    }
+  }
+  async remove(path) {
+    try {
+      await raw(`DELETE FROM media_files WHERE bucket = ${lit(this.bucket)} AND path = ${lit(path)}`);
+      return { data: null, error: null };
+    } catch (e) {
+      return { data: null, error: { message: e.message } };
+    }
+  }
+  getPublicUrl(path) {
+    return { data: { publicUrl: `${publicBaseUrl()}/api/storage/object/${this.bucket}/${path}` } };
+  }
+}
+
 class PgClient {
   from(table) { return new Builder(table); }
+  get storage() {
+    return {
+      from: (bucket) => new PgBucket(bucket),
+    };
+  }
   async rpc(fn, params = {}) {
     try {
       const args = Object.entries(params).map(([k, v]) => `${lit(v)}`).join(', ');

@@ -9,23 +9,8 @@
 //   .channel(t)  → snapshot-diff polling (replaces Supabase Realtime)
 //   .storage     → still the real Supabase client (until the storage phase)
 // ═══════════════════════════════════════════════════════════════════════════
-import { createClient } from '@supabase/supabase-js';
-
-const SUPABASE_URL  = 'https://pfbaepibelomiutlotkn.supabase.co';
-const SUPABASE_ANON = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InBmYmFlcGliZWxvbWl1dGxvdGtuIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODI4MjMwNjQsImV4cCI6MjA5ODM5OTA2NH0.LKnDu1Qy9WN-sLsulU3Kv12dORfpJXlPhFZBrcvy0JA';
-
-// Storage stays on Supabase until the dedicated storage phase.
-// Lazy: only construct the legacy client when .storage is actually used
-// (avoids spinning up realtime transports on every page load).
-const _legacy = { client: null };
-function legacyClient() {
-  if (!_legacy.client) {
-    _legacy.client = createClient(SUPABASE_URL, SUPABASE_ANON, {
-      auth: { persistSession: false, autoRefreshToken: false },
-    });
-  }
-  return _legacy.client;
-}
+// Storage: chat/media files live in the Neon media_files table, uploaded via
+// /api/storage/upload and served from /api/storage/object/<bucket>/<path>. 
 
 const AUTH_BASE = '/api/auth';
 
@@ -276,5 +261,52 @@ export const supabase = {
   channel: makeChannel,
   removeChannel(ch) { try { ch?.unsubscribe?.(); } catch (_) {} return ch; },
   removeAllChannels() { for (const ch of activeChannels.values()) { try { ch.unsubscribe(); } catch (_) {} } activeChannels.clear(); },
-  get storage() { return legacyClient().storage; },
+  get storage() { return storageFacade; },
+};
+
+// ── storage facade (supabase-js style) ────────────────────────────────────────
+async function toBase64(file) {
+  let buf;
+  if (file instanceof ArrayBuffer) buf = file;
+  else if (typeof Buffer !== 'undefined' && Buffer.isBuffer(file)) buf = file.buffer.slice(file.byteOffset, file.byteOffset + file.byteLength);
+  else if (file instanceof Uint8Array) buf = file.buffer.slice(file.byteOffset, file.byteOffset + file.byteLength);
+  else buf = await file.arrayBuffer();
+  const bytes = new Uint8Array(buf);
+  let binary = '';
+  const CHUNK = 0x8000;
+  for (let i = 0; i < bytes.length; i += CHUNK) {
+    binary += String.fromCharCode.apply(null, bytes.subarray(i, i + CHUNK));
+  }
+  return btoa(binary);
+}
+
+const storageFacade = {
+  from(bucket) {
+    return {
+      async upload(path, file, opts = {}) {
+        try {
+          const dataBase64 = await toBase64(file);
+          const mime = opts.contentType || file?.type || 'application/octet-stream';
+          const r = await fetch('/api/storage/upload', {
+            method: 'POST', credentials: 'include',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ bucket, path, mime, dataBase64 }),
+          });
+          const body = await r.json().catch(() => ({}));
+          if (!r.ok) return { data: null, error: { message: body?.error || `Upload failed (${r.status})` } };
+          return { data: { path: `${bucket}/${path}` }, error: null };
+        } catch (e) {
+          return { data: null, error: { message: e.message } };
+        }
+      },
+      getPublicUrl(path) {
+        const base = (typeof window !== 'undefined' ? window.location.origin : 'https://nyasadesk.com');
+        return { data: { publicUrl: `${base}/api/storage/object/${bucket}/${path}` } };
+      },
+      async remove(path) {
+        // deletion is not used by the app today; kept for API parity
+        return { data: null, error: { message: 'Not supported' } };
+      },
+    };
+  },
 };
