@@ -1,6 +1,14 @@
 {
   "rewrites": [
     {
+      "source": "/api/auth/(.*)",
+      "destination": "/api/auth?path=$1"
+    },
+    {
+      "source": "/api/storage/object/(.*)",
+      "destination": "/api/storage/object?path=$1"
+    },
+    {
       "source": "/(.*)",
       "destination": "/index.html"
     }

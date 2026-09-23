@@ -1,23 +1,25 @@
 // Serve chat/media files from the Neon media_files table.
 // Path format: /api/storage/object/<bucket>/<rest...> — public (same as the
 // Supabase public bucket was), immutable content-addressed names.
+// Bracket functions aren't built on this account, so the subpath arrives via
+// rewrite: /api/storage/object/(.*) -> /api/storage/object?path=$1
 export default async function handler(req, res) {
   if (req.method !== 'GET' && req.method !== 'HEAD') {
     res.setHeader('Allow', 'GET, HEAD');
     return res.status(405).json({ error: 'Method not allowed' });
   }
-  const { path: segments } = req.query || {};
-  const parts = Array.isArray(segments) ? segments : (segments ? [segments] : []);
-  if (parts.length < 2) return res.status(400).json({ error: 'Bad path' });
-  const bucket = parts[0];
-  const filePath = parts.slice(1).join('/');
+  const segments = req.query && req.query.path;
+  const parts = Array.isArray(segments) ? segments : (segments ? [String(segments)] : []);
+  const flatParts = parts.flatMap((s) => String(s).split('/')).filter(Boolean);
+  if (flatParts.length < 2) return res.status(400).json({ error: 'Bad path' });
+  const bucket = flatParts[0];
+  const filePath = flatParts.slice(1).join('/');
   if (!/^[a-z-]+$/.test(bucket) || filePath.includes('..')) {
     return res.status(400).json({ error: 'Bad path' });
   }
   try {
     const { neon } = await import('@neondatabase/serverless');
     const sql = neon(process.env.NEON_CONNECTION_STRING);
-    // HEAD requests never need the payload — skip fetching it entirely
     if (req.method === 'HEAD') {
       const meta = await sql`SELECT mime, size FROM media_files WHERE bucket = ${bucket} AND path = ${filePath} LIMIT 1`;
       if (!meta.length) return res.status(404).json({ error: 'Not found' });
