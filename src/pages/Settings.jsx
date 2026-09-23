@@ -252,7 +252,10 @@ function WhatsAppCard({ saved, workspaceId, onSave, onDelete }) {
     window.addEventListener('message', window._nyasaWAListener);
 
     setEmbeddedLoading(true);
-    window.FB.login(async (response) => {
+    // The FB SDK type-checks the login callback and REJECTS async functions
+    // ("Expression is of type asyncfunction, not function") — pass a plain
+    // sync callback and delegate the async work to a helper.
+    const finishEmbedded = async (response) => {
       window.removeEventListener('message', window._nyasaWAListener);
       if (!response?.authResponse?.code) {
         setEmbeddedLoading(false);
@@ -278,12 +281,18 @@ function WhatsAppCard({ saved, workspaceId, onSave, onDelete }) {
       } catch (e) {
         setEmbeddedError(e.message);
       } finally { setEmbeddedLoading(false); }
-    }, {
+    };
+    try {
+      window.FB.login((response) => { finishEmbedded(response); }, {
       config_id: configData.config_id,
       response_type: 'code',
       override_default_response_type: true,
       extras: { setup: {}, sessionInfoVersion: '3' },
-    });
+      });
+    } catch (e) {
+      setEmbeddedLoading(false);
+      setEmbeddedError('Facebook login failed to start: ' + (e.message || e));
+    }
   };
 
   // ── Advanced: discover ────────────────────────────────────────────────────
