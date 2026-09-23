@@ -1,53 +1,18 @@
-import React, { useState, useEffect } from "react";
-import { Link, useNavigate } from "react-router-dom";
-import { supabase } from "@/lib/supabase";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { Lock, Loader2, AlertTriangle } from "lucide-react";
-import AuthLayout from "@/components/AuthLayout";
+// Password reset landing page. The reset email links here as
+// /reset-password?token=<better-auth verification token>; this page posts
+// the token + new password to /api/auth/reset-password.
+import { useState } from 'react';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 
-// Supabase's password-recovery flow doesn't hand you a manual "token" query
-// param — clicking the emailed link lands you back here with the recovery
-// info in the URL hash, which the Supabase client (detectSessionInUrl: true)
-// parses automatically and turns into a temporary logged-in session, firing
-// a PASSWORD_RECOVERY auth event. From there you just call
-// supabase.auth.updateUser({ password }) — no token handling needed at all.
-// (Old code expected ?token=... and called a dead base44.auth.resetPassword()
-// that had nothing to do with our real Supabase auth — it never worked.)
 export default function ResetPassword() {
   const navigate = useNavigate();
-  const [ready, setReady] = useState(false);
-  const [checking, setChecking] = useState(true);
-
+  const [params] = useSearchParams();
+  const token = params.get('token');
   const [newPassword, setNewPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
   const [done, setDone] = useState(false);
-
-  useEffect(() => {
-    let cancelled = false;
-
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
-      if (cancelled) return;
-      if (event === 'PASSWORD_RECOVERY') { setReady(true); setChecking(false); }
-    });
-
-    // Also check immediately in case the recovery session was already
-    // established (e.g. detectSessionInUrl parsed the hash before this
-    // listener attached).
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      if (cancelled) return;
-      if (session) setReady(true);
-      setChecking(false);
-    });
-
-    // Give it a moment to parse the URL hash before giving up
-    const timeout = setTimeout(() => { if (!cancelled) setChecking(false); }, 3000);
-
-    return () => { cancelled = true; subscription.unsubscribe(); clearTimeout(timeout); };
-  }, []);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -59,110 +24,58 @@ export default function ResetPassword() {
     if (passwordVal.length < 8)     { setError("Password must be at least 8 characters"); return; }
     setLoading(true);
     try {
-      const { error: err } = await supabase.auth.updateUser({ password: passwordVal });
-      if (err) throw err;
+      const r = await fetch('/api/auth/reset-password', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ token, newPassword: passwordVal }),
+      });
+      const body = await r.json().catch(() => ({}));
+      if (!r.ok) throw new Error(body?.message || 'This reset link is invalid or has expired.');
       setDone(true);
-      setTimeout(() => navigate('/login', { replace: true }), 1500);
+      setTimeout(() => navigate('/login', { replace: true }), 1800);
     } catch (err) {
-      setError(err.message || "Failed to reset password");
+      setError(err.message || 'Something went wrong. Please request a new reset link.');
     } finally {
       setLoading(false);
     }
   };
 
-  if (checking) {
+  if (!token) {
     return (
-      <AuthLayout icon={Lock} title="Verifying link…" subtitle="Just a moment">
-        <div className="flex justify-center py-4"><Loader2 className="w-6 h-6 animate-spin text-primary" /></div>
-      </AuthLayout>
-    );
-  }
-
-  if (!ready) {
-    return (
-      <AuthLayout
-        icon={AlertTriangle}
-        title="Invalid or expired link"
-        subtitle="This password reset link is missing, invalid, or has expired"
-        footer={
-          <Link to="/forgot-password" className="text-primary font-medium hover:underline">
-            Request a new link
-          </Link>
-        }
-      >
-        <p className="text-sm text-foreground text-center">
-          Please request a new password reset email and use the link within a few minutes of receiving it.
-        </p>
-      </AuthLayout>
-    );
-  }
-
-  if (done) {
-    return (
-      <AuthLayout icon={Lock} title="Password updated" subtitle="Redirecting you to sign in…">
-        <div className="flex justify-center py-4"><Loader2 className="w-6 h-6 animate-spin text-primary" /></div>
-      </AuthLayout>
+      <div className="min-h-screen flex items-center justify-center p-6" style={{ background: '#13131d' }}>
+        <div className="w-full max-w-sm rounded-2xl p-6 text-center" style={{ background: 'rgba(255,255,255,0.04)' }}>
+          <h2 className="text-lg font-semibold text-white mb-2">Invalid reset link</h2>
+          <p className="text-sm text-white/60 mb-4">This page needs a valid reset token from your email.</p>
+          <button onClick={() => navigate('/login')} className="w-full py-2.5 rounded-lg bg-white/10 text-white text-sm">
+            Back to login
+          </button>
+        </div>
+      </div>
     );
   }
 
   return (
-    <AuthLayout
-      icon={Lock}
-      title="New password"
-      subtitle="Enter your new password below"
-    >
-      {error && (
-        <div className="mb-4 p-3 rounded-lg bg-destructive/10 text-destructive text-sm">
-          {error}
-        </div>
-      )}
-      <form onSubmit={handleSubmit} className="space-y-4">
-        <div className="space-y-2">
-          <Label htmlFor="password">New Password</Label>
-          <div className="relative">
-            <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" aria-hidden="true" />
-            <Input
-              id="password"
-              name="password"
-              type="password"
-              autoComplete="new-password"
-              autoFocus
-              placeholder="••••••••"
-              value={newPassword}
-              onChange={(e) => setNewPassword(e.target.value)}
-              className="pl-10 h-12"
-              required
-            />
-          </div>
-        </div>
-        <div className="space-y-2">
-          <Label htmlFor="confirm">Confirm Password</Label>
-          <div className="relative">
-            <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" aria-hidden="true" />
-            <Input
-              id="confirm"
-              name="confirm"
-              type="password"
-              autoComplete="new-password"
-              placeholder="••••••••"
-              value={confirmPassword}
-              onChange={(e) => setConfirmPassword(e.target.value)}
-              className="pl-10 h-12"
-              required
-            />
-          </div>
-        </div>
-        <Button type="submit" className="w-full h-12 font-medium" disabled={loading}>
-          {loading ? (
-            <>
-              <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-              Resetting...
-            </>
-          ) : (
-            "Reset password"
-          )}
-        </Button>
+    <div className="min-h-screen flex items-center justify-center p-6" style={{ background: '#13131d' }}>
+      <form onSubmit={handleSubmit} className="w-full max-w-sm rounded-2xl p-6" style={{ background: 'rgba(255,255,255,0.04)' }}>
+        <h2 className="text-lg font-semibold text-white mb-4">Choose a new password</h2>
+        {done ? (
+          <p className="text-sm text-emerald-400 mb-4">Password updated. Redirecting to login…</p>
+        ) : (
+          <>
+            <input type="password" name="password" placeholder="New password" value={newPassword}
+              onChange={(e) => setNewPassword(e.target.value)} required minLength={8}
+              className="w-full mb-3 px-3 py-2.5 rounded-lg bg-white/5 text-white text-sm outline-none" />
+            <input type="password" name="confirm" placeholder="Confirm new password" value={confirmPassword}
+              onChange={(e) => setConfirmPassword(e.target.value)} required minLength={8}
+              className="w-full mb-3 px-3 py-2.5 rounded-lg bg-white/5 text-white text-sm outline-none" />
+            {error && <p className="text-xs text-red-400 mb-3">{error}</p>}
+            <button type="submit" disabled={loading}
+              className="w-full py-2.5 rounded-lg bg-white text-[#13131d] text-sm font-medium disabled:opacity-50">
+              {loading ? 'Updating…' : 'Update password'}
+            </button>
+          </>
+        )}
       </form>
-    </AuthLayout>
+    </div>
   );
 }

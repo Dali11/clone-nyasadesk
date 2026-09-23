@@ -38,6 +38,26 @@ export const auth = betterAuth({
     enabled: true,
     requireEmailVerification: false,
     autoSignIn: true,
+    sendResetPassword: async ({ user, url }) => {
+      // Resend — same provider the team-invite emails use.
+      const key = process.env.RESEND_API_KEY;
+      if (!key) { console.error('[auth] RESEND_API_KEY missing, cannot send reset email'); return; }
+      await fetch('https://api.resend.com/emails', {
+        method: 'POST',
+        headers: { Authorization: 'Bearer ' + key, 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          from: 'Nyasadesk <no-reply@nyasadesk.com>',
+          to: [user.email],
+          subject: 'Reset your Nyasadesk password',
+          html: `<div style="font-family:sans-serif;max-width:480px;margin:auto">
+            <h2 style="color:#13131d">Reset your password</h2>
+            <p>Hi ${user.name || 'there'}, we received a request to reset your Nyasadesk password.</p>
+            <p><a href="${url}" style="display:inline-block;background:#13131d;color:#fff;padding:12px 24px;border-radius:8px;text-decoration:none">Choose a new password</a></p>
+            <p style="color:#888;font-size:13px">This link expires in 1 hour. If you didn't request this, you can ignore this email.</p>
+          </div>`,
+        }),
+      }).catch(e => console.error('[auth] reset email error:', e.message));
+    },
     password: {
       hash: (password) => bcrypt.hash(password, 10),
       verify: verifyPassword,
