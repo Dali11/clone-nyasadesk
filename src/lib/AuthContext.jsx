@@ -53,16 +53,12 @@ export function AuthProvider({ children }) {
   const signIn  = (email, password) => supabase.auth.signInWithPassword({ email, password });
   const signUp  = (email, password, meta = {}) => supabase.auth.signUp({ email, password, options: { data: meta } });
   const signOut = () => supabase.auth.signOut();
-  const signInWithGoogle = () => supabase.auth.signInWithOAuth({
-    provider: 'google',
-    options: { redirectTo: `${window.location.origin}/` },
-  });
   const resetPassword = (email) => supabase.auth.resetPasswordForEmail(email, {
     redirectTo: `${window.location.origin}/reset-password`,
   });
 
   return (
-    <AuthContext.Provider value={{ user, session, loading, signIn, signUp, signInWithGoogle, signOut, resetPassword }}>
+    <AuthContext.Provider value={{ user, session, loading, signIn, signUp, signOut, resetPassword }}>
       {children}
     </AuthContext.Provider>
   );

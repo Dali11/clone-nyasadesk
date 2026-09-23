@@ -137,9 +137,6 @@ const authFacade = {
       return { data: null, error: { message: e.message } };
     }
   },
-  async signInWithOAuth() {
-    return { data: null, error: { message: 'Google sign-in is temporarily unavailable — please use email and password.' } };
-  },
   onAuthStateChange(callback) {
     authListeners.add(callback);
     // keep listeners in sync with cookie sessions (poll; better-auth has no push)
