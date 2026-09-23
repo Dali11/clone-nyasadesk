@@ -676,7 +676,17 @@ export default function CRM() {
                     key={stage}
                     onDragOver={e => { e.preventDefault(); setDragOverStage(stage); }}
                     onDragLeave={() => setDragOverStage(s => (s === stage ? null : s))}
-                    onDrop={e => { e.preventDefault(); setDragOverStage(null); if (dragId) moveStage(dragId, stage); setDragId(null); }}
+                    onDrop={e => {
+                      e.preventDefault();
+                      setDragOverStage(null);
+                      // DataTransfer payload is authoritative; dragId state is the
+                      // fallback (covers fast drags before React re-renders)
+                      let id = null;
+                      try { id = e.dataTransfer.getData('text/plain'); } catch {}
+                      const target = (id && contacts.some(c => c.id === id)) ? id : dragId;
+                      if (target) moveStage(target, stage);
+                      setDragId(null);
+                    }}
                     className={`w-[260px] shrink-0 rounded-2xl border transition flex flex-col
                       ${dragOverStage === stage ? 'border-[#25D366]/60 bg-[#25D366]/5' : 'border-white/5 bg-[var(--nyasa-surface-2)]'}`}
                   >
