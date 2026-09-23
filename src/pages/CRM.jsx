@@ -55,7 +55,7 @@ function Toast({ msg, type = 'success', onDone }) {
 /* ── KPI strip ─────────────────────────────────────────────────────── */
 function Kpi({ icon: Icon, label, value, sub, accent }) {
   return (
-    <div className="rounded-2xl bg-[var(--nyasa-surface-2)] border border-white/5 px-4 py-3 flex items-center gap-3 min-w-[170px]">
+    <div className="rounded-2xl bg-[var(--nyasa-surface-2)] border border-white/5 px-3 md:px-4 py-3 flex items-center gap-2.5 md:gap-3 w-full md:w-auto md:min-w-[170px]">
       <div className="w-9 h-9 rounded-xl flex items-center justify-center shrink-0" style={{ background: accent + '1f', color: accent }}>
         <Icon className="w-[18px] h-[18px]" />
       </div>
@@ -569,11 +569,11 @@ export default function CRM() {
   const sortLabel = SORTS.find(s => s.value === sort)?.label || 'Sort';
 
   return (
-    <div className="flex h-screen bg-[#0B141A]">
+    <div className="flex h-screen overflow-hidden bg-[#0B141A] pt-14 pb-[56px] md:pt-0 md:pb-0">
       <Sidebar active="/contacts" />
       <div className="flex-1 min-w-0 flex flex-col">
         {/* header */}
-        <div className="px-6 pt-5 pb-3 shrink-0">
+        <div className="px-4 pt-4 pb-3 md:px-6 md:pt-5 shrink-0">
           <div className="flex items-center gap-4 flex-wrap">
             <div className="flex-1 min-w-[220px]">
               <h1 className="text-xl font-bold text-white flex items-center gap-2">
@@ -582,10 +582,10 @@ export default function CRM() {
               </h1>
               <p className="text-xs text-[#8696A0] mt-0.5">Pipeline, deals and every conversation in one place.</p>
             </div>
-            <div className="relative">
+            <div className="relative w-full md:w-64">
               <Search className="w-4 h-4 text-[#8696A0] absolute left-3 top-1/2 -translate-y-1/2" />
               <input
-                className={inp + ' pl-9 w-64'}
+                className={inp + ' pl-9 w-full'}
                 placeholder="Search name, company, tag…"
                 value={search}
                 onChange={e => setSearch(e.target.value)} />
@@ -603,7 +603,7 @@ export default function CRM() {
           </div>
 
           {/* KPIs */}
-          <div className="flex gap-3 mt-4 overflow-x-auto pb-1">
+          <div className="grid grid-cols-2 md:flex gap-2 md:gap-3 mt-4 md:overflow-x-auto pb-1">
             <Kpi icon={TrendingUp} label="Open pipeline" value={fmtK(pipelineValue)} sub={`${openPipeline.length} active deals`} accent="#6366f1" />
             <Kpi icon={Users} label="Contacts" value={contacts.length.toLocaleString()} sub={`${filtered.length} in view`} accent="#60a5fa" />
             <Kpi icon={Trophy} label="Win rate" value={winRate} sub={`${won} won · ${lost} lost`} accent="#a3e635" />
@@ -611,8 +611,8 @@ export default function CRM() {
           </div>
 
           {/* segments + view switch + sort */}
-          <div className="flex items-center gap-2 mt-3 flex-wrap">
-            <div className="flex gap-1.5 overflow-x-auto">
+          <div className="flex flex-col md:flex-row md:items-center gap-2 mt-3">
+            <div className="flex gap-1.5 overflow-x-auto w-full md:w-auto -mx-4 px-4 md:mx-0 md:px-0 md:shrink">
               {SEGMENTS.map(s => (
                 <button key={s.key} onClick={() => setSegment(s.key)}
                   className={`text-xs whitespace-nowrap px-3 py-1.5 rounded-full transition ${segment === s.key ? 'bg-[#25D366] text-[#0B141A] font-semibold' : 'bg-white/5 text-[#8696A0] hover:text-white'}`}>
@@ -620,7 +620,7 @@ export default function CRM() {
                 </button>
               ))}
             </div>
-            <div className="flex-1" />
+            <div className="hidden md:block flex-1" />
             <div className="flex bg-white/5 rounded-xl p-0.5">
               <button onClick={() => setView('pipeline')}
                 className={`flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-lg transition ${view === 'pipeline' ? 'bg-[#25D366] text-[#0B141A] font-semibold' : 'text-[#8696A0]'}`}>
@@ -652,7 +652,7 @@ export default function CRM() {
         </div>
 
         {/* body */}
-        <div className="flex-1 overflow-auto px-6 pb-6">
+        <div className="flex-1 overflow-auto px-4 md:px-6 pb-6">
           {loading ? (
             <div className="h-full flex items-center justify-center">
               <Loader2 className="w-8 h-8 text-[#25D366] animate-spin" />
@@ -687,7 +687,7 @@ export default function CRM() {
                       if (target) moveStage(target, stage);
                       setDragId(null);
                     }}
-                    className={`w-[260px] shrink-0 rounded-2xl border transition flex flex-col
+                    className={`w-[240px] md:w-[260px] shrink-0 rounded-2xl border transition flex flex-col
                       ${dragOverStage === stage ? 'border-[#25D366]/60 bg-[#25D366]/5' : 'border-white/5 bg-[var(--nyasa-surface-2)]'}`}
                   >
                     <div className="px-3 py-2.5 border-b border-white/5">
@@ -721,15 +721,15 @@ export default function CRM() {
             </div>
           ) : (
             <div className="rounded-2xl border border-white/5 overflow-hidden">
-              <div className="grid grid-cols-[2fr_1.2fr_0.8fr_1fr_0.9fr_0.9fr] gap-2 px-4 py-2.5 bg-[var(--nyasa-surface-2)] text-[10px] uppercase tracking-wider text-[#8696A0] font-semibold">
-                <span>Contact</span><span>Company</span><span>Stage</span><span>Value</span><span>Follow-up</span><span className="text-right">Updated</span>
+              <div className="grid grid-cols-[1.7fr_1fr_1fr] md:grid-cols-[2fr_1.2fr_0.8fr_1fr_0.9fr_0.9fr] gap-2 px-3 md:px-4 py-2.5 bg-[var(--nyasa-surface-2)] text-[10px] uppercase tracking-wider text-[#8696A0] font-semibold">
+                <span>Contact</span><span className="hidden md:block">Company</span><span>Stage</span><span>Value</span><span className="hidden md:block">Follow-up</span><span className="hidden md:block text-right">Updated</span>
               </div>
               {sorted.length === 0 && <p className="text-sm text-[#8696A0] text-center py-10">No contacts match this view.</p>}
               {sorted.map(c => {
                 const due = c.next_followup && new Date(c.next_followup) < new Date() && !['Closed Won', 'Closed Lost'].includes(c.deal_stage);
                 return (
                   <button key={c.id} onClick={() => setOpenContact(c)}
-                    className="w-full grid grid-cols-[2fr_1.2fr_0.8fr_1fr_0.9fr_0.9fr] gap-2 items-center px-4 py-2.5 text-left border-t border-white/5 hover:bg-white/[0.03] transition">
+                    className="w-full grid grid-cols-[1.7fr_1fr_1fr] md:grid-cols-[2fr_1.2fr_0.8fr_1fr_0.9fr_0.9fr] gap-2 items-center px-3 md:px-4 py-2.5 text-left border-t border-white/5 hover:bg-white/[0.03] transition">
                     <span className="flex items-center gap-2.5 min-w-0">
                       <Avatar name={c.full_name || '?'} size="sm" src={c.avatar_url} />
                       <span className="min-w-0">
@@ -737,7 +737,7 @@ export default function CRM() {
                         <span className="block text-[11px] text-[#8696A0] truncate">{c.phone || c.email || ''}</span>
                       </span>
                     </span>
-                    <span className="text-xs text-[#8696A0] truncate">{c.company || '—'}</span>
+                    <span className="hidden md:block text-xs text-[#8696A0] truncate">{c.company || '—'}</span>
                     <span>
                       <span className="text-[10px] px-2 py-0.5 rounded-full font-medium inline-block"
                         style={{ background: STAGE_ACCENTS[c.deal_stage || 'New Lead'] + '22', color: STAGE_ACCENTS[c.deal_stage || 'New Lead'] }}>
@@ -745,10 +745,10 @@ export default function CRM() {
                       </span>
                     </span>
                     <span className={`text-xs font-semibold ${c.deal_value != null ? 'text-[#a3e635]' : 'text-[#8696A0]'}`}>{fmtK(c.deal_value)}</span>
-                    <span className={`text-xs ${due ? 'text-amber-300' : 'text-[#8696A0]'}`}>
+                    <span className={`hidden md:block text-xs ${due ? 'text-amber-300' : 'text-[#8696A0]'}`}>
                       {c.next_followup ? new Date(c.next_followup).toLocaleDateString() : '—'}
                     </span>
-                    <span className="text-[11px] text-[#8696A0] text-right">{daysAgo(c.updated_at) === 0 ? 'today' : `${daysAgo(c.updated_at)}d ago`}</span>
+                    <span className="hidden md:block text-[11px] text-[#8696A0] text-right">{daysAgo(c.updated_at) === 0 ? 'today' : `${daysAgo(c.updated_at)}d ago`}</span>
                   </button>
                 );
               })}
