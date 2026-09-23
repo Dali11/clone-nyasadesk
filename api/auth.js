@@ -7,7 +7,7 @@ import { auth } from './_lib/betterAuth.js';
 
 const handler = toNodeHandler(auth.handler);
 
-export default async function (req, res) => {
+export default async function (req, res) {
   const p = req.query && req.query.path;
   if (p) {
     const sub = (Array.isArray(p) ? p.join('/') : String(p)).replace(/^\/+/, '');
