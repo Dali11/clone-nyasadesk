@@ -32,10 +32,60 @@ function lit(v) {
 }
 
 function ident(name) { return `"${String(name).replace(/"/g, '""')}"`; }
+// column reference qualified with the main-table alias (skips literals/paths)
+function qual(c, a = '__t') {
+  c = String(c);
+  return (c.includes('.') || c.includes('(')) ? c : `${a}.${ident(c)}`;
+}
 
-function colList(cols) {
+// split a select list on top-level commas (parentheses respected)
+function splitTopLevel(str) {
+  const parts = []; let depth = 0, cur = '';
+  for (const ch of String(str)) {
+    if (ch === '(') depth++;
+    else if (ch === ')') depth--;
+    if (ch === ',' && depth === 0) { parts.push(cur); cur = ''; continue; }
+    cur += ch;
+  }
+  if (cur.trim() !== '') parts.push(cur);
+  return parts.map(p => p.trim()).filter(Boolean);
+}
+
+// supabase-js embedded-resource select: '*, contact:contacts(id,full_name,...)'
+// becomes a LEFT JOIN on {alias}_id → {table}.id with a JSON object column.
+// Returns { fields, joins }; all main-table columns are qualified with `a`.
+// RETURNING column list for chained .select() on write ops (no joins allowed)
+function returnCols(cols) {
   if (!cols || cols === '*') return '*';
-  return cols.split(',').map(c => c.trim()).map(c => c.includes('.') && !c.includes('(') ? c : ident(c)).join(', ');
+  return splitTopLevel(cols).map(ident).join(', ');
+}
+
+// does this select list contain an embedded resource (alias:table(...))?
+function hasEmbedded(cols) {
+  return /\)\s*$/.test(String(cols || '')) && /:[a-zA-Z_][a-zA-Z0-9_]*\(/.test(String(cols || ''));
+}
+
+function selectParts(cols, a = '__t') {
+  const fields = [], joins = [];
+  let n = 0;
+  for (const tok of splitTopLevel(cols || '*')) {
+    const m = tok.match(/^([a-zA-Z_][a-zA-Z0-9_]*)\s*:\s*([a-zA-Z_][a-zA-Z0-9_]*)\((.*)\)$/);
+    if (m) {
+      const [, alias, table, inner] = m;
+      const jt = `__e${++n}`;
+      const innerCols = splitTopLevel(inner);
+      const obj = innerCols.length === 1 && innerCols[0] === '*'
+        ? `to_jsonb(${jt})`
+        : `json_build_object(${innerCols.map(c => `${lit(c)}, ${jt}.${ident(c)}`).join(', ')})`;
+      fields.push(`CASE WHEN ${jt}.id IS NULL THEN NULL ELSE ${obj} END AS ${ident(alias)}`);
+      joins.push(`LEFT JOIN ${ident(table)} ${jt} ON ${jt}.id = ${a}.${ident(alias + '_id')}`);
+    } else if (tok === '*') {
+      fields.push(`${a}.*`);
+    } else {
+      fields.push(tok.includes('.') && !tok.includes('(') ? tok : `${a}.${ident(tok)}`);
+    }
+  }
+  return { fields: fields.join(', '), joins: joins.join(' ') };
 }
 
 class Builder {
@@ -59,7 +109,9 @@ class Builder {
   catch(fn) { return this.exec().catch(fn); }
 
   select(cols = '*', opts = {}) {
-    this.op = 'select';
+    // supabase-js chains .select() after insert/upsert/update/delete to shape
+    // the RETURNING rows — it must NOT flip the operation into a query.
+    if (!this.op || this.op === 'select') this.op = 'select';
     this.selectCols = typeof cols === 'string' ? cols : '*';
     if (opts.count === 'exact') this.countMode = true;
     if (opts.head) this.head = true;
@@ -70,15 +122,18 @@ class Builder {
   update(data) { this.op = 'update'; this.payload = data; return this; }
   delete() { this.op = 'delete'; return this; }
 
-  eq(c, v) { this.wheres.push(`${ident(c)} = ${lit(v)}`); return this; }
-  neq(c, v) { this.wheres.push(`${ident(c)} <> ${lit(v)}`); return this; }
-  in(c, arr) { this.wheres.push(`${ident(c)} IN (${(arr || []).map(lit).join(', ')})`); return this; }
-  gt(c, v) { this.wheres.push(`${ident(c)} > ${lit(v)}`); return this; }
-  gte(c, v) { this.wheres.push(`${ident(c)} >= ${lit(v)}`); return this; }
-  lt(c, v) { this.wheres.push(`${ident(c)} < ${lit(v)}`); return this; }
-  lte(c, v) { this.wheres.push(`${ident(c)} <= ${lit(v)}`); return this; }
-  like(c, v) { this.wheres.push(`${ident(c)} LIKE ${lit(v)}`); return this; }
-  ilike(c, v) { this.wheres.push(`${ident(c)} ILIKE ${lit(v)}`); return this; }
+  // filter/order clauses store {col, sql}; the main-table alias is applied at
+  // build time so LEFT JOINs from embedded-resource selects can't make
+  // unqualified column references ambiguous.
+  eq(c, v) { this.wheres.push({ col: c, sql: `= ${lit(v)}` }); return this; }
+  neq(c, v) { this.wheres.push({ col: c, sql: `<> ${lit(v)}` }); return this; }
+  in(c, arr) { this.wheres.push({ col: c, sql: `IN (${(arr || []).map(lit).join(', ')})` }); return this; }
+  gt(c, v) { this.wheres.push({ col: c, sql: `> ${lit(v)}` }); return this; }
+  gte(c, v) { this.wheres.push({ col: c, sql: `>= ${lit(v)}` }); return this; }
+  lt(c, v) { this.wheres.push({ col: c, sql: `< ${lit(v)}` }); return this; }
+  lte(c, v) { this.wheres.push({ col: c, sql: `<= ${lit(v)}` }); return this; }
+  like(c, v) { this.wheres.push({ col: c, sql: `LIKE ${lit(v)}` }); return this; }
+  ilike(c, v) { this.wheres.push({ col: c, sql: `ILIKE ${lit(v)}` }); return this; }
   or(expr) {
     // supabase .or('a.eq.1,b.eq.2') — comma-separated OR conditions
     const parts = String(expr).split(',').map(cond => {
@@ -87,13 +142,13 @@ class Builder {
       const [, c, op, rawV] = m;
       const v = rawV === 'null' ? null : rawV;
       const sym = { eq: '=', neq: '<>', gt: '>', gte: '>=', lt: '<', lte: '<=' }[op] || (op === 'like' ? 'LIKE' : '=');
-      return `${ident(c)} ${sym} ${lit(v)}`;
+      return `${qual(c)} ${sym} ${lit(v)}`;
     });
-    this.wheres.push(`(${parts.join(' OR ')})`);
+    this.wheres.push({ col: null, sql: `(${parts.join(' OR ')})` });
     return this;
   }
   order(c, opts = {}) {
-    this.orders.push(`${ident(c)} ${opts.ascending === false ? 'DESC' : 'ASC'}`);
+    this.orders.push(`${qual(c)} ${opts.ascending === false ? 'DESC' : 'ASC'}`);
     return this;
   }
   limit(n) { this.limitN = n; return this; }
@@ -108,8 +163,9 @@ class Builder {
   }
 
   async _run() {
-    const t = ident(this.table);
-    const where = this.wheres.length ? `WHERE ${this.wheres.join(' AND ')}` : '';
+    const t = `${ident(this.table)} AS __t`;
+    const where = this.wheres.length
+      ? `WHERE ${this.wheres.map(w => w.col === null ? w.sql : `${qual(w.col)} ${w.sql}`).join(' AND ')}` : '';
     const order = this.orders.length ? `ORDER BY ${this.orders.join(', ')}` : '';
     const page = `${this.limitN != null ? `LIMIT ${this.limitN}` : ''} ${this.offsetN != null ? `OFFSET ${this.offsetN}` : ''}`.trim();
 
@@ -119,10 +175,12 @@ class Builder {
           const rows = await raw(`SELECT count(*)::int AS c FROM ${t} ${where}`);
           const count = rows[0].c;
           if (this.head) return { data: null, error: null, count, status: 200 };
-          const data = await raw(`SELECT ${colList(this.selectCols)} FROM ${t} ${where} ${order} ${page}`);
+          const sp = selectParts(this.selectCols);
+          const data = await raw(`SELECT ${sp.fields} FROM ${t} ${sp.joins} ${where} ${order} ${page}`);
           return { data, error: null, count, status: 200 };
         }
-        const data = await raw(`SELECT ${colList(this.selectCols)} FROM ${t} ${where} ${order} ${page}`);
+        const sp = selectParts(this.selectCols);
+        const data = await raw(`SELECT ${sp.fields} FROM ${t} ${sp.joins} ${where} ${order} ${page}`);
         if (this.singleMode === 'single' && (!data || data.length === 0)) {
           return { data: null, error: { message: 'No rows found', code: 'PGRST116' }, count: null, status: 406 };
         }
@@ -141,14 +199,26 @@ class Builder {
           const sets = cols.filter(c => !keys.includes(c)).map(c => `${ident(c)} = EXCLUDED.${ident(c)}`);
           conflict = `ON CONFLICT (${keys.map(ident).join(', ')}) DO UPDATE SET ${sets.join(', ') || `${ident(cols[0])} = EXCLUDED.${ident(cols[0])}`}`;
         }
-        const data = await raw(`INSERT INTO ${t} (${cols.map(ident).join(', ')}) VALUES ${values} ${conflict} RETURNING *`);
+        if (hasEmbedded(this.selectCols)) {
+          const sp = selectParts(this.selectCols, '__r');
+          const data = await raw(`WITH __r AS (INSERT INTO ${ident(this.table)} (${cols.map(ident).join(', ')}) VALUES ${values} ${conflict} RETURNING *) SELECT ${sp.fields} FROM __r ${sp.joins} ${this.limitN != null ? `LIMIT ${this.limitN}` : ''}`);
+          return { data: this.singleMode ? (data && data.length ? data[0] : null) : data, error: null, count: null, status: 201 };
+        }
+        const data = await raw(`INSERT INTO ${t} (${cols.map(ident).join(', ')}) VALUES ${values} ${conflict} RETURNING ${returnCols(this.selectCols)}`);
+        if (this.singleMode) return { data: data && data.length ? data[0] : null, error: null, count: null, status: 201 };
         return { data, error: null, count: null, status: 201 };
       }
 
       if (this.op === 'update') {
         if (!this.wheres.length) throw new Error('pgCompat: update() without WHERE refused');
         const sets = Object.entries(this.payload).map(([c, v]) => `${ident(c)} = ${lit(v === undefined ? null : v)}`).join(', ');
-        const data = await raw(`UPDATE ${t} SET ${sets} ${where} RETURNING *`);
+        if (hasEmbedded(this.selectCols)) {
+          // supabase returns .select('*, rel:table(...)') after update — emulate via CTE
+          const sp = selectParts(this.selectCols, '__r');
+          const data = await raw(`WITH __r AS (UPDATE ${t} SET ${sets} ${where} RETURNING *) SELECT ${sp.fields} FROM __r ${sp.joins} ${this.limitN != null ? `LIMIT ${this.limitN}` : ''}`);
+          return { data: this.singleMode ? (data && data.length ? data[0] : null) : data, error: null, count: null, status: 200 };
+        }
+        const data = await raw(`UPDATE ${t} SET ${sets} ${where} RETURNING ${returnCols(this.selectCols)}`);
         return { data, error: null, count: null, status: 200 };
       }
 
@@ -223,7 +293,10 @@ class PgClient {
             .update(String(token)).digest('base64');
           const { auth } = await import('./betterAuth.js');
           const headers = new Headers();
-          headers.append('cookie', `better-auth.session_token=${token}.${sig}`);
+          // BA reads "__Secure-better-auth.session_token" in production (https
+          // baseURL) and the bare name in dev — provide both so either matches.
+          const cv = `${token}.${sig}`;
+          headers.append('cookie', `__Secure-better-auth.session_token=${cv}; better-auth.session_token=${cv}`);
           const s = await auth.api.getSession({ headers });
           if (!s?.user) return { data: { user: null }, error: { message: 'Invalid or expired session' } };
           return { data: { user: s.user }, error: null };

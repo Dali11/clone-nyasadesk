@@ -20,7 +20,7 @@ import {ProfileMenuMobile, ProfileMenuDesktop}from '@/components/ProfileMenu';
 const NAV = [
   { path: '/',           icon: MessageSquare, label: 'Inbox'             },
   { path: '/dashboard',  icon: BarChart2,     label: 'Dashboard'         },
-  { path: '/contacts',   icon: Users,         label: 'Contacts'          },
+  { path: '/contacts',   icon: Users,         label: 'CRM'               },
   { path: '/broadcasts', icon: Megaphone,     label: 'Broadcasts'        },
   { path: '/ai-agents',  icon: Bot,           label: 'AI Agents'         },
   { path: '/rules',      icon: Zap,           label: 'Rules'             },
@@ -32,7 +32,7 @@ const NAV = [
 const MOBILE_NAV = [
   { path: '/',          icon: MessageSquare, label: 'Chats'    },
   { path: '/dashboard', icon: BarChart2,     label: 'Reports'  },
-  { path: '/contacts',  icon: Users,         label: 'Contacts' },
+  { path: '/contacts',  icon: Users,         label: 'CRM' },
   { path: '/settings',  icon: Settings,      label: 'Settings' },
 ];
 

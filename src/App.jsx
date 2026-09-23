@@ -21,7 +21,7 @@ import ResetPassword   from "./pages/ResetPassword";
 import Onboarding      from "./pages/Onboarding";
 import Inbox           from "./pages/Inbox";
 import Dashboard       from "./pages/Dashboard";
-import Contacts        from "./pages/Contacts";
+import CRM             from "./pages/CRM";
 import Broadcasts      from "./pages/Broadcasts";
 import Rules           from "./pages/Rules";
 import CannedResponses from "./pages/CannedResponses";
@@ -181,7 +181,7 @@ function AppRoutes() {
     <Routes>
       <Route path="/"           element={<Inbox />} />
       <Route path="/dashboard"  element={<Dashboard />} />
-      <Route path="/contacts"   element={<Contacts />} />
+      <Route path="/contacts"   element={<CRM />} />
       <Route path="/broadcasts" element={<Broadcasts />} />
       <Route path="/rules"      element={<Rules />} />
       <Route path="/canned"     element={<CannedResponses />} />
@@ -228,7 +228,7 @@ function AppRoutes() {
 // Pages that live alongside Inbox (rendered once, toggled visible)
 const SECONDARY_PAGES = [
   { path: '/dashboard',  Component: Dashboard       },
-  { path: '/contacts',   Component: Contacts        },
+  { path: '/contacts',   Component: CRM             },
   { path: '/broadcasts', Component: Broadcasts      },
   { path: '/rules',      Component: Rules           },
   { path: '/canned',     Component: CannedResponses },
