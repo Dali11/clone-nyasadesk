@@ -1337,13 +1337,13 @@ export default function Settings() {
   // has identities[0].identity_data with no password provider.
   const [hasPassword, setHasPassword] = useState(null); // null = loading
   useEffect(() => {
-    supabase.auth.getUser().then(({ data }) => {
-      const identities = data?.user?.identities || [];
-      const emailIdentity = identities.find(i => i.provider === 'email');
-      // If no email identity exists at all, user logged in via Google/Facebook
-      // and has never set a password. Treat as "no password".
-      setHasPassword(!!emailIdentity);
-    }).catch(() => setHasPassword(true)); // fail safe: show current pw field
+    // Better Auth: ask the server whether this user has a credential (email+
+    // password) account. The old Supabase identities[] check no longer exists
+    // under Better Auth and always reported "no password".
+    fetch('/api/password', { credentials: 'include' })
+      .then(r => r.ok ? r.json() : Promise.reject(new Error(`HTTP ${r.status}`)))
+      .then(({ hasPassword }) => setHasPassword(!!hasPassword))
+      .catch(() => setHasPassword(true)); // fail safe: show current pw field
   }, []);
 
   // ── Subscription state ────────────────────────────────────────────────

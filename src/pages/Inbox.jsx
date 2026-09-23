@@ -514,12 +514,7 @@ export default function Inbox() {
               <MessageSquareOff className="w-10 h-10 text-gray-700" />
               <p className="text-sm text-gray-500">No conversations yet</p>
               <p className="text-xs text-gray-600">Connect a channel in Settings to start receiving messages.</p>
-              {/* Hint if this looks like a mis-linked account */}
-              {!profile?.workspace_id && user?.email && conversations.length === 0 && (
-                <p className="text-[11px] text-yellow-500/80 bg-yellow-500/10 border border-yellow-500/20 rounded-lg px-3 py-2 mt-2 max-w-xs">
-                  If you expected to see conversations here, make sure you're logged in with the correct account (the workspace owner's email).
-                </p>
-              )}
+
             </div>
           ) : (
             <ConvList conversations={filtered} activeId={activeConv?.id} onSelect={handleSelect} users={teamUsers} onBulkAction={handleBulkAction} canAssign={canViewAllChats} />

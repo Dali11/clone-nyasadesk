@@ -137,7 +137,7 @@ export default function Sidebar({ hideMobileChrome = false } = {}) {
                     {user?.full_name || user?.email || 'You'}
                   </p>
                   <p className="text-[11px] text-[#8696A0] truncate leading-tight capitalize">
-                    {user?.role || 'agent'}
+                    {profile?.role || user?.role || 'agent'}
                   </p>
                 </div>
               </div>

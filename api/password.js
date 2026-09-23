@@ -7,6 +7,21 @@ import bcrypt from 'bcryptjs';
 import { createClient } from './_lib/dbFactory.js';
 
 export default async function handler(req, res) {
+  // GET → { hasPassword }: does the session user have a credential (email+password) account?
+  if (req.method === 'GET') {
+    try {
+      const session = await auth.api.getSession({ headers: req.headers });
+      if (!session?.user) return res.status(401).json({ error: 'Not authenticated' });
+      const db = createClient(null, null);
+      const { data } = await db.from('account')
+        .select('password')
+        .eq('userId', session.user.id).eq('providerId', 'credential').maybeSingle();
+      return res.status(200).json({ hasPassword: !!(data?.password) });
+    } catch (e) {
+      console.error('[password:GET]', e.message);
+      return res.status(500).json({ error: e.message });
+    }
+  }
   if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' });
   try {
     const session = await auth.api.getSession({ headers: req.headers });
