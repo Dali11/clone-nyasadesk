@@ -571,7 +571,7 @@ export default function CRM() {
   return (
     <div className="flex h-screen overflow-hidden bg-[#0B141A] pt-14 pb-[56px] md:pt-0 md:pb-0">
       <Sidebar active="/contacts" />
-      <div className="flex-1 min-w-0 flex flex-col">
+      <div className="flex-1 min-w-0 flex flex-col overflow-y-auto md:overflow-hidden">
         {/* header */}
         <div className="px-4 pt-4 pb-3 md:px-6 md:pt-5 shrink-0">
           <div className="flex items-center gap-4 flex-wrap">
@@ -652,7 +652,7 @@ export default function CRM() {
         </div>
 
         {/* body */}
-        <div className="flex-1 overflow-auto px-4 md:px-6 pb-6">
+        <div className="flex-1 px-4 md:px-6 pb-6 md:overflow-auto min-h-[55vh] md:min-h-0">
           {loading ? (
             <div className="h-full flex items-center justify-center">
               <Loader2 className="w-8 h-8 text-[#25D366] animate-spin" />
