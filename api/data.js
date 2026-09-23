@@ -7,7 +7,7 @@
 import { auth } from './_lib/betterAuth.js';
 import { createClient } from './_lib/dbFactory.js';
 
-const FILTER_OPS = new Set(['eq', 'neq', 'in', 'gt', 'gte', 'lt', 'lte', 'like', 'ilike', 'or']);
+const FILTER_OPS = new Set(['eq', 'neq', 'in', 'gt', 'gte', 'lt', 'lte', 'like', 'ilike', 'or', 'is']);
 const ACTIONS = new Set(['select', 'insert', 'upsert', 'update', 'delete']);
 
 export default async function handler(req, res) {

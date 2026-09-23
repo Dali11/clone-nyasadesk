@@ -475,7 +475,7 @@ async function handleWorkspaceDetail(req, res, sb) {
     const [ownerRes, teamRes, convRes, txnRes, agentRes] = await Promise.all([
       sb.from('profiles').select('*').eq('id', workspaceId).maybeSingle(),
       sb.from('profiles').select('id, full_name, role, updated_at').or(`workspace_id.eq.${workspaceId},id.eq.${workspaceId}`),
-      sb.from('conversations').select('id, contact_name, channel, status, last_message, last_message_at').eq('workspace_id', workspaceId).order('last_message_at', { ascending: false }).limit(10),
+      sb.from('conversations').select('id, channel, status, last_message, last_message_at, contact:contacts(full_name)').eq('workspace_id', workspaceId).order('last_message_at', { ascending: false }).limit(10),
       sb.from('transactions').select('id, tx_ref, plan, amount, currency, status, created_at').eq('workspace_id', workspaceId).order('created_at', { ascending: false }).limit(10),
       sb.from('ai_agents').select('id, name, status, automation_mode, enabled_channels').eq('workspace_id', workspaceId),
     ]);

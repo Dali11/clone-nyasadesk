@@ -130,7 +130,8 @@ export async function autoLinkConversationContact(workspaceId, conversationId, c
     .from('conversations')
     .update({
       contact_id: contact.id,
-      contact_name: contact.full_name,
+      // contact_name was never a real conversations column — inserting it
+      // made this update fail silently; the name resolves via the join.
     })
     .eq('id', conversationId)
     .is('contact_id', null); // only if not already linked
@@ -1220,7 +1221,7 @@ export async function resolveUnknownContacts(workspaceId, conversations) {
       if (!conv.contact_id) {
         updates.push(
           supabase.from('conversations')
-            .update({ contact_id: match.id, contact_name: match.full_name })
+            .update({ contact_id: match.id })
             .eq('id', conv.id)
             .is('contact_id', null)
         );
@@ -1270,11 +1271,13 @@ export async function startConversationWithContact(workspaceId, contact) {
   const { data, error } = await supabase.from('conversations').insert({
     workspace_id: workspaceId,
     contact_id: contact.id,
-    contact_name: contact.full_name,
-    contact_phone: contact.phone,
+    // NOTE: contact_name / contact_phone / last_message_preview were never
+    // real conversations columns (both backends) — the insert errored and the
+    // CRM "Message" button failed. Name/phone come from the contact join;
+    // the real preview column is last_message.
     channel: 'whatsapp',
     status: 'open',
-    last_message_preview: '',
+    last_message: '',
   }).select('id').single();
   if (error) throw error;
   return data.id;

@@ -133,6 +133,11 @@ class Builder {
   lt(c, v) { this.wheres.push({ col: c, sql: `< ${lit(v)}` }); return this; }
   lte(c, v) { this.wheres.push({ col: c, sql: `<= ${lit(v)}` }); return this; }
   like(c, v) { this.wheres.push({ col: c, sql: `LIKE ${lit(v)}` }); return this; }
+  is(c, v) {
+    const sql = v === null ? 'IS NULL' : v === true ? 'IS TRUE' : v === false ? 'IS FALSE' : `= ${lit(v)}`;
+    this.wheres.push({ col: c, sql });
+    return this;
+  }
   ilike(c, v) { this.wheres.push({ col: c, sql: `ILIKE ${lit(v)}` }); return this; }
   or(expr) {
     // supabase .or('a.eq.1,b.eq.2') — comma-separated OR conditions

@@ -409,7 +409,9 @@ async function createInternalConvHandler(req, res, sb, sbAnon) {
     workspace_id,
     channel: 'internal',
     contact_id: contactId,
-    contact_name: recipName,
+    // NOTE: conversations has no contact_name column (it never did, on either
+    // backend) — inserting it errored, which is why internal chats failed to
+    // create. The recipient's name resolves via the contact join.
     assigned_to: recipient_id,
     status: 'open',
     priority: 'normal',

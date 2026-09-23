@@ -163,7 +163,7 @@ function buildFrom(table) {
     delete() { state.action = 'delete'; return b; },
     eq: addFilter('eq'), neq: addFilter('neq'), in: addFilter('in'),
     gt: addFilter('gt'), gte: addFilter('gte'), lt: addFilter('lt'), lte: addFilter('lte'),
-    like: addFilter('like'), ilike: addFilter('ilike'), or: addFilter('or'),
+    like: addFilter('like'), ilike: addFilter('ilike'), or: addFilter('or'), is: addFilter('is'),
     order(col, opts) { state.order.push({ col, asc: opts?.ascending !== false }); return b; },
     limit(n) { state.limit = n; return b; },
     range(from, to) { state.offset = from; state.limit = to - from + 1; return b; },
