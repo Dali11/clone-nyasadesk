@@ -8,7 +8,6 @@ import { WA_GREEN, SURFACE, SURFACE2, TEXT, MUTED, CONTACT_WHATSAPP } from '@/li
 const CORE_ITEMS = [
   { icon: Inbox,       title: 'Omnichannel Inbox',    desc: 'WhatsApp, Messenger, Instagram, Telegram, email & chat — one inbox.',   href: '/#product'     },
   { icon: Bot,         title: 'AI Agents',             desc: 'An AI teammate that replies, drafts, or works fully autonomously.',       href: '/#ai-agents'   },
-  { icon: FileText,    title: 'Quotes & Invoices',     desc: 'Branded PDFs sent straight from the chat, with payment tracking.',        href: '/#documents'   },
   { icon: RefreshCw,   title: 'Automation & Rules',    desc: 'Round-robin, SLA tracking, and smart assignment — built for teams.',      href: '/#product'     },
 ];
 

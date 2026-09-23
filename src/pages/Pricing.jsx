@@ -15,7 +15,7 @@ const PLANS = [
   },
   {
     key: 'growth', name: 'Growth', period: '/mo', seats: '5 team members', highlight: true,
-    features: ['Everything in Starter', 'Quotes & invoices with payment tracking', 'Broadcast campaigns', 'SLA tracking & alerts', 'Round-robin & smart assignment rules'],
+    features: ['Everything in Starter', 'Broadcast campaigns', 'SLA tracking & alerts', 'Round-robin & smart assignment rules'],
     cta: 'Get started',
   },
   {

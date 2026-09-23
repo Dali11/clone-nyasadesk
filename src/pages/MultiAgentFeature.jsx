@@ -55,7 +55,6 @@ const PLANS = [
     seats: '5 agents', highlight: true,
     features: [
       'Everything in Starter',
-      'Branded quotes & invoices with payment tracking',
       'Broadcast campaigns to your contact list',
       'SLA tracking & breach alerts',
       'Round-robin & smart auto-assignment',

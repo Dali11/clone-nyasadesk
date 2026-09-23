@@ -82,13 +82,13 @@ export const AI_AGENT_TEMPLATES = [
   {
     key: 'finance_manager',
     name: 'Finance Manager',
-    description: 'Handles payments, invoices, quotations, and billing — can create and send real documents.',
+    description: 'Handles payment status, outstanding balances, and billing questions.',
     role: 'Finance Manager',
     agent_type: 'finance_manager',
     message_cap: null,
     personality: 'Precise, trustworthy, proactive',
     tone: 'Professional and clear',
-    system_instructions: 'You are the Finance Manager for {business_name}. You help customers with: payment status, invoices (you can create and send quotations/invoices using your tools), payment instructions, outstanding balances, and billing questions. Be precise — never invent amounts or dates you don\'t know. For disputes or refunds escalate to a human. Always offer to send a formal quotation or invoice when relevant.',
+    system_instructions: 'You are the Finance Manager for {business_name}. You help customers with: payment status, payment instructions, outstanding balances, and billing questions. Be precise — never invent amounts or dates you don\'t know. For disputes or refunds escalate to a human. Offer to connect them with a human teammate for anything requiring document creation or account changes.',
   },
   {
     key: 'followup',
@@ -207,20 +207,6 @@ function normaliseMarkdownLinks(text) {
   );
 }
 
-function stripRedundantLinks(text) {
-  if (!text) return text;
-  let cleaned = text
-    // markdown links: [label](https://...)
-    .replace(/\[([^\]]*)\]\(https?:\/\/[^\s)]+\)/gi, '')
-    // bare URLs
-    .replace(/https?:\/\/\S+/gi, '')
-    // leftover "here ." / "here!" artifacts left behind after stripping a link
-    .replace(/\b(here|this link|link)\b\s*([.!,]|$)/gi, '$2')
-    .replace(/[ \t]{2,}/g, ' ')
-    .replace(/\s+([.,!?])/g, '$1')
-    .trim();
-  return cleaned;
-}
 
 export async function generateDraftReply(agent, recentMessages, contact, knowledge, ctx = {}) {
   if (!OPENAI_API_KEY) throw new Error('OPENAI_API_KEY is not configured on the server');
@@ -259,7 +245,6 @@ export async function generateDraftReply(agent, recentMessages, contact, knowled
     (Array.isArray(ctx.tools) && ctx.tools.length)
       ? [
           'You have access to the following tools. USE THEM when the conversation calls for it -- do not type out text that a tool should handle:',
-          '- create_quotation / create_invoice: Generates a professional PDF document and sends it automatically. After calling, just acknowledge naturally. Never paste the PDF URL.',
           '- register_student: Registers a new student account. Call this ONCE when a student wants to join/register. You need their full_name and phone number. The system auto-generates email and password. Do NOT ask for email or password.',
           '- generate_login_link: Generates a one-tap login link for a student. Call this when a student wants to log in, start learning, or access their courses. You need their phone number. Reply with the link and a short encouraging message.',
           'IMPORTANT: When a student wants to log in or start learning, call generate_login_link -- do NOT give them a manual URL or tell them to go to the website. When a student wants to register/join, call register_student -- do NOT tell them to go to a registration page. The tools handle everything.',
@@ -288,12 +273,11 @@ export async function generateDraftReply(agent, recentMessages, contact, knowled
   ];
 
   const modelUsed = agent.model || DEFAULT_MODEL;
-  // Phase 2 of the Quotation & Invoice Builder: when the caller wires up
-  // ctx.tools + ctx.executeTool (currently only the fully-automated auto-
-  // reply path -- see aiAutoReply.js -- deliberately NOT the human-reviewed
-  // draft path, since that would create/send real documents before a human
-  // ever sees the reply), the agent can call create_quotation/create_invoice
-  // mid-conversation instead of ever hand-typing one. This runs a bounded
+  // When the caller wires up ctx.tools + ctx.executeTool (currently only
+  // the fully-automated auto-reply path -- see aiAutoReply.js -- deliberately
+  // NOT the human-reviewed draft path, since that would take real external
+  // actions before a human ever sees the reply), the agent can call external
+  // webhook tools mid-conversation. This runs a bounded
   // tool-calling loop: ask the model, execute any tool calls it requests,
   // feed the results back, repeat until it produces plain text.
   const hasTools = Array.isArray(ctx.tools) && ctx.tools.length && typeof ctx.executeTool === 'function';
@@ -357,9 +341,6 @@ export async function generateDraftReply(agent, recentMessages, contact, knowled
     if (lastToolResult.link) {
       // generate_login_link — the URL IS the payload, must include it
       finalText = `Here's your one-tap login link: ${lastToolResult.link}\n\nTap it and you'll be logged in instantly!`;
-    } else if (lastToolResult.document_type) {
-      const label = lastToolResult.document_type === 'invoice' ? 'invoice' : 'quotation';
-      finalText = `Here's your ${label} (#${lastToolResult.number}) -- let me know if you'd like any changes!`;
     } else if (lastToolResult.registered !== undefined) {
       // register_student — account created
       finalText = `You're registered! Welcome to the academy. What would you like to do next?`;
@@ -383,13 +364,6 @@ export async function generateDraftReply(agent, recentMessages, contact, knowled
     .replace(/\*([^*]+)\*/g, '$1')          // *italic*
     .replace(/^#{1,3}\s+/gm, '')             // ### headers
     .trim();
-  // For tool-call results (quotation/invoice PDF), also strip the redundant URL
-  // since the document arrives as an attachment — the customer already sees it.
-  // Only strip redundant URLs for document tools (quotation/invoice) where the
-  // PDF arrives as a separate attachment. For webhook tools like generate_login_link,
-  // the URL IS the payload — stripping it would delete the magic link the student needs.
-  if (lastToolResult?.ok && lastToolResult?.document_type) finalText = stripRedundantLinks(finalText);
-
   // Fire-and-forget usage logging -- never let a logging failure break the
   // actual reply that's already been generated successfully.
   if (ctx.sb && ctx.workspaceId && (promptTokens || completionTokens)) {

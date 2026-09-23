@@ -8,7 +8,6 @@ const COLUMNS = [
     links: [
       { label: 'Omnichannel Inbox', href: '/#product'    },
       { label: 'AI Agents',         href: '/#ai-agents'  },
-      { label: 'Quotes & Invoices', href: '/#documents'  },
       { label: 'Pricing',           href: '/pricing'     },
     ],
   },
@@ -52,7 +51,7 @@ export default function MarketingFooter() {
               <span style={{ fontWeight: 800, fontSize: 16, color: TEXT, letterSpacing: '-.01em' }}>Nyasadesk</span>
             </div>
             <p style={{ color: MUTED, fontSize: 13.5, lineHeight: 1.65, maxWidth: 260, marginBottom: 20 }}>
-              The shared sales inbox for teams who sell over WhatsApp, Messenger, email, and chat — with an AI agent that replies, quotes, and invoices on its own.
+              The shared sales inbox for teams who sell over WhatsApp, Messenger, email, and chat — with an AI agent that replies on its own.
             </p>
             <a
               href={CONTACT_WHATSAPP}

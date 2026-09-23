@@ -32,8 +32,8 @@ const BOTS = [
   {
     icon: '🧾',
     name: 'Finance Manager',
-    tagline: 'Sends real quotes & invoices in the chat',
-    desc: 'Handles billing questions and can actually generate and send branded PDF quotations and invoices — right inside the WhatsApp thread.',
+    tagline: 'Answers billing questions instantly',
+    desc: 'Handles payment status, outstanding balances, and billing questions — and hands anything sensitive to a human teammate.',
     color: '#F5A623',
   },
   {
@@ -63,26 +63,26 @@ const BOTS = [
 const CHAT = [
   { from: 'customer', text: 'Hi, are you open?' },
   { from: 'bot',      text: 'Hi there! 👋 Yes, we\'re here. Are you looking to buy, or do you have a question about an existing order?' },
-  { from: 'customer', text: 'I want to buy — need a quote for 500 branded t-shirts' },
-  { from: 'bot',      text: 'Great! Let me pull that together for you. Can I get your name and company so I can send a formal quotation?' },
+  { from: 'customer', text: 'I want to buy — do you have branded t-shirts?' },
+  { from: 'bot',      text: 'We do! Let me check availability and pricing for you. Can I get your name so a teammate can follow up with a formal quote?' },
   { from: 'customer', text: 'James Banda, Banda Events' },
-  { from: 'bot',      text: '📄 Perfect — I\'ve generated a quotation for 500 branded t-shirts and sent it to this chat. Your sales manager has also been notified.' },
+  { from: 'bot',      text: 'Perfect — 500 branded t-shirts are in stock. I\'ve passed your details to our sales manager, who\'ll follow up with a formal quote shortly. 👍' },
 ];
 
 const STEPS = [
   { n: '01', title: 'Pick a template', body: 'Choose from Receptionist, Sales, Support, Finance Manager, Follow-up, or Booking Agent. Or build your own from scratch.' },
   { n: '02', title: 'Train it on your business', body: 'Paste in your FAQs, upload PDFs, link your website. The bot learns your products, prices, and policies — not generic nonsense.' },
   { n: '03', title: 'Set the rules', body: 'Choose draft mode (agent approves before sending) or full auto. Set which channels it covers and when to hand off to a human.' },
-  { n: '04', title: 'Go live', body: 'Your bot is live on WhatsApp in minutes. It replies, qualifies, books, and sends quotes — while your team handles only the conversations that need a human touch.' },
+  { n: '04', title: 'Go live', body: 'Your bot is live on WhatsApp in minutes. It replies, qualifies, and books — while your team handles only the conversations that need a human touch.' },
 ];
 
 const WHY = [
   { icon: Shield,       title: 'No ban risk', body: 'Runs on Meta\'s official WhatsApp Cloud API. No grey-market workarounds, no wakeup calls that your number got blocked.' },
   { icon: BookOpen,     title: 'Trained on your knowledge', body: 'Feed it your own PDFs, docs, and web pages. It answers from your information, not the internet.' },
-  { icon: FileText,     title: 'Generates real documents', body: 'The Finance Manager bot can create and send branded PDF quotes and invoices straight into the chat thread.' },
+  { icon: FileText,       title: 'Handles money questions', body: 'The Finance Manager bot answers payment status, balances, and billing questions instantly — escalating anything sensitive to a human.' },
   { icon: Users,        title: 'Seamless human handoff', body: 'The moment a human agent types a reply, the bot steps aside. No awkward overlap, no duplicate messages.' },
   { icon: MessageSquare,title: 'Works across all your channels', body: 'Same bot, same knowledge — WhatsApp, Messenger, Instagram DMs, website chat, and Telegram.' },
-  { icon: Zap,          title: 'One platform, one price', body: 'Your AI chatbot, your full team inbox, CRM, broadcasts, and quote builder — all in a single K120,000/mo plan.' },
+  { icon: Zap,          title: 'One platform, one price', body: 'Your AI chatbot, your full team inbox, CRM, and broadcasts — all in a single K120,000/mo plan.' },
 ];
 
 export default function WhatsappChatbots() {
@@ -194,7 +194,7 @@ export default function WhatsappChatbots() {
           <p style={{ color: MUTED, fontSize: 16, lineHeight: 1.75, maxWidth: 580, margin: '0 auto' }}>
             Most chatbot platforms are one product, your team inbox is another,
             and your CRM is a third. You end up paying three subscriptions and stitching them together yourself.
-            Nyasadesk Scale gives you all three — plus quotes, invoices, broadcasts, and SLA tracking — in one.
+            Nyasadesk Scale gives you all three — plus broadcasts and SLA tracking — in one.
           </p>
         </div>
 
@@ -208,7 +208,6 @@ export default function WhatsappChatbots() {
               ['Chatbot platform', '~K45,000/mo'],
               ['Team inbox tool', '~K30,000/mo'],
               ['CRM', '~K20,000/mo'],
-              ['Invoice software', '~K15,000/mo'],
             ].map(([name, price]) => (
               <div key={name} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '10px 0', borderBottom: `1px solid ${SURFACE2}`, fontSize: 13 }}>
                 <span style={{ color: MUTED }}>{name}</span>
@@ -232,7 +231,6 @@ export default function WhatsappChatbots() {
               'Shared team inbox — unlimited agents',
               'Omnichannel: WhatsApp, email, Instagram, more',
               'Contact CRM & deal stages',
-              'Quotes & invoices with payment tracking',
               'Broadcast campaigns',
               'SLA tracking, assignment rules & reports',
               'Priority support & onboarding',
@@ -349,7 +347,7 @@ export default function WhatsappChatbots() {
             Scale plan · K120,000/mo
           </div>
           <p style={{ color: MUTED, fontSize: 16, lineHeight: 1.7, marginBottom: 32, maxWidth: 480, margin: '0 auto 32px' }}>
-            AI chatbot + unlimited agents + all channels + CRM + quotes & invoices.
+            AI chatbot + unlimited agents + all channels + CRM.
             One price. No add-ons. No surprises.
           </p>
 
@@ -360,7 +358,6 @@ export default function WhatsappChatbots() {
               'WhatsApp + 4 more channels',
               'Knowledge base training',
               'Draft or fully auto mode',
-              'Quotes & invoices in-chat',
               'Broadcast campaigns',
               'Priority support',
             ].map(f => (
@@ -391,7 +388,7 @@ export default function WhatsappChatbots() {
         <div style={{ maxWidth: 860, margin: '0 auto', display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))', gap: 24 }}>
           {[
             { quote: 'The bot handles all our first responses now. By the time a human picks it up, the customer is already qualified. Our close rate went up significantly.', name: 'Techno Mart', role: 'Electronics Retailer, Lilongwe' },
-            { quote: 'The Finance Manager bot actually sends quotes by itself. Customers get a professional PDF in seconds — we used to take hours to do that manually.', name: 'Brandfletch Media', role: 'Digital Agency, Blantyre' },
+            { quote: 'The Finance Manager bot answers billing questions before we even see them. Customers get instant answers — we used to take hours to reply manually.', name: 'Brandfletch Media', role: 'Digital Agency, Blantyre' },
           ].map(t => (
             <div key={t.name} style={{ background: '#111B21', border: `1px solid ${SURFACE2}`, borderRadius: 16, padding: '28px 26px' }}>
               <div style={{ display: 'flex', gap: 3, marginBottom: 16 }}>

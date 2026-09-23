@@ -24,13 +24,10 @@ const MOCK_MSGS = [
 const AI_POINTS = [
   'Trained on your own knowledge base — PDFs, docs, and web pages',
   'Draft-and-approve mode, or fully autonomous replies',
-  'Can generate and send a real quote or invoice mid-conversation',
   'Hands off to a human the moment someone takes over the chat',
 ];
 
 const DOC_POINTS = [
-  'Branded PDF quotes & invoices, generated in seconds',
-  'One click converts an accepted quote into an invoice',
   'Partial payments tracked automatically — draft → partial → paid',
   'Share by WhatsApp, email, or straight into the chat thread',
 ];
@@ -47,7 +44,7 @@ export default function Landing() {
             <span style={{ color: WA_GREEN }}>sales inbox.</span>
           </h1>
           <p style={{ fontSize: 16, color: MUTED, lineHeight: 1.7, marginBottom: 36, maxWidth: 460 }}>
-            Nyasadesk brings WhatsApp, Messenger, email, and live chat into one inbox your whole team can work from — with an AI agent, contact CRM, and quote &amp; invoice builder built right in.
+            Nyasadesk brings WhatsApp, Messenger, email, and live chat into one inbox your whole team can work from — with an AI agent and contact CRM built right in.
           </p>
           <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap' }}>
             <Link to="/register" style={{ background: WA_GREEN, color: '#fff', textDecoration: 'none', fontWeight: 700, fontSize: 15, padding: '14px 28px', borderRadius: 12, display: 'flex', alignItems: 'center', gap: 8 }}>
@@ -157,13 +154,13 @@ export default function Landing() {
                   Hi, do you have a package for a 5-person team?
                 </div>
                 <div style={{ alignSelf: 'flex-end', background: WA_DARK_GREEN, color: '#fff', fontSize: 13, padding: '10px 14px', borderRadius: '14px 14px 4px 14px', maxWidth: '85%' }}>
-                  Yes — that's our Growth plan at K50,000/mo. Want me to send over a quotation?
+                  Yes — that's our Growth plan at K50,000/mo. Want the full feature list?
                 </div>
                 <div style={{ alignSelf: 'flex-start', background: SURFACE2, color: TEXT, fontSize: 13, padding: '10px 14px', borderRadius: '14px 14px 14px 4px', maxWidth: '85%' }}>
                   Yes please
                 </div>
                 <div style={{ alignSelf: 'flex-end', background: WA_DARK_GREEN, color: '#fff', fontSize: 13, padding: '10px 14px', borderRadius: '14px 14px 4px 14px', maxWidth: '88%', display: 'flex', alignItems: 'center', gap: 8 }}>
-                  <FileText size={16} /> Quotation QUO-2026-0142 sent ✅
+                  <FileText size={16} /> Sent! Check it out — anything else I can help with? ✅
                 </div>
               </div>
             </div>
@@ -171,47 +168,6 @@ export default function Landing() {
         </div>
       </section>
 
-      {/* QUOTES & INVOICES SPOTLIGHT */}
-      <section id="documents" style={{ borderTop: `1px solid ${SURFACE2}`, padding: '80px 24px', scrollMarginTop: 64 }}>
-        <div style={{ maxWidth: 1100, margin: '0 auto', display: 'flex', alignItems: 'center', gap: 56, flexWrap: 'wrap-reverse' }}>
-          <div style={{ flex: '1 1 320px', maxWidth: 380 }}>
-            <div style={{ background: SURFACE, borderRadius: 20, padding: 24, border: `1px solid ${SURFACE2}`, boxShadow: '0 24px 64px rgba(0,0,0,0.4)' }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 18 }}>
-                <span style={{ fontWeight: 700, fontSize: 15, color: TEXT }}>Invoice INV-2026-0087</span>
-                <span style={{ background: `${WA_GREEN}20`, color: WA_GREEN, fontSize: 11, fontWeight: 700, padding: '4px 10px', borderRadius: 999 }}>PAID</span>
-              </div>
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 10, marginBottom: 18 }}>
-                {[ ['Growth plan — 3 months', 'K90,000'], ['Onboarding assistance', 'K15,000'] ].map(([label, amt]) => (
-                  <div key={label} style={{ display: 'flex', justifyContent: 'space-between', fontSize: 13, color: MUTED }}>
-                    <span>{label}</span><span style={{ color: TEXT }}>{amt}</span>
-                  </div>
-                ))}
-              </div>
-              <div style={{ borderTop: `1px solid ${SURFACE2}`, paddingTop: 14, display: 'flex', justifyContent: 'space-between' }}>
-                <span style={{ fontWeight: 700, color: TEXT }}>Total</span>
-                <span style={{ fontWeight: 800, color: WA_GREEN, fontSize: 17 }}>K105,000</span>
-              </div>
-            </div>
-          </div>
-          <div style={{ flex: '1 1 380px' }}>
-            <div style={{ display: 'inline-flex', alignItems: 'center', gap: 8, background: `${WA_GREEN}20`, color: WA_GREEN, fontSize: 12, fontWeight: 700, padding: '6px 14px', borderRadius: 999, marginBottom: 18 }}>
-              <FileText size={13} /> QUOTES &amp; INVOICES
-            </div>
-            <h2 style={{ fontSize: 32, fontWeight: 800, color: TEXT, marginBottom: 16, lineHeight: 1.2 }}>Quotes and invoices, sent from the same chat</h2>
-            <p style={{ color: MUTED, fontSize: 15, lineHeight: 1.7, marginBottom: 24, maxWidth: 460 }}>
-              No separate accounting tool needed. Build a branded quote, send it, and once it's accepted convert it to an invoice in one click — right from the conversation.
-            </p>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-              {DOC_POINTS.map(p => (
-                <div key={p} style={{ display: 'flex', gap: 10, alignItems: 'flex-start' }}>
-                  <Check size={17} color={WA_GREEN} style={{ flexShrink: 0, marginTop: 2 }} />
-                  <span style={{ fontSize: 14.5, color: TEXT }}>{p}</span>
-                </div>
-              ))}
-            </div>
-          </div>
-        </div>
-      </section>
 
       {/* PRICING TEASER — full tiers live on /pricing */}
       <section style={{ borderTop: `1px solid ${SURFACE2}`, padding: '64px 24px', background: SURFACE, textAlign: 'center' }}>

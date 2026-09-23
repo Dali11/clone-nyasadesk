@@ -17,7 +17,6 @@ const PLAN_PERKS = {
   ],
   grow: [
     'Automation rules (auto-assign, auto-tag)',
-    'Quotes & invoice generation',
   ],
   scale: [
     'AI agents that draft & send replies',

@@ -307,7 +307,7 @@ export default function AiAgents() {
                 </div>
                 <p className="text-sm font-semibold text-white">AI Agents are a Scale-plan feature</p>
                 <p className="text-xs text-gray-500 max-w-xs">
-                  Set up an AI teammate that drafts replies, or works fully autonomously — including generating quotes and invoices mid-conversation. Upgrade to Scale to unlock it.
+                  Set up an AI teammate that drafts replies, or works fully autonomously — taking real actions mid-conversation. Upgrade to Scale to unlock it.
                 </p>
                 <Link to="/pricing" className="mt-2 flex items-center gap-1.5 bg-[#25D366] hover:bg-[#20bd5a] text-black text-sm font-semibold px-4 py-2 rounded-lg transition-colors">
                   <Lock className="w-3.5 h-3.5" /> Upgrade to Scale

@@ -7,7 +7,7 @@
  * Feature matrix:
  *   free    : inbox only (up to 1 channel, 500 contacts, no automation)
  *   starter : + broadcasts, canned responses, contacts
- *   grow    : + rules, documents (quotes/invoices)
+ *   grow    : + rules
  *   scale   : + AI agents, advanced analytics, priority support
  *
  * Usage:
@@ -26,7 +26,6 @@ const FEATURE_REQUIREMENTS = {
   broadcasts:       'starter',
   // Grow tier
   rules:            'grow',
-  documents:        'grow',
   // Scale tier
   ai_agents:        'scale',
   ai_drafts:        'scale',

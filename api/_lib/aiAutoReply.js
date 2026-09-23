@@ -12,7 +12,7 @@
 
 import { generateDraftReply, workspaceHasAiAgentAccess } from './aiAgents.js';
 import { getProvider } from './providers/index.js';
-import { getDocumentTools, executeDocumentTool, getWebhookTools, executeWebhookTool } from './aiDocumentTools.js';
+import { getWebhookTools, executeWebhookTool } from './aiDocumentTools.js';
 
 export async function autoReplyIfEnabled(sb, { workspaceId, conversationId, channel, externalId, contact }) {
   try {
@@ -108,23 +108,14 @@ export async function autoReplyIfEnabled(sb, { workspaceId, conversationId, chan
       .eq('workspace_id', workspaceId).or('agent_id.eq.' + agent.id + ',agent_id.is.null')
       .order('created_at', { ascending: true });
 
-    // Merge document tools + webhook tools (e.g. register_student).
-    // Webhook tools are only present when the agent has webhook_tool_url set,
-    // so this is a no-op for agents that don't use external tools.
-    const allTools = [...getDocumentTools(), ...getWebhookTools(agent)];
+    // External webhook tools (e.g. register_student). Only present when the
+    // agent has webhook_tool_url set, so this is a no-op for other agents.
+    const allTools = getWebhookTools(agent);
 
     const replyText = await generateDraftReply(agent, messages || [], contact, knowledge || [], {
       sb, workspaceId, conversationId, customerPhone: externalId,
       tools: allTools,
-      executeTool: (name, args) => {
-        // Route to webhook executor for external tools, document executor for built-ins.
-        if (name === 'register_student' || name === 'generate_login_link') {
-          return executeWebhookTool(agent, name, args);
-        }
-        return executeDocumentTool(sb, {
-          workspaceId, conversationId, contactId: contact?.id || null, agentId: agent.id, agentName: agent.name,
-        }, name, args);
-      },
+      executeTool: (name, args) => executeWebhookTool(agent, name, args),
     });
 
     // Website live-chat has no outbound provider -- same special-case as

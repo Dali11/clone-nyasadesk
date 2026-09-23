@@ -56,7 +56,7 @@ const PLANS = [
   },
   {
     key: 'growth', name: 'Growth', price: 'K50,000', period: '/mo', seats: '5 agents', highlight: true,
-    features: ['Everything in Starter', 'Broadcast campaigns with delivery stats', 'SLA tracking & breach alerts', 'Round-robin & smart assignment rules', 'Quotes & invoices with payment tracking'],
+    features: ['Everything in Starter', 'Broadcast campaigns with delivery stats', 'SLA tracking & breach alerts', 'Round-robin & smart assignment rules'],
     cta: 'Start free',
   },
   {

@@ -16,7 +16,6 @@
  *  ├──────────────────────────────┤
  *  │  PAGES                       │
  *  │  Broadcasts / AI Agents /    │
- *  │  Quotes & Invoices / Sales   │
  *  │  Rules / Canned Responses    │
  *  ├──────────────────────────────┤
  *  │  ⚙️  Settings               │
@@ -37,7 +36,6 @@ import {
   Moon,
   Megaphone,
   Bot,
-  FileText,
   Zap,
   BookOpen,
   Settings,
@@ -211,7 +209,6 @@ function MenuContent({ onClose }) {
       <SectionLabel>Pages</SectionLabel>
       <Row icon={Megaphone}  label="Broadcasts"         onClick={() => go('/broadcasts')} />
       <Row icon={Bot}        label="AI Agents"          onClick={() => go('/ai-agents')} />
-      <Row icon={FileText}   label="Quotes & Invoices"  onClick={() => go('/documents')} />
       <Row icon={Zap}        label="Automation Rules"   onClick={() => go('/rules')} />
       <Row icon={BookOpen}   label="Canned Responses"   onClick={() => go('/canned')} />
 
