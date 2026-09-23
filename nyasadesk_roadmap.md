@@ -29,7 +29,7 @@ Features WhatsApp has that we must nail first.
 - [x] **Pinned Messages** — Pin up to 3 messages per conversation, pinned banner at top of thread
 
 ### Night 4 (Jul 15)
-- [ ] **Message Info / Read Receipts** — Sent ✓, Delivered ✓✓, Read ✓✓ (blue) per message + info panel
+- [x] **Message Info / Read Receipts** — Sent ✓, Delivered ✓✓, Read ✓✓ (blue) per message + info panel
 - [ ] **Starred Messages** — Star any message, global starred messages view in sidebar
 
 ### Night 5 (Jul 16)
@@ -153,5 +153,6 @@ Direct competitor: WhatChimp.com. Features they ship that we don't, in priority 
 - [ ] Template approval workflow (submission + status tracking in-app)
 
 ### Night Log
+- 2026-09-23 (night): Shipped Message Info / Read Receipts — commit 38b9b70. Added a Message info action to every message menu with status, sent/delivered/read timestamps when provided by the connected channel, error details, and a read-receipt explanation. Existing WhatsApp-style ✓/✓✓/blue ✓✓ indicators remain in the thread. Build passed and production deployment `dpl_2ERGwo2JQp1zERwY6BLWwgrWSGTB` is READY. Next: Starred Messages.
 - 2026-09-22 (day): Fixed chat-refresh root cause (corrupted Supabase anon key, 401s) — commit 10b830d, verified live. Copied all 23 env vars to new geniuspulse22 Vercel project. Domain move pending TXT records.
 - 2026-09-22 (night): Shipped WhatsApp Business App coexistence support — commit 68afc02. Added a per-number coexistence toggle in Settings, detected Business App outbound echoes in the WhatsApp webhook, persisted them as outbound messages without unread increments or AI auto-replies, and preserved conversation assignment/status. Build passed and production deployment `dpl_EJXWWfXbzMsTdHzTcLgVMKWVunbR` is READY. Next: WhatsApp Flows / Native Forms.
