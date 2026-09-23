@@ -241,6 +241,9 @@ function WhatsAppCard({ saved, workspaceId, onSave, onDelete }) {
           return { ok: true, configData };
         } catch { return { ok: false, reason: 'network' }; }
       })();
+      // Store readiness the moment the preload finishes, so the very first
+      // tap (not the second) can fire FB.login synchronously.
+      embeddedPreloadRef.current.then((r) => { if (r.ok) embeddedReadyRef.current = r; });
     }
     return embeddedPreloadRef.current;
   };
