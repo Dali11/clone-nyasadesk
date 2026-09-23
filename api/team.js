@@ -487,17 +487,32 @@ async function getPinsHandler(req, res, sb, sbAnon) {
     return res.status(403).json({ error: 'You do not have access to this workspace' });
   }
 
-  const { data, error } = await sb.from('pinned_conversations')
-    .select(`
-      id, pinned_by, pinned_for, conversation_id, created_at,
-      conversation:conversations(id, workspace_id, channel, contact_name, contact_id, status, priority, assigned_to, assigned_to_name, last_message, last_message_at, unread_count, sla_breach_at, subject)
-    `)
+  // NOTE: conversations has no contact_name column — the old embedded select
+  // (conversation:conversations(..., contact_name, ...)) errored on every
+  // call under both Supabase (PostgREST column validation) and Neon. Resolve
+  // conversations + their contacts explicitly instead.
+  const { data: pins, error } = await sb.from('pinned_conversations')
+    .select('id, pinned_by, pinned_for, conversation_id, created_at')
     .eq('pinned_for', callerId)
     .eq('workspace_id', workspace_id)
     .order('created_at', { ascending: false });
 
   if (error) throw error;
-  return res.status(200).json({ pins: data || [] });
+  if (!pins || !pins.length) return res.status(200).json({ pins: [] });
+
+  const convIds = [...new Set(pins.map(p => p.conversation_id).filter(Boolean))];
+  if (!convIds.length) return res.status(200).json({ pins });
+
+  const { data: convs, error: convErr } = await sb.from('conversations')
+    .select('*, contact:contacts(id, full_name, avatar_url)')
+    .in('id', convIds);
+  if (convErr) throw convErr;
+
+  const byId = Object.fromEntries((convs || []).map(c => [
+    c.id,
+    { ...c, contact_name: c.contact?.full_name || null },
+  ]));
+  return res.status(200).json({ pins: pins.map(p => ({ ...p, conversation: byId[p.conversation_id] || null })) });
 }
 
 async function pinConvHandler(req, res, sb, sbAnon) {
