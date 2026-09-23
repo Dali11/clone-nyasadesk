@@ -1,4 +1,4 @@
-import { createClient } from '_lib/dbFactory.js';
+import { createClient } from './_lib/dbFactory.js';
 import { PLAN_LIMITS } from './_lib/adminAuth.js';
 
 // Merged from the old api/team/list.js + api/team/invite.js (GET = list,
