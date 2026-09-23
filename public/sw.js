@@ -7,9 +7,9 @@
 //  - Inline reply from notification bar
 //  - Badge icon support
 
-const SW_VERSION    = 10;                        // increment to force self-destruct on stale installs
-const STATIC_CACHE  = 'nyasadesk-static-v10';   // versioned static assets
-const DYNAMIC_CACHE = 'nyasadesk-dynamic-v10';   // runtime HTML pages
+const SW_VERSION    = 11;                        // increment to force self-destruct on stale installs
+const STATIC_CACHE  = 'nyasadesk-static-v11';   // versioned static assets
+const DYNAMIC_CACHE = 'nyasadesk-dynamic-v11';   // runtime HTML pages
 const SECRET_CACHE  = 'nyasa-sw-secrets-v1';    // inline reply secret
 const NOTIF_REPLY_ENDPOINT = '/api/team?action=notif-reply';
 
