@@ -166,6 +166,10 @@ export default async function handler(req, res) {
     connected_via:    'embedded_signup',
     provider:         'cloud',
     auto_registered:  setupResult.auto_registered,
+    // Meta reports COEXISTENCE when the user completed the in-dialog QR
+    // handshake to keep the number live on the WhatsApp Business App.
+    // providers/whatsapp.js echo detection keys off this flag.
+    coexistence_mode: (richPhone.account_mode || phone.account_mode) === 'COEXISTENCE',
     setup_pin:        setupResult.auto_pin || null,
     connected_at:     new Date().toISOString(),
   };

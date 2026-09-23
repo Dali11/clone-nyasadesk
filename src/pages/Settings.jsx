@@ -282,7 +282,7 @@ function WhatsAppCard({ saved, workspaceId, onSave, onDelete }) {
       config_id: configData.config_id,
       response_type: 'code',
       override_default_response_type: true,
-      extras: { setup: { solutionID: configData.config_id }, featureType: '', sessionInfoVersion: '3' },
+      extras: { setup: {}, sessionInfoVersion: '3' },
     });
   };
 
@@ -576,20 +576,18 @@ function WhatsAppCard({ saved, workspaceId, onSave, onDelete }) {
                 {manualConnecting ? 'Connecting…' : 'Connect to WhatsApp Cloud API'}
               </button>
 
-              {/* Connect with Facebook — Coming Soon */}
-              <div className="pt-1">
-                <div className="relative">
-                  <div className="absolute inset-0 rounded-xl overflow-hidden">
-                    <div className="absolute inset-0 bg-[var(--nyasa-bg)] opacity-70 rounded-xl" />
-                  </div>
-                  <button disabled
-                    className="w-full py-3 rounded-xl text-sm font-bold text-white/40 bg-[#1877F2]/30 border border-[#1877F2]/20 flex items-center justify-center gap-2 cursor-not-allowed relative">
-                    <svg className="w-4 h-4 opacity-50" viewBox="0 0 24 24" fill="currentColor"><path d="M24 12.073c0-6.627-5.373-12-12-12s-12 5.373-12 12c0 5.99 4.388 10.954 10.125 11.854v-8.385H7.078v-3.47h3.047V9.43c0-3.007 1.792-4.669 4.533-4.669 1.312 0 2.686.235 2.686.235v2.953H15.83c-1.491 0-1.956.925-1.956 1.874v2.25h3.328l-.532 3.47h-2.796v8.385C19.612 23.027 24 18.062 24 12.073z"/></svg>
-                    Connect with Facebook
-                    <span className="ml-1 px-1.5 py-0.5 rounded-full bg-amber-500/30 text-amber-300 text-[9px] font-bold">COMING SOON</span>
-                  </button>
-                </div>
-                <p className="text-[10px] text-center text-gray-600 mt-1.5">One-click Facebook login — available soon</p>
+              {/* Connect with Facebook — Embedded Signup (coexistence-capable) */}
+              <div className="pt-1 space-y-2">
+                <button onClick={handleEmbeddedSignup} disabled={embeddedLoading}
+                  className="w-full py-3 rounded-xl text-sm font-bold text-white bg-[#1877F2] hover:bg-[#0f6add] disabled:opacity-60 flex items-center justify-center gap-2">
+                  <svg className="w-4 h-4" viewBox="0 0 24 24" fill="currentColor"><path d="M24 12.073c0-6.627-5.373-12-12-12s-12 5.373-12 12c0 5.99 4.388 10.954 10.125 11.854v-8.385H7.078v-3.47h3.047V9.43c0-3.007 1.792-4.669 4.533-4.669 1.312 0 2.686.235 2.686.235v2.953H15.83c-1.491 0-1.956.925-1.956 1.874v2.25h3.328l-.532 3.47h-2.796v8.385C19.612 23.027 24 18.062 24 12.073z"/></svg>
+                  {embeddedLoading ? 'Completing signup…' : 'Connect with Facebook'}
+                </button>
+                <p className="text-[10px] text-center text-gray-500 leading-relaxed">
+                  One-click official Meta flow. Best if this number is already registered on the WhatsApp
+                  Business App — you can keep it running in both places (coexistence).
+                </p>
+                {embeddedError && <p className="text-[11px] text-red-400 leading-relaxed">{embeddedError}</p>}
               </div>
             </div>
           )}
