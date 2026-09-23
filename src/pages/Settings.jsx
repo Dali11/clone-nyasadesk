@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useSearchParams, useNavigate } from 'react-router-dom';
 import { User, Users, Globe, Bell, Building2, Check, Loader2,
   Trash2, Copy, ExternalLink, ChevronDown, AlertCircle, Code2, ShieldCheck, CreditCard, Crown, Clock, CheckCircle2,
@@ -210,30 +210,63 @@ function WhatsAppCard({ saved, workspaceId, onSave, onDelete }) {
   };
 
   // ── Embedded Signup ───────────────────────────────────────────────────────
-  const handleEmbeddedSignup = async () => {
-    setEmbeddedError(''); setEmbeddedSetupPin(null);
-    const configRes = await fetch('/api/auth/whatsapp-embedded', {
-      method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ _action: 'get_config' }),
-    });
-    const configData = await configRes.json();
-    if (!configData.config_id || !configData.app_id) {
-      setEmbeddedError("Facebook signup isn't configured yet. Use the Advanced option below.");
-      return;
-    }
-    await loadFacebookSDK();
-    const waitForFB = () => new Promise((resolve) => {
-      if (window.FB) return resolve();
-      const prevInit = window.fbAsyncInit;
-      window.fbAsyncInit = () => {
-        if (prevInit) prevInit();
-        resolve();
-      };
-    });
-    await waitForFB();
-    if (!window.FB) { setEmbeddedError('Facebook SDK failed to load. Try refreshing the page.'); return; }
-    window.FB.init({ appId: configData.app_id, version: 'v26.0', cookie: true });
+  // MOBILE POPUP RULE: mobile browsers only allow the FB.login popup when it
+  // fires synchronously inside the tap handler. Doing config fetch + SDK load
+  // + FB.init on tap breaks the user-gesture chain and the popup gets
+  // blocked. So we PRELOAD all of it on mount into a ref, and the tap handler
+  // calls FB.login directly. If the preload is still in flight on first tap,
+  // we finish it and ask the user to tap once more (next tap is instant).
+  const embeddedReadyRef = useRef(null);
+  const embeddedPreloadRef = useRef(null);
 
+  const preloadEmbedded = () => {
+    if (!embeddedPreloadRef.current) {
+      embeddedPreloadRef.current = (async () => {
+        try {
+          const configRes = await fetch('/api/auth/whatsapp-embedded', {
+            method: 'POST', headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ _action: 'get_config' }),
+          });
+          const configData = await configRes.json();
+          if (!configData.config_id || !configData.app_id) return { ok: false, reason: 'not-configured' };
+          await loadFacebookSDK();
+          await new Promise((resolve) => {
+            if (window.FB) return resolve();
+            const prevInit = window.fbAsyncInit;
+            window.fbAsyncInit = () => { if (prevInit) prevInit(); resolve(); };
+            setTimeout(resolve, 4000);
+          });
+          if (!window.FB) return { ok: false, reason: 'sdk' };
+          window.FB.init({ appId: configData.app_id, version: 'v26.0', cookie: true });
+          return { ok: true, configData };
+        } catch { return { ok: false, reason: 'network' }; }
+      })();
+    }
+    return embeddedPreloadRef.current;
+  };
+
+  useEffect(() => { preloadEmbedded(); }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const handleEmbeddedSignup = () => {
+    setEmbeddedError(''); setEmbeddedSetupPin(null);
+    const ready = embeddedReadyRef.current;
+    if (ready) { startFBLogin(ready.configData); return; }
+    setEmbeddedLoading(true);
+    preloadEmbedded().then((r) => {
+      setEmbeddedLoading(false);
+      if (r.ok) {
+        embeddedReadyRef.current = r;
+        setEmbeddedError('Ready — tap Connect with Facebook again to continue.');
+      } else {
+        setEmbeddedError(
+          r.reason === 'not-configured' ? "Facebook signup isn't configured yet. Use the Advanced option below." :
+          r.reason === 'sdk' ? 'Facebook SDK failed to load. Check your connection and refresh the page.' :
+          'Could not reach Facebook. Check your connection and try again.');
+      }
+    });
+  };
+
+  const startFBLogin = (configData) => {
     window.removeEventListener('message', window._nyasaWAListener);
     window._nyasaWAListener = (e) => {
       try {
