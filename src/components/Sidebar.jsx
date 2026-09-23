@@ -41,6 +41,7 @@ const MOBILE_NAV = [
 export default function Sidebar({ hideMobileChrome = false } = {}) {
   const { pathname } = useLocation();
   const { user, profile, isPlatformAdmin } = useNyasaAuth();
+  const workspaceName = profile?.workspace_name || user?.workspace_name || '';
 
   const filteredNAV = NAV;
 
