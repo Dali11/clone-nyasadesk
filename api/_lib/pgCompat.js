@@ -354,6 +354,87 @@ class PgClient {
           return { data: { user: null }, error: { message: e.message } };
         }
       },
+      // supabase-js .auth.admin parity for the handful of calls NyasaDesk's
+      // api/ layer makes (team invites, admin user management). There's no
+      // separate "auth.users" schema here — accounts live in Better Auth's
+      // own public.user / public.account / public.verification tables, so
+      // these build invite/recovery links + manage users directly against
+      // those, using the SAME Builder (this.from) as everything else.
+      admin: {
+        // Proxy for last_sign_in_at: BA doesn't track sign-in timestamps, so
+        // "has a credential account" (set during onboarding/reset-password)
+        // is used as the signal for "has completed signup" — that's the only
+        // thing team.js/TeamSection actually check (never_signed_in).
+        getUserById: async (id) => {
+          try {
+            const { data: u } = await this.from('user').select('id, email, createdAt').eq('id', id).maybeSingle();
+            if (!u) return { data: { user: null }, error: { message: 'User not found' } };
+            const { data: acct } = await this.from('account').select('createdAt')
+              .eq('userId', id).eq('providerId', 'credential').order('createdAt', { ascending: true }).maybeSingle();
+            return {
+              data: { user: {
+                id: u.id, email: u.email, created_at: u.createdAt,
+                last_sign_in_at: acct?.createdAt || null,
+              } },
+              error: null,
+            };
+          } catch (e) {
+            return { data: { user: null }, error: { message: e.message } };
+          }
+        },
+        // type: 'invite' creates the user if they don't exist yet (team invites);
+        // any other type (e.g. 'recovery') requires an existing user. Either way
+        // this writes a public.verification row with identifier
+        // "reset-password:<token>" — the EXACT format Better Auth's own
+        // /api/auth/reset-password/:token endpoint expects — so the emailed
+        // link lands the recipient on the same set-password flow real password
+        // resets use (and, for brand-new invited users, creates their
+        // credential account on first submit — see better-auth's resetPassword).
+        generateLink: async ({ type, email, options = {} } = {}) => {
+          try {
+            if (!email) return { data: null, error: { message: 'email is required' } };
+            const { data: existingUser } = await this.from('user').select('id, email').eq('email', email).maybeSingle();
+            let userRow = existingUser;
+            if (!userRow) {
+              if (type !== 'invite') return { data: null, error: { message: 'User not found' } };
+              const { randomUUID } = await import('crypto');
+              const name = options?.data?.full_name || email.split('@')[0];
+              const { data: created, error: cErr } = await this.from('user').insert({
+                id: randomUUID(), name, email, emailVerified: false,
+                createdAt: new Date(), updatedAt: new Date(),
+              }).select('id, email').single();
+              if (cErr) throw new Error(cErr.message);
+              userRow = created;
+            }
+            const { randomBytes, randomUUID: vUUID } = await import('crypto');
+            const token = randomBytes(24).toString('hex');
+            const expiresAt = new Date(Date.now() + (type === 'invite' ? 24 : 1) * 60 * 60 * 1000);
+            const { error: vErr } = await this.from('verification').insert({
+              id: vUUID(), identifier: `reset-password:${token}`, value: userRow.id,
+              expiresAt, createdAt: new Date(), updatedAt: new Date(),
+            });
+            if (vErr) throw new Error(vErr.message);
+            const site = process.env.NEXT_PUBLIC_SITE_URL || 'https://nyasadesk.com';
+            const callbackURL = options.redirectTo || `${site}/`;
+            const action_link = `${site}/api/auth/reset-password/${token}?callbackURL=${encodeURIComponent(callbackURL)}`;
+            return { data: { user: userRow, properties: { action_link } }, error: null };
+          } catch (e) {
+            return { data: null, error: { message: e.message } };
+          }
+        },
+        deleteUser: async (id) => {
+          try {
+            await this.from('session').delete().eq('userId', id);
+            await this.from('account').delete().eq('userId', id);
+            await this.from('verification').delete().eq('value', id); // best-effort: pending tokens
+            const { error } = await this.from('user').delete().eq('id', id);
+            if (error) throw new Error(error.message);
+            return { data: null, error: null };
+          } catch (e) {
+            return { data: null, error: { message: e.message } };
+          }
+        },
+      },
     };
   }
   async rpc(fn, params = {}) {
