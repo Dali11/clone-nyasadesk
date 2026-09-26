@@ -12,6 +12,17 @@
 //          granted scopes if that's missing), fetches the phone number,
 //          runs autoSetup (registers if needed, subscribes webhooks,
 //          fetches messaging limits), and saves the channel config.
+//
+//   GET  — OAuth redirect callback (mobile/PWA redirect flow). 2026-09-26:
+//          COMPLETES THE SIGNUP SERVER-SIDE instead of bouncing the code
+//          through the SPA. The old bounce (/settings?wa_code=...) raced:
+//          the Settings page fired the completion POST once on mount,
+//          before the async profile/workspace load finished → the POST went
+//          out with no workspace_id and was rejected, so the signup "succeeded"
+//          on Facebook's side but the channel never connected. Doing the
+//          exchange right here (session cookie rides this top-level GET)
+//          removes the race entirely; the user lands on /settings with
+//          ?wa=connected (or ?wa_error=...).
 
 import { createClient } from '../_lib/dbFactory.js';
 
@@ -46,54 +57,9 @@ const APP_SECRET    = process.env.FACEBOOK_APP_SECRET;
 // one — avoids this silently breaking again the next time a domain changes.
 const ALLOWED_ORIGINS = ['https://nyasadesk.com', 'https://nyasadesk1.vercel.app'];
 
-export default async function handler(req, res) {
-  const origin = req.headers.origin;
-  const isAllowed = ALLOWED_ORIGINS.includes(origin) || (origin && /\.vercel\.app$/.test(origin));
-  res.setHeader('Access-Control-Allow-Origin', isAllowed ? origin : ALLOWED_ORIGINS[0]);
-  res.setHeader('Access-Control-Allow-Methods', 'POST,GET,OPTIONS');
-  res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
-  if (req.method === 'OPTIONS') return res.status(200).end();
-  // ── GET: OAuth redirect callback (2026-09-26 mobile fix) ─────────────────
-  // Mobile browsers frequently block the FB.login popup even when fired
-  // synchronously from a tap. The redirect flow instead navigates the whole
-  // page to Facebook's OAuth dialog with redirect_uri pointing HERE; Facebook
-  // lands back with ?code=...&state=... We gate on the session (cookie rides
-  // this top-level GET) + workspace-in-state, then bounce to the SPA which
-  // completes via the normal POST path. The state blob we parse is the one
-  // WE generated on the frontend before leaving (btoa JSON with workspace_id).
-  if (req.method === 'GET') {
-    const q = req.query || {};
-    const dest = (param, val) => res.status(302).setHeader('Location', `/settings?tab=channels&${param}=${encodeURIComponent(val)}`).end();
-    if (q.error) return dest('wa_error', q.error_description || q.error || 'cancelled');
-    if (!q.code || !q.state) return dest('wa_error', 'missing_code');
-    let stateWs = null;
-    try { stateWs = JSON.parse(Buffer.from(q.state, 'base64').toString()).workspace_id || null; } catch {}
-    if (!stateWs) return dest('wa_error', 'bad_state');
-    try { await enforceCallerWorkspace(req, stateWs); }
-    catch (e) { return dest('wa_error', e.status === 401 ? 'auth' : (e.status === 403 ? 'workspace' : 'failed')); }
-    // Hand the one-time code to the SPA; it POSTs back immediately and the
-    // URL is cleaned (code is short-lived and single-use anyway).
-    return dest('wa_code', q.code);
-  }
-
-  if (req.method !== 'POST')    return res.status(405).end();
-
-  const { code, workspace_id: workspaceId, phone_number_id: hintedPhoneId, waba_id: hintedWabaId, _action , redirect_flow: redirectFlow } = req.body || {};
-
-  // Frontend calls this (with _action set, no code) to fetch the Embedded
-  // Signup config_id used to build the FB.login() call.
-  if (_action === 'get_config') {
-    return res.status(200).json({
-      config_id: process.env.META_CONFIG_ID || null,
-      app_id: process.env.FACEBOOK_APP_ID || null,
-    });
-  }
-
-  if (!workspaceId) return res.status(400).json({ error: 'Missing workspace_id' });
-  try { await enforceCallerWorkspace(req, workspaceId); }
-  catch (e) { return res.status(e.status || 500).json({ error: e.message }); }
-  if (!code)        return res.status(400).json({ error: 'Missing authorization code' });
-
+// ── Shared completion core (steps 1-8). Returns { status, json }; the GET ──
+// ── redirect path and the POST JSON path both run through this.          ──
+async function completeSignup({ code, workspaceId, redirectFlow, hintedPhoneId, hintedWabaId }) {
   // ── Step 1: Exchange the code for a short-lived user access token ──────
   // FB.login()'s JS SDK code flow uses an empty redirect_uri (there's no
   // real redirect — the code arrives via postMessage back into the same page).
@@ -107,7 +73,7 @@ export default async function handler(req, res) {
     shortToken = tokenData.access_token;
   } catch (e) {
     console.error('[wa-embedded] token exchange failed:', e);
-    return res.status(400).json({ error: `Failed to exchange authorization code: ${e.message || 'Unknown error'}` });
+    return { status: 400, json: { error: `Failed to exchange authorization code: ${e.message || 'Unknown error'}` } };
   }
 
   // ── Step 2: Exchange for a long-lived token (~60 days) ─────────────────
@@ -121,7 +87,7 @@ export default async function handler(req, res) {
     longToken = longData.access_token;
   } catch (e) {
     console.error('[wa-embedded] long-lived token exchange failed:', e);
-    return res.status(400).json({ error: `Failed to obtain a long-lived access token: ${e.message || 'Unknown error'}` });
+    return { status: 400, json: { error: `Failed to obtain a long-lived access token: ${e.message || 'Unknown error'}` } };
   }
 
   // ── Step 3: Resolve the WABA ───────────────────────────────────────────
@@ -141,16 +107,16 @@ export default async function handler(req, res) {
       wabaId = wabaScope?.target_ids?.[0] || null;
     } catch (e) {
       console.error('[wa-embedded] WABA resolution failed:', e);
-      return res.status(400).json({ error: `Could not resolve the WhatsApp Business Account from the token: ${e.message || 'Unknown error'}` });
+      return { status: 400, json: { error: `Could not resolve the WhatsApp Business Account from the token: ${e.message || 'Unknown error'}` } };
     }
   }
   if (!wabaId) {
-    return res.status(400).json({
+    return { status: 400, json: {
       error: 'No WhatsApp Business Account was granted during signup. Please try again and make sure to select a business number.',
-    });
+    } };
   }
 
-  // ── Step 4: Resolve the phone number ───────────────────────────────────
+  // ── Step 4: Resolve the phone number ────────────────────────────────────
   // Prefer the hinted one, else the first on the WABA.
   let phone = null;
   try {
@@ -170,15 +136,15 @@ export default async function handler(req, res) {
     }
   } catch (e) {
     console.error('[wa-embedded] phone resolution failed:', e);
-    return res.status(400).json({ error: `Could not resolve a phone number: ${e.message || 'Unknown error'}` });
+    return { status: 400, json: { error: `Could not resolve a phone number: ${e.message || 'Unknown error'}` } };
   }
   if (!phone) {
-    return res.status(400).json({
+    return { status: 400, json: {
       error: 'No phone number found on the connected WhatsApp Business Account.',
-    });
+    } };
   }
 
-  // ── Step 5: Run autoSetup ──────────────────────────────────────────────
+  // ── Step 5: Run autoSetup ───────────────────────────────────────────────
   // Registers the phone if needed (auto-generating a PIN), subscribes
   // webhooks, and fetches messaging limits. Non-critical steps (limits)
   // are caught internally and returned as null.
@@ -187,12 +153,12 @@ export default async function handler(req, res) {
     setupResult = await autoSetup(longToken, wabaId, phone.id);
   } catch (e) {
     console.error('[wa-embedded] autoSetup failed:', e);
-    return res.status(500).json({ error: `Setup failed: ${e.message || 'Unknown error'}` });
+    return { status: 500, json: { error: `Setup failed: ${e.message || 'Unknown error'}` } };
   }
 
   const richPhone = setupResult.phone || phone;
 
-  // ── Step 6: Build the config object with all rich fields ───────────────
+  // ── Step 6: Build the config object with all rich fields ────────────────
   // Derive the same verify_token that subscribeWebhooks() sent to Meta
   // (nyasa_ + last 8 chars of wabaId) and store it so the webhook handler
   // can match Meta's GET verification ping instead of relying on the regex fallback.
@@ -233,14 +199,72 @@ export default async function handler(req, res) {
     if (upsertError) throw new Error(upsertError.message);
   } catch (e) {
     console.error('[wa-embedded] channel_configs upsert failed:', e);
-    return res.status(500).json({ error: `Connected successfully but failed to save config: ${e.message || 'Unknown error'}` });
+    return { status: 500, json: { error: `Connected successfully but failed to save config: ${e.message || 'Unknown error'}` } };
   }
 
-  // ── Step 8: Return success with config + auto-registration details ─────
-  return res.status(200).json({
+  // ── Step 8: Return success with config + auto-registration details ──────
+  return { status: 200, json: {
     ok: true,
     config,
     auto_registered: setupResult.auto_registered,
     setup_pin: setupResult.auto_pin,
-  });
+  } };
+}
+
+export default async function handler(req, res) {
+  const origin = req.headers.origin;
+  const isAllowed = ALLOWED_ORIGINS.includes(origin) || (origin && /\.vercel\.app$/.test(origin));
+  res.setHeader('Access-Control-Allow-Origin', isAllowed ? origin : ALLOWED_ORIGINS[0]);
+  res.setHeader('Access-Control-Allow-Methods', 'POST,GET,OPTIONS');
+  res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
+  if (req.method === 'OPTIONS') return res.status(200).end();
+
+  // ── GET: OAuth redirect callback — completes the signup SERVER-SIDE ────
+  // (2026-09-26 fix). Mobile browsers frequently block the FB.login popup;
+  // the redirect flow navigates the page to Facebook's OAuth dialog with
+  // redirect_uri pointing HERE. Facebook lands back with ?code=...&state=...
+  // We gate on the session (the cookie rides this top-level GET) +
+  // workspace-in-state, then run the SAME completion core the POST uses,
+  // then 302 to the SPA with the outcome. The old bounce-to-SPA relay raced
+  // the async workspace load and silently dropped the connection.
+  if (req.method === 'GET') {
+    const q = req.query || {};
+    const dest = (param, val) => res.status(302).setHeader('Location', `/settings?tab=channels&${param}=${encodeURIComponent(val)}`).end();
+    if (q.error) return dest('wa_error', q.error_description || q.error || 'cancelled');
+    if (!q.code || !q.state) return dest('wa_error', 'missing_code');
+    let stateWs = null;
+    try { stateWs = JSON.parse(Buffer.from(q.state, 'base64').toString()).workspace_id || null; } catch {}
+    if (!stateWs) return dest('wa_error', 'bad_state');
+    try { await enforceCallerWorkspace(req, stateWs); }
+    catch (e) { return dest('wa_error', e.status === 401 ? 'auth' : (e.status === 403 ? 'workspace' : 'failed')); }
+    // Complete the exchange right here — no SPA race, no one-time-code relay.
+    const result = await completeSignup({ code: q.code, workspaceId: stateWs, redirectFlow: true });
+    if (result.status === 200) {
+      const pin = result.json.setup_pin ? `&wa_setup_pin=${encodeURIComponent(result.json.setup_pin)}` : '';
+      return res.status(302).setHeader('Location', `/settings?tab=channels&wa=connected${pin}`).end();
+    }
+    console.error('[wa-embedded] GET completion failed:', result.json?.error);
+    return dest('wa_error', result.json?.error || 'failed');
+  }
+
+  if (req.method !== 'POST')    return res.status(405).end();
+
+  const { code, workspace_id: workspaceId, phone_number_id: hintedPhoneId, waba_id: hintedWabaId, _action , redirect_flow: redirectFlow } = req.body || {};
+
+  // Frontend calls this (with _action set, no code) to fetch the Embedded
+  // Signup config_id used to build the FB.login() call.
+  if (_action === 'get_config') {
+    return res.status(200).json({
+      config_id: process.env.META_CONFIG_ID || null,
+      app_id: process.env.FACEBOOK_APP_ID || null,
+    });
+  }
+
+  if (!workspaceId) return res.status(400).json({ error: 'Missing workspace_id' });
+  try { await enforceCallerWorkspace(req, workspaceId); }
+  catch (e) { return res.status(e.status || 500).json({ error: e.message }); }
+  if (!code)        return res.status(400).json({ error: 'Missing authorization code' });
+
+  const result = await completeSignup({ code, workspaceId, redirectFlow: !!redirectFlow, hintedPhoneId, hintedWabaId });
+  return res.status(result.status).json(result.json);
 }

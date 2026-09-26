@@ -1697,8 +1697,22 @@ export default function Settings() {
       setTimeout(() => setBanner(null), 6000);
     }
     if (searchParams.get("wa") === "connected") {
-      setBanner({ type: "success", msg: "WhatsApp connected successfully!" });
-      setTimeout(() => setBanner(null), 5000);
+      const waPin = searchParams.get("wa_setup_pin");
+      setBanner({ type: "success", msg: waPin ? `WhatsApp connected! Registration PIN: ${waPin}` : "WhatsApp connected successfully!" });
+      setTimeout(() => setBanner(null), waPin ? 30000 : 5000);
+      // Refresh channel configs so the connector shows WhatsApp as connected
+      // without a manual reload (the redirect tab IS the main window in the
+      // full-page flow; the PWA flow has its own poll).
+      if (workspaceOwnerId) {
+        getChannelConfigs(workspaceOwnerId)
+          .then(rows => {
+            const map = {};
+            rows.forEach(r => { map[r.channel] = r; });
+            setChannelConfigs(map);
+            try { localStorage.setItem('wa_channel_configs', JSON.stringify(map)); } catch {}
+          })
+          .catch(e => console.error('[Settings] wa=connected refresh failed:', e));
+      }
     }
     if (searchParams.get("wa") === "check") {
       // Re-fetch channel configs to reflect newly connected WhatsApp account
