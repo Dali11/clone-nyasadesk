@@ -6,19 +6,35 @@
 // workspace — poisoning inboxes, triggering AI auto-replies to arbitrary
 // numbers at the business's expense, and driving push notifications.
 //
-// Fail-closed when FACEBOOK_APP_SECRET is configured; if the secret is
-// missing we log loudly and reject (fail closed) so the misconfiguration is
-// noticed instead of silently reopening the hole.
+// 2026-09-26 OUTAGE POSTMORTEM: this check shipped fail-closed while
+// FACEBOOK_APP_SECRET was an EMPTY string on Vercel (it has been empty since
+// the project migration — the real secret lives only in the Meta App
+// dashboard and was never provided). Fail-closed + empty secret = every
+// real Meta webhook rejected for ~24h: ALL inbound WhatsApp/Instagram/
+// Messenger messages silently stopped arriving.
+//
+// Current behavior:
+//   - Secret configured + signature present and valid  -> accept
+//   - Secret configured + signature missing/mismatch   -> REJECT (fail closed)
+//   - Secret NOT configured                            -> accept + loud warn
+//     (fail-open: without the secret the payload cannot be verified at all;
+//      rejecting everything is an outage, not security. The warn makes the
+//      gap visible in logs. Set FACEBOOK_APP_SECRET to close the gap.)
 
 import crypto from 'crypto';
+
+let warnedNoSecret = false;
 
 export function verifyMetaSignature(req, channelName = 'meta') {
   const APP_SECRET = process.env.FACEBOOK_APP_SECRET;
   const sig = req.headers['x-hub-signature-256'] || req.headers['X-Hub-Signature-256'];
 
   if (!APP_SECRET) {
-    console.error(`[${channelName}] FACEBOOK_APP_SECRET not set — rejecting webhook (fail closed)`);
-    return false;
+    if (!warnedNoSecret) {
+      console.error(`[${channelName}] FACEBOOK_APP_SECRET not set — Meta webhooks are being accepted WITHOUT signature verification. Set the app secret (Meta App dashboard → App settings → Basic) to enable verification.`);
+      warnedNoSecret = true;
+    }
+    return true;
   }
   if (!sig || typeof sig !== 'string' || !sig.startsWith('sha256=')) return false;
 
