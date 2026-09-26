@@ -152,11 +152,12 @@ const authFacade = {
 
 // ── data facade (supabase-js-style builder → /api/data) ─────────────────────
 function buildFrom(table) {
-  const state = { table, action: 'select', select: '*', filters: [], order: [], limit: null, offset: null, single: false, maybeSingle: false, payload: null, onConflict: null };
+  const state = { table, action: 'select', select: '*', filters: [], order: [], limit: null, offset: null, single: false, maybeSingle: false, payload: null, onConflict: null, count: null, head: false };
 
   const addFilter = (op) => (...args) => { state.filters.push({ op, args }); return b; };
   const b = {
-    select(cols) { if (cols) state.select = cols; return b; },
+    select(cols, opts) { if (cols) state.select = cols; if (opts?.count) state.count = opts.count; if (opts?.head) state.head = true; return b; },
+    filter(col, op, val) { state.filters.push({ op: 'filter', args: [col, op, val] }); return b; },
     insert(payload) { state.action = 'insert'; state.payload = payload; return b; },
     upsert(payload, opts) { state.action = 'upsert'; state.payload = payload; state.onConflict = opts?.onConflict || 'id'; return b; },
     update(payload) { state.action = 'update'; state.payload = payload; return b; },
@@ -184,6 +185,7 @@ function buildFrom(table) {
         filters: state.filters, order: state.order, limit: state.limit, offset: state.offset,
         single: state.single, maybeSingle: state.maybeSingle,
         payload: state.payload, onConflict: state.onConflict,
+        count: state.count, head: state.head,
       }),
     });
     let body;
@@ -195,7 +197,7 @@ function buildFrom(table) {
       body.data = body.data[0] ?? null;
       if (state.single && body.data === null) return { data: null, error: { message: 'Row not found', code: 'PGRST116' } };
     }
-    return { data: body.data ?? null, error: body.error ? { message: body.error.message || body.error } : null };
+    return { data: body.data ?? null, error: body.error ? { message: body.error.message || body.error } : null, count: typeof body.count === 'number' ? body.count : null };
   }
 
   return b;

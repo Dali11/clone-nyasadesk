@@ -162,11 +162,27 @@ class Builder {
     throw new Error(`pgCompat: unsupported .filter() operator "${op}"`);
   }
   or(expr) {
-    // supabase .or('a.eq.1,b.eq.2') — comma-separated OR conditions
-    const parts = String(expr).split(',').map(cond => {
+    // supabase .or('a.eq.1,b.eq.2') — comma-separated OR conditions.
+    // Split on top-level commas only (paren/quote-aware) so values that
+    // legitimately contain commas don't shred the condition list.
+    const conds = [];
+    let cur = '', depth = 0, q = null;
+    for (const ch of String(expr)) {
+      if (q) { cur += ch; if (ch === q) q = null; continue; }
+      if (ch === '"' || ch === "'") { q = ch; cur += ch; continue; }
+      if (ch === '(') depth++;
+      if (ch === ')') depth--;
+      if (ch === ',' && depth === 0) { conds.push(cur); cur = ''; continue; }
+      cur += ch;
+    }
+    if (cur.trim()) conds.push(cur);
+    const parts = conds.map(cond => {
       const m = cond.match(/^([a-zA-Z_]+)\.(eq|neq|gt|gte|lt|lte|like|is)\.(.+)$/);
       if (!m) throw new Error(`pgCompat: unsupported .or() condition "${cond}"`);
-      const [, c, op, rawV] = m;
+      const [, c, op, rawV0] = m;
+      // PostgREST lets values with commas/parens be double-quoted: strip the
+      // wrapping quotes so the literal matches supabase-js behavior.
+      const rawV = (rawV0.length > 1 && rawV0.startsWith('"') && rawV0.endsWith('"')) ? rawV0.slice(1, -1) : rawV0;
       const v = rawV === 'null' ? null : rawV;
       // 'is' covers IS NULL / IS TRUE / IS FALSE (PostgREST .is. semantics)
       if (op === 'is') {
@@ -227,7 +243,9 @@ class Builder {
         const values = rows.map(r => `(${cols.map(c => lit(r[c] === undefined ? null : r[c])).join(', ')})`).join(', ');
         let conflict = '';
         if (this.op === 'upsert') {
-          const keys = (this.onConflict && String(this.onConflict).split(',')) || [cols[0]];
+          // supabase-js defaults onConflict to the primary key when omitted;
+          // an arbitrary first-payload-key target is never valid.
+          const keys = (this.onConflict && String(this.onConflict).split(',').map(k => k.trim()).filter(Boolean)) || ['id'];
           const sets = cols.filter(c => !keys.includes(c)).map(c => `${ident(c)} = EXCLUDED.${ident(c)}`);
           conflict = `ON CONFLICT (${keys.map(ident).join(', ')}) DO UPDATE SET ${sets.join(', ') || `${ident(cols[0])} = EXCLUDED.${ident(cols[0])}`}`;
         }

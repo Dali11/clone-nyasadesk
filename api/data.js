@@ -7,7 +7,7 @@
 import { auth } from './_lib/betterAuth.js';
 import { createClient } from './_lib/dbFactory.js';
 
-const FILTER_OPS = new Set(['eq', 'neq', 'in', 'gt', 'gte', 'lt', 'lte', 'like', 'ilike', 'or', 'is']);
+const FILTER_OPS = new Set(['eq', 'neq', 'in', 'gt', 'gte', 'lt', 'lte', 'like', 'ilike', 'or', 'is', 'filter']);
 const ACTIONS = new Set(['select', 'insert', 'upsert', 'update', 'delete']);
 
 // ── guard cache ──────────────────────────────────────────────────────────────
@@ -98,7 +98,12 @@ export default async function handler(req, res) {
 
     // ── execute through the same query builder the api files use ──
     let q = db.from(table);
-    if (action === 'select') q = q.select(body.select || '*');
+    if (action === 'select') {
+      const opts = (body.count || body.head)
+        ? { ...(body.count ? { count: body.count } : {}), ...(body.head ? { head: true } : {}) }
+        : undefined;
+      q = q.select(body.select || '*', opts);
+    }
     if (action === 'update') q = q.update(body.payload);
     if (action === 'delete') q = q.delete();
     if (action === 'insert') q = q.insert(body.payload);
