@@ -193,7 +193,7 @@ async function handleAiDraft(req, res) {
 
     const { data: conv } = await sb.from('conversations').select('contact_id').eq('id', conversation_id).single();
     const { data: contact } = conv?.contact_id
-      ? await sb.from('contacts').select('name').eq('id', conv.contact_id).single()
+      ? await sb.from('contacts').select('full_name').eq('id', conv.contact_id).single()
       : { data: null };
     const { data: messages } = await sb.from('messages').select('direction,body,attachments')
       .eq('conversation_id', conversation_id).order('created_at', { ascending: true });

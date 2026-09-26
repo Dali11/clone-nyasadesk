@@ -602,9 +602,11 @@ async function handleMigrate(req, res) {
   const MIGRATIONS = [
     'ALTER TABLE public.ai_agents ADD COLUMN IF NOT EXISTS webhook_tool_url text',
     'ALTER TABLE public.ai_agents ADD COLUMN IF NOT EXISTS webhook_tool_secret text',
+    // Neon / Better Auth era: no auth.users FK and no auth.uid() RLS —
+    // access control lives in api/data.js + api/team.js session guards.
     `CREATE TABLE IF NOT EXISTS public.push_subscriptions (
       id uuid primary key default gen_random_uuid(),
-      user_id uuid not null references auth.users(id) on delete cascade,
+      user_id uuid not null,
       owner_id uuid not null,
       endpoint text not null,
       subscription jsonb not null,
@@ -613,8 +615,7 @@ async function handleMigrate(req, res) {
     )`,
     'CREATE UNIQUE INDEX IF NOT EXISTS push_subscriptions_endpoint_key ON public.push_subscriptions(endpoint)',
     'CREATE INDEX IF NOT EXISTS push_subscriptions_owner_id_idx ON public.push_subscriptions(owner_id)',
-    'ALTER TABLE public.push_subscriptions ENABLE ROW LEVEL SECURITY',
-    `DO $pol$ BEGIN IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE tablename='push_subscriptions' AND policyname='Users can manage own push subscriptions') THEN CREATE POLICY "Users can manage own push subscriptions" ON public.push_subscriptions FOR ALL USING (auth.uid() = user_id) WITH CHECK (auth.uid() = user_id); END IF; END $pol$`,
+    'CREATE INDEX IF NOT EXISTS push_subscriptions_user_id_idx ON public.push_subscriptions(user_id)',
   ];
 
   const results = [];
