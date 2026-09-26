@@ -1,0 +1,8 @@
+[{
+  "relation": ["delegate_permission/common.handle_all_urls"],
+  "target": {
+    "namespace": "android_app",
+    "package_name": "com.nyasadesk.twa",
+    "sha256_cert_fingerprints": ["76:7B:76:83:25:3B:02:DC:0A:A0:E8:68:9C:34:9D:A8:2E:6B:94:7F:B7:39:C6:A1:69:15:D4:9C:7C:08:1C:39"]
+  }
+}]
