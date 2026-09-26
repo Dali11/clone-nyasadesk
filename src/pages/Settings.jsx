@@ -124,6 +124,7 @@ function WhatsAppCard({ saved, workspaceId, onSave, onDelete }) {
   const [manualPhoneId, setManualPhoneId] = useState('');
   const [manualConnecting, setManualConnecting] = useState(false);
   const [manualError, setManualError] = useState('');
+  const [showManual, setShowManual] = useState(false); // manual form hidden behind subtle secondary toggle
 
   // Registration wizard (triggered after manual connect when phone not registered)
   const [regWizard, setRegWizard] = useState(null); // null | { waba_id, phone_number_id, phone_number, verified_name }
@@ -779,41 +780,19 @@ function WhatsAppCard({ saved, workspaceId, onSave, onDelete }) {
       {!isLive && (
         <div className="space-y-3">
 
-          {/* Manual entry — primary method */}
+          {/* Connect with Facebook — primary method */}
           {!regWizard && (
-            <div className="bg-[var(--nyasa-surface-1)] rounded-xl p-4 space-y-3">
-              <div>
-                <p className="text-xs font-bold text-white mb-0.5">Cloud API Credentials</p>
-                <p className="text-[11px] text-gray-400 leading-relaxed">
-                  Find these in <strong>Meta Business Suite → WhatsApp Manager</strong>. Use a permanent System User access token.
-                </p>
-              </div>
-              <div className="space-y-2">
-                <div className="space-y-1">
-                  <label className="text-[11px] text-gray-500">Permanent Access Token <span className="text-red-400">*</span></label>
-                  <input type="password" value={manualToken} onChange={e => setManualToken(e.target.value)} placeholder="EAAG…"
-                    className="w-full bg-[var(--nyasa-bg)] text-white text-xs rounded-lg p-2.5 border border-[var(--nyasa-border)] focus:border-[#25D366] outline-none" />
-                </div>
-                <div className="space-y-1">
-                  <label className="text-[11px] text-gray-500">WhatsApp Business Account ID (WABA ID) <span className="text-red-400">*</span></label>
-                  <input value={manualWabaId} onChange={e => setManualWabaId(e.target.value)} placeholder="916980661415765"
-                    className="w-full bg-[var(--nyasa-bg)] text-white text-xs rounded-lg p-2.5 border border-[var(--nyasa-border)] focus:border-[#25D366] outline-none" />
-                </div>
-                <div className="space-y-1">
-                  <label className="text-[11px] text-gray-500">Phone Number ID <span className="text-red-400">*</span></label>
-                  <input value={manualPhoneId} onChange={e => setManualPhoneId(e.target.value)} placeholder="1228643423663631"
-                    className="w-full bg-[var(--nyasa-bg)] text-white text-xs rounded-lg p-2.5 border border-[var(--nyasa-border)] focus:border-[#25D366] outline-none" />
-                </div>
-              </div>
-              {manualError && <p className="text-[11px] text-red-400 leading-relaxed">{manualError}</p>}
-              <button onClick={handleManualConnect} disabled={manualConnecting || !manualToken.trim() || !manualWabaId.trim() || !manualPhoneId.trim()}
-                className="w-full py-3 rounded-xl text-sm font-bold text-white bg-[#25D366] hover:bg-[#20BD5A] disabled:opacity-50 flex items-center justify-center gap-2">
-                {manualConnecting ? <Loader2 className="w-4 h-4 animate-spin" /> : <ShieldCheck className="w-4 h-4" />}
-                {manualConnecting ? 'Connecting…' : 'Connect to WhatsApp Cloud API'}
-              </button>
+            <div className="space-y-2">
 
               {/* Connect with Facebook — Embedded Signup (coexistence-capable) */}
-              <div className="pt-1 space-y-2">
+              <div className="bg-[var(--nyasa-surface-1)] rounded-xl p-4 space-y-2">
+                <div>
+                  <p className="text-xs font-bold text-white mb-0.5">Connect with Facebook</p>
+                  <p className="text-[11px] text-gray-400 leading-relaxed">
+                    One click through Meta's official signup. Best if this number is already on the
+                    WhatsApp Business App — you can keep it running in both places (coexistence).
+                  </p>
+                </div>
                 <button onClick={handleEmbeddedSignup} disabled={embeddedLoading}
                   className="w-full py-3 rounded-xl text-sm font-bold text-white bg-[#1877F2] hover:bg-[#0f6add] disabled:opacity-60 flex items-center justify-center gap-2">
                   <svg className="w-4 h-4" viewBox="0 0 24 24" fill="currentColor"><path d="M24 12.073c0-6.627-5.373-12-12-12s-12 5.373-12 12c0 5.99 4.388 10.954 10.125 11.854v-8.385H7.078v-3.47h3.047V9.43c0-3.007 1.792-4.669 4.533-4.669 1.312 0 2.686.235 2.686.235v2.953H15.83c-1.491 0-1.956.925-1.956 1.874v2.25h3.328l-.532 3.47h-2.796v8.385C19.612 23.027 24 18.062 24 12.073z"/></svg>
@@ -830,17 +809,57 @@ function WhatsAppCard({ saved, workspaceId, onSave, onDelete }) {
                       Check now
                     </button>
                   </div>
-                ) : (
-                  <p className="text-[10px] text-center text-gray-500 leading-relaxed">
-                    One-click official Meta flow. Best if this number is already registered on the WhatsApp
-                    Business App — you can keep it running in both places (coexistence).
-                  </p>
-                )}
+                ) : null}
                 {embeddedError && <p className="text-[11px] text-red-400 leading-relaxed">{embeddedError}</p>}
               </div>
+
+              {/* Manual Cloud API entry — subtle secondary option */}
+              {!showManual ? (
+                <button onClick={() => setShowManual(true)}
+                  className="w-full py-1 text-[11px] text-gray-500 hover:text-gray-300 transition-colors">
+                  Have Cloud API credentials already? <span className="underline underline-offset-2">Connect manually instead</span>
+                </button>
+              ) : (
+                <div className="bg-[var(--nyasa-surface-1)] rounded-xl p-4 space-y-3">
+                  <div>
+                    <p className="text-xs font-bold text-white mb-0.5">Cloud API Credentials</p>
+                    <p className="text-[11px] text-gray-400 leading-relaxed">
+                      Find these in <strong>Meta Business Suite → WhatsApp Manager</strong>. Use a permanent System User access token.
+                    </p>
+                  </div>
+                  <div className="space-y-2">
+                    <div className="space-y-1">
+                      <label className="text-[11px] text-gray-500">Permanent Access Token <span className="text-red-400">*</span></label>
+                      <input type="password" value={manualToken} onChange={e => setManualToken(e.target.value)} placeholder="EAAG…"
+                        className="w-full bg-[var(--nyasa-bg)] text-white text-xs rounded-lg p-2.5 border border-[var(--nyasa-border)] focus:border-[#25D366] outline-none" />
+                    </div>
+                    <div className="space-y-1">
+                      <label className="text-[11px] text-gray-500">WhatsApp Business Account ID (WABA ID) <span className="text-red-400">*</span></label>
+                      <input value={manualWabaId} onChange={e => setManualWabaId(e.target.value)} placeholder="916980661415765"
+                        className="w-full bg-[var(--nyasa-bg)] text-white text-xs rounded-lg p-2.5 border border-[var(--nyasa-border)] focus:border-[#25D366] outline-none" />
+                    </div>
+                    <div className="space-y-1">
+                      <label className="text-[11px] text-gray-500">Phone Number ID <span className="text-red-400">*</span></label>
+                      <input value={manualPhoneId} onChange={e => setManualPhoneId(e.target.value)} placeholder="1228643423663631"
+                        className="w-full bg-[var(--nyasa-bg)] text-white text-xs rounded-lg p-2.5 border border-[var(--nyasa-border)] focus:border-[#25D366] outline-none" />
+                    </div>
+                  </div>
+                  {manualError && <p className="text-[11px] text-red-400 leading-relaxed">{manualError}</p>}
+                  <div className="space-y-1">
+                    <button onClick={handleManualConnect} disabled={manualConnecting || !manualToken.trim() || !manualWabaId.trim() || !manualPhoneId.trim()}
+                      className="w-full py-3 rounded-xl text-sm font-bold text-white bg-[#25D366] hover:bg-[#20BD5A] disabled:opacity-50 flex items-center justify-center gap-2">
+                      {manualConnecting ? <Loader2 className="w-4 h-4 animate-spin" /> : <ShieldCheck className="w-4 h-4" />}
+                      {manualConnecting ? 'Connecting…' : 'Connect to WhatsApp Cloud API'}
+                    </button>
+                    <button onClick={() => setShowManual(false)}
+                      className="w-full py-1 text-[11px] text-gray-500 hover:text-gray-300 transition-colors">
+                      Hide manual form
+                    </button>
+                  </div>
+                </div>
+              )}
             </div>
           )}
-
           {/* Registration wizard — shown after manual connect when number not yet on Cloud API */}
           {regWizard && (
             <div className="bg-[var(--nyasa-surface-1)] rounded-xl p-4 space-y-3">
