@@ -346,13 +346,20 @@ function WhatsAppCard({ saved, workspaceId, onSave, onDelete }) {
   const startFBRedirectPwa = (configData) => {
     setEmbeddedError('');
     setEmbeddedLoading(true);
-    const url = buildFbOauthUrl(configData);
-    const win = window.open(url, '_blank');
+    // ANDROID APP-LINKS FIX (2026-09-26): opening the facebook.com dialog URL
+    // directly via window.open from a PWA/TWA makes Android hand the URL to
+    // the native Facebook app (facebook.com is a verified app-link domain)
+    // — the user ends up "just logging into the Facebook app" and the
+    // Login-for-Business flow never runs. So the new tab opens on OUR origin
+    // first (/fb-redirect, never app-linked) and that page navigates the tab
+    // to Facebook from the inside, which the browser handles itself.
+    const ws = encodeURIComponent(workspaceId || '');
+    const win = window.open(`/fb-redirect?ws=${ws}`, '_blank');
     if (!win) {
       // New tab blocked too — fall back to the full-page nav. It still
       // completes the connection (just in the system browser, orphaning
       // this PWA window), which is at least no worse than before this fix.
-      window.location.href = url;
+      window.location.href = `/fb-redirect?ws=${ws}`;
       return;
     }
     startPwaPolling();
