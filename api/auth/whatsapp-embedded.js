@@ -50,12 +50,35 @@ export default async function handler(req, res) {
   const origin = req.headers.origin;
   const isAllowed = ALLOWED_ORIGINS.includes(origin) || (origin && /\.vercel\.app$/.test(origin));
   res.setHeader('Access-Control-Allow-Origin', isAllowed ? origin : ALLOWED_ORIGINS[0]);
-  res.setHeader('Access-Control-Allow-Methods', 'POST,OPTIONS');
+  res.setHeader('Access-Control-Allow-Methods', 'POST,GET,OPTIONS');
   res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
   if (req.method === 'OPTIONS') return res.status(200).end();
+  // ── GET: OAuth redirect callback (2026-09-26 mobile fix) ─────────────────
+  // Mobile browsers frequently block the FB.login popup even when fired
+  // synchronously from a tap. The redirect flow instead navigates the whole
+  // page to Facebook's OAuth dialog with redirect_uri pointing HERE; Facebook
+  // lands back with ?code=...&state=... We gate on the session (cookie rides
+  // this top-level GET) + workspace-in-state, then bounce to the SPA which
+  // completes via the normal POST path. The state blob we parse is the one
+  // WE generated on the frontend before leaving (btoa JSON with workspace_id).
+  if (req.method === 'GET') {
+    const q = req.query || {};
+    const dest = (param, val) => res.status(302).setHeader('Location', `/settings?tab=channels&${param}=${encodeURIComponent(val)}`).end();
+    if (q.error) return dest('wa_error', q.error_description || q.error || 'cancelled');
+    if (!q.code || !q.state) return dest('wa_error', 'missing_code');
+    let stateWs = null;
+    try { stateWs = JSON.parse(Buffer.from(q.state, 'base64').toString()).workspace_id || null; } catch {}
+    if (!stateWs) return dest('wa_error', 'bad_state');
+    try { await enforceCallerWorkspace(req, stateWs); }
+    catch (e) { return dest('wa_error', e.status === 401 ? 'auth' : (e.status === 403 ? 'workspace' : 'failed')); }
+    // Hand the one-time code to the SPA; it POSTs back immediately and the
+    // URL is cleaned (code is short-lived and single-use anyway).
+    return dest('wa_code', q.code);
+  }
+
   if (req.method !== 'POST')    return res.status(405).end();
 
-  const { code, workspace_id: workspaceId, phone_number_id: hintedPhoneId, waba_id: hintedWabaId, _action } = req.body || {};
+  const { code, workspace_id: workspaceId, phone_number_id: hintedPhoneId, waba_id: hintedWabaId, _action , redirect_flow: redirectFlow } = req.body || {};
 
   // Frontend calls this (with _action set, no code) to fetch the Embedded
   // Signup config_id used to build the FB.login() call.
@@ -77,7 +100,7 @@ export default async function handler(req, res) {
   let shortToken;
   try {
     const tokenRes = await fetch(
-      `https://graph.facebook.com/v26.0/oauth/access_token?client_id=${APP_ID}&redirect_uri=&client_secret=${APP_SECRET}&code=${code}`
+      `https://graph.facebook.com/v26.0/oauth/access_token?client_id=${APP_ID}&redirect_uri=${redirectFlow ? encodeURIComponent('https://nyasadesk.com/api/auth/whatsapp-embedded') : ''}&client_secret=${APP_SECRET}&code=${code}`
     );
     const tokenData = await tokenRes.json();
     if (tokenData.error) throw new Error(tokenData.error.message);

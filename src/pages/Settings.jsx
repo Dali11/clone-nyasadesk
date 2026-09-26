@@ -250,8 +250,89 @@ function WhatsAppCard({ saved, workspaceId, onSave, onDelete }) {
 
   useEffect(() => { preloadEmbedded(); }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
+  // ── MOBILE FIX (2026-09-26): full-page redirect flow ────────────────────
+  // Mobile browsers frequently block the FB.login popup even when fired
+  // synchronously from a tap. On coarse-pointer devices we skip the popup
+  // entirely and navigate the page to Facebook's OAuth dialog; it lands back
+  // on /api/auth/whatsapp-embedded?code=...&state=..., which bounces here
+  // with ?wa_code=... and we complete through the normal POST path.
+  const REDIRECT_URI = (typeof window !== 'undefined' ? window.location.origin : 'https://nyasadesk.com') + '/api/auth/whatsapp-embedded';
+
+  const isMobileDevice = () => {
+    try {
+      return window.matchMedia?.('(pointer: coarse)')?.matches ||
+        /Android|iPhone|iPad|iPod|Mobile/i.test(navigator.userAgent || '');
+    } catch { return false; }
+  };
+
+  const startFBRedirect = async () => {
+    setEmbeddedLoading(true);
+    try {
+      const r = await preloadEmbedded();
+      if (!r.ok) {
+        setEmbeddedLoading(false);
+        setEmbeddedError(
+          r.reason === 'not-configured' ? "Facebook signup isn't configured yet. Use the Advanced option below." :
+          'Could not reach Facebook. Check your connection and try again.');
+        return;
+      }
+      const state = btoa(JSON.stringify({ workspace_id: workspaceId, v: 1 }));
+      const url = 'https://www.facebook.com/v26.0/dialog/oauth' +
+        `?client_id=${r.configData.app_id}` +
+        `&config_id=${r.configData.config_id}` +
+        `&redirect_uri=${encodeURIComponent(REDIRECT_URI)}` +
+        `&state=${encodeURIComponent(state)}` +
+        '&response_type=code&display=page';
+      window.location.href = url; // full-page navigation, no popup to block
+    } catch (e) {
+      setEmbeddedLoading(false);
+      setEmbeddedError('Facebook login failed to start: ' + (e.message || e));
+    }
+  };
+
+  // Complete the redirect flow when we land back with ?wa_code=... (or show ?wa_error=...)
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const waError = params.get('wa_error');
+    const waCode = params.get('wa_code');
+    if (!waError && !waCode) return;
+    const clean = () => {
+      const url = new URL(window.location.href);
+      url.searchParams.delete('wa_error'); url.searchParams.delete('wa_code');
+      window.history.replaceState({}, '', url);
+    };
+    if (waError) {
+      const msg = decodeURIComponent(waError);
+      setEmbeddedError(
+        msg === 'auth' ? 'Your session expired — sign in again, then tap Connect with Facebook.' :
+        msg === 'workspace' ? 'This Facebook account is not attached to your workspace. Try again from the correct account.' :
+        'Facebook signup failed: ' + msg);
+      clean();
+      return;
+    }
+    clean();
+    setEmbeddedLoading(true); setEmbeddedError('');
+    (async () => {
+      try {
+        const res = await fetch('/api/auth/whatsapp-embedded', {
+          method: 'POST', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ code: waCode, workspace_id: workspaceId, redirect_flow: true }),
+        });
+        const d = await res.json();
+        if (d.ok) {
+          if (d.setup_pin) setEmbeddedSetupPin(d.setup_pin);
+          if (onSave) onSave('whatsapp', d.config || { connected_via: 'embedded_signup' });
+        } else {
+          setEmbeddedError(d.error || 'Connection failed. Please try again.');
+        }
+      } catch (e) { setEmbeddedError(e.message); }
+      finally { setEmbeddedLoading(false); }
+    })();
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
   const handleEmbeddedSignup = () => {
     setEmbeddedError(''); setEmbeddedSetupPin(null);
+    if (isMobileDevice()) { startFBRedirect(); return; } // popup is blocked on mobile — use the redirect flow
     const ready = embeddedReadyRef.current;
     if (ready) { startFBLogin(ready.configData); return; }
     setEmbeddedLoading(true);
@@ -295,6 +376,10 @@ function WhatsAppCard({ saved, workspaceId, onSave, onDelete }) {
       window.removeEventListener('message', window._nyasaWAListener);
       if (!response?.authResponse?.code) {
         setEmbeddedLoading(false);
+        // response with no status = popup was BLOCKED by the browser (a real
+        // cancel comes back as { authResponse: null, status: '...' }) — fall
+        // back to the full-page redirect flow instead of failing.
+        if (!response || response.status === undefined) { startFBRedirect(); return; }
         setEmbeddedError('Login was cancelled or did not complete. Please try again.');
         return;
       }
