@@ -272,8 +272,14 @@ export async function listPhoneNumbers(accessToken, wabaId) {
 // ──────────────────────────────────────────────────────────────────────────
 
 /**
- * Pure function: returns true if the phone is registered for Cloud API use.
- * A VERIFIED code_verification_status means the phone is registered.
+ * Pure function: returns true if the number's OTP ownership check was verified.
+ *
+ * NOTE (2026-09-26 audit fix): code_verification_status === 'VERIFIED' means
+ * Meta verified the number via OTP — NOT that it is registered on the Cloud
+ * API. Registration is a separate POST /{PHONE_NUMBER_ID}/register call (see
+ * registerPhone). This function is kept for the manual-connect wizard, which
+ * uses it to decide whether the user still needs the OTP + PIN flow. Do NOT
+ * use it to skip Cloud API registration — autoSetup() now always registers.
  *
  * @param {object} phoneDetails - Object containing code_verification_status
  * @returns {boolean}
@@ -289,11 +295,18 @@ export function isPhoneRegistered(phoneDetails) {
 /**
  * Register a phone number for Cloud API use.
  *
+ * v21.0+ request shape (matching whatsappGuidedSetup.js): access token in the
+ * Authorization header (not the query string) and the required `certificate`
+ * field. Registration is IDEMPOTENT from the caller's perspective: if Meta
+ * answers that the number is already registered, that is success, not an
+ * error — the caller just doesn't get a PIN back (Meta never shared one).
+ *
  * @param {string} accessToken
  * @param {string} phoneNumberId
  * @param {string} [pin] - 6-digit PIN. Auto-generated if not provided.
- * @returns {Promise<{ ok: boolean, pin: string }>} pin returned so caller can surface it.
- * @throws with user-friendly message on error.
+ * @returns {Promise<{ ok: boolean, already_registered: boolean, pin: string|null }>}
+ *   pin returned (so the caller can surface it) only when WE registered it now.
+ * @throws with a user-friendly message on genuine registration failures.
  */
 export async function registerPhone(accessToken, phoneNumberId, pin) {
   if (!accessToken || !phoneNumberId) {
@@ -303,19 +316,30 @@ export async function registerPhone(accessToken, phoneNumberId, pin) {
   // Auto-generate a 6-digit PIN if not provided.
   const finalPin = pin || String(Math.floor(100000 + Math.random() * 900000));
 
-  try {
-    await graphPost(
-      `${GRAPH}/${phoneNumberId}/register?access_token=${encodeURIComponent(accessToken)}`,
-      { messaging_product: 'whatsapp', pin: finalPin }
-    );
-  } catch (e) {
+  const res = await fetch(`${GRAPH}/${phoneNumberId}/register`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      Authorization: `Bearer ${accessToken}`,
+    },
+    body: JSON.stringify({ messaging_product: 'whatsapp', pin: finalPin, certificate: 'cert' }),
+  });
+  const data = await res.json().catch(() => ({}));
+  if (data.error) {
+    const msg = data.error.message || '';
+    const code = data.error.code || 0;
+    // Meta error 130429 (and its message variants): the number is already
+    // registered on the Cloud API. Nothing to do — report success without a PIN.
+    if (code === 130429 || /already (?:been )?registered/i.test(msg)) {
+      return { ok: true, already_registered: true, pin: null };
+    }
     throw new Error(
-      e.message ||
+      msg ||
         'Failed to register this phone number for Cloud API use. Make sure the number has been verified first (request + verify a code), and that no other number is already registered on it.'
     );
   }
 
-  return { ok: true, pin: finalPin };
+  return { ok: true, already_registered: false, pin: finalPin };
 }
 
 // ──────────────────────────────────────────────────────────────────────────
@@ -488,7 +512,7 @@ export async function fetchMessagingLimits(accessToken, wabaId) {
  *
  * Steps:
  *   1. getPhoneDetails
- *   2. if not isPhoneRegistered: registerPhone (auto-generate PIN, save in result)
+ *   2. ALWAYS registerPhone (idempotent — auto-generates a PIN if we register it)
  *   3. subscribeWebhooks
  *   4. fetchMessagingLimits (non-fatal, caught and included as null on failure)
  *   5. Returns { phone, waba_limits, auto_registered, auto_pin (if applicable) }
@@ -527,9 +551,18 @@ export async function autoSetup(accessToken, wabaId, phoneNumberId) {
   let autoRegistered = false;
   let autoPin = null;
 
-  // Step 2: Register the phone if not already registered.
-  if (!isPhoneRegistered(phone)) {
-    const regResult = await registerPhone(accessToken, phoneNumberId);
+  // Step 2: ALWAYS attempt Cloud API registration (2026-09-26 audit fix).
+  //
+  // The old code skipped this when code_verification_status === 'VERIFIED',
+  // conflating Meta's OTP ownership check with Cloud API registration. Every
+  // number that comes out of Embedded Signup is VERIFIED, so registration was
+  // NEVER run: the channel "connected" (webhooks subscribed, config saved)
+  // while the number stayed dead — "not on WhatsApp" from any client, and
+  // outbound sends failing with Meta #133010. Registration is idempotent
+  // (registerPhone treats Meta's "already registered" as success), so we
+  // simply always run it and keep the generated PIN when we did the work.
+  const regResult = await registerPhone(accessToken, phoneNumberId);
+  if (!regResult.already_registered) {
     autoRegistered = true;
     autoPin = regResult.pin;
   }
