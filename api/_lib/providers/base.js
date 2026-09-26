@@ -114,7 +114,7 @@ export async function persistInboundMessage(sb, workspaceId, params) {
 
   const { data: conv } = await sb.from('conversations')
     .upsert(upsertPayload, { onConflict: 'workspace_id,channel,external_id' })
-    .select('id,unread_count,assigned_to,assigned_to_name').single();
+    .select('id,unread_count,assigned_to,assigned_to_name,ai_paused').single();
 
   if (conv?.id) {
     await sb.from('conversations').update({
@@ -173,7 +173,10 @@ export async function persistInboundMessage(sb, workspaceId, params) {
     //
     // skipAutoReply: set by callers (e.g. auth-forwarded messages) to suppress
     // the AI auto-reply when an external system is already handling the reply.
-    if (!conv.assigned_to && !params.skipAutoReply) {
+    // ai_paused: explicit per-conversation switch (chat header toggle) --
+    // independent of assignment, so an agent can mute AI without having to
+    // assign/unassign themselves just to stop it replying.
+    if (!conv.assigned_to && !conv.ai_paused && !params.skipAutoReply) {
       const { autoReplyIfEnabled } = await import('../aiAutoReply.js');
       await autoReplyIfEnabled(sb, { workspaceId, conversationId: conv.id, channel, externalId, contact });
     }

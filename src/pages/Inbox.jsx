@@ -289,6 +289,8 @@ export default function Inbox() {
         });
       } else if (updates.assigned_to === null && prev?.assigned_to) {
         toast({ title: 'AI automation resumed', duration: 3000 });
+      } else if (typeof updates.ai_paused === 'boolean' && updates.ai_paused !== prev?.ai_paused) {
+        toast({ title: updates.ai_paused ? 'AI auto-reply turned off' : 'AI auto-reply turned on', duration: 2500 });
       }
       return { ...prev, ...updates };
     });

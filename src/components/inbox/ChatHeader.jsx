@@ -1,4 +1,4 @@
-import { ArrowLeft, UserPlus, Check, Phone, MoreVertical } from 'lucide-react';
+import { ArrowLeft, UserPlus, Check, Phone, MoreVertical, Bot, BotOff } from 'lucide-react';
 import { useState } from 'react';
 import Avatar from '@/components/Avatar';
 import { createContact, getContactByPhone } from '@/lib/channels';
@@ -52,6 +52,16 @@ export default function ChatHeader({
     } finally {
       setSavingContact(false);
     }
+  };
+
+  // AI auto-reply switch — explicit per-conversation control, independent of
+  // assignment. Lets an agent silence the AI's automated replies for this one
+  // chat (e.g. a sensitive or already-resolved thread) without having to
+  // assign the conversation to themselves just to stop it.
+  const aiPaused = !!conversation.ai_paused;
+  const toggleAi = (e) => {
+    e.stopPropagation();
+    onUpdate?.({ id: conversation.id, ai_paused: !aiPaused });
   };
 
   return (
@@ -133,6 +143,17 @@ export default function ChatHeader({
 
       {/* Right actions */}
       <div className="flex items-center gap-0.5 shrink-0">
+        {/* AI auto-reply switch */}
+        <button
+          onClick={toggleAi}
+          className={`p-2 rounded-full transition-colors ${
+            aiPaused ? 'text-[#8696A0] hover:text-white hover:bg-white/10' : 'text-[#25D366] bg-[#25D366]/10 hover:bg-[#25D366]/20'
+          }`}
+          title={aiPaused ? 'AI auto-reply is off — tap to turn on' : 'AI auto-reply is on — tap to turn off'}
+        >
+          {aiPaused ? <BotOff className="w-5 h-5" /> : <Bot className="w-5 h-5" />}
+        </button>
+
         {/* Click-to-call (WhatsApp / SMS) */}
         {conversation.contact_phone &&
           ['whatsapp', 'sms', 'phone'].includes(conversation.channel) && (

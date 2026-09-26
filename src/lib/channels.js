@@ -270,7 +270,7 @@ const CONVERSATION_COLUMNS = new Set([
   'workspace_id','contact_id','channel','external_id','status','priority',
   'assigned_to','assigned_to_name','subject','last_message','last_message_at',
   'unread_count','sla_breach_at','deal_stage','tags','updated_at',
-  'is_reminder_active','reminder_at','last_read_at',
+  'is_reminder_active','reminder_at','last_read_at','ai_paused',
 ]);
 
 export async function updateConversation(id, updates) {

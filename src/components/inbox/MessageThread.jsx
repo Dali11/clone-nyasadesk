@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef, Fragment } from 'react';
 import { Send, StickyNote, Loader2, Check, CheckCheck, X, Zap, Bot, Sparkles, Paperclip, Mic, Square, Play, Pause,
-         ChevronDown, Copy, Share2, Pin, PinOff, Trash2, Ban, Reply, Palette, Download, Maximize2, Info } from 'lucide-react';
+         ChevronDown, Copy, Share2, Pin, PinOff, Trash2, Ban, Reply, Palette, Download, Maximize2, Info,
+         MessageCircle, LayoutTemplate } from 'lucide-react';
 import { formatDistanceToNow, isToday, isYesterday, format as formatDate } from 'date-fns';
 import { motion, AnimatePresence } from 'framer-motion';
 import { getMessages, sendMessage, sendMediaMessage, addNote, deleteMessage, setMessagePinned, subscribeToMessages, getCannedResponses, setChatBackground, getAiAgents, generateAiDraft } from '@/lib/channels';
@@ -1009,73 +1010,88 @@ export default function MessageThread({ conversation, workspaceId }) {
             </button>
           </div>
         )}
-        {/* Tab row */}
-        <div className="flex gap-1 mb-2">
-          {['reply', 'note'].map(t => (
-            <button key={t} onClick={() => setTab(t)}
-              className={`text-[11px] font-semibold px-3 py-1 rounded-lg transition-colors capitalize
-                ${tab === t ? 'bg-[#25D366]/20 text-[#25D366]' : 'text-gray-500 hover:text-gray-300'}`}>
-              {t === 'note' ? '📝 Note' : '💬 Reply'}
-            </button>
-          ))}
-
-          {/* Background picker */}
-          <div className="relative ml-auto">
-            <button onClick={() => setShowBgPicker(s => !s)}
-              className="flex items-center gap-1 text-[11px] text-gray-500 hover:text-gray-300 px-2 py-1 rounded-lg hover:bg-white/5 transition-colors">
-              <Palette className="w-3.5 h-3.5" />
-            </button>
-            {showBgPicker && (
-              <div className="absolute right-0 bottom-full mb-1 z-10 bg-[var(--nyasa-surface-3)] border border-[var(--nyasa-border)] rounded-xl p-2 w-40 shadow-lg space-y-0.5">
-                <p className="text-[10px] text-gray-500 px-2 pb-1">Chat background (only for you)</p>
-                {Object.entries(CHAT_BACKGROUNDS).map(([key, v]) => (
-                  <button key={key} onClick={() => chooseBackground(key)}
-                    className={`w-full text-left text-xs px-2 py-1.5 rounded-lg hover:bg-white/10 transition-colors ${bg === key ? 'text-[#25D366] font-semibold' : 'text-gray-300'}`}>
-                    {v.label}
-                  </button>
-                ))}
-                <button onClick={chooseCustomBackground}
-                  className="w-full text-left text-xs px-2 py-1.5 rounded-lg hover:bg-white/10 transition-colors text-gray-300">
-                  Custom image URL…
-                </button>
-              </div>
-            )}
+        {/* Toolbar row — WhatsApp/legacy-messenger style: a compact segmented
+            Reply/Note switch on the left, plain icon buttons (no text labels,
+            tooltip on hover/long-press) on the right, matching the dense
+            utility rows of native chat apps instead of labelled pill buttons. */}
+        <div className="flex items-center gap-1.5 mb-2">
+          {/* Reply / Note segmented switch */}
+          <div className="flex items-center bg-[var(--nyasa-surface-4)] rounded-full p-0.5 shrink-0">
+            {[
+              { key: 'reply', icon: MessageCircle, label: 'Reply' },
+              { key: 'note',  icon: StickyNote,    label: 'Note'  },
+            ].map(({ key, icon: Icon, label }) => (
+              <button key={key} onClick={() => setTab(key)} title={label}
+                className={`flex items-center gap-1 text-[11px] font-semibold px-2.5 py-1 rounded-full transition-colors
+                  ${tab === key ? 'bg-[#25D366] text-black' : 'text-gray-400 hover:text-gray-200'}`}>
+                <Icon className="w-3.5 h-3.5" />
+                <span className="hidden sm:inline">{label}</span>
+              </button>
+            ))}
           </div>
 
-          {/* Canned response trigger */}
-          <button onClick={() => setShowCanned(s => !s)}
-            className="flex items-center gap-1 text-[11px] text-gray-500 hover:text-gray-300 px-2 py-1 rounded-lg hover:bg-white/5 transition-colors">
-            <Zap className="w-3.5 h-3.5" /> Quick
-          </button>
-
-          {/* AI draft trigger — only shows if the workspace has any active agents */}
-          {aiAgents.length > 0 && (
+          <div className="flex items-center gap-0.5 ml-auto">
+            {/* Background picker */}
             <div className="relative">
-              <button onClick={() => setShowAiPicker(s => !s)} disabled={aiDrafting}
-                className="flex items-center gap-1 text-[11px] text-gray-500 hover:text-gray-300 px-2 py-1 rounded-lg hover:bg-white/5 transition-colors disabled:opacity-50">
-                {aiDrafting ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Sparkles className="w-3.5 h-3.5" />} AI draft
+              <button onClick={() => setShowBgPicker(s => !s)} title="Chat background"
+                className={`w-8 h-8 flex items-center justify-center rounded-full transition-colors
+                  ${showBgPicker ? 'bg-[#25D366]/15 text-[#25D366]' : 'text-gray-400 hover:text-gray-200 hover:bg-white/5'}`}>
+                <Palette className="w-4 h-4" />
               </button>
-              {showAiPicker && (
-                <div className="absolute left-0 bottom-full mb-1 z-10 bg-[var(--nyasa-surface-3)] border border-[var(--nyasa-border)] rounded-xl p-1.5 w-52 shadow-lg space-y-0.5">
-                  <p className="text-[10px] text-gray-500 px-2 pb-1">Draft a reply using…</p>
-                  {aiAgents.map(a => (
-                    <button key={a.id} onClick={() => handleAiDraft(a)}
-                      className="w-full text-left text-xs px-2 py-1.5 rounded-lg hover:bg-white/10 transition-colors text-gray-300 flex items-center gap-1.5">
-                      <Bot className="w-3.5 h-3.5 text-[#25D366] shrink-0" /> {a.name}
+              {showBgPicker && (
+                <div className="absolute right-0 bottom-full mb-1 z-10 bg-[var(--nyasa-surface-3)] border border-[var(--nyasa-border)] rounded-xl p-2 w-40 shadow-lg space-y-0.5">
+                  <p className="text-[10px] text-gray-500 px-2 pb-1">Chat background (only for you)</p>
+                  {Object.entries(CHAT_BACKGROUNDS).map(([key, v]) => (
+                    <button key={key} onClick={() => chooseBackground(key)}
+                      className={`w-full text-left text-xs px-2 py-1.5 rounded-lg hover:bg-white/10 transition-colors ${bg === key ? 'text-[#25D366] font-semibold' : 'text-gray-300'}`}>
+                      {v.label}
                     </button>
                   ))}
+                  <button onClick={chooseCustomBackground}
+                    className="w-full text-left text-xs px-2 py-1.5 rounded-lg hover:bg-white/10 transition-colors text-gray-300">
+                    Custom image URL…
+                  </button>
                 </div>
               )}
             </div>
-          )}
 
-          {/* Template message trigger — WhatsApp only */}
-          {conversation?.channel === 'whatsapp' && tab !== 'note' && (
-            <button onClick={openTemplatePicker}
-              className="flex items-center gap-1 text-[11px] text-gray-500 hover:text-gray-300 px-2 py-1 rounded-lg hover:bg-white/5 transition-colors">
-              <StickyNote className="w-3.5 h-3.5" /> Template
+            {/* Canned response trigger */}
+            <button onClick={() => setShowCanned(s => !s)} title="Quick / canned replies"
+              className={`w-8 h-8 flex items-center justify-center rounded-full transition-colors
+                ${showCanned ? 'bg-[#25D366]/15 text-[#25D366]' : 'text-gray-400 hover:text-gray-200 hover:bg-white/5'}`}>
+              <Zap className="w-4 h-4" />
             </button>
-          )}
+
+            {/* AI draft trigger — only shows if the workspace has any active agents */}
+            {aiAgents.length > 0 && (
+              <div className="relative">
+                <button onClick={() => setShowAiPicker(s => !s)} disabled={aiDrafting} title="AI draft"
+                  className={`w-8 h-8 flex items-center justify-center rounded-full transition-colors disabled:opacity-50
+                    ${showAiPicker ? 'bg-[#25D366]/15 text-[#25D366]' : 'text-gray-400 hover:text-gray-200 hover:bg-white/5'}`}>
+                  {aiDrafting ? <Loader2 className="w-4 h-4 animate-spin" /> : <Sparkles className="w-4 h-4" />}
+                </button>
+                {showAiPicker && (
+                  <div className="absolute right-0 bottom-full mb-1 z-10 bg-[var(--nyasa-surface-3)] border border-[var(--nyasa-border)] rounded-xl p-1.5 w-52 shadow-lg space-y-0.5">
+                    <p className="text-[10px] text-gray-500 px-2 pb-1">Draft a reply using…</p>
+                    {aiAgents.map(a => (
+                      <button key={a.id} onClick={() => handleAiDraft(a)}
+                        className="w-full text-left text-xs px-2 py-1.5 rounded-lg hover:bg-white/10 transition-colors text-gray-300 flex items-center gap-1.5">
+                        <Bot className="w-3.5 h-3.5 text-[#25D366] shrink-0" /> {a.name}
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* Template message trigger — WhatsApp only */}
+            {conversation?.channel === 'whatsapp' && tab !== 'note' && (
+              <button onClick={openTemplatePicker} title="Send a template message"
+                className="w-8 h-8 flex items-center justify-center rounded-full text-gray-400 hover:text-gray-200 hover:bg-white/5 transition-colors">
+                <LayoutTemplate className="w-4 h-4" />
+              </button>
+            )}
+          </div>
         </div>
 
         {/* Canned responses */}
