@@ -10,6 +10,28 @@ import { createClient } from './_lib/dbFactory.js';
 const FILTER_OPS = new Set(['eq', 'neq', 'in', 'gt', 'gte', 'lt', 'lte', 'like', 'ilike', 'or', 'is']);
 const ACTIONS = new Set(['select', 'insert', 'upsert', 'update', 'delete']);
 
+// ── guard cache ──────────────────────────────────────────────────────────────
+// Every /api/data request used to run two extra Neon queries just to learn
+// who the caller is (profiles row + platform_admin_emails allowlist). The
+// realtime facade polls every 4s per channel, so an open Inbox burned 30+ of
+// these pairs per minute for data that changes at human speed. Cache the
+// resolved identity per user for 30s — role/plan/workspace switches apply
+// within half a minute, same trade-off the session itself already makes.
+const GUARD_TTL_MS = 30_000;
+const guardCache = new Map(); // uid -> { t, W, platformAdmin }
+function guardCacheGet(uid) {
+  const hit = guardCache.get(uid);
+  if (hit && Date.now() - hit.t < GUARD_TTL_MS) return hit;
+  return null;
+}
+function guardCacheSet(uid, W, platformAdmin) {
+  guardCache.set(uid, { t: Date.now(), W, platformAdmin });
+  if (guardCache.size > 1000) { // bound memory: drop the oldest entries
+    const oldest = [...guardCache.entries()].sort((a, b) => a[1].t - b[1].t).slice(0, 200);
+    for (const [k] of oldest) guardCache.delete(k);
+  }
+}
+
 export default async function handler(req, res) {
   if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' });
   try {
@@ -28,13 +50,20 @@ export default async function handler(req, res) {
 
     // ── identity: the caller's workspace (same rule the app itself uses:
     //    owners have workspace_id=null and ARE their own workspace id) ──
-    const { data: profile } = await db.from('profiles')
-      .select('id, workspace_id, role').eq('id', uid).maybeSingle();
-    const W = profile?.workspace_id || uid;
-    // platform admins (God Mode) — the same allowlist /api/admin/* checks
-    const { data: pa } = await db.from('platform_admin_emails')
-      .select('email').eq('email', session.user.email || '').maybeSingle();
-    const platformAdmin = !!pa;
+    let W = null, platformAdmin = false;
+    const cachedGuard = guardCacheGet(uid);
+    if (cachedGuard) {
+      W = cachedGuard.W; platformAdmin = cachedGuard.platformAdmin;
+    } else {
+      const { data: profile } = await db.from('profiles')
+        .select('id, workspace_id, role').eq('id', uid).maybeSingle();
+      W = profile?.workspace_id || uid;
+      // platform admins (God Mode) — the same allowlist /api/admin/* checks
+      const { data: pa } = await db.from('platform_admin_emails')
+        .select('email').eq('email', session.user.email || '').maybeSingle();
+      platformAdmin = !!pa;
+      guardCacheSet(uid, W, platformAdmin);
+    }
 
     // ── workspace guard (replaces Supabase RLS) ──
     const explicitW = filters.find(f => f.op === 'eq' && f.args?.[0] === 'workspace_id');

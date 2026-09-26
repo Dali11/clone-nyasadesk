@@ -9,7 +9,8 @@ import ContactPanel from '@/components/inbox/ContactPanel';
 import NewConvModal from '@/components/inbox/NewConvModal';
 import { useNyasaAuth } from '@/lib/NyasaAuth';
 import { useToast } from '@/components/ui/use-toast';
-import { getConversations, updateConversation, deleteConversation, subscribeToConversations, getPinnedConvs, createInternalConv, pinConversation, unpinConversation, getTeamMembers } from '@/lib/channels';
+import { getConversations, updateConversation, deleteConversation, subscribeToConversations, getPinnedConvs, createInternalConv, pinConversation, unpinConversation, getTeamMembers, normalizeConversation } from '@/lib/channels';
+import { getCachedConversations } from '@/lib/offlineDb';
 import { supabase } from '@/lib/supabase';
 import { useDocumentTitle } from '@/hooks/useDocumentTitle';
 
@@ -124,9 +125,17 @@ export default function Inbox() {
   // current user, so you could never actually assign a conversation to a
   // teammate from the chat header, only to yourself.
   const [teamUsers, setTeamUsers] = useState([]);
+  // trailing-debounce timer for poll-driven full reloads
+  const reloadTimer = useRef(null);
 
   const loadConversations = useCallback(async () => {
     if (!workspaceOwnerId) return;
+    // Cache-first render: show the last-known list from IndexedDB IMMEDIATELY
+    // so returning users see their chats instantly, while the fresh fetch
+    // runs behind it and replaces the list when it lands. Previously every
+    // open waited on the full network round trip before showing anything.
+    const cached = await getCachedConversations(workspaceOwnerId).catch(() => null);
+    if (cached?.length) { setConversations(cached.map(normalizeConversation)); setLoading(false); }
     try {
       // Agents only see their assigned chats — pass their userId as agentId filter.
       // Admins and Sales Managers get everything (no agentId filter).
@@ -218,10 +227,13 @@ export default function Inbox() {
         setConversations(prev => prev.map(c => c.id === payload.new.id ? { ...c, ...payload.new } : c));
         setActiveConv(prev => (prev?.id === payload.new.id ? { ...prev, ...payload.new } : prev));
       } else {
-        loadConversations();
+        // INSERT/DELETE arrive in bursts (a poll diff can emit dozens at once)
+        // — coalesce into a single reload instead of one full fetch per row.
+        if (reloadTimer.current) clearTimeout(reloadTimer.current);
+        reloadTimer.current = setTimeout(() => { reloadTimer.current = null; loadConversations(); }, 400);
       }
     });
-    return () => sub?.unsubscribe?.();
+    return () => { sub?.unsubscribe?.(); if (reloadTimer.current) clearTimeout(reloadTimer.current); };
   }, [workspaceOwnerId, loadConversations, canViewAllChats, user?.id]);
 
   const filtered = conversations.filter(c => {

@@ -218,9 +218,23 @@ function makeChannel(name) {
     on(type, cfg, cb) { if (type === 'postgres_changes' && typeof cb === 'function') subs.push({ cfg, cb }); return ch; },
     subscribe(statusCb) {
       const interval = 4000;
+      // ── Baseline semantics (matches Supabase Realtime) ──────────────────
+      // The FIRST poll after subscribe establishes the baseline snapshot
+      // WITHOUT emitting events. Previously every existing row was emitted as
+      // an INSERT, so opening the app fired one callback per conversation
+      // (200+ for an established workspace) — and each Inbox callback ran a
+      // FULL conversations reload, a thundering herd of hundreds of API
+      // calls that drowned the actual initial load ("chats take forever to
+      // load"). Initial rendering is the explicit load's job (getConversations
+      // etc.); this subscription only carries changes from here on.
+      const baselined = new Set();
       const poll = async () => {
+        // Don't burn mobile data / server quota polling a hidden tab — the
+        // visibilitychange listener below polls immediately on return.
+        if (typeof document !== 'undefined' && document.hidden) return;
         for (const { cfg, cb } of subs) {
           try {
+            const key = cfg.table + (cfg.filter || '');
             const f = parsePgFilter(cfg.filter);
             const r = await fetch('/api/data', {
               method: 'POST', credentials: 'include',
@@ -230,23 +244,33 @@ function makeChannel(name) {
             if (!r.ok) continue;
             const body = await r.json();
             const rows = Array.isArray(body.data) ? body.data : [];
-            const prev = state.snapshots.get(cfg.table + (cfg.filter || '')) || new Map();
+            const prev = state.snapshots.get(key) || new Map();
             const next = new Map(rows.map(row => [row.id, JSON.stringify(row)]));
+            state.snapshots.set(key, next);
+            if (!baselined.has(key)) { baselined.add(key); continue; }
             for (const [id, json] of next) {
               if (!prev.has(id)) { try { cb({ new: JSON.parse(json), eventType: 'INSERT' }); } catch (_) {} }
               else if (prev.get(id) !== json) { try { cb({ new: JSON.parse(json), eventType: 'UPDATE' }); } catch (_) {} }
             }
             for (const id of prev.keys()) if (!next.has(id)) { try { cb({ old: { id }, eventType: 'DELETE' }); } catch (_) {} }
-            state.snapshots.set(cfg.table + (cfg.filter || ''), next);
           } catch (_) { /* transient network errors are fine */ }
         }
       };
+      const onVisible = () => { if (!document.hidden) poll(); };
       poll();
       state.timer = setInterval(poll, interval);
+      state.onVisible = onVisible;
+      if (typeof document !== 'undefined') document.addEventListener('visibilitychange', onVisible);
       try { statusCb?.('SUBSCRIBED'); } catch (_) {}
       return ch;
     },
-    unsubscribe() { if (state.timer) clearInterval(state.timer); activeChannels.delete(name); },
+    unsubscribe() {
+      if (state.timer) clearInterval(state.timer);
+      if (typeof document !== 'undefined' && state.onVisible) {
+        document.removeEventListener('visibilitychange', state.onVisible);
+      }
+      activeChannels.delete(name);
+    },
   };
   activeChannels.set(name, ch);
   return ch;

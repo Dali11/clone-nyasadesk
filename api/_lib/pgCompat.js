@@ -139,13 +139,40 @@ class Builder {
     return this;
   }
   ilike(c, v) { this.wheres.push({ col: c, sql: `ILIKE ${lit(v)}` }); return this; }
+  // supabase-js .filter(col, op, value) — raw PostgREST operator escape hatch.
+  // Only the jsonb operators NyasaDesk's api/ layer actually uses are mapped:
+  //   cs = contains   → col @> value::jsonb
+  //   cd = contained  → col <@ value::jsonb
+  // The value arrives as a JSON-encoded string (e.g. '["whatsapp"]'), matching
+  // how supabase-js serializes PostgREST filter params, so a ::jsonb cast of
+  // the literal is the exact PostgREST semantics for jsonb columns.
+  // Anything else throws loudly instead of silently matching zero rows.
+  filter(c, op, v) {
+    if (op === 'cs') { this.wheres.push({ col: c, sql: `@> ${lit(v)}::jsonb` }); return this; }
+    if (op === 'cd') { this.wheres.push({ col: c, sql: `<@ ${lit(v)}::jsonb` }); return this; }
+    if (op === 'eq') return this.eq(c, v);
+    if (op === 'neq') return this.neq(c, v);
+    if (op === 'gt') return this.gt(c, v);
+    if (op === 'gte') return this.gte(c, v);
+    if (op === 'lt') return this.lt(c, v);
+    if (op === 'lte') return this.lte(c, v);
+    if (op === 'like') return this.like(c, v);
+    if (op === 'ilike') return this.ilike(c, v);
+    if (op === 'is') return this.is(c, v);
+    throw new Error(`pgCompat: unsupported .filter() operator "${op}"`);
+  }
   or(expr) {
     // supabase .or('a.eq.1,b.eq.2') — comma-separated OR conditions
     const parts = String(expr).split(',').map(cond => {
-      const m = cond.match(/^([a-zA-Z_]+)\.(eq|neq|gt|gte|lt|lte|like)\.(.+)$/);
+      const m = cond.match(/^([a-zA-Z_]+)\.(eq|neq|gt|gte|lt|lte|like|is)\.(.+)$/);
       if (!m) throw new Error(`pgCompat: unsupported .or() condition "${cond}"`);
       const [, c, op, rawV] = m;
       const v = rawV === 'null' ? null : rawV;
+      // 'is' covers IS NULL / IS TRUE / IS FALSE (PostgREST .is. semantics)
+      if (op === 'is') {
+        const sql = v === null ? 'IS NULL' : v === 'true' ? 'IS TRUE' : v === 'false' ? 'IS FALSE' : `= ${lit(v)}`;
+        return `${qual(c)} ${sql}`;
+      }
       const sym = { eq: '=', neq: '<>', gt: '>', gte: '>=', lt: '<', lte: '<=' }[op] || (op === 'like' ? 'LIKE' : '=');
       return `${qual(c)} ${sym} ${lit(v)}`;
     });

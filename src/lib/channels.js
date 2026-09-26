@@ -178,7 +178,7 @@ export async function deleteChannelConfig(workspaceId, channel) {
 // Normalizes a raw Supabase row (with nested `contact:contacts(...)`) into the
 // flat shape the UI components (ConvRow, ChatHeader, ContactPanel) expect.
 // Keeping this in one place means every consumer sees consistent field names.
-function normalizeConversation(row) {
+export function normalizeConversation(row) {
   if (!row) return row;
   const c = row.contact || {};
   return {
