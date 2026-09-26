@@ -5,6 +5,26 @@
 
 import { createClient } from '../_lib/dbFactory.js';
 
+// ── Session + workspace gate (2026-09-26 security audit) ─────────────────────
+// This OAuth redirect endpoint attaches the Facebook pages the connecting
+// user manages to the workspace in `state`. Previously it trusted `state`
+// blindly — an attacker could complete OAuth with their own Facebook login
+// and attach their pages to ANY workspace UUID. The redirect is a top-level
+// GET on nyasadesk.com, so the session cookie rides along; we now require a
+// session whose workspace matches (platform admins excepted).
+import { auth } from '../_lib/betterAuth.js';
+
+async function enforceCallerWorkspace(req, workspaceId) {
+  const session = await auth.api.getSession({ headers: req.headers });
+  if (!session?.user) throw Object.assign(new Error('Not authenticated'), { status: 401 });
+  const sb0 = createClient(SUPABASE_URL, SUPABASE_KEY);
+  const { data: profile } = await sb0.from('profiles').select('id, workspace_id').eq('id', session.user.id).maybeSingle();
+  const W = profile?.workspace_id || session.user.id;
+  const { data: pa } = await sb0.from('platform_admin_emails').select('email').eq('email', session.user.email || '').maybeSingle();
+  if (pa) return;
+  if (workspaceId !== W) throw Object.assign(new Error('Not your workspace'), { status: 403 });
+}
+
 const SUPABASE_URL  = 'https://pfbaepibelomiutlotkn.supabase.co';
 const SUPABASE_KEY  = process.env.SUPABASE_SERVICE_ROLE_KEY;
 const APP_ID        = process.env.FACEBOOK_APP_ID;
@@ -44,6 +64,8 @@ export default async function handler(req, res) {
 
     // 4. Save to Supabase — store pages list against workspace_id from state
     const workspaceId = state;
+    try { await enforceCallerWorkspace(req, workspaceId); }
+    catch (e) { return res.redirect(`${PROD_URL}/settings?tab=channels&error=${e.status || 'fb_failed'}`); }
     const sb = createClient(SUPABASE_URL, SUPABASE_KEY);
 
     const pages = (pagesData.data || []).map(p => ({

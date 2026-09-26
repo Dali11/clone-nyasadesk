@@ -14,6 +14,26 @@
 //          fetches messaging limits), and saves the channel config.
 
 import { createClient } from '../_lib/dbFactory.js';
+
+// ── Session + workspace gate (2026-09-26 security audit) ─────────────────────
+// This endpoint attaches a WhatsApp Business Account (from Meta's embedded
+// signup code exchange) to a workspace. It previously trusted the client's
+// workspace_id with no session — an attacker could attach their own WABA to
+// any workspace UUID. Now requires a Better Auth session whose workspace
+// matches (platform admins excepted).
+import { auth } from '../_lib/betterAuth.js';
+
+async function enforceCallerWorkspace(req, workspaceId) {
+  const session = await auth.api.getSession({ headers: req.headers });
+  if (!session?.user) throw Object.assign(new Error('Not authenticated'), { status: 401 });
+  const sb0 = createClient(SUPABASE_URL, SUPABASE_KEY);
+  const { data: profile } = await sb0.from('profiles').select('id, workspace_id').eq('id', session.user.id).maybeSingle();
+  const W = profile?.workspace_id || session.user.id;
+  const { data: pa } = await sb0.from('platform_admin_emails').select('email').eq('email', session.user.email || '').maybeSingle();
+  if (pa) return { uid: session.user.id, W };
+  if (workspaceId !== W) throw Object.assign(new Error('Not your workspace'), { status: 403 });
+  return { uid: session.user.id, W };
+}
 import { autoSetup, subscribeWebhooks } from '../_lib/whatsappSetup.js';
 
 const SUPABASE_URL = 'https://pfbaepibelomiutlotkn.supabase.co';
@@ -47,6 +67,8 @@ export default async function handler(req, res) {
   }
 
   if (!workspaceId) return res.status(400).json({ error: 'Missing workspace_id' });
+  try { await enforceCallerWorkspace(req, workspaceId); }
+  catch (e) { return res.status(e.status || 500).json({ error: e.message }); }
   if (!code)        return res.status(400).json({ error: 'Missing authorization code' });
 
   // ── Step 1: Exchange the code for a short-lived user access token ──────

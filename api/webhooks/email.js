@@ -2,6 +2,19 @@ import { createClient } from '../_lib/dbFactory.js';
 import { applyAssignmentRules } from '../_lib/assignRules.js';
 import { notifyNewMessage } from '../_lib/pushNotify.js';
 
+import crypto from 'crypto';
+
+// ── Shared-secret gate (2026-09-26 security audit) ──────────────────────────
+// Inbound-email webhooks previously had NO verification: anyone could POST a
+// forged email into any workspace (poisoned contact records, fake
+// conversations, push spam, AI auto-reply triggers). Configure the secret in
+// your Mailgun/SendGrid inbound-URL: https://nyasadesk.com/api/webhooks/email?secret=<EMAIL_WEBHOOK_SECRET>
+function timingSafeEq(a, b) {
+  const ba = Buffer.from(String(a || '')), bb = Buffer.from(String(b || ''));
+  if (ba.length !== bb.length) return false;
+  return crypto.timingSafeEqual(ba, bb);
+}
+
 const SUPABASE_URL = 'https://pfbaepibelomiutlotkn.supabase.co';
 const SUPABASE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY;
 
@@ -10,6 +23,13 @@ const SUPABASE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY;
 export default async function handler(req, res) {
   try {
     if (req.method !== 'POST') return res.status(405).send('Method Not Allowed');
+    const EMAIL_SECRET = process.env.EMAIL_WEBHOOK_SECRET;
+    if (!EMAIL_SECRET) {
+      console.error('[email-webhook] EMAIL_WEBHOOK_SECRET not set — rejecting (fail closed)');
+      return res.status(500).send('Webhook not configured');
+    }
+    const provided = req.query.secret || req.headers['x-webhook-secret'];
+    if (!timingSafeEq(provided, EMAIL_SECRET)) return res.status(401).send('Unauthorized');
     const sb   = createClient(SUPABASE_URL, SUPABASE_KEY);
     const body = req.body || {};
 

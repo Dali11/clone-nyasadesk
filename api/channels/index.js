@@ -9,6 +9,7 @@
 // (api/_lib/providers/), keeping the app independent of the underlying BSP.
 
 import { createClient } from '../_lib/dbFactory.js';
+import { auth } from '../_lib/betterAuth.js';
 import { getProvider } from '../_lib/providers/index.js';
 import { AI_AGENT_TEMPLATES, generateDraftReply } from '../_lib/aiAgents.js';
 import { ingestUrl, ingestFile } from '../_lib/knowledgeIngest.js';
@@ -25,6 +26,81 @@ const PROD_URL = 'https://nyasadesk.com';
 // if we pass an arbitrary string (e.g. 'test') directly into a UUID column.
 function isUUID(str) {
   return /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(str);
+}
+
+// ── Caller identity + workspace guard ─────────────────────────────────────────
+// SECURITY (2026-09-26 audit): this route previously trusted the client-supplied
+// workspace_id for EVERY action with no session check — unauthenticated callers
+// could list/save/delete AI agents (system_instructions + webhook_tool_url
+// overwrite), send outbound messages over a workspace's WhatsApp/Telegram
+// channels, poison knowledge bases and tamper channel configs for any
+// workspace UUID. Every action now requires a Better Auth session AND that
+// the caller's workspace matches the requested one (platform admins excepted).
+// Same identity rule as api/data.js: profile.workspace_id || uid.
+const GUARD_TTL_MS = 30_000;
+const guardCache = new Map(); // uid -> { t, W, platformAdmin }
+function guardCacheGet(uid) {
+  const hit = guardCache.get(uid);
+  return hit && Date.now() - hit.t < GUARD_TTL_MS ? hit : null;
+}
+function guardCacheSet(uid, W, platformAdmin) {
+  guardCache.set(uid, { t: Date.now(), W, platformAdmin });
+  if (guardCache.size > 1000) {
+    const oldest = [...guardCache.entries()].sort((a, b) => a[1].t - b[1].t).slice(0, 200);
+    for (const [k] of oldest) guardCache.delete(k);
+  }
+}
+
+async function requireCaller(req, res) {
+  try {
+    const session = await auth.api.getSession({ headers: req.headers });
+    if (!session?.user) { res.status(401).json({ error: 'Not authenticated' }); return null; }
+    const uid = session.user.id;
+    let W = null, platformAdmin = false;
+    const hit = guardCacheGet(uid);
+    if (hit) { W = hit.W; platformAdmin = hit.platformAdmin; }
+    else {
+      const sb = createClient(SUPABASE_URL, SUPABASE_KEY);
+      const { data: profile } = await sb.from('profiles')
+        .select('id, workspace_id').eq('id', uid).maybeSingle();
+      W = profile?.workspace_id || uid;
+      const { data: pa } = await sb.from('platform_admin_emails')
+        .select('email').eq('email', session.user.email || '').maybeSingle();
+      platformAdmin = !!pa;
+      guardCacheSet(uid, W, platformAdmin);
+    }
+    return { uid, W, platformAdmin };
+  } catch (e) {
+    console.error('[channels] session check failed:', e);
+    res.status(401).json({ error: 'Not authenticated' });
+    return null;
+  }
+}
+
+// Which workspace is this action targeting? body for POSTs, query for the GET
+// allowlist, and the OAuth state blob for the Gmail redirect callback.
+function requestedWorkspace(req, action) {
+  if (action === 'gmail-oauth-callback') {
+    try { return JSON.parse(Buffer.from(req.query.state || '', 'base64url').toString()).workspace_id || null; }
+    catch { return null; }
+  }
+  return (req.body && req.body.workspace_id) || req.query.workspace_id || null;
+}
+
+// Static, workspace-less actions that only ship built-in data:
+const WORKSPACE_LESS_ACTIONS = new Set(['ai-templates']);
+
+async function enforceWorkspace(req, res, action) {
+  const caller = await requireCaller(req, res);
+  if (!caller) return null;
+  if (caller.platformAdmin) return caller;
+  if (WORKSPACE_LESS_ACTIONS.has(action)) return caller;
+  const rw = requestedWorkspace(req, action);
+  if (!rw || !isUUID(rw) || rw !== caller.W) {
+    res.status(403).json({ error: 'Not your workspace' });
+    return null;
+  }
+  return caller;
 }
 
 
@@ -65,6 +141,10 @@ export default async function handler(req, res) {
   ];
   if (req.method !== 'POST' && !getActions.includes(req.query.action)) return res.status(405).json({ error: 'Method Not Allowed' });
   const action = req.query.action || 'send';
+
+  // ── Auth gate: every action requires a session + workspace match ──────
+  const caller = await enforceWorkspace(req, res, action);
+  if (!caller) return;
 
   if (action === 'telegram-setup') return handleConnect(req, res);
   if (action === 'connect')        return handleConnect(req, res);

@@ -20,12 +20,15 @@ export class TelegramProvider extends MessagingProvider {
     const meJson = await meRes.json();
     if (!meJson.ok) throw new Error('Invalid bot token — check it was copied from @BotFather');
 
-    // Register webhook
+    // Register webhook — with a secret token so inbound updates are verifiable
+    // (2026-09-26 security audit: unsigned updates let anyone forge messages).
+    const crypto = (await import('crypto')).default ?? (await import('crypto'));
+    const webhookSecret = crypto.randomUUID().replace(/-/g, '') + crypto.randomUUID().replace(/-/g, '');
     const webhookUrl = `https://nyasadesk.com/api/webhooks/telegram?workspace_id=${encodeURIComponent(workspaceId)}`;
     const hookRes = await fetch(`${TG_API}${bot_token}/setWebhook`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ url: webhookUrl, allowed_updates: ['message', 'edited_message'] }),
+      body: JSON.stringify({ url: webhookUrl, allowed_updates: ['message', 'edited_message'], secret_token: webhookSecret }),
     });
     const hookJson = await hookRes.json();
     if (!hookJson.ok) throw new Error(hookJson.description || 'Telegram rejected webhook registration');
@@ -36,6 +39,7 @@ export class TelegramProvider extends MessagingProvider {
       bot_name: meJson.result?.first_name || null,
       connected_via: 'bot_token',
       connected_at: new Date().toISOString(),
+      webhook_secret: webhookSecret,
     };
 
     const { data, error } = await sb.from('channel_configs').upsert({

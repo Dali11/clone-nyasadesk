@@ -7,6 +7,7 @@
 // interception is performed — the AI is the single point of intelligence.
 
 import { createClient } from '../_lib/dbFactory.js';
+import { verifyMetaSignature } from '../_lib/verifyMetaSignature.js';
 import { getProvider } from '../_lib/providers/index.js';
 import { applyAssignmentRules } from '../_lib/assignRules.js';
 
@@ -65,6 +66,7 @@ export default async function handler(req, res) {
     }
 
     if (req.method !== 'POST') return res.status(405).send('Method Not Allowed');
+    if (!verifyMetaSignature(req, 'whatsapp')) return res.status(401).send('Invalid signature');
 
     const payload = req.body || {};
     const wsId    = req.query.workspace_id;
