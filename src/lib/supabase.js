@@ -213,6 +213,12 @@ function parsePgFilter(filter) {
   return { col: m[1], op: m[2], val: m[3] };
 }
 
+// Digest poll window. An established workspace has 300-400 conversations and
+// a busy conversation <200 messages; 3000 gives years of headroom. If a scope
+// ever exceeds this, the tail rows drop out of the digest window and surface
+// as spurious DELETEs (self-healing via the listeners' reload) — log it once.
+const DIGEST_LIMIT = 3000;
+
 function makeChannel(name) {
   const subs = [];
   const state = { timer: null, snapshots: new Map() };
@@ -230,6 +236,32 @@ function makeChannel(name) {
       // load"). Initial rendering is the explicit load's job (getConversations
       // etc.); this subscription only carries changes from here on.
       const baselined = new Set();
+      // ── Two-phase digest poll ──────────────────────────────────────────
+      // The ORIGINAL single-phase poll fetched `*` with limit:200 and no
+      // ORDER BY. Two flaws: (1) an established workspace already has 300+
+      // conversations, so any conversation outside the arbitrary 200-row
+      // window was INVISIBLE — new chats and last-message updates silently
+      // never arrived until a manual refresh (the "messages are not
+      // arriving" report). (2) it shipped full row JSON for every row on
+      // every 4s tick, mobile data and all.
+      //
+      // Phase 1 now fetches a tiny digest: id + xmin per row (no LIMIT
+      // truncation below DIGEST_LIMIT, so every row of the scope is always
+      // in the window). xmin is the Postgres row-version id: ANY update
+      // creates a new version with a new xmin, so change detection does not
+      // depend on app code remembering to bump updated_at. Phase 2 fetches
+      // full rows only for the ids that actually changed (typically 0-3).
+      const digest = async (table, select, filters, limit) => {
+        const r = await fetch('/api/data', {
+          method: 'POST', credentials: 'include',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ table, action: 'select', select, filters, limit }),
+        });
+        if (!r.ok) return null;
+        const body = await r.json();
+        return Array.isArray(body.data) ? body.data : null;
+      };
+
       const poll = async () => {
         // Don't burn mobile data / server quota polling a hidden tab — the
         // visibilitychange listener below polls immediately on return.
@@ -238,23 +270,30 @@ function makeChannel(name) {
           try {
             const key = cfg.table + (cfg.filter || '');
             const f = parsePgFilter(cfg.filter);
-            const r = await fetch('/api/data', {
-              method: 'POST', credentials: 'include',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({ table: cfg.table, action: 'select', select: '*', filters: f ? [{ op: f.op, args: [f.col, f.val] }] : [], limit: 200 }),
-            });
-            if (!r.ok) continue;
-            const body = await r.json();
-            const rows = Array.isArray(body.data) ? body.data : [];
-            const prev = state.snapshots.get(key) || new Map();
-            const next = new Map(rows.map(row => [row.id, JSON.stringify(row)]));
+            const filters = f ? [{ op: f.op, args: [f.col, f.val] }] : [];
+            const rows = await digest(cfg.table, 'id, xmin', filters, DIGEST_LIMIT);
+            if (!rows) continue;
+            const next = new Map(rows.map(row => [row.id, String(row.xmin)]));
+            const prev = state.snapshots.get(key);
             state.snapshots.set(key, next);
             if (!baselined.has(key)) { baselined.add(key); continue; }
-            for (const [id, json] of next) {
-              if (!prev.has(id)) { try { cb({ new: JSON.parse(json), eventType: 'INSERT' }); } catch (_) {} }
-              else if (prev.get(id) !== json) { try { cb({ new: JSON.parse(json), eventType: 'UPDATE' }); } catch (_) {} }
+            if (!prev) continue;
+            const insertedIds = [];
+            const updatedIds = [];
+            for (const [id, xmin] of next) {
+              if (!prev.has(id)) insertedIds.push(id);
+              else if (prev.get(id) !== xmin) updatedIds.push(id);
             }
-            for (const id of prev.keys()) if (!next.has(id)) { try { cb({ old: { id }, eventType: 'DELETE' }); } catch (_) {} }
+            const deletedIds = [];
+            for (const id of prev.keys()) if (!next.has(id)) deletedIds.push(id);
+            if (insertedIds.length || updatedIds.length) {
+              const ids = [...new Set([...insertedIds, ...updatedIds])];
+              const full = await digest(cfg.table, '*', [...filters, { op: 'in', args: ['id', ids] }], ids.length);
+              const byId = new Map((full || []).map(row => [row.id, row]));
+              for (const id of insertedIds) { const row = byId.get(id); if (row) { try { cb({ new: { ...row }, eventType: 'INSERT' }); } catch (_) {} } }
+              for (const id of updatedIds) { const row = byId.get(id); if (row) { try { cb({ new: { ...row }, eventType: 'UPDATE' }); } catch (_) {} } }
+            }
+            for (const id of deletedIds) { try { cb({ old: { id }, eventType: 'DELETE' }); } catch (_) {} }
           } catch (_) { /* transient network errors are fine */ }
         }
       };
