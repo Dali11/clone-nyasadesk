@@ -219,12 +219,12 @@ export default function Inbox() {
           // isNowMine — if not in list yet, reload to get full joined contact data
           setConversations(prev => {
             if (!isInList(prev)) { loadConversations(); return prev; }
-            return prev.map(c => c.id === payload.new.id ? { ...c, ...payload.new } : c);
+            return prev.map(c => c.id === payload.new.id ? normalizeConversation({ ...c, ...payload.new }) : c);
           });
           setActiveConv(prev => (prev?.id === payload.new.id ? { ...prev, ...payload.new } : prev));
           return;
         }
-        setConversations(prev => prev.map(c => c.id === payload.new.id ? { ...c, ...payload.new } : c));
+        setConversations(prev => prev.map(c => c.id === payload.new.id ? normalizeConversation({ ...c, ...payload.new }) : c));
         setActiveConv(prev => (prev?.id === payload.new.id ? { ...prev, ...payload.new } : prev));
       } else {
         // INSERT/DELETE arrive in bursts (a poll diff can emit dozens at once)
