@@ -15,6 +15,7 @@ import {
 import Avatar from './Avatar';
 import {useNyasaAuth}from '@/lib/NyasaAuth';
 import {ProfileMenuMobile, ProfileMenuDesktop}from '@/components/ProfileMenu';
+import NotificationBellButton from '@/components/NotificationBellButton';
 
 // ── Nav definitions ────────────────────────────────────────────────────────
 const NAV = [
@@ -57,7 +58,7 @@ export default function Sidebar({ hideMobileChrome = false } = {}) {
              style={{ background: 'linear-gradient(135deg, #075E54 0%, #128C7E 100%)' }}>
           <div className="flex items-center gap-3">
             <img src="/icon-192.png" alt="Nyasadesk" className="w-9 h-9 rounded-xl shrink-0 shadow-inner" />
-            <div className="min-w-0">
+            <div className="min-w-0 flex-1">
               <p className="text-white font-bold text-base leading-tight tracking-wide">Nyasadesk</p>
               {workspaceName && (
                 <p className="text-white/60 text-[11px] font-medium truncate leading-tight mt-0.5">
@@ -65,6 +66,7 @@ export default function Sidebar({ hideMobileChrome = false } = {}) {
                 </p>
               )}
             </div>
+            <NotificationBellButton className="p-2 rounded-full hover:bg-white/10 text-white/80 hover:text-white" />
           </div>
         </div>
 
@@ -114,6 +116,7 @@ export default function Sidebar({ hideMobileChrome = false } = {}) {
           <div className="w-8 h-8 rounded-lg bg-white/20 flex items-center justify-center">
             <span className="text-white font-black text-sm leading-none">N</span>
           </div>
+          <NotificationBellButton className="p-1.5 rounded-full hover:bg-white/10 text-white/80 hover:text-white" />
         </div>
 
         <div className="flex-1 overflow-y-auto py-3 flex flex-col items-center gap-1">
@@ -158,6 +161,8 @@ export default function Sidebar({ hideMobileChrome = false } = {}) {
             </p>
           )}
         </div>
+
+        <NotificationBellButton className="mr-1 p-2 rounded-full hover:bg-white/10 text-white/80 hover:text-white" />
 
         {/* Avatar → bottom sheet profile menu on mobile */}
         <ProfileMenuMobile

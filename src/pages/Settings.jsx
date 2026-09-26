@@ -265,6 +265,99 @@ function WhatsAppCard({ saved, workspaceId, onSave, onDelete }) {
     } catch { return false; }
   };
 
+  // Installed PWA (added-to-home-screen / standalone display mode). Detected
+  // the same way InstallPrompt.jsx does.
+  const isStandalonePwa = () => {
+    try {
+      return window.matchMedia?.('(display-mode: standalone)')?.matches ||
+        window.navigator.standalone === true;
+    } catch { return false; }
+  };
+
+  const buildFbOauthUrl = (configData) => {
+    const state = btoa(JSON.stringify({ workspace_id: workspaceId, v: 1 }));
+    return 'https://www.facebook.com/v26.0/dialog/oauth' +
+      `?client_id=${configData.app_id}` +
+      `&config_id=${configData.config_id}` +
+      `&redirect_uri=${encodeURIComponent(REDIRECT_URI)}` +
+      `&state=${encodeURIComponent(state)}` +
+      '&response_type=code&display=page';
+  };
+
+  // ── PWA FIX (2026-09-26): installed PWAs strand this window on Facebook ──
+  // In a normal mobile browser tab, window.location.href to facebook.com and
+  // back completes fine (same tab, whole round trip). An INSTALLED PWA is a
+  // separate, scoped browser window though — navigating it to an external
+  // origin (facebook.com) hands the navigation to the system browser and
+  // orphans the PWA window. Facebook's redirect back then lands in that
+  // system browser tab, completing the connection THERE while the original
+  // PWA window is left showing "Completing signup…" forever (it never got
+  // the callback — a different window did). Fix: for standalone PWAs, open
+  // Facebook in an explicit new tab instead and poll the DB for the
+  // connection to land while the user finishes it there, then reflect
+  // success back on this screen the moment they switch back.
+  const pwaPollRef = useRef(null);
+  const [pwaWaiting, setPwaWaiting] = useState(false);
+
+  const stopPwaPolling = () => {
+    const p = pwaPollRef.current;
+    if (!p) return;
+    window.removeEventListener('focus', p.onWake);
+    document.removeEventListener('visibilitychange', p.onWake);
+    clearInterval(p.interval);
+    clearTimeout(p.timeout);
+    pwaPollRef.current = null;
+  };
+
+  const checkPwaConnected = async () => {
+    try {
+      const rows = await getChannelConfigs(workspaceId);
+      const wa = rows.find(r => r.channel === 'whatsapp');
+      if (wa?.enabled && wa.config && (wa.config.waba_id || wa.config.access_token || wa.config.phone_number_id)) {
+        stopPwaPolling();
+        setEmbeddedLoading(false);
+        setPwaWaiting(false);
+        if (wa.config.setup_pin) setEmbeddedSetupPin(wa.config.setup_pin);
+        if (onSave) onSave('whatsapp', wa.config);
+        return true;
+      }
+    } catch { /* keep polling */ }
+    return false;
+  };
+
+  const startPwaPolling = () => {
+    stopPwaPolling();
+    setPwaWaiting(true);
+    const onWake = () => { checkPwaConnected(); };
+    window.addEventListener('focus', onWake);
+    document.addEventListener('visibilitychange', onWake);
+    const interval = setInterval(checkPwaConnected, 4000);
+    const timeout = setTimeout(() => {
+      stopPwaPolling();
+      setEmbeddedLoading(false);
+      setEmbeddedError('Still waiting on the Facebook tab. Finish it there, then tap Connect with Facebook again — or come back and tap "Check now" below.');
+    }, 5 * 60 * 1000);
+    pwaPollRef.current = { onWake, interval, timeout };
+  };
+
+  useEffect(() => () => stopPwaPolling(), []); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const startFBRedirectPwa = (configData) => {
+    setEmbeddedError('');
+    setEmbeddedLoading(true);
+    const url = buildFbOauthUrl(configData);
+    const win = window.open(url, '_blank');
+    if (!win) {
+      // New tab blocked too — fall back to the full-page nav. It still
+      // completes the connection (just in the system browser, orphaning
+      // this PWA window), which is at least no worse than before this fix.
+      window.location.href = url;
+      return;
+    }
+    startPwaPolling();
+    checkPwaConnected(); // covers the case it somehow already finished
+  };
+
   const startFBRedirect = async () => {
     setEmbeddedLoading(true);
     try {
@@ -276,14 +369,7 @@ function WhatsAppCard({ saved, workspaceId, onSave, onDelete }) {
           'Could not reach Facebook. Check your connection and try again.');
         return;
       }
-      const state = btoa(JSON.stringify({ workspace_id: workspaceId, v: 1 }));
-      const url = 'https://www.facebook.com/v26.0/dialog/oauth' +
-        `?client_id=${r.configData.app_id}` +
-        `&config_id=${r.configData.config_id}` +
-        `&redirect_uri=${encodeURIComponent(REDIRECT_URI)}` +
-        `&state=${encodeURIComponent(state)}` +
-        '&response_type=code&display=page';
-      window.location.href = url; // full-page navigation, no popup to block
+      window.location.href = buildFbOauthUrl(r.configData); // full-page navigation, no popup to block
     } catch (e) {
       setEmbeddedLoading(false);
       setEmbeddedError('Facebook login failed to start: ' + (e.message || e));
@@ -332,7 +418,27 @@ function WhatsAppCard({ saved, workspaceId, onSave, onDelete }) {
 
   const handleEmbeddedSignup = () => {
     setEmbeddedError(''); setEmbeddedSetupPin(null);
-    if (isMobileDevice()) { startFBRedirect(); return; } // popup is blocked on mobile — use the redirect flow
+    if (isMobileDevice()) {
+      if (isStandalonePwa()) {
+        // Installed PWA — open Facebook in its own tab and poll for the
+        // connection instead of navigating this window away (see comment
+        // above startFBRedirectPwa for why the plain redirect strands it).
+        const ready = embeddedReadyRef.current;
+        if (ready) { startFBRedirectPwa(ready.configData); return; }
+        setEmbeddedLoading(true);
+        preloadEmbedded().then((r) => {
+          setEmbeddedLoading(false);
+          if (r.ok) { embeddedReadyRef.current = r; startFBRedirectPwa(r.configData); }
+          else {
+            setEmbeddedError(
+              r.reason === 'not-configured' ? "Facebook signup isn't configured yet. Use the Advanced option below." :
+              'Could not reach Facebook. Check your connection and try again.');
+          }
+        });
+        return;
+      }
+      startFBRedirect(); return; // popup is blocked on mobile — use the redirect flow
+    }
     const ready = embeddedReadyRef.current;
     if (ready) { startFBLogin(ready.configData); return; }
     setEmbeddedLoading(true);
@@ -711,12 +817,25 @@ function WhatsAppCard({ saved, workspaceId, onSave, onDelete }) {
                 <button onClick={handleEmbeddedSignup} disabled={embeddedLoading}
                   className="w-full py-3 rounded-xl text-sm font-bold text-white bg-[#1877F2] hover:bg-[#0f6add] disabled:opacity-60 flex items-center justify-center gap-2">
                   <svg className="w-4 h-4" viewBox="0 0 24 24" fill="currentColor"><path d="M24 12.073c0-6.627-5.373-12-12-12s-12 5.373-12 12c0 5.99 4.388 10.954 10.125 11.854v-8.385H7.078v-3.47h3.047V9.43c0-3.007 1.792-4.669 4.533-4.669 1.312 0 2.686.235 2.686.235v2.953H15.83c-1.491 0-1.956.925-1.956 1.874v2.25h3.328l-.532 3.47h-2.796v8.385C19.612 23.027 24 18.062 24 12.073z"/></svg>
-                  {embeddedLoading ? 'Completing signup…' : 'Connect with Facebook'}
+                  {embeddedLoading ? (pwaWaiting ? 'Waiting for Facebook…' : 'Completing signup…') : 'Connect with Facebook'}
                 </button>
-                <p className="text-[10px] text-center text-gray-500 leading-relaxed">
-                  One-click official Meta flow. Best if this number is already registered on the WhatsApp
-                  Business App — you can keep it running in both places (coexistence).
-                </p>
+                {pwaWaiting ? (
+                  <div className="bg-[var(--nyasa-surface-3)] border border-[var(--nyasa-border)] rounded-lg p-2.5 space-y-1.5">
+                    <p className="text-[11px] text-gray-300 leading-relaxed">
+                      We opened Facebook in a new browser tab (installed apps can't finish this in-place).
+                      Complete it there, then come back here.
+                    </p>
+                    <button onClick={checkPwaConnected}
+                      className="w-full py-1.5 rounded-lg text-[11px] font-semibold text-[#25D366] bg-[#25D366]/10 hover:bg-[#25D366]/20 transition-colors">
+                      Check now
+                    </button>
+                  </div>
+                ) : (
+                  <p className="text-[10px] text-center text-gray-500 leading-relaxed">
+                    One-click official Meta flow. Best if this number is already registered on the WhatsApp
+                    Business App — you can keep it running in both places (coexistence).
+                  </p>
+                )}
                 {embeddedError && <p className="text-[11px] text-red-400 leading-relaxed">{embeddedError}</p>}
               </div>
             </div>

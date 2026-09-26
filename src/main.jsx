@@ -7,6 +7,21 @@ import '@/index.css'
 
 
 // ── Service Worker registration ────────────────────────────────────────────
+// ── Chunk-load failure recovery ────────────────────────────────────────────
+// After a deploy, a stale cached HTML page can reference JS chunks that no
+// longer exist (common on flaky mobile data when the SW serves the old shell).
+// That kills the app with a blank screen / crash. Detect it and hard-reload ONCE
+// (sessionStorage guard prevents a loop) so the browser pulls a fresh shell.
+window.addEventListener('error', (e) => {
+  const msg = String(e?.message || '');
+  if ((msg.includes('Loading chunk') || msg.includes('Importing a module script failed') ||
+       msg.includes('Failed to fetch dynamically imported module')) &&
+      !sessionStorage.getItem('nyasa_chunk_reload')) {
+    sessionStorage.setItem('nyasa_chunk_reload', '1');
+    window.location.reload();
+  }
+});
+
 if ('serviceWorker' in navigator) {
   window.addEventListener('load', () => {
     navigator.serviceWorker.register('/sw.js', { scope: '/' })

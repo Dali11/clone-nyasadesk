@@ -30,8 +30,6 @@ import {useNavigate}from 'react-router-dom';
 import {
   User,
   Lock,
-  Bell,
-  BellOff,
   Sun,
   Moon,
   Megaphone,
@@ -108,8 +106,7 @@ function MenuContent({ onClose }) {
   const { user, profile, isPlatformAdmin, workspaceOwnerId } = useNyasaAuth();
   const { theme, toggleTheme } = useTheme();
   const { toast } = useToast();
-  const { supported: pushSupported, subscribed: pushSubscribed, loading: pushLoading,
-          subscribe: pushSubscribe, unsubscribe: pushUnsubscribe,
+  const { supported: pushSupported, subscribed: pushSubscribed,
           sendTestNotification } = usePushNotifications(workspaceOwnerId);
 
   const workspaceName = profile?.workspace_name || user?.workspace_name || 'Nyasadesk';
@@ -117,24 +114,7 @@ function MenuContent({ onClose }) {
 
   const go = (path) => { onClose?.(); navigate(path); };
   const handleLogout = async () => { onClose?.(); await signOut(); navigate('/login', { replace: true }); };
-  // Don't allow toggling until workspaceOwnerId is resolved — avoids silent no-ops
-  const togglePush = async () => {
-    if (pushLoading || !workspaceOwnerId) {
-      if (!workspaceOwnerId) toast({ title: 'Not ready', description: 'Workspace is still loading — try again in a moment.', variant: 'destructive' });
-      return;
-    }
-    if (pushSubscribed) {
-      await pushUnsubscribe();
-      toast({ title: 'Notifications muted', description: 'You will no longer receive push alerts.' });
-    } else {
-      const result = await pushSubscribe();
-      if (result?.ok) {
-        toast({ title: '🔔 Notifications enabled', description: 'You will receive alerts for new messages.' });
-      } else if (result?.error) {
-        toast({ title: 'Notifications failed', description: result.error, variant: 'destructive' });
-      }
-    }
-  };
+
 
   const handleTestNotification = async () => {
     const result = await sendTestNotification();
@@ -175,25 +155,16 @@ function MenuContent({ onClose }) {
 
       {/* ── Preferences ────────────────────────────────────────────── */}
       <SectionLabel>Preferences</SectionLabel>
-      {pushSupported && (
-        <>
-          <Row
-            icon={pushSubscribed ? BellOff : Bell}
-            iconColor={pushSubscribed ? 'text-[var(--nyasa-text-muted)]' : 'text-[#25D366]'}
-            label={pushSubscribed ? 'Mute notifications' : 'Enable notifications'}
-            sublabel={pushSubscribed ? 'Push alerts are on' : 'Get alerts when away'}
-            toggle checked={pushSubscribed}
-            onClick={togglePush}
-          />
-          {pushSubscribed && (
-            <button
-              onClick={handleTestNotification}
-              className="mx-4 mb-2 text-[11px] text-[#25D366] hover:underline text-left"
-            >
-              Send test notification
-            </button>
-          )}
-        </>
+      {/* Notifications toggle moved to the header bell button
+          (NotificationBellButton in Sidebar) — kept the test-notification
+          shortcut here since it's only useful once subscribed. */}
+      {pushSupported && pushSubscribed && (
+        <button
+          onClick={handleTestNotification}
+          className="mx-4 mb-2 text-[11px] text-[#25D366] hover:underline text-left"
+        >
+          Send test notification
+        </button>
       )}
       <Row
         icon={isDark ? Sun : Moon}
