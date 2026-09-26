@@ -257,7 +257,6 @@ function WhatsAppCard({ saved, workspaceId, onSave, onDelete }) {
   // entirely and navigate the page to Facebook's OAuth dialog; it lands back
   // on /api/auth/whatsapp-embedded?code=...&state=..., which bounces here
   // with ?wa_code=... and we complete through the normal POST path.
-  const REDIRECT_URI = (typeof window !== 'undefined' ? window.location.origin : 'https://nyasadesk.com') + '/api/auth/whatsapp-embedded';
 
   const isMobileDevice = () => {
     try {
@@ -275,15 +274,6 @@ function WhatsAppCard({ saved, workspaceId, onSave, onDelete }) {
     } catch { return false; }
   };
 
-  const buildFbOauthUrl = (configData) => {
-    const state = btoa(JSON.stringify({ workspace_id: workspaceId, v: 1 }));
-    return 'https://www.facebook.com/v26.0/dialog/oauth' +
-      `?client_id=${configData.app_id}` +
-      `&config_id=${configData.config_id}` +
-      `&redirect_uri=${encodeURIComponent(REDIRECT_URI)}` +
-      `&state=${encodeURIComponent(state)}` +
-      '&response_type=code&display=page';
-  };
 
   // ── PWA FIX (2026-09-26): installed PWAs strand this window on Facebook ──
   // In a normal mobile browser tab, window.location.href to facebook.com and
@@ -366,23 +356,6 @@ function WhatsAppCard({ saved, workspaceId, onSave, onDelete }) {
     checkPwaConnected(); // covers the case it somehow already finished
   };
 
-  const startFBRedirect = async () => {
-    setEmbeddedLoading(true);
-    try {
-      const r = await preloadEmbedded();
-      if (!r.ok) {
-        setEmbeddedLoading(false);
-        setEmbeddedError(
-          r.reason === 'not-configured' ? "Facebook signup isn't configured yet. Use the Advanced option below." :
-          'Could not reach Facebook. Check your connection and try again.');
-        return;
-      }
-      window.location.href = buildFbOauthUrl(r.configData); // full-page navigation, no popup to block
-    } catch (e) {
-      setEmbeddedLoading(false);
-      setEmbeddedError('Facebook login failed to start: ' + (e.message || e));
-    }
-  };
 
   // Complete the redirect flow when we land back with ?wa_code=... (or show ?wa_error=...)
   useEffect(() => {
@@ -426,26 +399,33 @@ function WhatsAppCard({ saved, workspaceId, onSave, onDelete }) {
 
   const handleEmbeddedSignup = () => {
     setEmbeddedError(''); setEmbeddedSetupPin(null);
-    if (isMobileDevice()) {
-      if (isStandalonePwa()) {
-        // Installed PWA — open Facebook in its own tab and poll for the
-        // connection instead of navigating this window away (see comment
-        // above startFBRedirectPwa for why the plain redirect strands it).
-        const ready = embeddedReadyRef.current;
-        if (ready) { startFBRedirectPwa(ready.configData); return; }
-        setEmbeddedLoading(true);
-        preloadEmbedded().then((r) => {
-          setEmbeddedLoading(false);
-          if (r.ok) { embeddedReadyRef.current = r; startFBRedirectPwa(r.configData); }
-          else {
-            setEmbeddedError(
-              r.reason === 'not-configured' ? "Facebook signup isn't configured yet. Use the Advanced option below." :
-              'Could not reach Facebook. Check your connection and try again.');
-          }
-        });
-        return;
-      }
-      startFBRedirect(); return; // popup is blocked on mobile — use the redirect flow
+    // MOBILE FIX (2026-09-27): mobile BROWSERS use the same FB.login popup as
+    // desktop. Meta's embedded signup wizard (business / WABA / phone-number
+    // steps) ONLY renders via the SDK popup — a plain dialog/oauth redirect
+    // shows a generic login and returns a code with no WABA grant, which is
+    // exactly the "logs in, never sees the wizard" failure on phones. The
+    // preload above makes FB.login fire synchronously inside the tap gesture,
+    // which mobile browsers accept; if the popup is still blocked the
+    // startFBLogin fallback opens the /fb-redirect tab flow. Only INSTALLED
+    // PWAs still take the separate-tab route (standalone windows can't host
+    // the popup callback).
+    if (isMobileDevice() && isStandalonePwa()) {
+      // Installed PWA — open Facebook in its own tab and poll for the
+      // connection instead of navigating this window away (see comment
+      // above startFBRedirectPwa for why the plain redirect strands it).
+      const ready = embeddedReadyRef.current;
+      if (ready) { startFBRedirectPwa(ready.configData); return; }
+      setEmbeddedLoading(true);
+      preloadEmbedded().then((r) => {
+        setEmbeddedLoading(false);
+        if (r.ok) { embeddedReadyRef.current = r; startFBRedirectPwa(r.configData); }
+        else {
+          setEmbeddedError(
+            r.reason === 'not-configured' ? "Facebook signup isn't configured yet. Use the Advanced option below." :
+            'Could not reach Facebook. Check your connection and try again.');
+        }
+      });
+      return;
     }
     const ready = embeddedReadyRef.current;
     if (ready) { startFBLogin(ready.configData); return; }
@@ -493,7 +473,12 @@ function WhatsAppCard({ saved, workspaceId, onSave, onDelete }) {
         // response with no status = popup was BLOCKED by the browser (a real
         // cancel comes back as { authResponse: null, status: '...' }) — fall
         // back to the full-page redirect flow instead of failing.
-        if (!response || response.status === undefined) { startFBRedirect(); return; }
+        if (!response || response.status === undefined) {
+          // Popup was blocked — hand the user to the /fb-redirect tab, which runs
+          // the full SDK signup wizard in a normal browser tab.
+          window.location.href = `/fb-redirect?ws=${encodeURIComponent(workspaceId || '')}`;
+          return;
+        }
         setEmbeddedError('Login was cancelled or did not complete. Please try again.');
         return;
       }

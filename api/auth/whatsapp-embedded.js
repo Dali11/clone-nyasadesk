@@ -59,14 +59,14 @@ const ALLOWED_ORIGINS = ['https://nyasadesk.com', 'https://nyasadesk1.vercel.app
 
 // ── Shared completion core (steps 1-8). Returns { status, json }; the GET ──
 // ── redirect path and the POST JSON path both run through this.          ──
-async function completeSignup({ code, workspaceId, redirectFlow, hintedPhoneId, hintedWabaId }) {
+async function completeSignup({ code, workspaceId, redirectFlow, redirectUri, hintedPhoneId, hintedWabaId }) {
   // ── Step 1: Exchange the code for a short-lived user access token ──────
   // FB.login()'s JS SDK code flow uses an empty redirect_uri (there's no
   // real redirect — the code arrives via postMessage back into the same page).
   let shortToken;
   try {
     const tokenRes = await fetch(
-      `https://graph.facebook.com/v26.0/oauth/access_token?client_id=${APP_ID}&redirect_uri=${redirectFlow ? encodeURIComponent('https://nyasadesk.com/api/auth/whatsapp-embedded') : ''}&client_secret=${APP_SECRET}&code=${code}`
+      `https://graph.facebook.com/v26.0/oauth/access_token?client_id=${APP_ID}&redirect_uri=${redirectFlow ? encodeURIComponent(redirectUri || 'https://nyasadesk.com/api/auth/whatsapp-embedded') : ''}&client_secret=${APP_SECRET}&code=${code}`
     );
     const tokenData = await tokenRes.json();
     if (tokenData.error) throw new Error(tokenData.error.message);
@@ -238,7 +238,9 @@ export default async function handler(req, res) {
     try { await enforceCallerWorkspace(req, stateWs); }
     catch (e) { return dest('wa_error', e.status === 401 ? 'auth' : (e.status === 403 ? 'workspace' : 'failed')); }
     // Complete the exchange right here — no SPA race, no one-time-code relay.
-    const result = await completeSignup({ code: q.code, workspaceId: stateWs, redirectFlow: true });
+    const host = (req.headers && req.headers.host) || 'nyasadesk.com';
+    const result = await completeSignup({ code: q.code, workspaceId: stateWs, redirectFlow: true,
+      redirectUri: 'https://' + host + '/api/auth/whatsapp-embedded' });
     if (result.status === 200) {
       const pin = result.json.setup_pin ? `&wa_setup_pin=${encodeURIComponent(result.json.setup_pin)}` : '';
       return res.status(302).setHeader('Location', `/settings?tab=channels&wa=connected${pin}`).end();
