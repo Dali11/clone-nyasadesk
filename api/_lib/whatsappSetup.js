@@ -551,7 +551,8 @@ export async function autoSetup(accessToken, wabaId, phoneNumberId) {
   let autoRegistered = false;
   let autoPin = null;
 
-  // Step 2: ALWAYS attempt Cloud API registration (2026-09-26 audit fix).
+  // Step 2: ALWAYS attempt Cloud API registration (2026-09-26 audit fix) —
+  // EXCEPT for coexistence numbers (2026-09-27 coexistence support).
   //
   // The old code skipped this when code_verification_status === 'VERIFIED',
   // conflating Meta's OTP ownership check with Cloud API registration. Every
@@ -561,10 +562,22 @@ export async function autoSetup(accessToken, wabaId, phoneNumberId) {
   // outbound sends failing with Meta #133010. Registration is idempotent
   // (registerPhone treats Meta's "already registered" as success), so we
   // simply always run it and keep the generated PIN when we did the work.
-  const regResult = await registerPhone(accessToken, phoneNumberId);
-  if (!regResult.already_registered) {
-    autoRegistered = true;
-    autoPin = regResult.pin;
+  //
+  // COEXISTENCE carve-out: numbers onboarded through the "connect your
+  // existing WhatsApp Business app" flow arrive PRE-REGISTERED on Cloud API,
+  // and Meta's docs explicitly say to skip the phone-number registration step
+  // for them (https://developers.facebook.com/documentation/business-messaging/
+  // whatsapp/embedded-signup/onboarding-business-app-users). Meta flags them
+  // with account_mode === 'COEXISTENCE' on the phone object.
+  const isCoexistence = phone.account_mode === 'COEXISTENCE';
+  if (isCoexistence) {
+    console.log('[autoSetup] COEXISTENCE number (WhatsApp Business app onboarding) — skipping Cloud API registration; number is already registered.');
+  } else {
+    const regResult = await registerPhone(accessToken, phoneNumberId);
+    if (!regResult.already_registered) {
+      autoRegistered = true;
+      autoPin = regResult.pin;
+    }
   }
 
   // Step 3: Subscribe webhooks with retry mechanism for propagation delays.
@@ -578,6 +591,40 @@ export async function autoSetup(accessToken, wabaId, phoneNumberId) {
       }
       console.warn(`[autoSetup] Failed to subscribe webhooks on attempt ${attempt}. Retrying in ${attempt * 1000}ms...`, err);
       await new Promise((resolve) => setTimeout(resolve, attempt * 1000));
+    }
+  }
+
+  // Step 3.5 (coexistence only): initiate contacts + history sync.
+  //
+  // Meta REQUIRES that a business onboarded via the WhatsApp Business app
+  // flow has its contacts and messaging-history synchronization INITIATED
+  // within 24 hours of onboarding — otherwise Meta offboards the number and
+  // the business has to redo the flow. The actual data arrives as
+  // smb_app_state_sync / history webhooks (the handler tolerates and ignores
+  // them for now). Both calls can only be made ONCE per onboarding; failures
+  // are logged but non-fatal so the channel still connects.
+  if (isCoexistence) {
+    for (const syncType of ['smb_app_state_sync', 'history']) {
+      try {
+        // smb_app_data is a newer Graph edge — pinned to v26.0 rather than
+        // the file-wide v21.0 GRAPH base so the coexistence sync can't 404.
+        const syncRes = await fetch(`https://graph.facebook.com/v26.0/${phoneNumberId}/smb_app_data`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${accessToken}`,
+          },
+          body: JSON.stringify({ messaging_product: 'whatsapp', sync_type: syncType }),
+        });
+        const syncData = await syncRes.json().catch(() => ({}));
+        if (syncData.error) {
+          console.error(`[autoSetup] coexistence sync (${syncType}) rejected:`, syncData.error?.message || syncData.error);
+        } else {
+          console.log(`[autoSetup] coexistence sync (${syncType}) accepted — request_id: ${syncData.request_id || 'n/a'}`);
+        }
+      } catch (syncErr) {
+        console.error(`[autoSetup] coexistence sync (${syncType}) failed:`, syncErr?.message || syncErr);
+      }
     }
   }
 
