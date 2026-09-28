@@ -123,6 +123,10 @@ function makeShimReq(nativeReq, rawBody, url, query) {
   shim.headers = nativeReq.headers;
   shim.query = query;
   shim.body = body;
+  // Exact raw request bytes (utf8) for signature verification (Meta webhooks
+  // sign the RAW payload; JSON.stringify(req.body) is NOT byte-stable vs wire
+  // format, which caused valid Meta deliveries to fail signature checks).
+  shim.rawBody = body === undefined ? undefined : rawBody.toString('utf8');
   shim.httpVersion = nativeReq.httpVersion;
   shim.rawHeaders = nativeReq.rawHeaders;
   shim.socket = nativeReq.socket; // keep the real socket (encrypted, remoteAddress)

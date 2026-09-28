@@ -72,6 +72,7 @@ export async function executeWebhookTool(agent, toolName, args) {
 
     const json = await res.json().catch(() => ({}));
     if (!res.ok) throw new Error(json.error || `Auth endpoint responded ${res.status}`);
+    console.log('[aiTools] generate_login_link ok for phone %s (registered: %s)', args.phone, json.registered);
 
     return {
       ok: true,

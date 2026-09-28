@@ -39,7 +39,14 @@ export function verifyMetaSignature(req, channelName = 'meta') {
   if (!sig || typeof sig !== 'string' || !sig.startsWith('sha256=')) return false;
 
   // Vercel exposes the parsed JSON body; re-serialize byte-stable.
-  const raw = typeof req.body === 'string' ? req.body : JSON.stringify(req.body || {});
+  // Prefer the exact raw request bytes when available (self-hosted server.js
+  // attaches req.rawBody). Meta signs the RAW payload byte-for-byte; re-serializing
+  // the parsed JSON is not byte-stable against Meta's wire format (key escaping,
+  // unicode) and caused valid deliveries to be rejected. Fall back to the
+  // re-serialization only on platforms that give us just the parsed body.
+  const raw = (typeof req.rawBody === 'string' && req.rawBody.length)
+    ? req.rawBody
+    : (typeof req.body === 'string' ? req.body : JSON.stringify(req.body || {}));
   const expected = 'sha256=' + crypto.createHmac('sha256', APP_SECRET).update(raw, 'utf8').digest('hex');
   try {
     const ok = crypto.timingSafeEqual(Buffer.from(sig), Buffer.from(expected));

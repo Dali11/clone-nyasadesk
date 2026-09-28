@@ -31,6 +31,7 @@ export async function autoReplyIfEnabled(sb, { workspaceId, conversationId, chan
     if (agentsErr) { console.error('[aiAutoReply] ai_agents query failed:', agentsErr); return; }
     const agent = agents?.[0];
     if (!agent) return; // no fully-automated agent configured for this channel
+    console.log('[aiAutoReply] agent "%s" handling conversation %s (%s)', agent.name, conversationId, channel);
 
     // Scale-plan-only feature -- bail before any further DB/OpenAI work if the
     // workspace has been downgraded (DB trigger also auto-pauses the agent row
@@ -133,6 +134,7 @@ export async function autoReplyIfEnabled(sb, { workspaceId, conversationId, chan
         to: externalId, text: replyText, conversation_id: conversationId, workspace_id: workspaceId,
       }, { sb });
       externalMsgId = result?.external_id || null;
+      console.log('[aiAutoReply] reply sent to %s on %s (external_id: %s, %d chars)', externalId, channel, externalMsgId || 'none', replyText.length);
     }
 
     // sender_id intentionally NOT a uuid (agent.id is one, but tagged with a
