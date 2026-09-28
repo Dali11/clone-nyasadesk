@@ -195,6 +195,39 @@ function WhatsAppCard({ saved, workspaceId, onSave, onDelete }) {
   };
 
   // ── Refresh phone details from Meta ───────────────────────────────────────
+  // ── Auto-finish pending registration after embedded signup ─────────────────
+  // When Meta hasn't finished provisioning a brand-new number during signup,
+  // the backend connects it anyway and flags registration_pending. This waits
+  // for Meta to catch up, then runs the register action automatically (two
+  // tries) so the user doesn't have to click anything. Results surface in the
+  // same panel as the manual Register numbers button.
+  const finishPendingRegistration = async (wsId, phoneId, attempt = 1) => {
+    const waitMs = attempt === 1 ? 5000 : 12000;
+    setRegNumsResults([{ status: 'pending', message: `Finishing registration on Meta's side (attempt ${attempt})…` }]);
+    await new Promise(r => setTimeout(r, waitMs));
+    try {
+      const data = await apiCall('whatsapp-register-numbers', { workspace_id: wsId, phone_number_id: phoneId });
+      if (data.ok) {
+        const r = (data.results || [])[0];
+        if (r && r.status === 'registered') {
+          setRegNumsResults(data.results);
+          if (onSave) onSave('whatsapp', saved.config);
+          return true;
+        }
+        // Already registered is fine — but if the single number wasn't found
+        // (e.g. wrong id), fall through to retry once.
+        setRegNumsResults(data.results || []);
+        return true;
+      }
+      if (attempt < 2) return finishPendingRegistration(wsId, phoneId, 2);
+      setRegNumsResults([{ status: 'failed', phone_number: null, message: data.error || 'Could not finish registration — use the Register numbers button to retry.' }]);
+    } catch (e) {
+      if (attempt < 2) return finishPendingRegistration(wsId, phoneId, 2);
+      setRegNumsResults([{ status: 'failed', message: e.message || 'Network error — use the Register numbers button to retry.' }]);
+    }
+    return false;
+  };
+
   // ── Register numbers on the WABA via Cloud API ──────────────────────────────
   // One-click fix for numbers added straight from Meta Business Settings
   // (they show "Pending" forever): registers every number on the connected
@@ -331,6 +364,7 @@ function WhatsAppCard({ saved, workspaceId, onSave, onDelete }) {
         setPwaWaiting(false);
         if (wa.config.setup_pin) setEmbeddedSetupPin(wa.config.setup_pin);
         if (onSave) onSave('whatsapp', wa.config);
+        if (wa.config.registration_pending) finishPendingRegistration(workspaceId, wa.config.phone_number_id);
         return true;
       }
     } catch { /* keep polling */ }
@@ -410,6 +444,7 @@ function WhatsAppCard({ saved, workspaceId, onSave, onDelete }) {
         if (d.ok) {
           if (d.setup_pin) setEmbeddedSetupPin(d.setup_pin);
           if (onSave) onSave('whatsapp', d.config || { connected_via: 'embedded_signup' });
+          if (d.registration_pending) finishPendingRegistration(workspaceId, (d.config || {}).phone_number_id);
         } else {
           setEmbeddedError(d.error || 'Connection failed. Please try again.');
         }
@@ -516,6 +551,7 @@ function WhatsAppCard({ saved, workspaceId, onSave, onDelete }) {
         if (d.ok) {
           if (d.setup_pin) setEmbeddedSetupPin(d.setup_pin);
           if (onSave) onSave('whatsapp', d.config || { connected_via: 'embedded_signup' });
+          if (d.registration_pending) finishPendingRegistration(workspaceId, (d.config || {}).phone_number_id);
         } else {
           setEmbeddedError(d.error || 'Connection failed. Please try again.');
         }
@@ -1736,11 +1772,29 @@ export default function Settings() {
       // full-page flow; the PWA flow has its own poll).
       if (workspaceOwnerId) {
         getChannelConfigs(workspaceOwnerId)
-          .then(rows => {
+          .then(async rows => {
             const map = {};
             rows.forEach(r => { map[r.channel] = r; });
             setChannelConfigs(map);
             try { localStorage.setItem('wa_channel_configs', JSON.stringify(map)); } catch {}
+            // Brand-new numbers can come out of signup connected but not yet
+            // registered on the Cloud API — finish it automatically so the
+            // user never has to think about it.
+            const wa = map.whatsapp;
+            if (wa?.config?.registration_pending) {
+              await new Promise(r => setTimeout(r, 5000));
+              try {
+                await fetch(`/api/channels?action=whatsapp-register-numbers`, {
+                  method: 'POST', headers: { 'Content-Type': 'application/json' },
+                  body: JSON.stringify({ workspace_id: workspaceOwnerId, phone_number_id: wa.config.phone_number_id }),
+                });
+                const rows2 = await getChannelConfigs(workspaceOwnerId);
+                const map2 = {};
+                rows2.forEach(r => { map2[r.channel] = r; });
+                setChannelConfigs(map2);
+                try { localStorage.setItem('wa_channel_configs', JSON.stringify(map2)); } catch {}
+              } catch { /* manual Register numbers button still available */ }
+            }
           })
           .catch(e => console.error('[Settings] wa=connected refresh failed:', e));
       }

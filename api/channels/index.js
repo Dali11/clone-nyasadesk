@@ -992,7 +992,13 @@ async function handleWhatsappRegisterNumbers(req, res) {
     }
 
     // Freshen the stored config for the connected number if it was touched.
+    // Also resolve the registration_pending flag the embedded-signup flow
+    // sets when Meta hadn't finished provisioning a brand-new number —
+    // clear it on success (registered / already registered), keep it on
+    // failure so the UI keeps offering the fix.
     const connectedId = cfg.config.phone_number_id;
+    const connectedResult = results.find(r => r.phone_number === cfg.config.phone_number);
+    const registrationResolved = !connectedResult || connectedResult.status === 'registered' || connectedResult.status === 'already_registered' || connectedResult.status === 'coexistence';
     const touched = numbers.find(n => n.id === connectedId);
     if (touched) {
       try {
@@ -1004,6 +1010,7 @@ async function handleWhatsappRegisterNumbers(req, res) {
           quality_rating: fresh.quality_rating || cfg.config.quality_rating,
           name_status: fresh.name_status || cfg.config.name_status,
           account_mode: fresh.account_mode || cfg.config.account_mode,
+          registration_pending: registrationResolved ? false : true,
         };
         await sb.from('channel_configs').update({ config: updatedConfig, updated_at: new Date().toISOString() })
           .eq('workspace_id', workspace_id).eq('channel', 'whatsapp');

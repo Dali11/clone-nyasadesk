@@ -570,13 +570,35 @@ export async function autoSetup(accessToken, wabaId, phoneNumberId) {
   // whatsapp/embedded-signup/onboarding-business-app-users). Meta flags them
   // with account_mode === 'COEXISTENCE' on the phone object.
   const isCoexistence = phone.account_mode === 'COEXISTENCE';
+  let registrationPending = false;
+  let registrationError = null;
   if (isCoexistence) {
     console.log('[autoSetup] COEXISTENCE number (WhatsApp Business app onboarding) — skipping Cloud API registration; number is already registered.');
   } else {
-    const regResult = await registerPhone(accessToken, phoneNumberId);
-    if (!regResult.already_registered) {
-      autoRegistered = true;
-      autoPin = regResult.pin;
+    // Brand-new numbers created inside Meta's Embedded Signup dialog can
+    // take a few seconds to become registration-ready on Meta's side, so a
+    // single attempt can fail transiently. Retry with backoff; if it still
+    // fails, DON'T abort the whole signup — the number is connected and
+    // webhook-subscribed, and we return registration_pending so the caller
+    // (and the UI) can finish registration with the register-numbers action.
+    for (let attempt = 1; attempt <= 3; attempt++) {
+      try {
+        const regResult = await registerPhone(accessToken, phoneNumberId);
+        if (!regResult.already_registered) {
+          autoRegistered = true;
+          autoPin = regResult.pin;
+        }
+        break;
+      } catch (err) {
+        registrationError = err.message || 'Unknown error';
+        if (attempt < 3) {
+          console.warn(`[autoSetup] registerPhone attempt ${attempt} failed (${registrationError}). Retrying in ${attempt * 3}s...`);
+          await new Promise((resolve) => setTimeout(resolve, attempt * 3000));
+        } else {
+          console.error('[autoSetup] registration still failing after 3 attempts — marking pending:', registrationError);
+          registrationPending = true;
+        }
+      }
     }
   }
 
@@ -643,5 +665,7 @@ export async function autoSetup(accessToken, wabaId, phoneNumberId) {
     waba_limits: wabaLimits,
     auto_registered: autoRegistered,
     auto_pin: autoPin,
+    registration_pending: registrationPending,
+    registration_error: registrationError,
   };
 }

@@ -182,6 +182,12 @@ async function completeSignup({ code, workspaceId, redirectFlow, redirectUri, hi
     // providers/whatsapp.js echo detection keys off this flag.
     coexistence_mode: (richPhone.account_mode || phone.account_mode) === 'COEXISTENCE',
     setup_pin:        setupResult.auto_pin || null,
+    // True when the number is connected + webhook-subscribed but Cloud API
+    // registration could not complete during signup (usually a brand-new
+    // number Meta hasn't finished provisioning). The frontend auto-runs
+    // the register-numbers action to finish it.
+    registration_pending: !!setupResult.registration_pending,
+    registration_error:    setupResult.registration_error || null,
     connected_at:     new Date().toISOString(),
   };
 
@@ -208,6 +214,8 @@ async function completeSignup({ code, workspaceId, redirectFlow, redirectUri, hi
     config,
     auto_registered: setupResult.auto_registered,
     setup_pin: setupResult.auto_pin,
+    registration_pending: !!setupResult.registration_pending,
+    registration_error: setupResult.registration_error || null,
   } };
 }
 
