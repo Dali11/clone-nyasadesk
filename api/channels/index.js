@@ -969,10 +969,19 @@ async function handleWhatsappRegisterNumbers(req, res) {
     }
 
     const results = [];
+    const connectedId = cfg.config.phone_number_id;
+    // The connected number is registered by definition (or the frontend
+    // auto-finishes it when registration_pending is set) — the bulk action
+    // is for the OTHER numbers on the WABA that were never registered.
+    const connectedPending = !!cfg.config.registration_pending;
     for (const n of numbers) {
       // Coexistence numbers arrive pre-registered on the Cloud API — skip.
       if (n.account_mode === 'COEXISTENCE') {
         results.push({ phone_number: n.display_phone_number, verified_name: n.verified_name, status: 'coexistence', message: 'Business App coexistence number — already registered, skipped.' });
+        continue;
+      }
+      if (n.id === connectedId && !connectedPending) {
+        results.push({ phone_number: n.display_phone_number, verified_name: n.verified_name, status: 'connected', message: 'Connected number — already registered, skipped.' });
         continue;
       }
       try {
@@ -996,7 +1005,6 @@ async function handleWhatsappRegisterNumbers(req, res) {
     // sets when Meta hadn't finished provisioning a brand-new number —
     // clear it on success (registered / already registered), keep it on
     // failure so the UI keeps offering the fix.
-    const connectedId = cfg.config.phone_number_id;
     const connectedResult = results.find(r => r.phone_number === cfg.config.phone_number);
     const registrationResolved = !connectedResult || connectedResult.status === 'registered' || connectedResult.status === 'already_registered' || connectedResult.status === 'coexistence';
     const touched = numbers.find(n => n.id === connectedId);

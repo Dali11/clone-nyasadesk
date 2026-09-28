@@ -817,10 +817,10 @@ function WhatsAppCard({ saved, workspaceId, onSave, onDelete }) {
               {(regNumsResults || []).map((r, i) => (
                 <div key={i} className="flex flex-col gap-0.5">
                   <div className="flex items-center gap-2 text-[11px]">
-                    <span>{r.status === 'registered' ? '✅' : r.status === 'already_registered' ? '✔️' : r.status === 'coexistence' ? '🔗' : '❌'}</span>
+                    <span>{r.status === 'registered' ? '✅' : r.status === 'already_registered' ? '✔️' : r.status === 'coexistence' ? '🔗' : r.status === 'connected' ? '🔗' : '❌'}</span>
                     <span className="font-semibold text-white">{r.phone_number || 'Number'}</span>
                     <span className={r.status === 'failed' ? 'text-red-400' : 'text-emerald-400'}>
-                      {r.status === 'registered' ? 'Registered now' : r.status === 'already_registered' ? 'Already registered' : r.status === 'coexistence' ? 'Coexistence (already on Cloud API)' : 'Failed'}
+                      {r.status === 'registered' ? 'Registered now' : r.status === 'already_registered' ? 'Already registered' : r.status === 'coexistence' ? 'Coexistence (already on Cloud API)' : r.status === 'connected' ? 'Connected — skipped' : 'Failed'}
                     </span>
                   </div>
                   {(r.message || '').startsWith('Registered now') && r.pin && (
