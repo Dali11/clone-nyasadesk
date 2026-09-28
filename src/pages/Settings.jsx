@@ -154,6 +154,8 @@ function WhatsAppCard({ saved, workspaceId, onSave, onDelete }) {
   const [verifyResult, setVerifyResult] = useState(null);
   const [error, setError] = useState('');
   const [refreshing, setRefreshing] = useState(false);
+  const [regNumsBusy, setRegNumsBusy] = useState(false);
+  const [regNumsResults, setRegNumsResults] = useState(null);
   const [coexistenceMode, setCoexistenceMode] = useState(!!saved?.config?.coexistence_mode);
 
   const handleCoexistenceToggle = async (enabled) => {
@@ -193,6 +195,25 @@ function WhatsAppCard({ saved, workspaceId, onSave, onDelete }) {
   };
 
   // ── Refresh phone details from Meta ───────────────────────────────────────
+  // ── Register numbers on the WABA via Cloud API ──────────────────────────────
+  // One-click fix for numbers added straight from Meta Business Settings
+  // (they show "Pending" forever): registers every number on the connected
+  // WhatsApp Business Account using the stored token — no pasted keys.
+  const handleRegisterNumbers = async () => {
+    setRegNumsBusy(true); setRegNumsResults(null);
+    try {
+      const data = await apiCall('whatsapp-register-numbers', { workspace_id: workspaceId });
+      if (data.ok) {
+        setRegNumsResults(data.results || []);
+        if (onSave) onSave('whatsapp', saved.config);
+      } else {
+        setRegNumsResults([{ status: 'failed', message: data.error || 'Registration failed.' }]);
+      }
+    } catch (e) {
+      setRegNumsResults([{ status: 'failed', message: e.message || 'Network error.' }]);
+    } finally { setRegNumsBusy(false); }
+  };
+
   const handleRefreshStatus = async () => {
     if (!saved?.config?.access_token || !saved?.config?.phone_number_id) return;
     setRefreshing(true);
@@ -755,7 +776,32 @@ function WhatsAppCard({ saved, workspaceId, onSave, onDelete }) {
           )}
           {error && <p className="text-xs text-red-400">{error}</p>}
 
+          {regNumsResults && (
+            <div className="rounded-lg bg-[var(--nyasa-surface-1)] border border-white/5 p-3 space-y-1.5">
+              {(regNumsResults || []).map((r, i) => (
+                <div key={i} className="flex flex-col gap-0.5">
+                  <div className="flex items-center gap-2 text-[11px]">
+                    <span>{r.status === 'registered' ? '✅' : r.status === 'already_registered' ? '✔️' : r.status === 'coexistence' ? '🔗' : '❌'}</span>
+                    <span className="font-semibold text-white">{r.phone_number || 'Number'}</span>
+                    <span className={r.status === 'failed' ? 'text-red-400' : 'text-emerald-400'}>
+                      {r.status === 'registered' ? 'Registered now' : r.status === 'already_registered' ? 'Already registered' : r.status === 'coexistence' ? 'Coexistence (already on Cloud API)' : 'Failed'}
+                    </span>
+                  </div>
+                  {(r.message || '').startsWith('Registered now') && r.pin && (
+                    <p className="text-[11px] text-amber-400">2FA PIN set by Meta: <span className="font-mono text-white">{r.pin}</span> — save it.</p>
+                  )}
+                  {r.status === 'failed' && r.message && (
+                    <p className="text-[11px] text-gray-400">{r.message}</p>
+                  )}
+                </div>
+              ))}
+            </div>
+          )}
           <div className="flex gap-2">
+            <button onClick={handleRegisterNumbers} disabled={regNumsBusy}
+              className="flex-1 py-2.5 rounded-xl text-xs font-medium text-white bg-white/8 hover:bg-white/12 disabled:opacity-50">
+              {regNumsBusy ? 'Registering…' : 'Register numbers'}
+            </button>
             <button onClick={handleVerify} disabled={verifying}
               className="flex-1 py-2.5 rounded-xl text-xs font-medium text-white bg-white/8 hover:bg-white/12 disabled:opacity-50">
               {verifying ? 'Verifying…' : 'Verify webhook'}

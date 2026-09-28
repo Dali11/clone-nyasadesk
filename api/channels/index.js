@@ -14,7 +14,7 @@ import { getProvider } from '../_lib/providers/index.js';
 import { AI_AGENT_TEMPLATES, generateDraftReply } from '../_lib/aiAgents.js';
 import { ingestUrl, ingestFile } from '../_lib/knowledgeIngest.js';
 import { discoverWabas, connectWaba, createWaba, addPhoneNumber, requestVerificationCode, verifyPhoneCode, registerPhoneNumber } from '../_lib/whatsappGuidedSetup.js';
-import { validateToken, discoverWabas as discoverWabasManual, getWabaInfo, listPhoneNumbers, getPhoneDetails, isPhoneRegistered, autoSetup } from '../_lib/whatsappSetup.js';
+import { validateToken, discoverWabas as discoverWabasManual, getWabaInfo, listPhoneNumbers, getPhoneDetails, isPhoneRegistered, autoSetup, registerPhone } from '../_lib/whatsappSetup.js';
 import { freshSetup } from '../_lib/freshSetup.js';
 import { buildEmail } from '../_lib/emailTemplate.js';
 
@@ -169,6 +169,7 @@ export default async function handler(req, res) {
   if (action === 'whatsapp-manual-connect') return handleWhatsappManualConnect(req, res);
   if (action === 'whatsapp-refresh-status') return handleWhatsappRefreshStatus(req, res);
   if (action === 'whatsapp-complete-registration') return handleWhatsappCompleteRegistration(req, res);
+  if (action === 'whatsapp-register-numbers')   return handleWhatsappRegisterNumbers(req, res);
   if (action === 'whatsapp-embedded-save')   return handleWhatsappEmbeddedSave(req, res);
   if (action === 'gmail-oauth-url')       return handleGmailOAuthUrl(req, res);
   if (action === 'gmail-oauth-callback')  return handleGmailOAuthCallback(req, res);
@@ -925,6 +926,95 @@ async function handleWhatsappCompleteRegistration(req, res) {
     return res.status(200).json({ ok: true, config: updatedConfig });
   } catch (e) {
     console.error('[channels/whatsapp-complete-registration]', e);
+    return res.status(400).json({ ok: false, error: e.message });
+  }
+}
+
+// ── Register all numbers on the connected WABA ──────────────────────────────
+// One-click fix for numbers that were added straight from Meta Business
+// Settings (Add WhatsApp phone number): Meta OTP-verifies them on its side,
+// but nothing ever calls POST /{phone_number_id}/register, so they sit
+// "Pending" forever and can't send/receive on the Cloud API. This action
+// uses the STORED token from channel_configs (never a client-supplied one),
+// lists every number on the WABA, and registers each non-coexistence number.
+// Registration is idempotent (Meta #130429 = already registered = success).
+async function handleWhatsappRegisterNumbers(req, res) {
+  try {
+    const { workspace_id, phone_number_id } = req.body || {};
+    if (!workspace_id) return res.status(400).json({ ok: false, error: 'workspace_id is required' });
+    if (!isUUID(workspace_id)) return res.status(400).json({ ok: false, error: 'Invalid workspace_id format' });
+
+    const sb = createClient(SUPABASE_URL, SUPABASE_KEY);
+    const { data: cfg, error: dbErr } = await sb.from('channel_configs')
+      .select('config,enabled').eq('workspace_id', workspace_id).eq('channel', 'whatsapp').maybeSingle();
+    if (dbErr) throw dbErr;
+    if (!cfg?.config?.access_token || !cfg?.config?.waba_id) {
+      return res.status(400).json({ ok: false, error: 'No connected WhatsApp channel found. Connect one first.' });
+    }
+    const token = cfg.config.access_token;
+    const wabaId = cfg.config.waba_id;
+
+    // List ALL numbers on the WABA (not just the connected one) with the
+    // fields needed to decide whether registration applies.
+    const listRes = await fetch(
+      `https://graph.facebook.com/v21.0/${wabaId}/phone_numbers?fields=id,display_phone_number,verified_name,code_verification_status,quality_rating,name_status,account_mode&access_token=${encodeURIComponent(token)}`
+    );
+    const listData = await listRes.json();
+    if (listData.error) {
+      return res.status(400).json({ ok: false, error: listData.error.message || 'Meta rejected the request while listing phone numbers.' });
+    }
+    const numbers = (listData.data || []).filter(n => !phone_number_id || n.id === phone_number_id);
+    if (!numbers.length) {
+      return res.status(200).json({ ok: true, results: [], note: 'No phone numbers found on this WhatsApp Business Account.' });
+    }
+
+    const results = [];
+    for (const n of numbers) {
+      // Coexistence numbers arrive pre-registered on the Cloud API — skip.
+      if (n.account_mode === 'COEXISTENCE') {
+        results.push({ phone_number: n.display_phone_number, verified_name: n.verified_name, status: 'coexistence', message: 'Business App coexistence number — already registered, skipped.' });
+        continue;
+      }
+      try {
+        const reg = await registerPhone(token, n.id);
+        results.push({
+          phone_number: n.display_phone_number,
+          verified_name: n.verified_name,
+          status: reg.already_registered ? 'already_registered' : 'registered',
+          pin: reg.pin || null,
+          message: reg.already_registered
+            ? 'Already registered on the Cloud API.'
+            : 'Registered now. Save the 2FA PIN below — Meta may ask for it later.',
+        });
+      } catch (e) {
+        results.push({ phone_number: n.display_phone_number, verified_name: n.verified_name, status: 'failed', message: e.message || 'Registration failed.' });
+      }
+    }
+
+    // Freshen the stored config for the connected number if it was touched.
+    const connectedId = cfg.config.phone_number_id;
+    const touched = numbers.find(n => n.id === connectedId);
+    if (touched) {
+      try {
+        const fresh = await getPhoneDetails(token, connectedId);
+        const updatedConfig = {
+          ...cfg.config,
+          phone_number: fresh.display_phone_number || cfg.config.phone_number,
+          verified_name: fresh.verified_name || cfg.config.verified_name,
+          quality_rating: fresh.quality_rating || cfg.config.quality_rating,
+          name_status: fresh.name_status || cfg.config.name_status,
+          account_mode: fresh.account_mode || cfg.config.account_mode,
+        };
+        await sb.from('channel_configs').update({ config: updatedConfig, updated_at: new Date().toISOString() })
+          .eq('workspace_id', workspace_id).eq('channel', 'whatsapp');
+      } catch (e) {
+        console.error('[channels/whatsapp-register-numbers] config freshen failed:', e);
+      }
+    }
+
+    return res.status(200).json({ ok: true, results });
+  } catch (e) {
+    console.error('[channels/whatsapp-register-numbers] error:', e);
     return res.status(400).json({ ok: false, error: e.message });
   }
 }
