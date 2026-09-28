@@ -167,11 +167,23 @@ const server = http.createServer(async (req, res) => {
   const pathname = decodeURIComponent(u.pathname);
 
   try {
-    // 1) Vercel rewrites (checked before function resolution, like vercel.json)
+    // 1) Vercel rewrites — BUT Vercel's real precedence is filesystem FIRST,
+    // rewrite as fallback: an actual file like api/auth/whatsapp-embedded.js
+    // wins over the generic "/api/auth/(.*) -> /api/auth?path=$1" rewrite in
+    // vercel.json. (Bug fixed 2026-09-28: this used to apply the rewrite
+    // unconditionally, so api/auth/whatsapp-embedded.js and
+    // api/auth/facebook-callback.js were unreachable — every request landed
+    // on the better-auth catch-all in api/auth.js and 404'd.)
     let apiUrl = null;
     let handlerFile = null;
     if (pathname === '/api/auth' || pathname.startsWith('/api/auth/')) {
       const sub = pathname.slice('/api/auth'.length).replace(/^\/+/, '');
+      if (sub) {
+        const directFile = await resolveApiFile('/api/auth/' + sub);
+        if (directFile) {
+          return await dispatch(directFile, u.pathname + u.search, parseQuery(u.search), req, res);
+        }
+      }
       const q = parseQuery(u.search);
       if (sub) q.path = sub;
       const qs = new URLSearchParams(q).toString();
