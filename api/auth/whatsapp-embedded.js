@@ -117,30 +117,42 @@ async function completeSignup({ code, workspaceId, redirectFlow, redirectUri, hi
   }
 
   // ── Step 4: Resolve the phone number ────────────────────────────────────
-  // Prefer the hinted one, else the first on the WABA.
+  // Prefer the hinted one, else the first on the WABA. A number added or
+  // selected DURING this signup can take a few seconds to show up on Meta's
+  // side (same eventual-consistency issue as Cloud API registration) — a
+  // single immediate lookup can come back empty even though the dialog
+  // reported success. Retry with backoff before giving up. Also worth
+  // noting: the full-page OAuth redirect fallback (mobile browsers that
+  // block the popup) has no postMessage hint at all, so it always falls
+  // through to "first number on the WABA" — the retry covers that path too.
   let phone = null;
-  try {
-    if (hintedPhoneId) {
-      const phoneRes = await fetch(
-        `https://graph.facebook.com/v26.0/${hintedPhoneId}?fields=id,display_phone_number,verified_name,quality_rating,name_status,account_mode&access_token=${longToken}`
-      );
-      const phoneData = await phoneRes.json();
-      if (!phoneData.error) phone = phoneData;
+  for (let attempt = 1; attempt <= 4 && !phone; attempt++) {
+    try {
+      if (hintedPhoneId) {
+        const phoneRes = await fetch(
+          `https://graph.facebook.com/v26.0/${hintedPhoneId}?fields=id,display_phone_number,verified_name,quality_rating,name_status,account_mode&access_token=${longToken}`
+        );
+        const phoneData = await phoneRes.json();
+        if (!phoneData.error) phone = phoneData;
+      }
+      if (!phone) {
+        const phonesRes = await fetch(
+          `https://graph.facebook.com/v26.0/${wabaId}/phone_numbers?fields=id,display_phone_number,verified_name,quality_rating,name_status,account_mode&access_token=${longToken}`
+        );
+        const phonesData = await phonesRes.json();
+        phone = phonesData.data?.[0] || null;
+      }
+    } catch (e) {
+      console.error(`[wa-embedded] phone resolution attempt ${attempt} failed:`, e);
     }
-    if (!phone) {
-      const phonesRes = await fetch(
-        `https://graph.facebook.com/v26.0/${wabaId}/phone_numbers?fields=id,display_phone_number,verified_name,quality_rating,name_status,account_mode&access_token=${longToken}`
-      );
-      const phonesData = await phonesRes.json();
-      phone = phonesData.data?.[0] || null;
+    if (!phone && attempt < 4) {
+      console.warn(`[wa-embedded] no phone number found yet on attempt ${attempt} — retrying in ${attempt * 2}s...`);
+      await new Promise((resolve) => setTimeout(resolve, attempt * 2000));
     }
-  } catch (e) {
-    console.error('[wa-embedded] phone resolution failed:', e);
-    return { status: 400, json: { error: `Could not resolve a phone number: ${e.message || 'Unknown error'}` } };
   }
   if (!phone) {
     return { status: 400, json: {
-      error: 'No phone number found on the connected WhatsApp Business Account.',
+      error: 'No phone number found on the connected WhatsApp Business Account. If you just added a new number, wait a few seconds and try connecting again — Meta can take a moment to finish setting it up.',
     } };
   }
 
