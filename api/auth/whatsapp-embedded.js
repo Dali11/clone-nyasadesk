@@ -126,20 +126,37 @@ async function completeSignup({ code, workspaceId, redirectFlow, redirectUri, hi
   // block the popup) has no postMessage hint at all, so it always falls
   // through to "first number on the WABA" — the retry covers that path too.
   let phone = null;
-  for (let attempt = 1; attempt <= 4 && !phone; attempt++) {
+  let graphError = null; // hard Graph API error from the phone LIST call
+  for (let attempt = 1; attempt <= 4 && !phone && !graphError; attempt++) {
     try {
       if (hintedPhoneId) {
         const phoneRes = await fetch(
           `https://graph.facebook.com/v26.0/${hintedPhoneId}?fields=id,display_phone_number,verified_name,quality_rating,name_status,account_mode&access_token=${longToken}`
         );
         const phoneData = await phoneRes.json();
-        if (!phoneData.error) phone = phoneData;
+        if (phoneData.error) {
+          // Non-fatal: the list call below is authoritative. But LOG it —
+          // this was previously swallowed, hiding permission problems.
+          console.warn(`[wa-embedded] hinted phone ${hintedPhoneId} fetch error (code ${phoneData.error.code || '?'}): ${phoneData.error.message || 'unknown'}`);
+        } else {
+          phone = phoneData;
+        }
       }
       if (!phone) {
         const phonesRes = await fetch(
           `https://graph.facebook.com/v26.0/${wabaId}/phone_numbers?fields=id,display_phone_number,verified_name,quality_rating,name_status,account_mode&access_token=${longToken}`
         );
         const phonesData = await phonesRes.json();
+        if (phonesData.error) {
+          // A Graph error on the LIST call is NOT a propagation delay —
+          // retrying won't help (usually a token/permission problem, e.g.
+          // the code was granted for a different business portfolio than
+          // the WABA we're querying). Record it and break the loop instead
+          // of silently treating it as an empty list.
+          console.error(`[wa-embedded] phone list on WABA ${wabaId} returned error (code ${phonesData.error.code || '?'}): ${phonesData.error.message || 'unknown'}`);
+          graphError = phonesData.error;
+          break;
+        }
         phone = phonesData.data?.[0] || null;
       }
     } catch (e) {
@@ -151,6 +168,11 @@ async function completeSignup({ code, workspaceId, redirectFlow, redirectUri, hi
     }
   }
   if (!phone) {
+    if (graphError) {
+      return { status: 400, json: {
+        error: `Could not read the phone numbers on the connected WhatsApp Business Account (Meta error ${graphError.code || '?'}: ${graphError.message || 'unknown'}). This is usually a permission issue — try connecting again and make sure to approve ALL requested permissions and select the correct business portfolio.`,
+      } };
+    }
     return { status: 400, json: {
       error: 'No phone number found on the connected WhatsApp Business Account. If you just added a new number, wait a few seconds and try connecting again — Meta can take a moment to finish setting it up.',
     } };

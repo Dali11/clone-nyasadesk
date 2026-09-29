@@ -501,6 +501,10 @@ function WhatsAppCard({ saved, workspaceId, onSave, onDelete }) {
   };
 
   const startFBLogin = (configData) => {
+    // Drop any hint captured during a PREVIOUS signup attempt — a stale
+    // waba_id/phone_number_id from an earlier wizard run would silently
+    // point the backend completion at the wrong WABA.
+    embeddedSignupDataRef.current = null;
     window.removeEventListener('message', window._nyasaWAListener);
     window._nyasaWAListener = (e) => {
       try {
