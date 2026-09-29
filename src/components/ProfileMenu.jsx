@@ -181,8 +181,8 @@ function MenuContent({ onClose, variant = 'mobile' }) {
       {variant === 'mobile' && (
         <>
           <Divider />
-          {/* ── Pages (mobile only — the sidebar rail covers these on desktop) ── */}
-          <SectionLabel>Pages</SectionLabel>
+          {/* ── Automate (mobile only — the sidebar rail covers these on desktop) ── */}
+          <SectionLabel>Automate</SectionLabel>
           <Row icon={Megaphone}  label="Broadcasts"         onClick={() => go('/broadcasts')} />
           <Row icon={Bot}        label="AI Agents"          onClick={() => go('/ai-agents')} />
           <Row icon={Zap}        label="Automation Rules"   onClick={() => go('/rules')} />

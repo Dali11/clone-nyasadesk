@@ -69,7 +69,7 @@ function Kpi({ icon: Icon, label, value, sub, accent }) {
 }
 
 /* ── Pipeline card ──────────────────────────────────────────────────── */
-function ContactCard({ c, onOpen, onDragStart, onDragEnd, dragging }) {
+function ContactCard({ c, onOpen, onDragStart = () => {}, onDragEnd = () => {}, dragging, showStage = false }) {
   const due = c.next_followup && new Date(c.next_followup) < new Date() && !['Closed Won', 'Closed Lost'].includes(c.deal_stage);
   return (
     <div
@@ -84,7 +84,10 @@ function ContactCard({ c, onOpen, onDragStart, onDragEnd, dragging }) {
         <Avatar name={c.full_name || '?'} size="sm" src={c.avatar_url} />
         <div className="min-w-0 flex-1">
           <p className="text-sm text-white font-medium truncate leading-tight">{c.full_name || 'Unnamed'}</p>
-          <p className="text-[11px] text-[#8696A0] truncate leading-tight">{c.company || c.phone || c.email || '—'}</p>
+          <p className="text-[11px] text-[#8696A0] truncate leading-tight">
+            {c.company || c.phone || c.email || '—'}
+            {showStage && <span className="text-[#5C6CF7]"> · {c.deal_stage || 'New Lead'}</span>}
+          </p>
         </div>
         {c.deal_value != null && (
           <span className="text-xs font-semibold text-[#a3e635] shrink-0">{fmtK(c.deal_value)}</span>
@@ -417,6 +420,7 @@ export default function CRM() {
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
   const [view, setView] = useState('pipeline');
+  const [mobileStage, setMobileStage] = useState(''); // mobile pipeline chip filter
   const [segment, setSegment] = useState('all');
   const [sort, setSort] = useState('value_desc');
   const [showSort, setShowSort] = useState(false);
@@ -673,7 +677,42 @@ export default function CRM() {
               </button>}
             </div>
           ) : view === 'pipeline' ? (
-            <div className="flex gap-3 h-full min-h-[300px] overflow-x-auto pb-2">
+            <>
+            {/* ── Mobile (<md): HTML5 drag&drop doesn't exist on touchscreens —
+                stage chips + tappable stacked list instead; the stage itself
+                is changed in the contact drawer's Deal panel. ── */}
+            <div className="md:hidden">
+              <div className="flex gap-2 overflow-x-auto scrollbar-none pb-3">
+                <button onClick={() => setMobileStage('')}
+                  className={`shrink-0 px-3 py-1.5 rounded-full text-[11px] font-semibold transition
+                    ${!mobileStage ? 'bg-[#25D366] text-[#0B141A]' : 'bg-white/5 text-[#8696A0]'}`}>
+                  All ({sorted.length})
+                </button>
+                {PIPELINE_STAGES.map(s => {
+                  const n = sorted.filter(c => (c.deal_stage || 'New Lead') === s).length;
+                  return (
+                    <button key={s} onClick={() => setMobileStage(s)}
+                      className={`shrink-0 px-3 py-1.5 rounded-full text-[11px] font-semibold transition
+                        ${mobileStage === s ? 'bg-[#25D366] text-[#0B141A]' : 'bg-white/5 text-[#8696A0]'}`}>
+                      {s} ({n})
+                    </button>
+                  );
+                })}
+              </div>
+              <div className="space-y-2">
+                {(mobileStage ? sorted.filter(c => (c.deal_stage || 'New Lead') === mobileStage) : sorted).map(c => (
+                  <ContactCard key={c.id} c={c} onOpen={setOpenContact} showStage={!mobileStage} />
+                ))}
+                {(mobileStage ? sorted.filter(c => (c.deal_stage || 'New Lead') === mobileStage) : sorted).length === 0 && (
+                  <div className="text-center text-[11px] text-[#8696A0] py-8 border border-dashed border-white/5 rounded-xl">
+                    No contacts in this stage
+                  </div>
+                )}
+              </div>
+            </div>
+
+            {/* ── Desktop (md+): drag&drop board (unchanged) ── */}
+            <div className="hidden md:flex gap-3 h-full min-h-[300px] overflow-x-auto pb-2">
               {PIPELINE_STAGES.map(stage => {
                 const col = sorted.filter(c => (c.deal_stage || 'New Lead') === stage);
                 const colValue = col.reduce((s, c) => s + (Number(c.deal_value) || 0), 0);
@@ -725,6 +764,7 @@ export default function CRM() {
                 );
               })}
             </div>
+            </>
           ) : (
             <div className="rounded-2xl border border-white/5 overflow-hidden">
               <div className="grid grid-cols-[1.7fr_1fr_1fr] md:grid-cols-[2fr_1.2fr_0.8fr_1fr_0.9fr_0.9fr] gap-2 px-3 md:px-4 py-2.5 bg-[var(--nyasa-surface-2)] text-[10px] uppercase tracking-wider text-[#8696A0] font-semibold">

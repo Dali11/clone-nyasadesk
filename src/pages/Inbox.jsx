@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
-import { Search, Plus, Loader2, MessageSquareOff, Pin, Pencil, X } from 'lucide-react';
+import { Search, Plus, Loader2, MessageSquareOff, Pin, Pencil, X, RefreshCw } from 'lucide-react';
 import Sidebar from '@/components/Sidebar';
 import ConvList from '@/components/inbox/ConvList';
 import ChatHeader from '@/components/inbox/ChatHeader';
@@ -128,6 +128,13 @@ export default function Inbox() {
   // trailing-debounce timer for poll-driven full reloads
   const reloadTimer = useRef(null);
 
+  // Pull-to-refresh (mobile): gesture on the conversations list. Only arms
+  // when the list is scrolled to the very top, so it never fights scrolling.
+  const ptrStartY = useRef(null);
+  const ptrAtTop  = useRef(false);
+  const [ptrPull, setPtrPull] = useState(0);
+  const [ptrBusy, setPtrBusy] = useState(false);
+
   const loadConversations = useCallback(async () => {
     if (!workspaceOwnerId) return;
     // Cache-first render: show the last-known list from IndexedDB IMMEDIATELY
@@ -148,6 +155,26 @@ export default function Inbox() {
       setLoading(false);
     }
   }, [workspaceOwnerId, canViewAllChats, user?.id]);
+
+  const onPtrTouchStart = (e) => {
+    ptrStartY.current = e.touches[0].clientY;
+    ptrAtTop.current = e.currentTarget.scrollTop <= 0;
+  };
+  const onPtrTouchMove = (e) => {
+    if (!ptrAtTop.current || ptrBusy || ptrStartY.current == null) return;
+    const dy = e.touches[0].clientY - ptrStartY.current;
+    setPtrPull(dy > 0 ? Math.min(dy * 0.45, 64) : 0);
+  };
+  const onPtrTouchEnd = async () => {
+    ptrStartY.current = null;
+    const shouldRefresh = ptrPull >= 48 && !ptrBusy;
+    setPtrPull(0);
+    if (shouldRefresh) {
+      setPtrBusy(true);
+      try { await loadConversations(); } catch { /* best-effort */ }
+      setPtrBusy(false);
+    }
+  };
 
   // Initial load
   useEffect(() => { loadConversations(); }, [loadConversations]);
@@ -495,7 +522,24 @@ export default function Inbox() {
         </div>
 
         {/* List */}
-        <div className="flex-1 overflow-y-auto scrollbar-thin">
+        <div
+          className="flex-1 overflow-y-auto scrollbar-none md:scrollbar-thin"
+          onTouchStart={onPtrTouchStart}
+          onTouchMove={onPtrTouchMove}
+          onTouchEnd={onPtrTouchEnd}
+        >
+          {/* Pull-to-refresh indicator (mobile gesture only) */}
+          {(ptrPull > 0 || ptrBusy) && (
+            <div
+              className="flex justify-center py-2 transition-opacity md:hidden"
+              style={{ opacity: ptrBusy ? 1 : Math.min(ptrPull / 48, 1) }}
+            >
+              <RefreshCw
+                className={`w-5 h-5 text-[#25D366] ${ptrBusy ? 'animate-spin' : ''}`}
+                style={ptrBusy ? undefined : { transform: `rotate(${ptrPull * 4}deg)` }}
+              />
+            </div>
+          )}
           {/* Pinned conversations section */}
           {pinnedConvs.length > 0 && (
             <div>
