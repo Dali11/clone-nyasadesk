@@ -58,7 +58,11 @@ async function reportPushDiag(stage, detail) {
 
 function isDeadEndpoint(endpoint) {
   if (!endpoint) return true;
-  if (endpoint.includes('fcm.googleapis.com/fcm/send/')) return true;
+  // Only ancient GCM endpoints are truly dead. `fcm.googleapis.com/fcm/send/`
+  // is the NORMAL current format for Chrome/Android VAPID subscriptions —
+  // do NOT treat it as legacy (that broke every Chrome subscribe attempt).
+  if (endpoint.includes('android.googleapis.com/gcm/')) return true;
+  if (endpoint.includes('gcm.googleapis.com/gcm/')) return true;
   return false;
 }
 

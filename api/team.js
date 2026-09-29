@@ -249,9 +249,12 @@ async function pushSubscribeHandler(req, res, sb, sbAnon) {
   // Supabase JS client's upsert helper.
   const endpoint = subscription.endpoint;
 
-  // Reject legacy FCM endpoints — they're dead and would pollute the DB
-  if (!endpoint || endpoint.includes('fcm.googleapis.com/fcm/send/')) {
-    return res.status(400).json({ error: 'Legacy FCM endpoints are not supported. Please re-enable notifications.' });
+  // Reject only truly LEGACY GCM endpoints. NOTE: `fcm.googleapis.com/fcm/send/`
+  // is the NORMAL, current endpoint format for Chrome/Android VAPID subscriptions —
+  // it was previously (and wrongly) rejected as 'legacy', which silently killed
+  // every Chrome user's subscribe attempt with a 400.
+  if (!endpoint || endpoint.includes('android.googleapis.com/gcm/') || endpoint.includes('gcm.googleapis.com/gcm/')) {
+    return res.status(400).json({ error: 'Legacy GCM endpoints are not supported. Please re-enable notifications.' });
   }
 
   const { data: existing } = await sb.from('push_subscriptions')

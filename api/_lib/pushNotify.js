@@ -146,7 +146,9 @@ export async function notifyNewMessage(sb, {
     });
 
     // Filter out known dead endpoint patterns before attempting delivery
-    const isDeadEndpoint = (ep) => !ep || ep.includes('fcm.googleapis.com/fcm/send/');
+    // `fcm.googleapis.com/fcm/send/` is the NORMAL current Chrome/Android
+    // endpoint format — only ancient GCM endpoints are truly dead.
+    const isDeadEndpoint = (ep) => !ep || ep.includes('android.googleapis.com/gcm/') || ep.includes('gcm.googleapis.com/gcm/');
 
     await Promise.all(subs.map(async (row) => {
       const endpoint = row.subscription?.endpoint || '';
