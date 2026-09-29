@@ -155,14 +155,7 @@ function WhatsAppCard({ saved, workspaceId, onSave, onDelete }) {
   const [verifyResult, setVerifyResult] = useState(null);
   const [error, setError] = useState('');
   const [refreshing, setRefreshing] = useState(false);
-  const [regNumsBusy, setRegNumsBusy] = useState(false);
   const [regNumsResults, setRegNumsResults] = useState(null);
-  const [coexistenceMode, setCoexistenceMode] = useState(!!saved?.config?.coexistence_mode);
-
-  const handleCoexistenceToggle = async (enabled) => {
-    setCoexistenceMode(enabled);
-    if (onSave) await onSave('whatsapp', { ...saved.config, coexistence_mode: enabled });
-  };
 
   const embeddedSignupDataRef = useState({ current: null })[0];
   const { loadFacebookSDK, sdkReady } = useFacebookSDK();
@@ -201,7 +194,7 @@ function WhatsAppCard({ saved, workspaceId, onSave, onDelete }) {
   // the backend connects it anyway and flags registration_pending. This waits
   // for Meta to catch up, then runs the register action automatically (two
   // tries) so the user doesn't have to click anything. Results surface in the
-  // same panel as the manual Register numbers button.
+  // same panel that registration results surface in.
   const finishPendingRegistration = async (wsId, phoneId, attempt = 1) => {
     const waitMs = attempt === 1 ? 5000 : 12000;
     setRegNumsResults([{ status: 'pending', message: `Finishing registration on Meta's side (attempt ${attempt})…` }]);
@@ -221,10 +214,10 @@ function WhatsAppCard({ saved, workspaceId, onSave, onDelete }) {
         return true;
       }
       if (attempt < 2) return finishPendingRegistration(wsId, phoneId, 2);
-      setRegNumsResults([{ status: 'failed', phone_number: null, message: data.error || 'Could not finish registration — use the Register numbers button to retry.' }]);
+      setRegNumsResults([{ status: 'failed', phone_number: null, message: data.error || 'Could not finish registration automatically — reconnect the number to retry.' }]);
     } catch (e) {
       if (attempt < 2) return finishPendingRegistration(wsId, phoneId, 2);
-      setRegNumsResults([{ status: 'failed', message: e.message || 'Network error — use the Register numbers button to retry.' }]);
+      setRegNumsResults([{ status: 'failed', message: e.message || 'Network error while finishing registration — reconnect the number to retry.' }]);
     }
     return false;
   };
@@ -233,20 +226,6 @@ function WhatsAppCard({ saved, workspaceId, onSave, onDelete }) {
   // One-click fix for numbers added straight from Meta Business Settings
   // (they show "Pending" forever): registers every number on the connected
   // WhatsApp Business Account using the stored token — no pasted keys.
-  const handleRegisterNumbers = async () => {
-    setRegNumsBusy(true); setRegNumsResults(null);
-    try {
-      const data = await apiCall('whatsapp-register-numbers', { workspace_id: workspaceId });
-      if (data.ok) {
-        setRegNumsResults(data.results || []);
-        if (onSave) onSave('whatsapp', saved.config);
-      } else {
-        setRegNumsResults([{ status: 'failed', message: data.error || 'Registration failed.' }]);
-      }
-    } catch (e) {
-      setRegNumsResults([{ status: 'failed', message: e.message || 'Network error.' }]);
-    } finally { setRegNumsBusy(false); }
-  };
 
   const handleRefreshStatus = async () => {
     if (!saved?.config?.access_token || !saved?.config?.phone_number_id) return;
@@ -817,18 +796,6 @@ function WhatsAppCard({ saved, workspaceId, onSave, onDelete }) {
               </div>
             )}
 
-            {/* WhatsApp Business App coexistence */}
-            <label className="flex items-start gap-3 rounded-lg border border-white/5 bg-white/[0.02] p-3 cursor-pointer">
-              <input type="checkbox" className="mt-0.5 accent-[#25D366]" checked={coexistenceMode}
-                onChange={e => handleCoexistenceToggle(e.target.checked)} />
-              <span>
-                <span className="block text-xs font-semibold text-white">Business App coexistence</span>
-                <span className="block text-[11px] text-gray-500 leading-relaxed mt-0.5">
-                  Keep using this number in the WhatsApp Business App. Messages sent from the app will appear as outbound activity here without creating duplicate AI replies.
-                </span>
-              </span>
-            </label>
-
             {/* Webhook info for Meta configuration */}
             <div className="bg-[var(--nyasa-surface-1)] rounded-xl p-3 space-y-1.5 border border-white/5">
               <p className="text-[10px] text-gray-500 font-medium uppercase tracking-wide">Webhook Config (for Meta Dashboard)</p>
@@ -884,10 +851,6 @@ function WhatsAppCard({ saved, workspaceId, onSave, onDelete }) {
             </div>
           )}
           <div className="flex gap-2">
-            <button onClick={handleRegisterNumbers} disabled={regNumsBusy}
-              className="flex-1 py-2.5 rounded-xl text-xs font-medium text-white bg-white/8 hover:bg-white/12 disabled:opacity-50">
-              {regNumsBusy ? 'Registering…' : 'Register numbers'}
-            </button>
             <button onClick={handleVerify} disabled={verifying}
               className="flex-1 py-2.5 rounded-xl text-xs font-medium text-white bg-white/8 hover:bg-white/12 disabled:opacity-50">
               {verifying ? 'Verifying…' : 'Verify webhook'}
@@ -1849,7 +1812,7 @@ export default function Settings() {
                 rows2.forEach(r => { map2[r.channel] = r; });
                 setChannelConfigs(map2);
                 try { localStorage.setItem('wa_channel_configs', JSON.stringify(map2)); } catch {}
-              } catch { /* manual Register numbers button still available */ }
+              } catch { /* results panel still shows any registration_pending state */ }
             }
           })
           .catch(e => console.error('[Settings] wa=connected refresh failed:', e));
