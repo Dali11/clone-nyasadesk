@@ -1,4 +1,5 @@
 import webpush from 'web-push';
+import crypto from 'crypto';
 
 // Shared push-dispatch helper — called from persistInboundMessage() in base.js
 // after every inbound message on every channel.
@@ -13,13 +14,69 @@ import webpush from 'web-push';
 //  - Inline Reply action on every notification
 
 let configured = false;
+
+// (2026-09-29) VAPID_PRIVATE_KEY must be the 32-byte P-256 scalar in base64url
+// (web-push generate-vapid-keys output). Production had it as a base64'd
+// PKCS8 certificate blob instead — setVapidDetails() threw on EVERY boot,
+// and the silent early-return below disabled push with no log line. Accept
+// every common format (raw scalar, PKCS8/SEC1 DER in base64, PEM, JWK, hex)
+// and extract the scalar.
+function extractVapidScalar(value) {
+  if (!value) return null;
+  const v = String(value).trim();
+  try {
+    if (v.startsWith('{')) {
+      const d = JSON.parse(v)?.d;
+      if (d) return Buffer.from(d.replace(/-/g, '+').replace(/_/g, '/'), 'base64');
+    }
+    const buf = Buffer.from(v.replace(/-/g, '+').replace(/_/g, '/').replace(/=+$/, ''), 'base64');
+    if (buf.length === 32) return buf;
+    if (/-----BEGIN/.test(v)) {
+      const b64 = v.replace(/-----BEGIN[\s\S]*?-----/, '').replace(/-----END[\s\S]*?-----/, '').replace(/\s+/g, '');
+      const der = Buffer.from(b64, 'base64');
+      for (const type of ['pkcs8', 'sec1']) {
+        try {
+          const jwk = crypto.createPrivateKey({ key: der, format: 'der', type }).export({ format: 'jwk' });
+          if (jwk?.d) return Buffer.from(jwk.d.replace(/-/g, '+').replace(/_/g, '/'), 'base64');
+        } catch {}
+      }
+      return null;
+    }
+    for (const type of ['pkcs8', 'sec1']) {
+      try {
+        const jwk = crypto.createPrivateKey({ key: buf, format: 'der', type }).export({ format: 'jwk' });
+        if (jwk?.d) return Buffer.from(jwk.d.replace(/-/g, '+').replace(/_/g, '/'), 'base64');
+      } catch {}
+    }
+    if (/^[0-9a-fA-F]{64}$/.test(v)) return Buffer.from(v, 'hex');
+  } catch { return null; }
+  return null;
+}
+
 function ensureConfigured() {
   if (configured) return;
-  const pub     = process.env.VAPID_PUBLIC_KEY;
-  const priv    = process.env.VAPID_PRIVATE_KEY;
   const subject = process.env.VAPID_SUBJECT || 'mailto:support@nyasadesk.com';
-  if (!pub || !priv) return;
-  webpush.setVapidDetails(subject, pub, priv);
+  const scalar  = extractVapidScalar(process.env.VAPID_PRIVATE_KEY);
+  if (!scalar || scalar.length !== 32) {
+    console.error('[pushNotify] VAPID_PRIVATE_KEY missing or unparseable — push notifications DISABLED. Expected the base64url 32-byte scalar from `web-push generate-vapid-keys`.');
+    return;
+  }
+  try {
+    // Derive the PUBLIC half from the private scalar — the pair can never
+    // mismatch. Production's VAPID_PUBLIC_KEY belongs to a DIFFERENT pair
+    // than VAPID_PRIVATE_KEY; trusting it meant every push 403s even with a
+    // valid scalar.
+    const pkcs8 = crypto.createPrivateKey({
+      key: Buffer.concat([Buffer.from('302e020100300506032b657004220420', 'hex'), scalar]),
+      format: 'der', type: 'pkcs8',
+    });
+    const spki = crypto.createPublicKey(pkcs8).export({ type: 'spki', format: 'der' });
+    const pub = spki.subarray(spki.length - 65).toString('base64url');
+    webpush.setVapidDetails(subject, pub, scalar.toString('base64url'));
+  } catch (e) {
+    console.error('[pushNotify] VAPID setup failed — push DISABLED:', e?.message || e);
+    return;
+  }
   configured = true;
 }
 
@@ -91,7 +148,10 @@ export async function notifyNewMessage(sb, {
       try {
         await webpush.sendNotification(row.subscription, payload);
       } catch (e) {
-        if (e?.statusCode === 410 || e?.statusCode === 404) {
+        if (e?.statusCode === 410 || e?.statusCode === 404 || e?.statusCode === 403) {
+          // 403 = the subscription was created with a different VAPID key
+          // (or is otherwise permanently rejected) — delete it; the frontend
+          // auto-resubscribes with the current key on next app open.
           await sb.from('push_subscriptions').delete().eq('id', row.id);
         } else {
           console.error('[pushNotify] send failed:', e?.message || e);

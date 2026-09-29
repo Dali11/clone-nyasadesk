@@ -1,7 +1,12 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { supabase } from '@/lib/supabase';
 
-const VAPID_PUBLIC_KEY = import.meta.env.VITE_VAPID_PUBLIC_KEY;
+// The VAPID public key is PUBLIC data by design (it's embedded in every
+// browser subscription and shipped in the app bundle anyway). Hardcoded to
+// match the server's VAPID_PRIVATE_KEY — production once had a
+// VITE_VAPID_PUBLIC_KEY belonging to a DIFFERENT keypair, and every push
+// silently died. Never trust a mismatched env blindly again.
+const VAPID_PUBLIC_KEY = 'y-X5UmkOiPe_A3DQdGGCJuK61Koi';
 if (VAPID_PUBLIC_KEY && VAPID_PUBLIC_KEY.startsWith('eyJ2IjoidjIi')) {
   console.error('[push] VITE_VAPID_PUBLIC_KEY appears to be an encrypted Vercel secret, not a raw VAPID key.');
 }
@@ -126,7 +131,24 @@ export function usePushNotifications(workspaceOwnerId) {
     // Use serviceWorker.ready (not register) so we wait for full activation
     // before querying pushManager — avoids false negatives during SW install.
     navigator.serviceWorker.ready.then(async (reg) => {
-      const sub = await reg.pushManager.getSubscription();
+      let sub = await reg.pushManager.getSubscription();
+
+      // KEY-MISMATCH CHECK (2026-09-29): a subscription created with a
+      // DIFFERENT VAPID public key can never receive pushes from this
+      // server (push services reject the signed JWT). Unsubscribe it so the
+      // auto-resubscribe path below recreates it with the current key.
+      if (sub && !isDeadEndpoint(sub.endpoint) && sub.options?.applicationServerKey) {
+        const current = urlBase64ToUint8Array(VAPID_PUBLIC_KEY);
+        const existing = new Uint8Array(sub.options.applicationServerKey);
+        const sameKey = existing.length === current.length &&
+          current.every((b, i) => b === existing[i]);
+        if (!sameKey) {
+          console.warn('[push] existing subscription uses an old VAPID key — recreating it');
+          await sub.unsubscribe().catch(() => {});
+          sub = null;
+        }
+      }
+
       const browserHasSub = !!sub && !isDeadEndpoint(sub?.endpoint);
 
       if (browserHasSub) {
