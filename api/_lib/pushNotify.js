@@ -62,16 +62,26 @@ function ensureConfigured() {
     return;
   }
   try {
-    // Derive the PUBLIC half from the private scalar — the pair can never
-    // mismatch. Production's VAPID_PUBLIC_KEY belongs to a DIFFERENT pair
-    // than VAPID_PRIVATE_KEY; trusting it meant every push 403s even with a
-    // valid scalar.
-    const pkcs8 = crypto.createPrivateKey({
-      key: Buffer.concat([Buffer.from('302e020100300506032b657004220420', 'hex'), scalar]),
+    // Derive the PUBLIC half from the private scalar so the pair can never
+    // mismatch. Rebuild a P-256 PKCS8 around the scalar (correct OID:
+    // 1.2.840.10045.2.1 + prime256v1 — NOT 2b6570, which is Ed25519!),
+    // then export the 65-byte uncompressed point as base64url.
+    const P256_PKCS8_PREFIX = Buffer.from(
+      '3041020100301306072a8648ce3d020106082a8648ce3d030107042730250201010420', 'hex');
+    const rebuilt = crypto.createPrivateKey({
+      key: Buffer.concat([P256_PKCS8_PREFIX, scalar]),
       format: 'der', type: 'pkcs8',
     });
-    const spki = crypto.createPublicKey(pkcs8).export({ type: 'spki', format: 'der' });
+    const spki = crypto.createPublicKey(rebuilt).export({ type: 'spki', format: 'der' });
     const pub = spki.subarray(spki.length - 65).toString('base64url');
+    // Informational: warn (not fail) if a separate VAPID_PUBLIC_KEY env
+    // belongs to a different pair — subscriptions created with that other
+    // key would 403. The derived key is authoritative.
+    const norm = (v) => String(v || '').replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+    const envPub = norm(process.env.VAPID_PUBLIC_KEY);
+    if (envPub && envPub !== pub) {
+      console.warn('[pushNotify] VAPID_PUBLIC_KEY env differs from the private key\u2019s own pair — using the derived one. Existing browser subscriptions bound to the OLD key would be rejected (403) and auto-resubscribed.');
+    }
     webpush.setVapidDetails(subject, pub, scalar.toString('base64url'));
   } catch (e) {
     console.error('[pushNotify] VAPID setup failed — push DISABLED:', e?.message || e);

@@ -2,11 +2,11 @@ import { useState, useEffect, useCallback, useRef } from 'react';
 import { supabase } from '@/lib/supabase';
 
 // The VAPID public key is PUBLIC data by design (it's embedded in every
-// browser subscription and shipped in the app bundle anyway). Hardcoded to
-// match the server's VAPID_PRIVATE_KEY — production once had a
-// VITE_VAPID_PUBLIC_KEY belonging to a DIFFERENT keypair, and every push
-// silently died. Never trust a mismatched env blindly again.
-const VAPID_PUBLIC_KEY = 'y-X5UmkOiPe_A3DQdGGCJuK61Koi';
+// browser subscription). It comes from the build env and matches the
+// server's VAPID_PRIVATE_KEY pair — the mount effect below also verifies
+// that an existing browser subscription was created with THIS key and
+// resubscribes if not.
+const VAPID_PUBLIC_KEY = import.meta.env.VITE_VAPID_PUBLIC_KEY;
 if (VAPID_PUBLIC_KEY && VAPID_PUBLIC_KEY.startsWith('eyJ2IjoidjIi')) {
   console.error('[push] VITE_VAPID_PUBLIC_KEY appears to be an encrypted Vercel secret, not a raw VAPID key.');
 }
