@@ -117,18 +117,35 @@ export async function connectWaba(sb, { workspaceId, accessToken, wabaId, phoneN
   if (preErr) throw new Error(preErr.message);
 
   // Now subscribe webhooks — Meta's ping will find the token in the DB.
-  const subRes = await fetch(`${GRAPH}/${wabaId}/subscribed_apps`, {
+  //
+  // TWO-STEP subscription (2026-09-29, aligned with whatsappSetup.subscribeWebhooks):
+  // Meta requires the app to be subscribed BEFORE override_callback_uri can be
+  // set. Sending override_callback_uri in the INITIAL subscription of an app
+  // that isn't subscribed to the WABA yet (exactly the case when migrating a
+  // WABA to a new app) triggers error #100. Step 1: plain subscribe. Step 2:
+  // set the callback override on the already-subscribed app.
+  const subUrl = `${GRAPH}/${wabaId}/subscribed_apps?access_token=${encodeURIComponent(accessToken)}`;
+  let subRes = await fetch(subUrl, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({}),
+  });
+  let subData = await subRes.json();
+  if (subData.error) {
+    throw new Error(subData.error.message || 'Failed to subscribe webhooks for this WABA. The token may be missing "Manage" permission on it.');
+  }
+
+  subRes = await fetch(subUrl, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({
-      access_token: accessToken,
       override_callback_uri: callbackUri,
       verify_token: verifyToken,
     }),
   });
-  const subData = await subRes.json();
+  subData = await subRes.json();
   if (subData.error) {
-    throw new Error(subData.error.message || 'Failed to subscribe webhooks for this WABA. The token may be missing "Manage" permission on it.');
+    throw new Error(subData.error.message || 'Failed to set the webhook callback for this WABA. The token may be missing "Manage" permission on it.');
   }
 
   // Fetch full phone details now that webhooks are subscribed.
