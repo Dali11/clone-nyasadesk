@@ -813,18 +813,15 @@ async function handleWhatsappManualConnect(req, res) {
     // Step 4: get full phone details
     const phone = await getPhoneDetails(access_token, resolvedPhoneId);
 
-    // Step 5: check if registered for Cloud API
-    if (!isPhoneRegistered(phone)) {
-      // Not registered — tell frontend to launch the registration wizard
-      return res.status(200).json({
-        ok: true,
-        needs_registration: true,
-        phone_number_id: resolvedPhoneId,
-        waba_id: resolvedWabaId,
-        phone_number: phone.display_phone_number,
-        verified_name: phone.verified_name,
-      });
-    }
+    // Step 5 (2026-09-29 fix): NO registration pre-gate. The old code checked
+    // code_verification_status === 'VERIFIED' here and pushed numbers that
+    // were ALREADY registered on the Cloud API into the manual registration
+    // wizard — code_verification_status is Meta's OTP ownership check, NOT
+    // Cloud API registration. autoSetup below decides properly: it attempts
+    // registration idempotently (Meta #130429 "already registered" = success,
+    // no PIN burned) and skips COEXISTENCE numbers. needs_registration is
+    // only returned when registration genuinely fails, keeping the manual
+    // PIN wizard as a real fallback instead of a false alarm.
 
     // Step 6: Save the verify_token to DB BEFORE subscribing webhooks.
     // Meta's callback verification ping arrives immediately when we call
@@ -852,8 +849,22 @@ async function handleWhatsappManualConnect(req, res) {
       updated_at: new Date().toISOString(),
     }, { onConflict: 'workspace_id,channel' });
 
-    // Step 7: now subscribe webhooks + fetch full phone details
+    // Step 7: now subscribe webhooks + attempt (idempotent) registration
     const setup = await autoSetup(access_token, resolvedWabaId, resolvedPhoneId);
+
+    // Step 7b: registration genuinely failed (after autoSetup's retries) —
+    // hand off to the manual PIN wizard with the partial config intact
+    // (verify_token saved + webhooks already subscribed).
+    if (setup.registration_pending || setup.registration_error) {
+      return res.status(200).json({
+        ok: true,
+        needs_registration: true,
+        phone_number_id: resolvedPhoneId,
+        waba_id: resolvedWabaId,
+        phone_number: phone.display_phone_number,
+        verified_name: phone.verified_name,
+      });
+    }
 
     // Step 8: update config with full phone details from setup
     const config = {
@@ -903,12 +914,14 @@ async function handleWhatsappCompleteRegistration(req, res) {
     const { registerPhoneNumber } = await import('../_lib/whatsappGuidedSetup.js');
     await registerPhoneNumber(access_token, phone_number_id, pin);
 
-    // Step 2: Fetch fresh phone details to confirm registration
-    const { getPhoneDetails, isPhoneRegistered } = await import('../_lib/whatsappSetup.js');
+    // Step 2: Fetch fresh phone details for the config update. (2026-09-29
+    // fix: no isPhoneRegistered gate here — code_verification_status is
+    // Meta's OTP ownership check, not Cloud API registration; the register
+    // call in step 1 succeeding (or reporting already-registered) is the
+    // ground truth. This gate wrongly failed the wizard for numbers that
+    // WERE registered.)
+    const { getPhoneDetails } = await import('../_lib/whatsappSetup.js');
     const phone = await getPhoneDetails(access_token, phone_number_id);
-    if (!isPhoneRegistered(phone)) {
-      return res.status(400).json({ ok: false, error: 'Registration was accepted by Meta but the number is not yet showing as VERIFIED. Wait 30 seconds and try connecting again.' });
-    }
 
     // Step 3: Update the existing config with full phone details (webhook already subscribed)
     const { createClient } = await import('../_lib/dbFactory.js');
