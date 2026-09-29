@@ -79,13 +79,21 @@ export default function FBRedirect() {
   useEffect(() => {
     if (phase !== 'busy') return;
     let dead = false;
+    let baseline = null; // config.connected_at snapshot; captured on first check
     const check = async () => {
       if (dead) return;
       try {
         if (!ws) return;
         const rows = await getChannelConfigs(ws);
         const wa = rows.find(r => r.channel === 'whatsapp');
-        if (wa?.enabled && wa.config && (wa.config.waba_id || wa.config.access_token || wa.config.phone_number_id)) {
+        const connAt = (wa?.config?.connected_at || 'none');
+        // FRESH-CONFIG GUARD (2026-09-29 audit): workspaces being
+        // RE-connected (WABA migration) already have an old config — without
+        // this, the first poll would report the OLD connection as success
+        // while the new signup never landed. First check captures the
+        // baseline; only a CHANGED connected_at counts as fresh.
+        if (baseline === null) { baseline = connAt; return; }
+        if (connAt !== baseline && wa?.enabled && wa.config && (wa.config.waba_id || wa.config.access_token || wa.config.phone_number_id)) {
           dead = true;
           if (wa.config.setup_pin) setSetupPin(wa.config.setup_pin);
           setPhase('done');
@@ -204,10 +212,10 @@ export default function FBRedirect() {
               className="w-full py-3 rounded-xl text-sm font-bold text-white bg-[#1877F2] hover:bg-[#0f6add] disabled:opacity-60">
               {phase === 'loading' ? 'Getting ready…' : phase === 'busy' ? 'Completing signup…' : 'Continue with Facebook'}
             </button>
-            {phase === 'ready' && (
+            {(phase === 'ready' || phase === 'busy') && (
               <button onClick={() => { setPhase('busy'); window.location.href = buildFacebookDialogUrl(configRef.current, ws); }}
                 className="w-full mt-3 py-2.5 rounded-xl text-xs text-white/70 bg-white/5 hover:bg-white/10 border border-white/10">
-                No window opening? Continue in this tab instead
+                {phase === 'busy' ? 'Stuck or no window? Continue in this tab instead' : 'No window opening? Continue in this tab instead'}
               </button>
             )}
             {phase === 'busy' && <p className="text-[11px] text-white/40 mt-3">Finish the steps in the Facebook window — this page will update when done.</p>}

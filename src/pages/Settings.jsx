@@ -8,6 +8,7 @@ import Avatar from '@/components/Avatar';
 import TeamSection from '@/components/settings/TeamSection';
 import NoticeboardSection from '@/components/settings/NoticeboardSection';
 import { useNyasaAuth } from '@/lib/NyasaAuth';
+import { buildFacebookDialogUrl } from '@/lib/facebookDialog';
 import { getChannelConfigs, saveChannelConfig, deleteChannelConfig } from '@/lib/channels';
 import { supabase } from '@/lib/supabase';
 import { useDocumentTitle } from '@/hooks/useDocumentTitle';
@@ -342,6 +343,12 @@ function WhatsAppCard({ saved, workspaceId, onSave, onDelete }) {
   // connection to land while the user finishes it there, then reflect
   // success back on this screen the moment they switch back.
   const pwaPollRef = useRef(null);
+  // FRESH-CONFIG GUARD (2026-09-29 audit): baseline config.connected_at
+  // captured when polling starts. Workspaces being RE-connected (migrating
+  // a WABA between Meta apps) already have an old config — without this,
+  // the first poll mistakes the OLD connection for a fresh success and
+  // reports a fake "connected" while the new signup never landed.
+  const pwaBaselineRef = useRef(null);
   const [pwaWaiting, setPwaWaiting] = useState(false);
 
   const stopPwaPolling = () => {
@@ -358,7 +365,11 @@ function WhatsAppCard({ saved, workspaceId, onSave, onDelete }) {
     try {
       const rows = await getChannelConfigs(workspaceId);
       const wa = rows.find(r => r.channel === 'whatsapp');
-      if (wa?.enabled && wa.config && (wa.config.waba_id || wa.config.access_token || wa.config.phone_number_id)) {
+      // FRESH-CONFIG GUARD: only a config whose connected_at CHANGED since
+      // the baseline counts as a new connection (see pwaBaselineRef).
+      const connAt = (wa?.config?.connected_at || 'none');
+      const isFresh = connAt !== pwaBaselineRef.current;
+      if (isFresh && wa?.enabled && wa.config && (wa.config.waba_id || wa.config.access_token || wa.config.phone_number_id)) {
         stopPwaPolling();
         setEmbeddedLoading(false);
         setPwaWaiting(false);
@@ -371,8 +382,18 @@ function WhatsAppCard({ saved, workspaceId, onSave, onDelete }) {
     return false;
   };
 
-  const startPwaPolling = () => {
+  const startPwaPolling = async () => {
     stopPwaPolling();
+    // Capture the baseline BEFORE the first poll tick: the current row's
+    // connected_at (or 'no-row' if none). checkPwaConnected only accepts a
+    // config whose connected_at differs from this snapshot.
+    try {
+      const rows = await getChannelConfigs(workspaceId);
+      const wa0 = rows.find(r => r.channel === 'whatsapp');
+      pwaBaselineRef.current = wa0 ? (wa0.config?.connected_at || 'none') : 'no-row';
+    } catch {
+      pwaBaselineRef.current = null; // lenient: guard accepts any config
+    }
     setPwaWaiting(true);
     const onWake = () => { checkPwaConnected(); };
     window.addEventListener('focus', onWake);
@@ -407,8 +428,10 @@ function WhatsAppCard({ saved, workspaceId, onSave, onDelete }) {
       window.location.href = `/fb-redirect?ws=${ws}`;
       return;
     }
-    startPwaPolling();
-    checkPwaConnected(); // covers the case it somehow already finished
+    // Await the baseline snapshot, THEN run the immediate check — otherwise
+    // the parallel check runs with no baseline (lenient) and would mistake
+    // a pre-existing config for a fresh success on re-connects.
+    startPwaPolling().then(() => checkPwaConnected());
   };
 
 
@@ -452,6 +475,22 @@ function WhatsAppCard({ saved, workspaceId, onSave, onDelete }) {
       finally { setEmbeddedLoading(false); }
     })();
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // In-tab dialog fallback (2026-09-29 audit): for mobile users whose
+  // browser blocks the FB.login popup (callback may never even fire), run
+  // Meta's wizard as a full-page dialog in THIS tab. Meta ends the dialog by
+  // navigating to redirect_uri?code=..., and the GET callback completes the
+  // signup server-side. Needs the preloaded config; if it isn't ready, hop
+  // through /fb-redirect (which fetches config itself and has the same
+  // fallback once its SDK attempt fails).
+  const continueInTabFallback = () => {
+    const ready = embeddedReadyRef.current;
+    if (ready?.configData) {
+      window.location.href = buildFacebookDialogUrl(ready.configData, workspaceId);
+      return;
+    }
+    window.location.href = `/fb-redirect?ws=${encodeURIComponent(workspaceId || '')}`;
+  };
 
   const handleEmbeddedSignup = () => {
     setEmbeddedError(''); setEmbeddedSetupPin(null);
@@ -574,6 +613,13 @@ function WhatsAppCard({ saved, workspaceId, onSave, onDelete }) {
       setEmbeddedLoading(false);
       setEmbeddedError('Facebook login failed to start: ' + (e.message || e));
     }
+    // MOBILE POLLING (2026-09-29 audit): on mobile, the FB.login callback can
+    // silently never fire when the popup relay dies while this tab is
+    // backgrounded (the classic silent mobile failure) — the UI would spin
+    // forever. Net it with the DB poll; when the POST path completes normally,
+    // the poll just resolves early with the same config. Desktop keeps the
+    // callback-only path.
+    if (isMobileDevice()) startPwaPolling();
   };
 
   // ── Advanced: discover ────────────────────────────────────────────────────
@@ -876,11 +922,17 @@ function WhatsAppCard({ saved, workspaceId, onSave, onDelete }) {
                   <svg className="w-4 h-4" viewBox="0 0 24 24" fill="currentColor"><path d="M24 12.073c0-6.627-5.373-12-12-12s-12 5.373-12 12c0 5.99 4.388 10.954 10.125 11.854v-8.385H7.078v-3.47h3.047V9.43c0-3.007 1.792-4.669 4.533-4.669 1.312 0 2.686.235 2.686.235v2.953H15.83c-1.491 0-1.956.925-1.956 1.874v2.25h3.328l-.532 3.47h-2.796v8.385C19.612 23.027 24 18.062 24 12.073z"/></svg>
                   {embeddedLoading ? (pwaWaiting ? 'Waiting for Facebook…' : 'Completing signup…') : 'Connect with Facebook'}
                 </button>
+                {embeddedLoading && !pwaWaiting && isMobileDevice() && (
+                  <button onClick={continueInTabFallback}
+                    className="w-full py-1.5 rounded-lg text-[11px] text-gray-400 bg-white/5 hover:bg-white/10 border border-[var(--nyasa-border)] transition-colors">
+                    No window opening? Continue in this tab instead
+                  </button>
+                )}
                 {pwaWaiting ? (
                   <div className="bg-[var(--nyasa-surface-3)] border border-[var(--nyasa-border)] rounded-lg p-2.5 space-y-1.5">
                     <p className="text-[11px] text-gray-300 leading-relaxed">
-                      We opened Facebook in a new browser tab (installed apps can't finish this in-place).
-                      Complete it there, then come back here.
+                      Facebook opened in another tab or window. Complete the steps there,
+                      then come back here.
                     </p>
                     <button onClick={checkPwaConnected}
                       className="w-full py-1.5 rounded-lg text-[11px] font-semibold text-[#25D366] bg-[#25D366]/10 hover:bg-[#25D366]/20 transition-colors">
