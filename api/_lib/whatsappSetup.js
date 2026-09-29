@@ -285,6 +285,10 @@ export async function listPhoneNumbers(accessToken, wabaId) {
  * @returns {boolean}
  */
 export function isPhoneRegistered(phoneDetails) {
+  // COEXISTENCE numbers (onboarded via the Embedded Signup "connect your
+  // WhatsApp Business app" flow) arrive PRE-REGISTERED on the Cloud API —
+  // Meta's docs say to skip the registration step for them entirely.
+  if (phoneDetails?.account_mode === 'COEXISTENCE') return true;
   return phoneDetails?.code_verification_status === 'VERIFIED';
 }
 

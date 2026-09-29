@@ -867,6 +867,11 @@ async function handleWhatsappManualConnect(req, res) {
       quality_rating: setup.phone.quality_rating,
       name_status: setup.phone.name_status,
       account_mode: setup.phone.account_mode,
+      // Auto-detect coexistence (2026-09-29, checkbox removed from the UI):
+      // same rule as autoSetup — Meta flags Business-App numbers with
+      // account_mode COEXISTENCE; providers/whatsapp.js echo suppression
+      // reads config.coexistence_mode.
+      coexistence_mode: setup.phone.account_mode === 'COEXISTENCE',
       connected_via: 'manual_cloud_api',
       connected_at: new Date().toISOString(),
     };
