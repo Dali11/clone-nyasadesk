@@ -1,3 +1,4 @@
+import { useState } from 'react';
 import {Link, useLocation}from 'react-router-dom';
 import {
   MessageSquare,
@@ -9,8 +10,8 @@ import {
   BookOpen,
   ShieldCheck,
   Bot,
-  RefreshCw,
-  Phone,
+  Sparkles,
+  ChevronDown,
 }from 'lucide-react';
 import Avatar from './Avatar';
 import {useNyasaAuth}from '@/lib/NyasaAuth';
@@ -18,15 +19,23 @@ import {ProfileMenuMobile, ProfileMenuDesktop}from '@/components/ProfileMenu';
 import NotificationBellButton from '@/components/NotificationBellButton';
 
 // ── Nav definitions ────────────────────────────────────────────────────────
-const NAV = [
-  { path: '/',           icon: MessageSquare, label: 'Inbox'             },
-  { path: '/dashboard',  icon: BarChart2,     label: 'Dashboard'         },
-  { path: '/contacts',   icon: Users,         label: 'CRM'               },
-  { path: '/broadcasts', icon: Megaphone,     label: 'Broadcasts'        },
-  { path: '/ai-agents',  icon: Bot,           label: 'AI Agents'         },
-  { path: '/rules',      icon: Zap,           label: 'Rules'             },
-  { path: '/canned',     icon: BookOpen,      label: 'Responses'         },
-  { path: '/settings',   icon: Settings,      label: 'Settings'          },
+// Desktop rail (2026-09-29 audit): slimmed from a flat 8-item list to
+// 3 core items + a collapsible "Automate" group + Settings. The four
+// automation features are one concept and now live under one roof instead
+// of each being a top-level destination.
+const NAV_TOP = [
+  { path: '/',          icon: MessageSquare, label: 'Inbox'     },
+  { path: '/contacts',  icon: Users,         label: 'CRM'       },
+  { path: '/dashboard', icon: BarChart2,     label: 'Dashboard' },
+];
+const NAV_AUTOMATE = [
+  { path: '/broadcasts', icon: Megaphone, label: 'Broadcasts' },
+  { path: '/ai-agents',  icon: Bot,       label: 'AI Agents'  },
+  { path: '/rules',      icon: Zap,       label: 'Rules'      },
+  { path: '/canned',     icon: BookOpen,  label: 'Responses'  },
+];
+const NAV_BOTTOM = [
+  { path: '/settings', icon: Settings, label: 'Settings' },
 ];
 
 // Mobile bottom bar: WhatsApp bottom nav exactly
@@ -42,11 +51,18 @@ export default function Sidebar({ hideMobileChrome = false } = {}) {
   const { user, profile, isPlatformAdmin } = useNyasaAuth();
   const workspaceName = profile?.workspace_name || user?.workspace_name || '';
 
-  const filteredNAV = NAV;
-
-  const navItems = isPlatformAdmin
-    ? [...filteredNAV, { path: '/admin', icon: ShieldCheck, label: 'Admin Panel' }]
-    : filteredNAV;
+  // Flat list for the tablet icon rail (all items, icons only).
+  const navItems = [
+    ...NAV_TOP,
+    ...NAV_AUTOMATE,
+    ...NAV_BOTTOM,
+    ...(isPlatformAdmin ? [{ path: '/admin', icon: ShieldCheck, label: 'Admin Panel' }] : []),
+  ];
+  // Desktop "Automate" group: expanded while any of its routes is active,
+  // otherwise starts collapsed.
+  const [automateOpen, setAutomateOpen] = useState(false);
+  const inAutomate = NAV_AUTOMATE.some(i => pathname.startsWith(i.path));
+  const automateExpanded = automateOpen || inAutomate;
 
   return (
     <>
@@ -72,7 +88,50 @@ export default function Sidebar({ hideMobileChrome = false } = {}) {
 
         {/* Nav links */}
         <div className="flex-1 overflow-y-auto py-3 px-2 space-y-0.5">
-          {navItems.map(({ path, icon: Icon, label }) => {
+          {NAV_TOP.map(({ path, icon: Icon, label }) => {
+            const active = pathname === path;
+            return (
+              <Link key={path} to={path}
+                className={`flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-all
+                  ${active
+                    ? 'bg-[#00A884]/15 text-[#00A884]'
+                    : 'text-[#8696A0] hover:bg-[#1F2C34] hover:text-white'}`}>
+                <Icon className="w-4 h-4 shrink-0" />
+                {label}
+              </Link>
+            );
+          })}
+
+          {/* ── Automate: collapsible group for the 4 automation features ── */}
+          <button onClick={() => setAutomateOpen(o => !o)}
+            className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-all
+              ${inAutomate
+                ? 'bg-[#00A884]/15 text-[#00A884]'
+                : 'text-[#8696A0] hover:bg-[#1F2C34] hover:text-white'}`}>
+            <Sparkles className="w-4 h-4 shrink-0" />
+            Automate
+            <ChevronDown className={`w-3.5 h-3.5 ml-auto transition-transform ${automateExpanded ? 'rotate-180' : ''}`} />
+          </button>
+          {automateExpanded && (
+            <div className="ml-3 pl-3 border-l border-white/10 space-y-0.5">
+              {NAV_AUTOMATE.map(({ path, icon: Icon, label }) => {
+                const active = pathname === path;
+                return (
+                  <Link key={path} to={path}
+                    className={`flex items-center gap-3 px-3 py-2 rounded-xl text-[13px] transition-all
+                      ${active
+                        ? 'bg-[#00A884]/15 text-[#00A884]'
+                        : 'text-[#8696A0] hover:bg-[#1F2C34] hover:text-white'}`}>
+                    <Icon className="w-4 h-4 shrink-0" />
+                    {label}
+                  </Link>
+                );
+              })}
+            </div>
+          )}
+
+          {[...NAV_BOTTOM, ...(isPlatformAdmin ? [{ path: '/admin', icon: ShieldCheck, label: 'Admin Panel' }] : [])]
+            .map(({ path, icon: Icon, label }) => {
             const active = pathname === path;
             return (
               <Link key={path} to={path}

@@ -100,7 +100,11 @@ function Divider() {
 }
 
 // ── The actual menu content (shared between Sheet + Dropdown) ──────────────
-function MenuContent({ onClose }) {
+function MenuContent({ onClose, variant = 'mobile' }) {
+  // variant 'mobile' keeps everything (mobile has no other route to the
+  // automation features). 'desktop' drops the rows that duplicate the
+  // sidebar rail (Pages + Settings + Admin) — that duplication was the
+  // 'too much menus' bloat in the desktop audit.
   const navigate   = useNavigate();
   const { signOut } = useAuth();
   const { user, profile, isPlatformAdmin, workspaceOwnerId } = useNyasaAuth();
@@ -174,25 +178,27 @@ function MenuContent({ onClose }) {
         onClick={toggleTheme}
       />
 
-      <Divider />
+      {variant === 'mobile' && (
+        <>
+          <Divider />
+          {/* ── Pages (mobile only — the sidebar rail covers these on desktop) ── */}
+          <SectionLabel>Pages</SectionLabel>
+          <Row icon={Megaphone}  label="Broadcasts"         onClick={() => go('/broadcasts')} />
+          <Row icon={Bot}        label="AI Agents"          onClick={() => go('/ai-agents')} />
+          <Row icon={Zap}        label="Automation Rules"   onClick={() => go('/rules')} />
+          <Row icon={BookOpen}   label="Canned Responses"   onClick={() => go('/canned')} />
 
-      {/* ── Pages ──────────────────────────────────────────────────── */}
-      <SectionLabel>Pages</SectionLabel>
-      <Row icon={Megaphone}  label="Broadcasts"         onClick={() => go('/broadcasts')} />
-      <Row icon={Bot}        label="AI Agents"          onClick={() => go('/ai-agents')} />
-      <Row icon={Zap}        label="Automation Rules"   onClick={() => go('/rules')} />
-      <Row icon={BookOpen}   label="Canned Responses"   onClick={() => go('/canned')} />
-
-      <Divider />
-
-      {/* ── Settings / Admin ───────────────────────────────────────── */}
-      <SectionLabel>System</SectionLabel>
-      <Row icon={Settings} label="Settings" sublabel="Channels, team, billing"
-           onClick={() => go('/settings')} />
-      {isPlatformAdmin && (
-        <Row icon={ShieldCheck} iconColor="text-[#25D366]"
-             label="Admin Panel" sublabel="Platform administration"
-             onClick={() => go('/admin')} />
+          <Divider />
+          {/* ── Settings / Admin (mobile only — on the desktop rail) ── */}
+          <SectionLabel>System</SectionLabel>
+          <Row icon={Settings} label="Settings" sublabel="Channels, team, billing"
+               onClick={() => go('/settings')} />
+          {isPlatformAdmin && (
+            <Row icon={ShieldCheck} iconColor="text-[#25D366]"
+                 label="Admin Panel" sublabel="Platform administration"
+                 onClick={() => go('/admin')} />
+          )}
+        </>
       )}
 
       <Divider />
@@ -236,7 +242,7 @@ export function ProfileMenuDesktop({ trigger, side = 'top', align = 'start' }) {
         side={side} align={align}
         className="w-72 p-0 bg-[var(--nyasa-surface-2)] border border-[var(--nyasa-border)] rounded-2xl overflow-hidden shadow-2xl"
       >
-        <MenuContent onClose={() => setOpen(false)} />
+        <MenuContent onClose={() => setOpen(false)} variant="desktop" />
       </DropdownMenuContent>
     </DropdownMenu>
   );
