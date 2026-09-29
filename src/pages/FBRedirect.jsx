@@ -16,6 +16,8 @@
 // Settings page uses. The opening PWA window polls the DB and reflects the
 // connection the moment it lands.
 import { useEffect, useRef, useState } from 'react';
+import { buildFacebookDialogUrl } from '@/lib/facebookDialog';
+import { getChannelConfigs } from '@/lib/channels';
 
 export default function FBRedirect() {
   const [phase, setPhase] = useState('loading'); // loading | ready | busy | done | error
@@ -67,6 +69,39 @@ export default function FBRedirect() {
     return () => { dead = true; };
   }, []);
 
+  // FOCUS POLLING (2026-09-29): mobile browsers suspend this tab while the
+  // wizard popup runs, which can kill the SDK's postMessage relay — the user
+  // finishes on Facebook, comes back, and this page is stuck on
+  // "Completing signup…". Poll the DB whenever this tab wakes up; if the
+  // connection landed another way, show done. If it never lands, the
+  // "Continue in this tab" fallback below runs the wizard via the redirect
+  // flow, which completes server-side and needs no relay at all.
+  useEffect(() => {
+    if (phase !== 'busy') return;
+    let dead = false;
+    const check = async () => {
+      if (dead) return;
+      try {
+        if (!ws) return;
+        const rows = await getChannelConfigs(ws);
+        const wa = rows.find(r => r.channel === 'whatsapp');
+        if (wa?.enabled && wa.config && (wa.config.waba_id || wa.config.access_token || wa.config.phone_number_id)) {
+          dead = true;
+          if (wa.config.setup_pin) setSetupPin(wa.config.setup_pin);
+          setPhase('done');
+        }
+      } catch { /* keep waiting */ }
+    };
+    check();
+    window.addEventListener('focus', check);
+    document.addEventListener('visibilitychange', check);
+    return () => {
+      dead = true;
+      window.removeEventListener('focus', check);
+      document.removeEventListener('visibilitychange', check);
+    };
+  }, [phase, ws]);
+
   // Session-info listener — identical contract to Settings.jsx (sessionInfoVersion 3).
   const startSignup = () => {
     if (!configRef.current || !window.FB) return;
@@ -88,8 +123,20 @@ export default function FBRedirect() {
     const finish = async (response) => {
       window.removeEventListener('message', listener);
       if (!response?.authResponse?.code) {
+        // Popup cancelled or blocked. If NO window ever opened (blocked), the
+        // SDK can never deliver the code on this device — take over THIS tab
+        // and run the wizard via the full-page dialog redirect instead:
+        // Meta ends it by navigating here to redirect_uri?code=..., and the
+        // GET callback in api/auth/whatsapp-embedded.js completes the signup
+        // server-side (no popup, no SDK relay needed).
+        if (!response || response.status === undefined) {
+          setPhase('busy');
+          setError('Popup blocked — continuing in this tab instead…');
+          window.location.href = buildFacebookDialogUrl(configRef.current, ws);
+          return;
+        }
         setPhase('ready');
-        setError('The Facebook window was cancelled or blocked. If no window opened, turn off popup blocking for this site and tap again.');
+        setError('The Facebook window was cancelled. Tap "Continue with Facebook" to try again.');
         return;
       }
       try {
@@ -157,6 +204,12 @@ export default function FBRedirect() {
               className="w-full py-3 rounded-xl text-sm font-bold text-white bg-[#1877F2] hover:bg-[#0f6add] disabled:opacity-60">
               {phase === 'loading' ? 'Getting ready…' : phase === 'busy' ? 'Completing signup…' : 'Continue with Facebook'}
             </button>
+            {phase === 'ready' && (
+              <button onClick={() => { setPhase('busy'); window.location.href = buildFacebookDialogUrl(configRef.current, ws); }}
+                className="w-full mt-3 py-2.5 rounded-xl text-xs text-white/70 bg-white/5 hover:bg-white/10 border border-white/10">
+                No window opening? Continue in this tab instead
+              </button>
+            )}
             {phase === 'busy' && <p className="text-[11px] text-white/40 mt-3">Finish the steps in the Facebook window — this page will update when done.</p>}
           </>
         )}
