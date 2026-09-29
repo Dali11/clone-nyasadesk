@@ -4,6 +4,7 @@ import {
   cacheConversations, getCachedConversations,
   cacheMessages, getCachedMessages,
   upsertCachedConversation, upsertCachedMessage,
+  deleteCachedConversation,
   enqueueOutbox,
 } from '@/lib/offlineDb';
 import { applyAssignmentRules } from '../../api/_lib/assignRules.js';
@@ -260,6 +261,9 @@ export async function getConversations(workspaceId, filters = {}) {
 export async function deleteConversation(id) {
   const { error } = await supabase.from('conversations').delete().eq('id', id);
   if (error) throw error;
+  // Keep the offline cache in sync, or the deleted chat "flashes back" on
+  // the cache-first reload that the realtime DELETE event triggers.
+  deleteCachedConversation(id).catch(() => {});
 }
 
 // Whitelist of real conversations columns — prevents UI-only/normalized
@@ -321,7 +325,29 @@ export async function updateContact(contactId, updates) {
   return data;
 }
 
+// Cascade delete: contacts with chat history are FK-referenced by
+// conversations (and those by messages), so deleting the contact row alone
+// fails with a cryptic foreign-key error — which is why CRM delete never
+// worked. Clear messages → conversations → contact, in that order.
 export async function deleteContact(contactId) {
+  const { data: convs, error: convErr } = await supabase
+    .from('conversations')
+    .select('id')
+    .eq('contact_id', contactId);
+  if (convErr) throw convErr;
+  if (convs?.length) {
+    const convIds = convs.map(c => c.id);
+    const { error: msgErr } = await supabase
+      .from('messages')
+      .delete()
+      .in('conversation_id', convIds);
+    if (msgErr) throw msgErr;
+    const { error: convDelErr } = await supabase
+      .from('conversations')
+      .delete()
+      .eq('contact_id', contactId);
+    if (convDelErr) throw convDelErr;
+  }
   const { error } = await supabase.from('contacts').delete().eq('id', contactId);
   if (error) throw error;
 }
@@ -581,6 +607,9 @@ export function subscribeToConversations(workspaceId, callback) {
     `workspace_id=eq.${workspaceId}`,
     (payload) => {
       if (payload?.new?.id) upsertCachedConversation(payload.new).catch(() => {});
+      if (payload?.eventType === 'DELETE' && payload?.old?.id) {
+        deleteCachedConversation(payload.old.id).catch(() => {});
+      }
       callback(payload);
     }
   );

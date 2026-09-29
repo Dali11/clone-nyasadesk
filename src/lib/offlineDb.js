@@ -63,6 +63,23 @@ export async function upsertCachedConversation(conv) {
   await d.put('conversations', conv);
 }
 
+// Purge a deleted conversation (and its cached messages) from the offline
+// cache. Without this, the cache-first render in loadConversations() shows
+// DELETED chats again for a few seconds ("flash back") until the fresh
+// network fetch lands — exactly what users saw after deleting all chats.
+export async function deleteCachedConversation(id) {
+  if (!id) return;
+  const d = await db();
+  await d.delete('conversations', id);
+  // Best-effort purge of its cached messages via the conversation_id index
+  try {
+    const keys = await d.getAllKeysFromIndex('messages', 'conversation_id', id);
+    const tx = d.transaction('messages', 'readwrite');
+    for (const k of keys) await tx.store.delete(k);
+    await tx.done;
+  } catch { /* non-fatal */ }
+}
+
 // ── Messages ───────────────────────────────────────────────────────────────
 
 export async function cacheMessages(conversationId, msgs) {

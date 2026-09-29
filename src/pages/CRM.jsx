@@ -376,7 +376,13 @@ function Contact360({ contact, conversations, onClose, onSave, onDelete, onBlock
                 className="px-3 py-2.5 rounded-xl bg-white/5 text-[#8696A0] hover:text-white disabled:opacity-30" title="Block / unblock">
                 <Ban className="w-4 h-4" />
               </button>
-              <button onClick={() => { if (confirm('Delete this contact?')) onDelete(draft.id); }}
+              <button onClick={() => {
+              const n = conversations.length;
+              const msg = n > 0
+                ? `Delete this contact?\n\nThey have ${n} conversation${n > 1 ? 's' : ''} in the inbox — deleting will permanently remove the contact AND all their chat history and messages. This cannot be undone.`
+                : 'Delete this contact? This cannot be undone.';
+              if (confirm(msg)) onDelete(draft.id);
+            }}
                 className="px-3 py-2.5 rounded-xl bg-red-500/10 text-red-400 hover:bg-red-500/20" title="Delete">
                 <Trash2 className="w-4 h-4" />
               </button>
