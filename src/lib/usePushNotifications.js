@@ -37,6 +37,25 @@ async function authedFetch(path, body) {
   return res.json();
 }
 
+// Diagnostic beacon (2026-09-29): fire-and-forget report to the server at
+// every push-subscribe failure point, so mobile failures (where devtools are
+// unreachable) are visible in server logs. Plain fetch — deliberately NOT
+// authedFetch: a broken session is one of the failure modes we're chasing.
+async function reportPushDiag(stage, detail) {
+  try {
+    await fetch('/api/team?action=push-diag', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        stage: String(stage || '?'),
+        detail: String(detail || '').slice(0, 400),
+        permission: typeof Notification !== 'undefined' ? Notification.permission : 'n/a',
+        ua: navigator.userAgent.slice(0, 160),
+      }),
+    });
+  } catch { /* beacon is best-effort */ }
+}
+
 function isDeadEndpoint(endpoint) {
   if (!endpoint) return true;
   if (endpoint.includes('fcm.googleapis.com/fcm/send/')) return true;
@@ -81,6 +100,7 @@ export function usePushNotifications(workspaceOwnerId) {
         });
         console.log('[push] Browser subscription created:', sub.endpoint.slice(0, 60));
       } catch (subscribeErr) {
+        reportPushDiag('browser-subscribe-failed', subscribeErr?.message);
         console.warn('[push] pushManager.subscribe() failed, retrying after clearing state:', subscribeErr?.message);
         // Some browsers (Android Chrome) fail if there's a stale/expired subscription
         // state that wasn't cleaned up. Force-clear and retry once.
@@ -109,6 +129,7 @@ export function usePushNotifications(workspaceOwnerId) {
       try { localStorage.setItem('nyasa_push_subscribed', '1'); } catch (_) {}
       return true;
     } catch (dbErr) {
+      reportPushDiag('db-save-failed', dbErr?.message);
       console.error('[push] DB save failed — rolling back browser subscription:', dbErr?.message);
       await sub.unsubscribe().catch(() => {});
       setSubscribed(false);
@@ -201,11 +222,19 @@ export function usePushNotifications(workspaceOwnerId) {
     try {
       const perm = await Notification.requestPermission();
       setPermission(perm);
-      if (perm === 'denied') return { ok: false, error: 'Notifications blocked in browser settings' };
-      if (perm !== 'granted') return { ok: false, error: 'Permission not granted' };
+      if (perm === 'denied') {
+        reportPushDiag('permission-denied', 'requestPermission returned denied (browser/site setting blocks it)');
+        return { ok: false, error: 'Notifications blocked in browser settings' };
+      }
+      if (perm !== 'granted') {
+        reportPushDiag('permission-not-granted', `requestPermission returned ${perm}`);
+        return { ok: false, error: 'Permission not granted' };
+      }
       await subscribeInternal(workspaceOwnerId);
+      reportPushDiag('subscribed-ok', 'full subscribe path completed');
       return { ok: true };
     } catch (e) {
+      reportPushDiag('subscribe-failed', e?.message || String(e));
       console.error('[push] subscribe failed:', e?.message || e);
       return { ok: false, error: e?.message || 'Failed to enable notifications' };
     } finally {

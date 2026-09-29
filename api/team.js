@@ -234,10 +234,14 @@ async function inviteHandler(req, res, sb, sbAnon) {
 async function pushSubscribeHandler(req, res, sb, sbAnon) {
   const { subscription, workspace_id } = req.body || {};
   if (!subscription?.endpoint || !workspace_id) {
+    console.error('[push-subscribe] rejected: missing fields', { has_sub: !!subscription?.endpoint, has_ws: !!workspace_id });
     return res.status(400).json({ error: 'subscription and workspace_id are required' });
   }
   const callerId = await verifyCaller(req, res, sb, sbAnon);
-  if (!callerId) return;
+  if (!callerId) {
+    console.error('[push-subscribe] rejected: verifyCaller failed (auth) — Authorization header present:', !!req.headers?.authorization);
+    return;
+  }
 
   // Two-step upsert: try insert first, fall back to update on conflict.
   // This is more robust than .upsert({onConflict:'endpoint'}) which requires
@@ -665,6 +669,19 @@ export default async function handler(req, res) {
     const sbAnon = createClient(SUPABASE_URL, SUPABASE_ANON);
 
     const action = req.query.action;
+    // Unauthenticated diagnostic beacon from the push UI — log-only, capped.
+    // Exists so subscribe failures are visible server-side when the user
+    // cannot open devtools (mobile). Must run BEFORE auth: a broken session
+    // is one of the failure modes we want to see.
+    if (action === 'push-diag' && req.method === 'POST') {
+      try {
+        const { stage, detail, permission, ua } = req.body || {};
+        console.log(`[push-diag] stage=${String(stage || '?').slice(0, 40)} perm=${String(permission || '?').slice(0, 20)} ua=${String(ua || '?').slice(0, 160)} | ${String(detail || '').slice(0, 400)}`);
+      } catch (e) {
+        console.log('[push-diag] malformed beacon:', e?.message || e);
+      }
+      return res.status(200).json({ ok: true });
+    }
     if (action === 'push-subscribe' && req.method === 'POST') return await pushSubscribeHandler(req, res, sb, sbAnon);
     if (action === 'notif-reply' && req.method === 'POST') return await notifReplyHandler(req, res, sb);
     if (action === 'push-unsubscribe' && req.method === 'POST') return await pushUnsubscribeHandler(req, res, sb, sbAnon);
