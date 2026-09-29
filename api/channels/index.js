@@ -447,11 +447,21 @@ async function handleWhatsappGuidedVerifyCode(req, res) {
   try {
     const { access_token, phone_number_id, code } = req.body || {};
     if (!access_token || !phone_number_id || !code) return res.status(400).json({ ok: false, error: 'access_token, phone_number_id and code are required' });
-    const result = await verifyPhoneCode(access_token, phone_number_id, code);
+    // (2026-09-29) Short-circuit numbers that are ALREADY verified: Meta's
+    // verify_code rejects them with a generic "Verify code error" (nothing is
+    // pending). This wizard is a fallback for genuinely-unverified numbers;
+    // an already-verified (or coexistence) number should just proceed.
+    try {
+      const phone = await getPhoneDetails(access_token, phone_number_id);
+      if (phone?.code_verification_status === 'VERIFIED' || phone?.account_mode === 'COEXISTENCE') {
+        return res.status(200).json({ ok: true, already_verified: true });
+      }
+    } catch { /* status lookup failed — fall through to the verify attempt */ }
+    const result = await verifyPhoneCode(access_token, phone_number_id, String(code).trim());
     return res.status(200).json({ ok: true, ...result });
   } catch (e) {
     console.error('[channels/whatsapp-guided-verify-code] error:', e);
-    return res.status(400).json({ ok: false, error: e.message });
+    return res.status(400).json({ ok: false, error: e.message, error_code: e.code || null, error_subcode: e.subcode || null });
   }
 }
 

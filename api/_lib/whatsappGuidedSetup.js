@@ -247,7 +247,14 @@ export async function verifyPhoneCode(accessToken, phoneNumberId, code) {
     body: JSON.stringify({ code }),
   });
   const data = await res.json();
-  if (data.error) throw new Error(data.error.message || 'That verification code was rejected — check it and try again.');
+  if (data.error) {
+    // Surface Meta's actual error details — "Verify code error" alone gives
+    // nothing to diagnose (wrong/expired/superseded code each look the same).
+    const err = new Error(data.error.message || 'That verification code was rejected — check it and try again.');
+    err.code = data.error.code || null;
+    err.subcode = data.error.error_subcode || null;
+    throw err;
+  }
   return { ok: true };
 }
 
