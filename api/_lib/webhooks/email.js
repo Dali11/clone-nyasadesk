@@ -1,6 +1,6 @@
-import { createClient } from '../_lib/dbFactory.js';
-import { applyAssignmentRules } from '../_lib/assignRules.js';
-import { notifyNewMessage } from '../_lib/pushNotify.js';
+import { createClient } from '../dbFactory.js';
+import { applyAssignmentRules } from '../assignRules.js';
+import { notifyNewMessage } from '../pushNotify.js';
 
 import crypto from 'crypto';
 

@@ -5,8 +5,16 @@
       "destination": "/api/auth?path=$1"
     },
     {
+      "source": "/api/webhooks/(.*)",
+      "destination": "/api/webhooks?channel=$1"
+    },
+    {
       "source": "/api/storage/object/(.*)",
-      "destination": "/api/storage/object?path=$1"
+      "destination": "/api/storage?op=object&path=$1"
+    },
+    {
+      "source": "/api/storage/upload",
+      "destination": "/api/storage?op=upload"
     },
     {
       "source": "/(.*)",
@@ -14,7 +22,7 @@
     }
   ],
   "functions": {
-    "api/webhooks/whatsapp.js": {
+    "api/webhooks.js": {
       "maxDuration": 60
     }
   }

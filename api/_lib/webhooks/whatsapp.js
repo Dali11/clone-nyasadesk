@@ -6,10 +6,10 @@
 // tools (generate_login_link, register_student) as needed. No keyword-based
 // interception is performed — the AI is the single point of intelligence.
 
-import { createClient } from '../_lib/dbFactory.js';
-import { verifyMetaSignature } from '../_lib/verifyMetaSignature.js';
-import { getProvider } from '../_lib/providers/index.js';
-import { applyAssignmentRules } from '../_lib/assignRules.js';
+import { createClient } from '../dbFactory.js';
+import { verifyMetaSignature } from '../verifyMetaSignature.js';
+import { getProvider } from '../providers/index.js';
+import { applyAssignmentRules } from '../assignRules.js';
 
 const SUPABASE_URL = 'https://pfbaepibelomiutlotkn.supabase.co';
 const SUPABASE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY;

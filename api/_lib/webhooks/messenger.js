@@ -1,9 +1,9 @@
 // api/webhooks/messenger.js
 // Thin webhook handler — delegates to the Messenger provider.
 
-import { createClient } from '../_lib/dbFactory.js';
-import { getProvider } from '../_lib/providers/index.js';
-import { applyAssignmentRules } from '../_lib/assignRules.js';
+import { createClient } from '../dbFactory.js';
+import { getProvider } from '../providers/index.js';
+import { applyAssignmentRules } from '../assignRules.js';
 
 const SUPABASE_URL = 'https://pfbaepibelomiutlotkn.supabase.co';
 const SUPABASE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY;

@@ -1,6 +1,6 @@
 // Frontend upload endpoint: { bucket, path, mime, dataBase64 } → media_files.
 // Session-gated; the file must belong to the caller's workspace.
-import { auth } from '../_lib/betterAuth.js';
+import { auth } from '../betterAuth.js';
 import { neon } from '@neondatabase/serverless';
 
 const MAX_BYTES = 25 * 1024 * 1024; // 25 MB
