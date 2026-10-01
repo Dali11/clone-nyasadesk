@@ -38,7 +38,7 @@ const COLUMNS = [
 export default function MarketingFooter() {
   const year = new Date().getFullYear();
   return (
-    <footer style={{ borderTop: `1px solid ${SURFACE2}`, background: SURFACE, padding: '56px 24px 28px' }}>
+    <footer id="resources" style={{ borderTop: `1px solid ${SURFACE2}`, background: SURFACE, padding: '56px 24px 28px' }}>
       <div style={{ maxWidth: 1100, margin: '0 auto' }}>
 
         {/* Grid: brand col + 4 link cols */}

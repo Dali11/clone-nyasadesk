@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { Link, useLocation } from 'react-router-dom';
-import { ChevronDown, Menu, X, Inbox, Bot, FileText, Users2, MessageCircle, Megaphone, RefreshCw } from 'lucide-react';
+import { ChevronDown, Menu, X, Inbox, Bot, Users2, MessageCircle, Megaphone, RefreshCw } from 'lucide-react';
 import { WA_GREEN, SURFACE, SURFACE2, TEXT, MUTED, CONTACT_WHATSAPP } from '@/lib/marketingTheme';
 
 // ─── Product dropdown items ───────────────────────────────────────────────────
@@ -117,7 +117,13 @@ export default function MarketingHeader() {
             )}
           </div>
 
+          <a href="/#sales-flow" style={navLink(false)}>Solutions</a>
+          <a href="/#channels" style={navLink(false)}>Channels</a>
+          <a href="/#ai-agents" style={navLink(false)}>AI Agents</a>
+
           <Link to="/pricing" style={navLink(isActive('/pricing'))}>Pricing</Link>
+
+          <a href="/#resources" style={navLink(false)}>Resources</a>
 
           <a
             href={CONTACT_WHATSAPP}
@@ -128,7 +134,7 @@ export default function MarketingHeader() {
             <MessageCircle size={15} /> Chat with us
           </a>
 
-          <Link to="/login" style={navLink(isActive('/login'))}>Login</Link>
+          <Link to="/login" style={navLink(isActive('/login'))}>Log in</Link>
 
           <Link to="/register" style={{
             background: WA_GREEN, color: '#fff', textDecoration: 'none',
@@ -170,11 +176,15 @@ export default function MarketingHeader() {
 
           <div style={{ height: 1, background: SURFACE2, margin: '10px 0' }} />
 
+          <a href="/#sales-flow" style={{ padding: '10px 4px', textDecoration: 'none', color: TEXT, fontSize: 15, fontWeight: 600 }}>Solutions</a>
+          <a href="/#channels" style={{ padding: '10px 4px', textDecoration: 'none', color: TEXT, fontSize: 15, fontWeight: 600 }}>Channels</a>
+          <a href="/#ai-agents" style={{ padding: '10px 4px', textDecoration: 'none', color: TEXT, fontSize: 15, fontWeight: 600 }}>AI Agents</a>
           <Link to="/pricing" style={{ padding: '10px 4px', textDecoration: 'none', color: TEXT, fontSize: 15, fontWeight: 600 }}>Pricing</Link>
+          <a href="/#resources" style={{ padding: '10px 4px', textDecoration: 'none', color: TEXT, fontSize: 15, fontWeight: 600 }}>Resources</a>
           <a href={CONTACT_WHATSAPP} target="_blank" rel="noopener noreferrer" style={{ padding: '10px 4px', textDecoration: 'none', color: TEXT, fontSize: 15, fontWeight: 600, display: 'flex', alignItems: 'center', gap: 8 }}>
             <MessageCircle size={16} /> Chat with us
           </a>
-          <Link to="/login" style={{ padding: '10px 4px', textDecoration: 'none', color: TEXT, fontSize: 15, fontWeight: 600 }}>Login</Link>
+          <Link to="/login" style={{ padding: '10px 4px', textDecoration: 'none', color: TEXT, fontSize: 15, fontWeight: 600 }}>Log in</Link>
           <Link to="/register" style={{ marginTop: 10, textAlign: 'center', background: WA_GREEN, color: '#fff', textDecoration: 'none', fontSize: 15, fontWeight: 700, padding: '13px 0', borderRadius: 10, letterSpacing: '-.01em' }}>
             Get started free
           </Link>

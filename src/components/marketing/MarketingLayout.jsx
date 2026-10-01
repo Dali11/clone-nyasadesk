@@ -42,11 +42,11 @@ export function Pill({ label, color = '#25D366' }) {
 }
 
 // ─── Layout ───────────────────────────────────────────────────────────────────
-export default function MarketingLayout({ children, title }) {
+export default function MarketingLayout({ children, title, className = '' }) {
   useDocumentTitle(title ? `${title} · Nyasadesk` : 'Nyasadesk');
 
   return (
-    <div style={{
+    <div className={className} style={{
       background: BG,
       color: TEXT,
       fontFamily: "'Inter', sans-serif",
